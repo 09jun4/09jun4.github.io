@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<title>09jun4</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="wrap">
+  <h1>works</h1>
+  <ul class="list" id="works"></ul>
+  <a class="more" href="works/">전체 보기 →</a>
+  <h1>notes</h1>
+  <ul class="list" id="notes"></ul>
+  <a class="more" href="notes/">전체 보기 →</a>
+</main>
+<script src="data/works.js"></script>
+<script src="data/notes.js"></script>
+<script src="assets/site.js"></script>
+<script>
+  header('');
+  fill('works', WORKS.slice().sort(byDate).slice(0, 5), workRow, '아직 없어요');
+  fill('notes', NOTES.slice().sort(byDate).slice(0, 5), noteRow, '아직 없어요');
+</script>
+</body>
+</html>

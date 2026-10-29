@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<meta name="robots" content="noindex, nofollow">
+<title>notes · 09jun4</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main class="wrap">
+  <h1>notes</h1>
+  <input class="search" id="q" type="search" placeholder="검색">
+  <ul class="list" id="list"></ul>
+</main>
+<script src="../data/notes.js"></script>
+<script src="../assets/site.js"></script>
+<script>
+  header('notes');
+  const q = document.getElementById('q');
+  const draw = () => { const s = q.value.trim().toLowerCase(); fill('list', NOTES.filter(n => !s || (n.title + ' ' + (n.desc || '')).toLowerCase().includes(s)).sort(byDate), noteRow, s ? '찾는 노트가 없어요' : '아직 없어요'); };
+  q.oninput = draw; draw();
+</script>
+</body>
+</html>
