@@ -10,6 +10,9 @@
 // The camera's heading follows the car's direction of travel with a lag,
 // so the car visibly turns on screen when steering and sits at an angle
 // while sliding.
+// Finish shot (AI 대전, after the chequered flag while the autopilot
+// drives): the camera swings round the car over FRONT_SWING seconds and
+// tracks it from in front of the nose, low and close.
 (function () {
   'use strict';
   window.CR = window.CR || {};
@@ -23,7 +26,13 @@
     width: 0,
     height: 0,
     pos: { x: 0, y: 0, h: 0 }, // camera position (world metres)
+    frontT: 0, // 0 = chase view, 1 = finish shot from the front
   };
+
+  var FRONT_SWING = 0.8; // s to swing round
+  var FRONT = { distance: 8.5, height: 1.9, pitch: 5, centerY: 0.52 };
+
+  function ease(t) { return t * t * (3 - 2 * t); }
 
   var NEAR = 0.5; // m, near clipping plane depth
 
@@ -49,18 +58,31 @@
     // Pull back a little with speed.
     var target = cfg.CAM_DISTANCE + Math.min(cfg.CAM_SPEED_PULLBACK, c.speed * 0.1);
     Camera.distance += (target - Camera.distance) * Math.min(1, 2 * dt);
+
+    if (c.autopilot) Camera.frontT = Math.min(1, Camera.frontT + dt / FRONT_SWING);
+    else Camera.frontT = 0;
   };
 
   Camera.snapToCar = function () {
     Camera.heading = CR.Car.state.heading;
     Camera.distance = CR.Config.CAM_DISTANCE;
+    Camera.frontT = 0;
   };
 
   // Sets up the projection for this frame (canvas CSS-pixel size).
   Camera.begin = function (canvas) {
     var c = CR.Car.state, cfg = CR.Config;
+    var dist = Camera.distance || cfg.CAM_DISTANCE, k = ease(Camera.frontT);
+    if (k > 0) {
+      // Orbit from behind (0) to in front (pi), easing height/pitch/distance.
+      Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, Camera.heading + Math.PI * k,
+        dist + (FRONT.distance - dist) * k, cfg.CAM_HEIGHT + (FRONT.height - cfg.CAM_HEIGHT) * k,
+        cfg.CAM_PITCH_DEG + (FRONT.pitch - cfg.CAM_PITCH_DEG) * k, cfg.CAM_FOCAL,
+        cfg.CAM_CENTER_Y + (FRONT.centerY - cfg.CAM_CENTER_Y) * k);
+      return;
+    }
     Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, Camera.heading,
-      Camera.distance || cfg.CAM_DISTANCE, cfg.CAM_HEIGHT, cfg.CAM_PITCH_DEG, cfg.CAM_FOCAL, cfg.CAM_CENTER_Y);
+      dist, cfg.CAM_HEIGHT, cfg.CAM_PITCH_DEG, cfg.CAM_FOCAL, cfg.CAM_CENTER_Y);
   };
 
   // General view: looking along `heading` at target (tx, ty) from `dist`

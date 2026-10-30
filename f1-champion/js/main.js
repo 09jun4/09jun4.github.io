@@ -132,6 +132,7 @@
     Main.raceActive = false;
     CR.Laps.reset(false);
     CR.Car.state.coasting = false;
+    CR.Car.state.autopilot = false;
     Main.toGarage();
     CR.Menu.showTab('race');
   };
@@ -247,7 +248,8 @@
   function handleRaceEvents(dt) {
     var ev = CR.Race.events;
     for (var i = 0; i < ev.length; i++) {
-      resultsIn = ev[i].type === 'retire' ? CR.Config.RETIRE_OVERLAY_DELAY + 0.4 : 2.2;
+      // finish: swing to the front shot (0.8 s), then ~2 s of it
+      resultsIn = ev[i].type === 'retire' ? CR.Config.RETIRE_OVERLAY_DELAY + 0.4 : 2.8;
       if (ev[i].type === 'finish') CR.Hud.flash('체커기! P' + CR.Race.results.playerPos, 'is-best');
     }
     ev.length = 0;
@@ -293,7 +295,7 @@
     if (Main.state === 'playing' || Main.state === 'results') {
       var onGrid = CR.Race.active && CR.Race.phase === 'lights';
       if (!onGrid) {
-        if (CR.Input.autoShift) CR.Car.autoShift();
+        if (CR.Input.autoShift || CR.Car.state.autopilot) CR.Car.autoShift();
         CR.Car.update(dt);
         if (!(CR.Race.active && CR.Race.phase === 'done')) CR.Laps.update(dt);
       }
@@ -302,6 +304,8 @@
       handleCarEvents(dt);
       handleRaceEvents(dt);
       CR.Camera.update(dt);
+      // Finish shot: hide controls and help that would cover the car.
+      document.body.classList.toggle('finish-shot', !!CR.Car.state.autopilot);
       var t0 = performance.now();
       CR.Renderer.render(ctx, canvas, dt);
       adaptResolution(performance.now() - t0, now);

@@ -58,6 +58,43 @@
 
   var RETIRED_INPUT = { throttle: 0, brake: 0, steerTarget: 0 };
 
+  // --- Autopilot (after the chequered flag in AI 대전) ------------------------
+  // Follows the centreline: steers at a point AP_LOOKAHEAD + speed * 0.5 m
+  // ahead, slows to AP_CRUISE (or less if a corner ahead needs it), and
+  // shifts by itself. The car can't explode while it drives.
+  var AP_CRUISE = 22; // m/s, ~80 km/h victory lap pace
+  var AP_LOOKAHEAD = 10; // m
+  var AP_DECEL = 24; // m/s^2 planned braking (inside the car's limit)
+  var apInput = { throttle: 0, brake: 0, steerTarget: 0 };
+
+  function autopilotInput(c) {
+    var S = CR.Track.samples, n = S.length;
+    if (!n) return RETIRED_INPUT;
+    var want = AP_LOOKAHEAD + c.speed * 0.4; // aim point distance
+    // Speed plan: every corner within braking range caps the speed now at
+    // sqrt(v_corner^2 + 2 * AP_DECEL * distance).
+    var scan = Math.max(want, c.speed * c.speed / (2 * AP_DECEL) + 20);
+    var j = c.nearestSampleIndex || 0, walked = 0, aim = null, allowed = AP_CRUISE;
+    while (walked < scan) {
+      var a = S[j], b = S[(j + 1) % n];
+      walked += Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      j = (j + 1) % n;
+      if (!aim && walked >= want) aim = S[j];
+      var vc = S[j].maxSafeSpeed * 0.75;
+      allowed = Math.min(allowed, Math.sqrt(vc * vc + 2 * AP_DECEL * walked));
+    }
+    allowed = Math.min(allowed, S[c.nearestSampleIndex || 0].maxSafeSpeed * 0.75);
+    var ang = Math.atan2(aim.y - c.y, aim.x - c.x) - c.heading;
+    ang = Math.atan2(Math.sin(ang), Math.cos(ang));
+    apInput.steerTarget = clamp(ang * 3, -1, 1);
+    var target = allowed;
+    var err = c.speed - target;
+    apInput.brake = err > 1 ? clamp(err / 6, 0.2, 1) : 0;
+    apInput.throttle = err < -1 ? clamp(-err / 8, 0, 0.6) : 0;
+    return apInput;
+  }
+  Car.autopilotInput = apInput;
+
   // Forward acceleration (m/s^2) along the body axis for forward speed vf.
   // Shared by Car.update and Car.measureStats so the menu's numbers come
   // from the same physics. Also leaves the engine RPM in lastRpm.
@@ -118,7 +155,7 @@
     if (vn * side > 0) {
       // Speed INTO the wall: explode, or just a bump.
       var impact = Math.abs(vn);
-      if (!c.retired && impact >= cfg.EXPLODE_IMPACT_SPEED) {
+      if (!c.retired && !c.autopilot && impact >= cfg.EXPLODE_IMPACT_SPEED) {
         c.retired = true;
         c.exploded = true;
         Car.events.push({ type: 'explode', impact: impact });
@@ -146,7 +183,8 @@
     // A car with fewer gears (switched to mid-race, e.g. single-speed
     // Formula E) can't be in a gear it doesn't have.
     if (c.gear > cfg.GEAR_RATIOS.length) c.gear = cfg.GEAR_RATIOS.length;
-    if (c.retired || c.coasting) input = RETIRED_INPUT; // no control; rolls to a stop (coasting: after the chequered flag)
+    if (c.retired || c.coasting) input = RETIRED_INPUT; // no control; rolls to a stop (coasting: after a forfeit)
+    else if (c.autopilot) input = autopilotInput(c); // after the chequered flag
 
     // Body-frame split of the world velocity.
     var fx = Math.cos(c.heading), fy = Math.sin(c.heading);
@@ -256,6 +294,7 @@
       c.heading = s.heading;
     }
     c.coasting = false;
+    c.autopilot = false;
     c.vx = 0;
     c.vy = 0;
     c.speed = 0;

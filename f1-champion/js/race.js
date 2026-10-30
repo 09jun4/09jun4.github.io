@@ -315,7 +315,9 @@
     if (lapNumber >= Race.LAPS) {
       Race.player.finished = true;
       Race.player.finishTime = CR.Laps.history.reduce(function (s, l) { return s + l.time; }, 0);
-      CR.Car.state.coasting = true;
+      // Autopilot takes over (no crash into the next wall) and the camera
+      // swings round to look at the car from the front.
+      CR.Car.state.autopilot = true;
       finishRace(false);
     }
   };

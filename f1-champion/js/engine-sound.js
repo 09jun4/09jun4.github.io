@@ -199,7 +199,7 @@
   }
 
   function createCombustion(ac, id, v, dest, opts) {
-    var e = { ac: ac, id: id, v: v, remote: !!opts.remote, nodes: [], boost: 0, overrun: 0, lastThrottle: 0, lastT: null, liftAt: -1, popRate: 0 };
+    var e = { ac: ac, id: id, v: v, remote: !!opts.remote, nodes: [], blipUntil: -1, boost: 0, overrun: 0, lastThrottle: 0, lastT: null, liftAt: -1, popRate: 0 };
     var loops = cached(ac, 'loops-' + id, function () { return buildLoops(ac, id, v); });
     e.baseRpm = loops.baseRpm;
     e.noise = cached(ac, 'noise-' + id, function () { return noiseBuffer(ac, 2, seedOf(id) ^ 99); });
@@ -359,6 +359,9 @@
 
     // Load: throttle mostly, but a spinning engine always has some.
     var load = Math.min(1, thr * (0.75 + 0.25 * rf));
+    // Downshift blip: a stab of throttle to match revs ("bwaap").
+    var blip = t < e.blipUntil;
+    if (blip) load = Math.max(load, 0.95);
     set(e.gL.gain, Math.sqrt(0.05 + 0.95 * load), t);
     set(e.gO.gain, Math.sqrt(1 - load) * 0.8, t);
     set(e.pre.gain, 0.55 + 1.0 * load * (0.4 + 0.6 * rf), t);
@@ -375,7 +378,7 @@
     set(e.lim.gain, limiting ? 0.5 : 1, t, 0.005);
     set(e.limDepth.gain, limiting ? 0.48 : 0, t, 0.005);
 
-    var level = v.level * (0.20 + 0.50 * load * (0.55 + 0.45 * rf) + 0.18 * rf);
+    var level = v.level * (0.20 + 0.50 * load * (0.55 + 0.45 * rf) + 0.18 * rf) * (blip ? 1.35 : 1);
     set(e.out.gain, level, t);
 
     // Turbo: boost builds with lag, drops fast on lift.
@@ -434,8 +437,15 @@
     e.cut.gain.cancelScheduledValues(t);
     e.cut.gain.setTargetAtTime(up ? 0.12 : 0.4, t, 0.004);
     e.cut.gain.setTargetAtTime(1, t + cut, 0.012);
-    if (up) popAt(e, t + cut * 0.6, 0.35 * e.v.pops + 0.1);
-    else popAt(e, t + 0.01, 0.5 * e.v.pops + 0.15);
+    if (up) {
+      popAt(e, t + cut * 0.6, 0.35 * e.v.pops + 0.1);
+    } else {
+      // Blip, then the overrun cracks as the throttle snaps shut again.
+      e.blipUntil = t + 0.13;
+      popAt(e, t + 0.01, 0.75 + 0.25 * e.v.pops);
+      popAt(e, t + 0.15 + Math.random() * 0.03, 0.55 + 0.3 * e.v.pops);
+      if (Math.random() < 0.6) popAt(e, t + 0.22 + Math.random() * 0.06, 0.35 + 0.3 * e.v.pops);
+    }
   }
 
   function stopAll(e, t) {

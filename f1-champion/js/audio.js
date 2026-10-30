@@ -269,12 +269,12 @@
     if (!engine) return;
     var c = CR.Car.state, cfg = CR.Config, input = CR.Input.state;
     var rpmFrac = Math.max(0, Math.min(1, (c.rpm - cfg.IDLE_RPM) / (cfg.REDLINE_RPM - cfg.IDLE_RPM)));
-    var throttle = c.coasting ? 0 : input.throttle;
+    var throttle = c.coasting ? 0 : c.autopilot ? CR.Car.autopilotInput.throttle : input.throttle;
 
     engine.update({
       rpmFrac: rpmFrac,
       throttle: throttle,
-      brake: input.brake || 0,
+      brake: c.autopilot ? CR.Car.autopilotInput.brake : (input.brake || 0),
       speed: c.speed,
       limiter: c.rpm >= cfg.REDLINE_RPM - 60 && throttle > 0,
     }, now);
@@ -315,7 +315,7 @@
     thunkFilter.type = 'lowpass';
     thunkFilter.frequency.value = 600;
     var thunkGain = ac.createGain();
-    thunkGain.gain.setValueAtTime(0.18, t);
+    thunkGain.gain.setValueAtTime(up === false ? 0.32 : 0.18, t); // downshifts clunk harder
     thunkGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     thunk.connect(thunkFilter).connect(thunkGain).connect(sfxBus);
     thunk.start(t);
