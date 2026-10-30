@@ -18,7 +18,7 @@ Firebase(Auth + Firestore)를 씁니다. `js/firebase-config.js`가 비어 있�
 | 경로 | 내용 | 권한 |
 |---|---|---|
 | `users/{uid}` | 저장 데이터(JSON 문자열), 닉네임 | 본인만 |
-| `tracks/{서킷}/laps/{uid}` | 서킷별 연습 베스트 랩 | 읽기 공개, 쓰기 본인 |
+| `tracks/{서킷}/laps/{uid}` | 서킷별 연습 베스트 랩 (기기: mobile/pc) | 읽기 공개, 쓰기 본인 |
 | `career/{uid}` | AI 대전 포인트·우승·챔피언 | 읽기 공개, 쓰기 본인 |
 
 `js/vendor/firebase.js`는 Firebase JS SDK 10.14.1(app, auth, firestore)을 esbuild로 묶은 파일입니다.

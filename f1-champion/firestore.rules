@@ -29,7 +29,8 @@ service cloud.firestore {
       allow delete: if signedIn(uid);
       allow create, update: if signedIn(uid)
         && track in ['monza', 'suzuka', 'lasvegas', 'spa', 'silverstone', 'interlagos']
-        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'at'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at'])
+        && (!('device' in request.resource.data) || request.resource.data.device in ['mobile', 'pc'])
         && request.resource.data.uid == uid
         && validName(request.resource.data.name)
         && request.resource.data.time is number
@@ -43,7 +44,8 @@ service cloud.firestore {
       allow read: if true;
       allow delete: if signedIn(uid);
       allow create, update: if signedIn(uid)
-        && request.resource.data.keys().hasOnly(['uid', 'name', 'points', 'wins', 'podiums', 'titles', 'races', 'at'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'points', 'wins', 'podiums', 'titles', 'races', 'device', 'at'])
+        && (!('device' in request.resource.data) || request.resource.data.device in ['mobile', 'pc'])
         && request.resource.data.uid == uid
         && validName(request.resource.data.name)
         && count(request.resource.data.races, 100000)

@@ -977,3 +977,37 @@ body.in-race #tc-reset { display: none; } /* a retirement ends the race */
 .rank-medal-1 { color: #ffd23f; } .rank-medal-2 { color: #d6dbe3; } .rank-medal-3 { color: #e9a76b; }
 .rank-foot { margin: 6px 0 0; color: var(--menu-accent); font-size: 13px; font-weight: 800; text-align: right; }
 .acct-admin { padding: 3px 8px; border-radius: 999px; background: rgba(123, 63, 228, 0.9); color: #fff; font-size: 11px; font-weight: 800; }
+
+/* ================= Folding menu panels (menu.js makeFold) ================= */
+.fold { width: 100%; margin-top: 12px; border-radius: 16px; background: var(--menu-panel); border: 1px solid var(--menu-border); overflow: hidden; }
+.shop-top > .fold:first-child, #tab-practice > .fold:first-child { margin-top: 0; }
+.fold-head { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 0; background: transparent;
+  color: var(--menu-fg); font: inherit; text-align: left; cursor: pointer; }
+.fold-head:hover { background: var(--menu-panel-hi); }
+.fold-head:focus-visible { outline: 3px solid var(--menu-accent); outline-offset: -3px; border-radius: 16px; }
+.fold-title { flex: none; min-width: 72px; font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--menu-dim); }
+.fold-sum { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--menu-dim); }
+.fold-sum b { color: var(--menu-fg); font-size: 15px; font-weight: 800; }
+.fold-money { margin-left: auto; color: #5ee39a; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fold-bar { width: 90px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.fold-bar span { display: block; height: 100%; background: var(--menu-accent); }
+.fold-chev { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--menu-dim); border-bottom: 2px solid var(--menu-dim);
+  transform: rotate(45deg) translate(-2px, -2px); transition: transform 0.15s; }
+.fold.is-open .fold-chev { transform: rotate(-135deg) translate(-2px, -2px); }
+.fold.is-open > .fold-head { border-bottom: 1px solid var(--menu-border); }
+/* The panel inside a fold drops its own frame and duplicate title. */
+.fold-body > .garage-car, .fold-body > .tuning, .fold-body > .shop, .fold-body > .tracks {
+  margin: 0; border: 0; border-radius: 0; background: transparent; }
+.fold-body .garage-car-head .menu-section, .fold-body #tuning-title, .fold-body #tracks-title { display: none; }
+.fold-body #shop-title { margin-bottom: 10px; font-size: 12px; letter-spacing: 0.02em; }
+.fold-body #shop-title::first-line { color: var(--menu-dim); }
+@media (max-width: 560px) {
+  .fold-head { padding: 14px; gap: 10px; }
+  .fold-title { min-width: 0; }
+  .fold-bar { width: 60px; }
+}
+@media (prefers-reduced-motion: reduce) { .fold-chev { transition: none; } }
+
+/* Device glyph after names in rankings */
+.dev-icon { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--menu-dim); }
+.dev-mobile { color: #6fc3ff; }

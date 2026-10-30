@@ -21,6 +21,13 @@
 
   var STORAGE_KEY = 'circuit-racer-copy.shop';
 
+  // 'mobile' (touch play) or 'pc' — stored with records, shown in rankings.
+  CR.deviceType = function () {
+    var touch = document.body && document.body.classList.contains('touch');
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return touch || coarse ? 'mobile' : 'pc';
+  };
+
   var Garage = {
     BEST_LAP_MULTIPLIER: 2,
     REF_SPEED: 50, // m/s (180 km/h) average lap speed that pays the base rate
@@ -126,7 +133,10 @@
       if (data.practice && typeof data.practice === 'object') {
         for (var tid in data.practice) {
           var rec = data.practice[tid];
-          if (rec && Number(rec.time) > 0) Garage.practice[tid] = { time: Number(rec.time), car: String(rec.car || ''), at: Number(rec.at) || 0 };
+          if (rec && Number(rec.time) > 0) {
+            Garage.practice[tid] = { time: Number(rec.time), car: String(rec.car || ''), at: Number(rec.at) || 0 };
+            if (rec.dev === 'mobile' || rec.dev === 'pc') Garage.practice[tid].dev = rec.dev;
+          }
         }
       }
       if (typeof data.raceDifficulty === 'string') Garage.raceDifficulty = data.raceDifficulty;
@@ -332,7 +342,7 @@
     if (practice && trackId) {
       var cur = Garage.practice[trackId];
       if (!cur || lapSeconds < cur.time) {
-        Garage.practice[trackId] = { time: lapSeconds, car: carId, at: Date.now() };
+        Garage.practice[trackId] = { time: lapSeconds, car: carId, at: Date.now(), dev: CR.deviceType() };
         out.record = true;
         emit('practiceRecord', trackId);
       }

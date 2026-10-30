@@ -203,6 +203,20 @@
 
   // Puts this player's practice best on `trackId` into the ranking if it is
   // better than what the ranking has (or the name changed).
+  // Writes a ranking doc with its `device` field; if the published rules
+  // predate that field (permission-denied), writes it without for this visit.
+  var deviceAllowed = true;
+  function setRank(ref, data) {
+    if (!deviceAllowed) { delete data.device; return SDK.setDoc(ref, data); }
+    return SDK.setDoc(ref, data).catch(function (e) {
+      if (!e || e.code !== 'permission-denied' || !('device' in data)) throw e;
+      deviceAllowed = false;
+      delete data.device;
+      console.warn('[F1C] ranking rules do not accept "device" yet — publish the updated firestore.rules');
+      return SDK.setDoc(ref, data);
+    });
+  }
+
   function pushLap(trackId, force) {
     if (Cloud.state !== 'in') return Promise.resolve();
     var rec = CR.Garage.practice[trackId];
@@ -211,9 +225,12 @@
     return SDK.getDoc(ref).then(function (snap) {
       var cur = snap.exists() ? snap.data() : null;
       var time = Math.round(rec.time * 1000) / 1000;
-      if (cur && !force && cur.time <= time && cur.name === name) return;
-      var best = cur && cur.time < time ? cur : { time: time, car: rec.car };
-      return SDK.setDoc(ref, { uid: uid, name: name, time: best.time, car: best.car, at: SDK.serverTimestamp() });
+      var dev = rec.dev || CR.deviceType();
+      if (cur && !force && cur.time <= time && cur.name === name && (cur.device || !deviceAllowed)) return;
+      var best = cur && cur.time < time ? cur : { time: time, car: rec.car, device: dev };
+      var data = { uid: uid, name: name, time: best.time, car: best.car, at: SDK.serverTimestamp() };
+      if (best.device === 'mobile' || best.device === 'pc') data.device = best.device;
+      return setRank(ref, data);
     }).catch(function (e) { console.error('[F1C] lap rank write failed', e); });
   }
 
@@ -222,9 +239,9 @@
     var st = CR.Garage.careerStats();
     if (!st.races) return Promise.resolve();
     var uid = Cloud.user.uid;
-    return SDK.setDoc(careerRef(uid), {
+    return setRank(careerRef(uid), {
       uid: uid, name: Cloud.displayName(), points: st.points, wins: st.wins, podiums: st.podiums,
-      titles: st.titles, races: st.races, at: SDK.serverTimestamp(),
+      titles: st.titles, races: st.races, device: CR.deviceType(), at: SDK.serverTimestamp(),
     }).catch(function (e) { console.error('[F1C] career rank write failed', e); });
   }
 

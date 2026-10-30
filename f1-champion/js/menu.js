@@ -262,7 +262,7 @@
       card.appendChild(el('span', 'track-name', o.name));
       card.appendChild(el('span', 'track-sub', o.sub));
       card.addEventListener('click', function () {
-        if (G.selectTrack(o.id)) { renderTracks(); drawTracks(); }
+        if (G.selectTrack(o.id)) { renderTracks(); drawTracks(); renderFoldSummaries(); }
       });
       els.tracks.appendChild(card);
     });
@@ -483,6 +483,20 @@
 
   // --- Online rankings (기록 tab) --------------------------------------------
 
+  // Small phone / monitor glyph after a ranking name.
+  var DEVICE_SVG = {
+    mobile: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="4" y="1" width="8" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="12.2" r="0.9" fill="currentColor"/></svg>',
+    pc: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="2" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h4M8 11v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  };
+  function deviceIcon(dev) {
+    var s = el('span', 'dev-icon dev-' + dev);
+    s.innerHTML = DEVICE_SVG[dev];
+    s.title = dev === 'mobile' ? '모바일' : 'PC';
+    s.setAttribute('role', 'img');
+    s.setAttribute('aria-label', s.title);
+    return s;
+  }
+
   var rankView = { mode: 'laps', track: -1 };
   var rankSeq = 0;
 
@@ -548,6 +562,7 @@
           tr.appendChild(el('td', 'rr-pos' + (i < 3 ? ' rank-medal-' + (i + 1) : ''), String(i + 1)));
           var who = el('td', 'rr-driver');
           who.appendChild(el('b', null, r.name || '드라이버'));
+          if (r.device === 'mobile' || r.device === 'pc') who.appendChild(deviceIcon(r.device));
           if (r.uid === mine) who.appendChild(el('small', null, '나'));
           tr.appendChild(who);
           if (rankView.mode === 'laps') {
@@ -657,6 +672,90 @@
   }
 
   // Redraws money, current car and shop (after a purchase / switch or on show).
+  // --- Folding panels (내 차 · 튜닝 · 상점 · 서킷) ----------------------------
+  //
+  // Each panel collapses to a one-line bar with a live summary; open/closed
+  // state is remembered per browser. Collapsed by default.
+  var FOLD_KEY = 'f1-champion.folds';
+  var folds = {};
+  function foldState() {
+    try { return JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function makeFold(section, key, title) {
+    var wrap = el('div', 'fold');
+    wrap.setAttribute('data-fold', key);
+    var head = el('button', 'fold-head');
+    head.type = 'button';
+    var bodyId = 'fold-body-' + key;
+    head.setAttribute('aria-controls', bodyId);
+    head.appendChild(el('span', 'fold-title', title));
+    var sum = el('span', 'fold-sum');
+    head.appendChild(sum);
+    head.appendChild(el('span', 'fold-chev'));
+    var body = el('div', 'fold-body');
+    body.id = bodyId;
+    section.parentNode.insertBefore(wrap, section);
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    body.appendChild(section);
+    folds[key] = { wrap: wrap, head: head, body: body, sum: sum };
+    head.addEventListener('click', function () {
+      var st = foldState();
+      st[key] = !wrap.classList.contains('is-open');
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify(st)); } catch (e) { /* ignore */ }
+      setFold(key, st[key]);
+      if (st[key]) { drawAllPreviews(); drawTracks(); } // canvases get their size once visible
+    });
+    return wrap;
+  }
+  function setFold(key, open) {
+    var f = folds[key];
+    f.wrap.classList.toggle('is-open', open);
+    f.head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    f.body.hidden = !open;
+  }
+
+  function renderFoldSummaries() {
+    if (!folds.car) return;
+    var G = CR.Garage, T = CR.Tuning, car = G.car(), s = stats[car.id];
+    if (!s) return;
+    folds.car.sum.textContent = '';
+    folds.car.sum.appendChild(el('b', null, car.name));
+    folds.car.sum.appendChild(el('span', null, Math.round(s.topSpeedKmh) + 'km/h · 0→100 ' + s.zeroTo100.toFixed(2) + '초'));
+    folds.car.sum.appendChild(el('span', 'fold-money', G.formatBalance()));
+
+    var lv = T.PARTS.reduce(function (n, p) { return n + T.level(car.id, p.key); }, 0), max = T.PARTS.length * T.MAX_LEVEL;
+    folds.tune.sum.textContent = '';
+    folds.tune.sum.appendChild(el('b', null, car.name));
+    var bar = el('span', 'fold-bar');
+    var fill = el('span');
+    fill.style.width = (lv / max * 100).toFixed(0) + '%';
+    bar.appendChild(fill);
+    folds.tune.sum.appendChild(bar);
+    folds.tune.sum.appendChild(el('span', null, lv + '/' + max + '단계'));
+
+    var owned = CR.Cars.list.filter(function (c) { return G.isOwned(c.id); }).length;
+    var next = CR.Cars.list.filter(function (c) { return !G.isOwned(c.id); })[0];
+    folds.shop.sum.textContent = '';
+    folds.shop.sum.appendChild(el('b', null, '보유 ' + owned + '/' + CR.Cars.list.length + '대'));
+    folds.shop.sum.appendChild(el('span', null, next ? '다음 ' + next.name + ' ' + G.format(next.price) + (G.canBuy(next.id) ? ' · 구매 가능' : '') : '모든 차 보유'));
+
+    var ti = G.trackIndex(G.track);
+    folds.track.sum.textContent = '';
+    folds.track.sum.appendChild(el('b', null, ti >= 0 ? CR.Tracks.list[ti].name : '랜덤'));
+    var rec = ti >= 0 ? G.practice[CR.Tracks.list[ti].realName] : null;
+    if (rec) folds.track.sum.appendChild(el('span', null, '내 기록 ' + fmt(rec.time)));
+  }
+
+  function buildFolds() {
+    makeFold(document.querySelector('.garage-car'), 'car', '내 차');
+    makeFold(document.querySelector('.tuning'), 'tune', '튜닝');
+    makeFold(document.querySelector('.shop'), 'shop', '상점');
+    els.tracksSection = makeFold(document.querySelector('.tracks'), 'track', '서킷 선택');
+    var st = foldState();
+    Object.keys(folds).forEach(function (k) { setFold(k, !!st[k]); });
+  }
+
   Menu.refresh = function () {
     CR.Main.applyCar(); // the selected car may have changed
     renderCurrent();
@@ -665,6 +764,7 @@
     renderTracks();
     renderRacePanel();
     if (Menu.tab === 'records') renderRecords();
+    renderFoldSummaries();
     if (!Menu.el.hidden) { drawAllPreviews(); drawTracks(); }
 
     var racing = CR.Main.raceActive && !CR.Race.active;
@@ -729,7 +829,7 @@
     els.racePanel = document.getElementById('race-panel');
     els.recordsPanel = document.getElementById('records-panel');
     els.raceLock = document.getElementById('race-tab-lock');
-    els.tracksSection = document.querySelector('.tracks');
+    buildFolds();
     els.actions = document.querySelector('.menu-actions');
     els.keys = document.querySelector('.menu-keys');
     var tabBtns = document.querySelectorAll('.menu-tab');
