@@ -92,7 +92,7 @@
     var car = CR.Garage.car();
     els.carName.textContent = car.name;
     els.carTag.textContent = car.tagline + ' · 수익 배율 ×' + earnMult(car);
-    els.money.textContent = CR.Garage.format(CR.Garage.money);
+    els.money.textContent = CR.Garage.formatBalance();
     var dl = statList(car, false);
     dl.id = 'garage-stats';
     els.stats.replaceWith(dl);
@@ -131,7 +131,7 @@
         btn.classList.add('is-max');
       } else {
         btn.textContent = '+1단계 ' + G.format(cost);
-        btn.disabled = G.money < cost;
+        btn.disabled = G.spendable() < cost;
         btn.title = '다음 단계: ' + part.effect(part.gain * (lv + 1));
         btn.addEventListener('click', function () {
           if (!T.upgrade(car, part.key)) return;
@@ -176,7 +176,7 @@
         btn.className = 'shop-btn is-select';
         btn.addEventListener('click', function () { if (G.select(car.id)) Menu.refresh(); });
       } else {
-        var short = car.price - G.money;
+        var short = car.price - G.spendable();
         btn.textContent = short > 0 ? '구매 ' + G.format(car.price) + ' (' + G.format(short) + ' 부족)' : '구매 ' + G.format(car.price);
         btn.disabled = short > 0;
         btn.addEventListener('click', function () { if (G.buy(car.id)) Menu.refresh(); });
@@ -466,6 +466,7 @@
         else box.appendChild(chip);
       } else {
         chip.appendChild(el('b', 'acct-name', C.nickname));
+        if (C.isAdmin) chip.appendChild(el('span', 'acct-admin', '관리자 · 무제한'));
         var edit = el('button', 'acct-link', '닉네임 변경');
         edit.type = 'button';
         edit.addEventListener('click', function () { nickEditing = true; renderAccount(); });

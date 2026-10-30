@@ -80,7 +80,7 @@
   // Buys the next level of a part (car must be owned). Returns true on success.
   Tuning.upgrade = function (car, key) {
     var G = CR.Garage, cost = Tuning.nextCost(car, key);
-    if (cost === null || !G.isOwned(car.id) || G.money < cost) return false;
+    if (cost === null || !G.isOwned(car.id) || G.spendable() < cost) return false;
     return G.setTune(car.id, key, Tuning.level(car.id, key) + 1, cost);
   };
 

@@ -254,14 +254,31 @@
     return !!Garage.owned[id];
   };
 
+  // Admin account (cloud.js): unlimited money. Purchases are free and the
+  // saved balance is left untouched.
+  Garage.unlimited = false;
+  Garage.setUnlimited = function (on) {
+    Garage.unlimited = !!on;
+    if (Garage.onCloudChange) Garage.onCloudChange();
+  };
+  Garage.spendable = function () {
+    return Garage.unlimited ? Infinity : Garage.money;
+  };
+  Garage.formatBalance = function () {
+    return Garage.unlimited ? '∞' : Garage.format(Garage.money);
+  };
+  function spend(amount) {
+    if (!Garage.unlimited) Garage.money -= amount;
+  }
+
   Garage.canBuy = function (id) {
-    return !Garage.isOwned(id) && Garage.money >= CR.Cars.byId(id).price;
+    return !Garage.isOwned(id) && Garage.spendable() >= CR.Cars.byId(id).price;
   };
 
   // Buys and switches to the car.
   Garage.buy = function (id) {
     if (!Garage.canBuy(id)) return false;
-    Garage.money -= CR.Cars.byId(id).price;
+    spend(CR.Cars.byId(id).price);
     Garage.owned[id] = true;
     Garage.selected = id;
     save();
@@ -270,8 +287,8 @@
 
   // Sets a tuning level and pays for it (tuning.js checks the rules).
   Garage.setTune = function (carId, key, level, cost) {
-    if (Garage.money < cost) return false;
-    Garage.money -= cost;
+    if (Garage.spendable() < cost) return false;
+    spend(cost);
     Garage.tune[carId] = Garage.tune[carId] || {};
     Garage.tune[carId][key] = level;
     save();

@@ -110,9 +110,10 @@
     Hud._lastMoney = null; // re-mark the best lap
     }
     if (L.history.length !== Hud._historyCount) renderHistory(L);
-    if (CR.Garage.money !== Hud._lastMoney) {
-      Hud.moneyEl.textContent = CR.Garage.format(CR.Garage.money);
-      Hud._lastMoney = CR.Garage.money;
+    var bal = CR.Garage.formatBalance();
+    if (bal !== Hud._lastMoney) {
+      Hud.moneyEl.textContent = bal;
+      Hud._lastMoney = bal;
     }
 
     for (var i = 0; i < L.events.length; i++) {

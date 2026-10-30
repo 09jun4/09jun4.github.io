@@ -26,6 +26,19 @@
     NICK_MIN: 2,
     NICK_MAX: 12,
   };
+  // Admin accounts: SHA-256 of the lowercase Google e-mail (the address
+  // itself is not published). Admins get unlimited money.
+  var ADMIN_EMAIL_SHA256 = ['c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991'];
+  Cloud.isAdmin = false;
+  function checkAdmin(u) {
+    if (!u || !u.email || !u.emailVerified || !window.crypto || !crypto.subtle) return Promise.resolve(false);
+    var bytes = new TextEncoder().encode(u.email.trim().toLowerCase());
+    return crypto.subtle.digest('SHA-256', bytes).then(function (buf) {
+      var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+      return ADMIN_EMAIL_SHA256.indexOf(hex) >= 0;
+    }, function () { return false; });
+  }
+
   var listeners = [];
   Cloud.onChange = function (fn) { listeners.push(fn); };
   function changed() { listeners.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } }); }
@@ -127,6 +140,8 @@
       Cloud.state = 'out';
       Cloud.user = null;
       Cloud.nickname = '';
+      Cloud.isAdmin = false;
+      CR.Garage.unlimited = false;
       if (was || CR.Garage.uid) CR.Garage.detachAccount();
       changed();
       return;
@@ -135,8 +150,11 @@
     Cloud.user = { uid: u.uid, name: u.displayName || '', photo: u.photoURL || '' };
     CR.Garage.setStatus('loading');
     changed();
-    SDK.getDoc(userRef(u.uid)).then(function (snap) {
+    Promise.all([SDK.getDoc(userRef(u.uid)), checkAdmin(u)]).then(function (res) {
+      var snap = res[0];
       if (!Cloud.user || Cloud.user.uid !== u.uid) return; // signed out meanwhile
+      Cloud.isAdmin = res[1];
+      CR.Garage.unlimited = res[1];
       var data = snap.exists() ? snap.data() : null;
       var remote = null;
       if (data && typeof data.save === 'string') {
