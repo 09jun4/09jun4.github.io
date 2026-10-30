@@ -854,6 +854,7 @@ const Mesher = {
           if (nid) {
             if (FULL[nid]) continue;
             if (nid === id && (b.render !== 'cutout' || b.glass)) continue;
+            if (b.leaves && BLOCKS[nid].leaves) continue;
             if (b.render === 'trans' && RENDER[nid] === 2 && BLOCKS[nid].glass && b.glass) continue;
           }
           let tile = f === 2 ? b.faces.top : f === 3 ? b.faces.bottom : b.faces.side;

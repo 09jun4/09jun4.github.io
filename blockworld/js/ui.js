@@ -138,16 +138,17 @@ const UI = {
       if (!it) this.lastHeldName = null;
       this.dirty = false;
     }
-    if (P.health !== this.lh || P.food !== this.lf || Math.ceil(P.air) !== this.la || P.level !== this.ll || P.xp !== this.lxp || P.hurtTime > 0 || P.health <= 4 || this.lastMode !== P.mode) {
+    if (P.health !== this.lh || P.food !== this.lf || Math.ceil(P.air) !== this.la || P.level !== this.ll || P.xp !== this.lxp || P.hurtTime > 0 || (P.health <= 4 && GAME.frameN % 4 === 0) || this.lastMode !== P.mode) {
       this.lh = P.health; this.lf = P.food; this.la = Math.ceil(P.air); this.ll = P.level; this.lxp = P.xp; this.lastMode = P.mode;
       this.drawBars(P);
     }
     // vignette / overlays
-    const hurt = this.$('hurt'); if (P.hurtFlash > 0) { P.hurtFlash = Math.max(0, P.hurtFlash - dt * 2.5); } hurt.style.opacity = P.hurtFlash * 0.6;
-    this.$('portal-ov').style.opacity = Math.min(0.85, P.portalT / 3.5);
-    this.$('water-ov').style.opacity = GAME.underwater ? 1 : 0;
-    this.$('fire-ov').style.opacity = P.fire > 0 && P.mode === 'survival' ? 1 : 0;
-    this.$('crosshair').hidden = !!this.open;
+    if (P.hurtFlash > 0) P.hurtFlash = Math.max(0, P.hurtFlash - dt * 2.5);
+    this.setOv('hurt', (P.hurtFlash * 0.6).toFixed(2));
+    this.setOv('portal-ov', Math.min(0.85, P.portalT / 3.5).toFixed(2));
+    this.setOv('water-ov', GAME.underwater ? 1 : 0);
+    this.setOv('fire-ov', P.fire > 0 && P.mode === 'survival' ? 1 : 0);
+    if (this.chHidden !== !!this.open) { this.chHidden = !!this.open; this.$('crosshair').hidden = this.chHidden; }
     if (this.debug && (GAME.frameN % 10 === 0)) {
       const w = GAME.world, x = Math.floor(P.pos.x), y = Math.floor(P.pos.y), z = Math.floor(P.pos.z);
       const c = w.chunkAt(x, z), L = w.getLight(x, y, z);
@@ -160,6 +161,7 @@ const UI = {
         hit && hit.block ? `대상 블록: ${BLOCKS[hit.id].ko} (${BLOCKS[hit.id].name}) @ ${hit.x},${hit.y},${hit.z}` : hit && hit.entity ? `대상: ${MOB_KO[hit.entity.type] || '엔티티'} HP ${Math.ceil(hit.entity.health)}` : ''].join('\n');
     }
   },
+  setOv(id, v) { this.ov = this.ov || {}; if (this.ov[id] === v) return; this.ov[id] = v; this.$(id).style.opacity = v; },
   drawBars(P) {
     const c = this.barsCtx, S = 2;
     c.clearRect(0, 0, this.bars.width, this.bars.height);

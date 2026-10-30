@@ -107,16 +107,21 @@ function noiseFill(ctx, w, h, col, amt = 0.15, seed = 1) {
 }
 function px(ctx, pts, col) { ctx.fillStyle = col; for (const [x, y, w = 1, h = 1] of pts) ctx.fillRect(x, y, w, h); }
 // box with per-face materials; face order: +x,-x,+y,-y,+z(front),-z
+// one draw call per box: faces share a 32x8 strip texture laid out as [side, front, top, back]
+const BOX_TILE = [0, 0, 2, 0, 1, 3]; // three.js face order +x,-x,+y,-y,+z,-z
+function stripTex(base, front, opts) {
+  const key = [base, opts.amt || 0.12, opts.seed || 3, front ? front.uuid : '', opts.top ? opts.top.uuid : '', opts.back ? opts.back.uuid : ''].join();
+  if (SkinCache[key]) return SkinCache[key];
+  return SkinCache[key] = pixTex(32, 8, c => {
+    noiseFill(c, 8, 8, base, opts.amt || 0.12, opts.seed || 3);
+    [front, opts.top, opts.back].forEach((t, i) => { if (t) c.drawImage(t.image, 0, 0, t.image.width, t.image.height, (i + 1) * 8, 0, 8, 8); else c.drawImage(c.canvas, 0, 0, 8, 8, (i + 1) * 8, 0, 8, 8); });
+  });
+}
 function mbox(w, h, d, base, front, opts = {}) {
-  const key = [w, h, d, base, opts.amt || 0.12, opts.seed || 0].join();
-  const side = SkinCache[key] || (SkinCache[key] = pixTex(8, 8, (c) => noiseFill(c, 8, 8, base, opts.amt || 0.12, opts.seed || 3)));
-  const mats = [];
-  for (let i = 0; i < 6; i++) {
-    const tex = i === 4 && front ? front : (opts.top && i === 2 ? opts.top : (opts.back && i === 5 ? opts.back : side));
-    mats.push(new THREE.MeshBasicMaterial({ map: tex, transparent: !!opts.transparent, opacity: opts.opacity || 1, alphaTest: opts.alphaTest || 0 }));
-  }
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
-  return m;
+  const g = new THREE.BoxGeometry(w, h, d);
+  const uv = g.attributes.uv;
+  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setX(i, (BOX_TILE[f] + uv.getX(i)) / 4); }
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: stripTex(base, front, opts), transparent: !!opts.transparent, opacity: opts.opacity || 1 }));
 }
 function pivot(mesh, px_, py, pz, ox, oy, oz) {
   const g = new THREE.Group(); g.position.set(px_, py, pz); mesh.position.set(ox, oy, oz); g.add(mesh); return g;
@@ -190,8 +195,8 @@ function buildModel(type) {
       const body = mbox(4, 4, 4, '#F0F0F0', shut, { amt: 0.05 }); body.position.y = 3;
       g.add(body); const legs = [];
       for (let i = 0; i < 9; i++) { const l = pivot(mbox(0.25, 2, 0.25, '#E8E8E8', null), (i % 3 - 1) * 1.2, 1, ((i / 3 | 0) - 1) * 1.2, 0, -1, 0); g.add(l); legs.push(l); }
-      const open = faceTex('#F0F0F0', c => { px(c, [[1, 2, 2, 2], [5, 2, 2, 2], [2, 5, 4, 2]], '#600'); px(c, [[1, 3], [6, 3]], '#F00'); }, 21);
-      m = { g, legs, body, open, shut }; break;
+      const openF = faceTex('#F0F0F0', c => { px(c, [[1, 2, 2, 2], [5, 2, 2, 2], [2, 5, 4, 2]], '#600'); px(c, [[1, 3], [6, 3]], '#F00'); }, 21);
+      m = { g, legs, body, open: stripTex('#F0F0F0', openF, { amt: 0.05 }), shut: body.material.map }; break;
     }
     case 'blaze': {
       const g = new THREE.Group();
@@ -236,6 +241,10 @@ class Mob extends Entity {
     this.sheared = false;
   }
   canSee(t) {
+    if (this.seeT > this.age) return this.seeV;
+    this.seeT = this.age + 15; return this.seeV = this.rayClear(t);
+  }
+  rayClear(t) {
     const from = new THREE.Vector3(this.pos.x, this.pos.y + this.h * 0.85, this.pos.z), to = new THREE.Vector3(t.pos.x, t.pos.y + 1.5, t.pos.z);
     const dir = to.clone().sub(from); const len = dir.length(); dir.normalize();
     for (let s = 0.5; s < len; s += 0.5) { const p = from.clone().addScaledVector(dir, s); const id = GAME.world.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)); if (FULL[id]) return false; }
@@ -244,6 +253,7 @@ class Mob extends Entity {
   update(dt) {
     this.age++;
     const world = GAME.world, P = GAME.player;
+    if (this.age % 2 && !this.dead && this.pos.distanceToSquared(P.pos) > 48 * 48) { this.animate(dt); return; }
     if (this.invuln > 0) this.invuln -= dt;
     if (this.hurtTime > 0) this.hurtTime -= dt;
     if (this.dead) {
@@ -363,14 +373,14 @@ class Mob extends Entity {
       this.yaw = Math.atan2(dx, dz);
       if (this.cool <= 0 && this.canSee(GAME.player)) {
         if (this.type === 'ghast') {
-          this.model.body.material[4].map = this.model.open; this.openT = 0.6;
+          this.model.body.material.map = this.model.open; this.openT = 0.6;
           GAME.sound('ghast', this.pos);
           setTimeout(() => { if (!this.removed) this.shootFireball(GAME.player, true); }, 500);
           this.cool = 3 + Math.random() * 2;
         } else { for (let i = 0; i < 3; i++) setTimeout(() => { if (!this.removed && !this.dead) this.shootFireball(GAME.player, false); }, i * 300); this.cool = 4; }
       }
     } else if (this.vel.lengthSq() > 0.01) this.yaw = Math.atan2(this.vel.x, this.vel.z);
-    if (this.openT > 0) { this.openT -= dt; if (this.openT <= 0) this.model.body.material[4].map = this.model.shut; }
+    if (this.openT > 0) { this.openT -= dt; if (this.openT <= 0) this.model.body.material.map = this.model.shut; }
   }
   physicsFly(dt) {
     const r = moveAABB(GAME.world, this, this.vel.x * dt, this.vel.y * dt, this.vel.z * dt);
@@ -418,12 +428,7 @@ class Mob extends Entity {
     if (this.hurtTime > 0 || this.dead) { r = Math.min(1, r * 1.0 + 0.5); g *= 0.4; b *= 0.4; }
     if (this.type === 'creeper' && this.fuse > 0 && Math.floor(this.fuse * 8) % 2 === 0) { r = g = b = 1.6; }
     if (this.fire > 0) { r = Math.min(1.4, r + 0.3); }
-    for (const mm of this.model.mats) mm.color.setRGB(r, g, b);
-    if (this.type === 'enderman' || this.type === 'blaze') {
-      // eyes glow: brighten head front face
-      const hm = this.model.head && this.model.head.children[0].material;
-      if (hm) hm[4].color.setRGB(Math.max(r, 0.9), Math.max(g, 0.9), Math.max(b, 0.9));
-    }
+    if (r !== this.lr || g !== this.lg || b !== this.lb) { this.lr = r; this.lg = g; this.lb = b; for (const mm of this.model.mats) mm.color.setRGB(r, g, b); }
   }
   damage(amount, src) {
     if (this.dead) return false;
@@ -558,7 +563,7 @@ class Projectile extends Entity {
       const bb = blockBox(id);
       if (bb) { const fx = this.pos.x - Math.floor(this.pos.x), fy = this.pos.y - Math.floor(this.pos.y), fz = this.pos.z - Math.floor(this.pos.z); if (fx >= bb[0] && fx <= bb[3] && fy >= bb[1] && fy <= bb[4] && fz >= bb[2] && fz <= bb[5]) { this.pos.sub(sd); return { block: id }; } }
       if (LIQ[id] === 1) this.vel.multiplyScalar(0.8);
-      for (const e of GAME.hitTargets()) {
+      for (const e of GAME.targets) {
         if (e === this.owner || e.dead || e.removed || (this.age < 3 && e === this.owner)) continue;
         if (e.hitTest ? e.hitTest(this.pos, 0.15) : (this.pos.x > e.pos.x - e.w - 0.1 && this.pos.x < e.pos.x + e.w + 0.1 && this.pos.z > e.pos.z - e.w - 0.1 && this.pos.z < e.pos.z + e.w + 0.1 && this.pos.y > e.pos.y && this.pos.y < e.pos.y + e.h)) return { ent: e };
       }
@@ -918,6 +923,11 @@ class Particles {
       n++;
     }
     this.geo.setDrawRange(0, n * 6);
-    this.geo.attributes.position.needsUpdate = true; this.geo.attributes.uv.needsUpdate = true; this.geo.attributes.color.needsUpdate = true;
+    this.mesh.visible = n > 0;
+    if (!n && !this.lastN) return;
+    this.lastN = n;
+    const a = this.geo.attributes;
+    a.position.updateRange.count = n * 12; a.color.updateRange.count = n * 12; a.uv.updateRange.count = n * 8;
+    a.position.needsUpdate = a.uv.needsUpdate = a.color.needsUpdate = true;
   }
 }

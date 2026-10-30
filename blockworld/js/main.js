@@ -20,7 +20,7 @@ void main(){
 }`;
 
 const GAME = {
-  started: false, paused: true, renderDist: 6, fov: 70, sens: 0.0022, time: 1000, daylight: 1, stats: { kills: 0, mined: 0 },
+  started: false, paused: true, renderDist: 5, fov: 70, sens: 0.0022, time: 1000, daylight: 1, stats: { kills: 0, mined: 0 },
   entities: [], keys: {}, mouse: { l: false, r: false }, camShake: 0, dragonKilled: false, worlds: {}, chunkMeshes: new Map(),
   init() {
     TEX.init();
@@ -34,7 +34,7 @@ const GAME = {
     // renderer
     const canvas = document.getElementById('game');
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.setPixelRatio(1);
     this.renderer.autoClear = false;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.fov, 1, 0.05, 1000);
@@ -938,8 +938,8 @@ const GAME = {
       return false;
     };
     if (w.dim === 'overworld') {
-      if (hostile < 18) for (let i = 0; i < 3; i++) tryAt(pick([['zombie', 35], ['skeleton', 30], ['creeper', 25], ['enderman', 8]]), 24, 48, false, true);
-      if (passive < 10 && this.daylight > 0.5 && Math.random() < 0.3) {
+      if (hostile < 12) for (let i = 0; i < 3; i++) tryAt(pick([['zombie', 35], ['skeleton', 30], ['creeper', 25], ['enderman', 8]]), 24, 48, false, true);
+      if (passive < 8 && this.daylight > 0.5 && Math.random() < 0.3) {
         const t = pick([['pig', 25], ['cow', 25], ['sheep', 25], ['chicken', 20]]);
         for (let i = 0; i < 3; i++) tryAt(t, 24, 44, true, false);
       }
@@ -1092,7 +1092,7 @@ const GAME = {
     this.frameN = (this.frameN || 0) + 1;
     this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1;
     if (this.fpsAcc > 0.5) { this.fps = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
-    TEX.tick(t / 1000);
+    TEX.tick(t / 1000, this.renderer);
     if (!this.started) { this.renderTitle(dt); return; }
     const P = this.player;
     if (this.loading) {
@@ -1134,6 +1134,7 @@ const GAME = {
           }
         }
       } else { this.crack.visible = false; }
+      this.targets = this.hitTargets();
       for (const e of this.entities) if (!e.removed) e.update(dt);
       this.entities = this.entities.filter(e => !e.removed);
       if (this.dragon) UI.bossHealth(this.dragon.health / this.dragon.maxHealth);

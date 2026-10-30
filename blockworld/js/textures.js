@@ -68,17 +68,22 @@ const TEX = {
     const e = 0.02 / ATLAS_PX;
     return [x / ATLAS_COLS + e, 1 - (y + 1) / ATLAS_COLS + e, (x + 1) / ATLAS_COLS - e, 1 - y / ATLAS_COLS - e];
   },
-  tick(time) {
-    let changed = false;
+  tick(time, renderer) {
+    const props = renderer && this.texture && renderer.properties.get(this.texture);
+    const glTex = props && props.__webglTexture;
     for (const a of this.anims) {
       const f = Math.floor(time * a.speed) % a.imgs.length;
-      if (f !== a.cur) {
-        a.cur = f;
-        this.ctx.putImageData(a.imgs[f], (a.idx % ATLAS_COLS) * TS, ((a.idx / ATLAS_COLS) | 0) * TS);
-        changed = true;
-      }
+      if (f === a.cur) continue;
+      a.cur = f;
+      const tx = (a.idx % ATLAS_COLS) * TS, ty = ((a.idx / ATLAS_COLS) | 0) * TS;
+      if (!glTex) { this.ctx.putImageData(a.imgs[f], tx, ty); if (this.texture) this.texture.needsUpdate = true; continue; }
+      const gl = renderer.getContext();
+      renderer.state.activeTexture(gl.TEXTURE0);
+      renderer.state.bindTexture(gl.TEXTURE_2D, glTex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, tx, ATLAS_PX - ty - TS, TS, TS, gl.RGBA, gl.UNSIGNED_BYTE, a.imgs[f].data);
     }
-    if (changed && this.texture) this.texture.needsUpdate = true;
   },
 };
 
