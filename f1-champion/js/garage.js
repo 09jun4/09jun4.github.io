@@ -1,8 +1,11 @@
 // garage.js — money, owned cars and the selected car.
-// Saved two ways: in this browser (localStorage, instant) and in the
-// viewer's Claude account (artifact db, private doc data/users/<id>/save),
-// so progress follows the account to any device. On open the newer of the
-// two (savedAt) wins; account writes are debounced and one at a time.
+// Saved in this browser (localStorage, instant) and, when signed in, in the
+// player's account (cloud.js: Google login + Firestore; or the Claude
+// account when running as a claude.ai artifact). Each account has its own
+// local cache (ACCOUNT_KEY + uid); signed out, the guest save is used. On
+// sign-in the account save wins, except offline progress of the same
+// account that is newer; a brand-new account takes over the guest save.
+// Account writes are debounced and one at a time.
 // Load order: after cars.js. Depends on: Cars.
 //
 // Every completed lap pays more the FASTER it is, like a real race (2026-10-05;
@@ -34,7 +37,22 @@
     seasons: [], // finished seasons, oldest first
   };
 
+  var ACCOUNT_KEY = 'f1-champion.account.';
+  var activeKey = STORAGE_KEY; // localStorage slot in use (guest or account cache)
   var cloud = { doc: null, timer: 0, writing: false, again: false };
+  var listeners = {};
+  Garage.uid = null; // signed-in account id, or null (guest)
+
+  // Events for cloud.js: 'practiceRecord' (trackId), 'race' (record).
+  Garage.on = function (type, fn) { (listeners[type] = listeners[type] || []).push(fn); };
+  function emit(type, arg) { (listeners[type] || []).forEach(function (fn) { try { fn(arg); } catch (e) { console.error(e); } }); }
+
+  function readSlot(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+  }
+  function writeSlot() {
+    try { localStorage.setItem(activeKey, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable */ }
+  }
   Garage.savedAt = 0;
   Garage.cloudStatus = 'local'; // 'local' | 'loading' | 'synced' | 'saving' | 'error'
   Garage.onCloudChange = null; // set by menu.js: redraw after an account load
@@ -54,11 +72,13 @@
     if (!cloud.doc) return;
     if (cloud.writing) { cloud.again = true; return; }
     cloud.writing = true;
+    var store = cloud.doc;
     setStatus('saving');
-    cloud.doc.set(snapshot()).then(function () {
-      setStatus('synced');
-    }, function () {
-      setStatus('error');
+    store.set(snapshot()).then(function () {
+      if (cloud.doc === store) setStatus('synced');
+    }, function (e) {
+      console.error('[F1C] cloud save failed', e);
+      if (cloud.doc === store) setStatus('error');
     }).then(function () {
       cloud.writing = false;
       if (cloud.again) { cloud.again = false; writeCloud(); }
@@ -67,9 +87,7 @@
 
   function save() {
     Garage.savedAt = Date.now();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot()));
-    } catch (e) { /* storage unavailable: progress lasts for this visit */ }
+    writeSlot();
     if (cloud.doc) {
       clearTimeout(cloud.timer);
       cloud.timer = setTimeout(writeCloud, 1200);
@@ -141,10 +159,51 @@
   }
 
   Garage.load = function () {
-    var data = null;
-    try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { /* storage unavailable or corrupt */ }
-    apply(data);
+    activeKey = STORAGE_KEY;
+    apply(readSlot(STORAGE_KEY));
   };
+
+  // Signed in as `uid`. remote: the account's save (or null if none yet);
+  // store.set(data) -> Promise writes it to the account.
+  Garage.attachAccount = function (uid, remote, store) {
+    if (cloud.timer) { clearTimeout(cloud.timer); cloud.timer = 0; }
+    var cacheKey = ACCOUNT_KEY + uid;
+    var cached = readSlot(cacheKey);
+    var pick, upload;
+    if (remote && cached && (Number(cached.savedAt) || 0) > (Number(remote.savedAt) || 0)) { pick = cached; upload = true; }
+    else if (remote) { pick = remote; upload = false; }
+    else if (cached) { pick = cached; upload = true; }
+    else {
+      // New account: it takes over this browser's guest progress (moved, not
+      // copied — the guest slot starts fresh, so the next person doesn't get it).
+      pick = readSlot(STORAGE_KEY);
+      upload = true;
+      if (pick) { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ } }
+    }
+    Garage.uid = uid;
+    activeKey = cacheKey;
+    cloud.doc = store;
+    cloud.again = false;
+    apply(pick);
+    if (!Garage.savedAt) Garage.savedAt = Date.now();
+    writeSlot();
+    if (upload) writeCloud();
+    else setStatus('synced');
+    if (Garage.onCloudChange) Garage.onCloudChange();
+  };
+
+  // Signed out: back to the guest save in this browser.
+  Garage.detachAccount = function () {
+    if (cloud.timer) { clearTimeout(cloud.timer); cloud.timer = 0; if (cloud.doc) writeCloud(); }
+    cloud.doc = null;
+    Garage.uid = null;
+    activeKey = STORAGE_KEY;
+    apply(readSlot(STORAGE_KEY));
+    setStatus('local');
+    if (Garage.onCloudChange) Garage.onCloudChange();
+  };
+
+  Garage.setStatus = setStatus;
 
   // Connects to the viewer's Claude account save. Without an account
   // (signed out, or no write access) the browser save keeps working.
@@ -167,18 +226,7 @@
         if (!uid) { setStatus('local'); return null; }
         var doc = db.doc('data/users/' + uid + '/save');
         return doc.get().then(function (snap) {
-          cloud.doc = doc;
-          var remote = snap.exists ? snap.data() : null;
-          if (remote && (Number(remote.savedAt) || 0) >= Garage.savedAt) {
-            apply(remote);
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot())); } catch (e) { /* ignore */ }
-            setStatus('synced');
-            if (Garage.onCloudChange) Garage.onCloudChange();
-          } else {
-            // Nothing in the account yet, or this browser is newer: upload.
-            if (!Garage.savedAt) Garage.savedAt = Date.now();
-            writeCloud();
-          }
+          Garage.attachAccount('claude-' + uid, snap.exists ? snap.data() : null, { set: function (d) { return doc.set(d); } });
         });
       });
     }).catch(function () { setStatus('error'); });
@@ -269,6 +317,7 @@
       if (!cur || lapSeconds < cur.time) {
         Garage.practice[trackId] = { time: lapSeconds, car: carId, at: Date.now() };
         out.record = true;
+        emit('practiceRecord', trackId);
       }
     }
     save();
@@ -333,7 +382,27 @@
       Garage.season = { num: season.num + 1, races: [] };
     }
     save();
+    emit('race', race);
     return { race: race, season: season, finishedSeason: finished };
+  };
+
+  // AI 대전 career totals (all seasons + the current one) for rankings.
+  Garage.careerStats = function () {
+    var st = { points: 0, wins: 0, podiums: 0, titles: 0, races: 0 };
+    var all = [];
+    Garage.seasons.forEach(function (s) {
+      all = all.concat(s.races);
+      if (s.playerRank === 1) st.titles++;
+    });
+    all = all.concat(Garage.season.races);
+    all.forEach(function (r) {
+      st.races++;
+      var me = r.entries.filter(function (e) { return e.id === 'you'; })[0];
+      if (me) st.points += me.points || 0;
+      if (!r.retired && r.playerPos === 1) st.wins++;
+      if (!r.retired && r.playerPos <= 3) st.podiums++;
+    });
+    return st;
   };
 
   Garage.format = function (amount) {

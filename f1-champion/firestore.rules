@@ -1,0 +1,57 @@
+rules_version = '2';
+// F1 Champion — Firestore 보안 규칙.
+// Firebase console > Firestore Database > 규칙 탭에 이 내용을 통째로 붙여 넣고 "게시"하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validName(n) {
+      return n is string && n.size() >= 2 && n.size() <= 12 && !n.matches('.*[<>"\'`\\\\].*');
+    }
+    function count(n, max) {
+      return n is int && n >= 0 && n <= max;
+    }
+
+    // 개인 저장 데이터: 본인만 읽고 쓸 수 있어요.
+    match /users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['save', 'nickname', 'updatedAt'])
+        && (!('save' in request.resource.data) || (request.resource.data.save is string && request.resource.data.save.size() < 800000))
+        && (!('nickname' in request.resource.data) || validName(request.resource.data.nickname));
+    }
+
+    // 서킷별 베스트 랩 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요.
+    match /tracks/{track}/laps/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && track in ['monza', 'suzuka', 'lasvegas', 'spa', 'silverstone', 'interlagos']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'at'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && request.resource.data.time is number
+        && request.resource.data.time > 30 && request.resource.data.time < 3600
+        && request.resource.data.car in ['f4', 'f3', 'f2', 'fe', 'f1']
+        && request.resource.data.at == request.time;
+    }
+
+    // AI 대전 커리어 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요.
+    match /career/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'points', 'wins', 'podiums', 'titles', 'races', 'at'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && count(request.resource.data.races, 100000)
+        && count(request.resource.data.points, request.resource.data.races * 30)
+        && count(request.resource.data.wins, request.resource.data.races)
+        && count(request.resource.data.podiums, request.resource.data.races)
+        && count(request.resource.data.titles, request.resource.data.races)
+        && request.resource.data.at == request.time;
+    }
+  }
+}

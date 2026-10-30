@@ -415,6 +415,169 @@
     return ol;
   }
 
+  // --- Account (Google login, cloud.js) ------------------------------------
+
+  var nickEditing = false;
+  function renderAccount() {
+    var C = CR.Cloud, box = els.account;
+    if (!box) return;
+    box.textContent = '';
+    if (!C.enabled) return;
+    if (C.state === 'out') {
+      var b = el('button', 'acct-login');
+      b.type = 'button';
+      b.appendChild(el('span', 'g-mark', 'G'));
+      b.appendChild(el('span', null, '구글로 로그인'));
+      b.addEventListener('click', function () { C.signIn(); });
+      box.appendChild(b);
+      box.appendChild(el('span', 'acct-hint', '로그인하면 어느 기기에서든 이어서 하고 랭킹에 올라가요'));
+    } else if (C.state === 'pending') {
+      box.appendChild(el('span', 'acct-hint', '로그인 중…'));
+    } else {
+      var chip = el('div', 'acct-chip');
+      var av = el('span', 'acct-avatar', (C.displayName() || '?').slice(0, 1));
+      chip.appendChild(av);
+      if (nickEditing || !C.nickname) {
+        var form = el('form', 'acct-nick');
+        var input = el('input');
+        input.type = 'text';
+        input.maxLength = C.NICK_MAX;
+        input.placeholder = '랭킹 닉네임 (' + C.NICK_MIN + '~' + C.NICK_MAX + '자)';
+        input.value = C.nickname || '';
+        input.setAttribute('aria-label', '랭킹 닉네임');
+        var ok = el('button', null, '저장');
+        ok.type = 'submit';
+        form.appendChild(input);
+        form.appendChild(ok);
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (!C.validNick(input.value)) {
+            input.setCustomValidity(C.NICK_MIN + '~' + C.NICK_MAX + '자, 특수문자 < > " \' ` \\ 제외');
+            input.reportValidity();
+            return;
+          }
+          ok.disabled = true;
+          C.setNickname(input.value).then(function () { nickEditing = false; renderAccount(); },
+            function () { ok.disabled = false; });
+        });
+        input.addEventListener('input', function () { input.setCustomValidity(''); });
+        chip.appendChild(form);
+        if (!C.nickname) box.appendChild(chip), box.appendChild(el('span', 'acct-hint', '랭킹에 표시될 닉네임을 정해 주세요 (지금은 ' + C.displayName() + ')'));
+        else box.appendChild(chip);
+      } else {
+        chip.appendChild(el('b', 'acct-name', C.nickname));
+        var edit = el('button', 'acct-link', '닉네임 변경');
+        edit.type = 'button';
+        edit.addEventListener('click', function () { nickEditing = true; renderAccount(); });
+        chip.appendChild(edit);
+        box.appendChild(chip);
+      }
+      var out = el('button', 'acct-link', '로그아웃');
+      out.type = 'button';
+      out.addEventListener('click', function () { nickEditing = false; C.signOut(); });
+      chip.appendChild(out);
+    }
+    if (C.error) box.appendChild(el('p', 'acct-error', C.error));
+  }
+
+  // --- Online rankings (기록 tab) --------------------------------------------
+
+  var rankView = { mode: 'laps', track: -1 };
+  var rankSeq = 0;
+
+  function renderRanking(card, force) {
+    var C = CR.Cloud, G = CR.Garage;
+    if (rankView.track < 0) rankView.track = Math.max(0, G.trackIndex(G.track));
+    card.textContent = '';
+    var head = el('div', 'rank-head');
+    head.appendChild(el('h2', 'menu-section', '🌐 전체 랭킹'));
+    var refresh = el('button', 'acct-link', '↻ 새로고침');
+    refresh.type = 'button';
+    refresh.addEventListener('click', function () { renderRanking(card, true); });
+    head.appendChild(refresh);
+    card.appendChild(head);
+
+    var modes = el('div', 'rank-modes');
+    modes.setAttribute('role', 'tablist');
+    [['laps', '서킷별 베스트 랩'], ['career', 'AI 대전 커리어']].forEach(function (m) {
+      var b = el('button', 'rank-mode' + (rankView.mode === m[0] ? ' is-active' : ''), m[1]);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', rankView.mode === m[0] ? 'true' : 'false');
+      b.addEventListener('click', function () { rankView.mode = m[0]; renderRanking(card, false); });
+      modes.appendChild(b);
+    });
+    card.appendChild(modes);
+
+    if (rankView.mode === 'laps') {
+      var chips = el('div', 'rank-tracks');
+      CR.Tracks.list.forEach(function (t, i) {
+        var b = el('button', 'rank-track' + (i === rankView.track ? ' is-active' : ''), t.name.replace(/\s*\(.*\)/, ''));
+        b.type = 'button';
+        b.addEventListener('click', function () { rankView.track = i; renderRanking(card, false); });
+        chips.appendChild(b);
+      });
+      card.appendChild(chips);
+    }
+
+    var body = el('div', 'rank-body');
+    body.appendChild(el('p', 'race-card-note', '불러오는 중…'));
+    card.appendChild(body);
+    var mine = C.state === 'in' ? C.user.uid : null;
+    var seq = ++rankSeq;
+    var track = CR.Tracks.list[rankView.track];
+    var load = rankView.mode === 'laps' ? C.lapRanking(track.realName, force) : C.careerRanking(force);
+    load.then(function (data) {
+      if (seq !== rankSeq) return;
+      body.textContent = '';
+      if (!data.top.length) {
+        body.appendChild(el('p', 'race-card-note', rankView.mode === 'laps'
+          ? '아직 ' + track.name + ' 기록이 없어요. 첫 번째 주인공이 되어 보세요!'
+          : '아직 AI 대전 기록이 없어요.'));
+      } else {
+        var table = el('table', 'rr-table rank-table');
+        var hr = el('tr');
+        var cols = rankView.mode === 'laps' ? ['순위', '드라이버', '랩타임', '차이', '차량'] : ['순위', '드라이버', '포인트', '우승', '챔피언', '대전'];
+        cols.forEach(function (h, k) { hr.appendChild(el('th', k >= 2 ? 'rr-num' : null, h)); });
+        var thead = el('thead'); thead.appendChild(hr); table.appendChild(thead);
+        var tb = el('tbody');
+        var lead = data.top[0];
+        data.top.forEach(function (r, i) {
+          var tr = el('tr', r.uid === mine ? 'is-you' : null);
+          tr.appendChild(el('td', 'rr-pos' + (i < 3 ? ' rank-medal-' + (i + 1) : ''), String(i + 1)));
+          var who = el('td', 'rr-driver');
+          who.appendChild(el('b', null, r.name || '드라이버'));
+          if (r.uid === mine) who.appendChild(el('small', null, '나'));
+          tr.appendChild(who);
+          if (rankView.mode === 'laps') {
+            tr.appendChild(el('td', 'rr-num rec-best', fmt(r.time)));
+            tr.appendChild(el('td', 'rr-num', i === 0 ? '—' : '+' + (r.time - lead.time).toFixed(3)));
+            tr.appendChild(el('td', 'rr-num', CR.Cars.byId(r.car).name));
+          } else {
+            tr.appendChild(el('td', 'rr-num rr-pts', String(r.points)));
+            tr.appendChild(el('td', 'rr-num', String(r.wins)));
+            tr.appendChild(el('td', 'rr-num', String(r.titles)));
+            tr.appendChild(el('td', 'rr-num', String(r.races)));
+          }
+          tb.appendChild(tr);
+        });
+        table.appendChild(tb);
+        body.appendChild(table);
+      }
+      var foot;
+      if (C.state !== 'in') foot = '구글로 로그인하면 내 기록도 랭킹에 올라가요. (총 ' + data.total + '명)';
+      else if (data.me) foot = '내 순위 ' + data.me.rank + '위 / ' + data.total + '명' +
+        (rankView.mode === 'laps' ? ' · ' + fmt(data.me.time) : ' · ' + data.me.points + '점');
+      else foot = (rankView.mode === 'laps' ? '이 서킷 연습 기록을 세우면' : 'AI 대전을 완주하면') + ' 랭킹에 올라가요. (총 ' + data.total + '명)';
+      body.appendChild(el('p', 'rank-foot', foot));
+    }, function (e) {
+      if (seq !== rankSeq) return;
+      console.error('[F1C] ranking load failed', e);
+      body.textContent = '';
+      body.appendChild(el('p', 'acct-error', '랭킹을 불러오지 못했어요. 네트워크를 확인하고 새로고침해 주세요.'));
+    });
+  }
+
   function renderRecords() {
     var G = CR.Garage, panel = els.recordsPanel;
     panel.textContent = '';
@@ -433,6 +596,13 @@
       tiles.appendChild(d);
     });
     panel.appendChild(tiles);
+
+    // Online rankings (cloud.js)
+    if (CR.Cloud.enabled) {
+      var rankCard = el('section', 'race-card rank-card');
+      panel.appendChild(rankCard);
+      renderRanking(rankCard, false);
+    }
 
     // Practice bests per track
     var prac = el('section', 'race-card');
@@ -523,7 +693,7 @@
   var SAVE_TEXT = {
     local: '이 브라우저에만 저장됨',
     loading: '계정 저장 불러오는 중…',
-    synced: '☁ Claude 계정에 저장됨',
+    synced: CR.Cloud && CR.Cloud.enabled ? '☁ 구글 계정에 저장됨' : '☁ Claude 계정에 저장됨',
     saving: '☁ 계정에 저장 중…',
     error: '계정 저장 실패 · 이 브라우저에는 저장됨',
   };
@@ -546,6 +716,12 @@
     els.sub = document.getElementById('menu-sub');
     els.save = document.getElementById('save-status');
     els.tracks = document.getElementById('track-list');
+    els.account = document.getElementById('account');
+    CR.Cloud.onChange(function () {
+      renderAccount();
+      if (Menu.tab === 'records' && !Menu.el.hidden) renderRecords();
+    });
+    renderAccount();
     els.tabPractice = document.getElementById('tab-practice');
     els.tabRace = document.getElementById('tab-race');
     els.tabRecords = document.getElementById('tab-records');
