@@ -3,25 +3,89 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<meta name="robots" content="noindex, nofollow">
 <title>notes · 09jun4</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
-<main class="wrap">
-  <h1>notes</h1>
-  <input class="search" id="q" type="search" placeholder="검색">
-  <ul class="list" id="list"></ul>
-</main>
-<script src="../data/notes.js"></script>
+<main class="wrap" id="app"><p class="gate">불러오는 중...</p></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <script src="../assets/site.js"></script>
-<script>
-  header('notes');
+<script>header('notes');</script>
+<script type="module">
+// 비공개 노트: 구글 로그인 + Firebase 규칙(private/** 은 관리자만)으로 잠겨 있어요
+const SDK = 'https://www.gstatic.com/firebasejs/13.1.0/';
+const [{ initializeApp }, A, F] = await Promise.all(['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js'].map(f => import(SDK + f)));
+const app = initializeApp({
+  apiKey: 'AIzaSyDXqKQmXfmW1v_kgPgYt7o-cfS0hYHxOsc', authDomain: 'chiikawa-tobatsu.firebaseapp.com', projectId: 'chiikawa-tobatsu',
+  storageBucket: 'chiikawa-tobatsu.firebasestorage.app', messagingSenderId: '1003122685004', appId: '1:1003122685004:web:b1dcc20f22d77e892430e9',
+});
+const auth = A.getAuth(app), db = F.getFirestore(app), COL = F.collection(db, 'private/notes/items');
+const $app = document.getElementById('app');
+let notes = [], unsub = null, ready = false;
+const setOwner = v => { try { v ? localStorage.setItem('owner', '1') : localStorage.removeItem('owner'); } catch (e) {} };
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+
+function gate(msg, withLogin, withLogout){
+  $app.innerHTML = `<p class="gate">${msg}<br>${withLogin ? '<button class="btn main" id="in">구글로 로그인</button>' : ''}${withLogout ? '<button class="btn" id="out">로그아웃</button>' : ''}</p>`;
+  if (withLogin) document.getElementById('in').onclick = async () => {
+    const p = new A.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    try { await A.signInWithPopup(auth, p); } catch (e) { gate('로그인하지 못했어요 (' + esc(e.code || e.message) + ')', true); }
+  };
+  if (withLogout) document.getElementById('out').onclick = () => A.signOut(auth);
+}
+
+A.onAuthStateChanged(auth, u => {
+  if (unsub){ unsub(); unsub = null; } ready = false; notes = [];
+  if (!u){ gate('비공개 공간이에요.', true); return; }
+  unsub = F.onSnapshot(F.query(COL, F.limit(1000)), s => {
+    notes = s.docs.map(d => ({ id: d.id, ...d.data() })); ready = true; setOwner(true); route();
+  }, () => { setOwner(false); gate('이 계정은 볼 수 없어요.', false, true); });
+});
+addEventListener('hashchange', () => ready && route());
+
+function route(){
+  const h = location.hash.slice(1), [k, id] = h.split('=');
+  if (k === 'n') return view(id);
+  if (k === 'edit' || k === 'new') return edit(k === 'edit' ? id : null);
+  list();
+}
+function list(){
+  $app.innerHTML = `<h1>notes</h1><div class="bar"><input class="search" id="q" type="search" placeholder="검색"><a class="btn main" href="#new">+ 새 노트</a></div><ul class="list" id="list"></ul>
+    <div class="bar" style="margin-top:20px"><button class="btn right" id="out">로그아웃</button></div>`;
   const q = document.getElementById('q');
-  const draw = () => { const s = q.value.trim().toLowerCase(); fill('list', NOTES.filter(n => !s || (n.title + ' ' + (n.desc || '')).toLowerCase().includes(s)).sort(byDate), noteRow, s ? '찾는 노트가 없어요' : '아직 없어요'); };
+  const draw = () => { const s = q.value.trim().toLowerCase();
+    const L = notes.filter(n => !s || ((n.title || '') + ' ' + (n.body || '')).toLowerCase().includes(s)).sort(byDate);
+    document.getElementById('list').innerHTML = L.map(n => `<li><a href="#n=${esc(n.id)}"><span class="t">${esc(n.title || '제목 없음')}</span><span class="date">${esc(n.date || '')}</span></a></li>`).join('') || `<li class="empty">${s ? '찾는 노트가 없어요' : '아직 없어요'}</li>`; };
   q.oninput = draw; draw();
+  document.getElementById('out').onclick = () => { setOwner(false); A.signOut(auth); };
+}
+function view(id){
+  const n = notes.find(x => x.id === id); if (!n){ $app.innerHTML = '<a class="back" href="#">← notes</a><p class="gate">노트를 찾는 중...</p>'; return; }
+  $app.innerHTML = `<a class="back" href="#">← notes</a><article><h1>${esc(n.title || '제목 없음')}</h1><p class="date">${esc(n.date || '')}</p>${DOMPurify.sanitize(marked.parse(n.body || ''))}</article>
+    <div class="bar"><a class="btn" href="#edit=${esc(id)}">수정</a><button class="btn right" id="del">삭제</button></div>`;
+  let armed = false;
+  document.getElementById('del').onclick = async e => {
+    if (!armed){ armed = true; e.target.textContent = '한 번 더 누르면 삭제'; return; }
+    await F.deleteDoc(F.doc(COL, id)); location.hash = '';
+  };
+}
+function edit(id){
+  const n = id ? notes.find(x => x.id === id) : null; if (id && !n){ location.hash = ''; return; }
+  $app.innerHTML = `<a class="back" href="${id ? '#n=' + esc(id) : '#'}">← 취소</a><div class="edit"><input id="t" placeholder="제목" value="${esc(n ? n.title : '')}">
+    <textarea id="b" placeholder="내용 (마크다운: # 제목, **굵게**, \`코드\`, - 목록)">${esc(n ? n.body : '')}</textarea>
+    <div class="bar"><span class="msg" id="m"></span><button class="btn main right" id="save">저장</button></div></div>`;
+  document.getElementById('save').onclick = async () => {
+    const title = document.getElementById('t').value.trim(), body = document.getElementById('b').value;
+    if (!title && !body.trim()){ document.getElementById('m').textContent = '내용을 써 주세요'; return; }
+    const ref = id ? F.doc(COL, id) : F.doc(COL);
+    try { await F.setDoc(ref, { title, body, date: n ? n.date : today(), updatedAt: Date.now() }); location.hash = 'n=' + ref.id; }
+    catch (e) { document.getElementById('m').textContent = '저장하지 못했어요 (' + (e.code || '') + ')'; }
+  };
+}
 </script>
 </body>
 </html>

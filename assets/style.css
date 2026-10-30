@@ -43,3 +43,29 @@ article img{max-width:100%}
 article a{color:var(--accent)}
 footer{padding:56px 0 36px;color:var(--soft);font-size:12px}
 @media (max-width:640px){.wrap{padding:0 16px}header{height:56px}nav{gap:14px}h1{margin-top:28px}}
+
+/* 작품 카드: 4:3 썸네일 */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:4px}
+.wcard{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#141518;transition:border-color .15s,transform .15s}
+.wcard:hover{border-color:var(--accent);transform:translateY(-2px)}
+.wcard .img{aspect-ratio:4/3;background:#1b1d21 center/cover no-repeat;border-bottom:1px solid var(--line)}
+.wcard .img.none{display:grid;place-items:center;color:var(--soft);font-size:13px}
+.wcard .body{padding:12px 14px 14px}
+.wcard .t{font-size:15px;font-weight:600}
+.wcard .d{color:var(--soft);font-size:13px;margin-top:2px}
+.wcard .play{display:inline-block;margin-top:10px;font-size:12px;color:var(--accent)}
+/* 노트 (관리자 전용) */
+.btn{background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:13px;padding:7px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.main{border-color:var(--accent);color:var(--accent)}
+.bar{display:flex;gap:8px;align-items:center;margin:0 0 14px}
+.bar .search{margin:0;flex:1}
+.gate{padding:48px 0;color:var(--soft);font-size:14px}
+.gate .btn{margin-top:14px}
+.edit input,.edit textarea{width:100%;background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:10px 12px}
+.edit input{font-size:16px;margin:16px 0 10px}
+.edit textarea{min-height:55vh;font-size:14px;line-height:1.6;resize:vertical}
+.edit input:focus,.edit textarea:focus{outline:none;border-color:var(--accent)}
+.edit .bar{margin-top:12px}
+.right{margin-left:auto}
+.msg{color:var(--soft);font-size:12px}
