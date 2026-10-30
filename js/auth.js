@@ -24,7 +24,6 @@ export function onUser(fn){ subs.push(fn); if (state.ready) fn(state); }
 function emit(){ state.ready = true; render(); subs.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } }); }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const setOwner = v => { try { v ? localStorage.setItem('owner', '1') : localStorage.removeItem('owner'); } catch (e) {} };
 
 export async function isAdminUser(u){
   if (!u || !u.email || !u.emailVerified || !crypto.subtle) return false;
@@ -90,12 +89,11 @@ export async function signIn(){
 }
 export async function signOut(){
   if (!enabled) return;
-  setOwner(false);
   await Promise.all(LINKED_WORKS.map(w => bridge(w.id, { op: 'out' })));
   await A.signOut(auth);
 }
 
-// --- 머리말: 로그인 버튼, 관리자에게만 notes 탭과 새 피드백 수 ---------------
+// --- 머리말: 로그인 버튼, 관리자에게 새 피드백 수 ----------------------------
 let badgeFor = '';
 function render(){
   const el = document.getElementById('acct');
@@ -106,8 +104,6 @@ function render(){
     const b = el.querySelector('button');
     if (b) b.onclick = async () => { b.disabled = true; try { await (state.user ? signOut() : signIn()); } finally { b.disabled = false; } };
   }
-  const notes = document.querySelector('nav [data-nav="notes"]');
-  if (notes && enabled && !notes.classList.contains('on')) notes.hidden = !state.admin;
   const fb = document.querySelector('nav [data-nav="feedback"]');
   if (fb && state.admin && badgeFor !== state.user.uid){
     badgeFor = state.user.uid;
@@ -123,7 +119,6 @@ if (enabled){
   A.getRedirectResult(auth).then(r => r && linkWorks(r)).catch(e => toast('로그인하지 못했어요 (' + ((e && e.code) || 'unknown') + ')'));
   A.onAuthStateChanged(auth, async u => {
     state.user = u; state.admin = await isAdminUser(u);
-    if (state.admin) setOwner(true);
     emit();
   });
 } else emit();
