@@ -16,29 +16,25 @@
 <script src="../assets/site.js"></script>
 <script>header('notes');</script>
 <script type="module">
-// 비공개 노트: 구글 로그인 + Firebase 규칙(private/** 은 관리자만)으로 잠겨 있어요
-const SDK = 'https://www.gstatic.com/firebasejs/13.1.0/';
-const [{ initializeApp }, A, F] = await Promise.all(['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js'].map(f => import(SDK + f)));
-const app = initializeApp({
-  apiKey: 'AIzaSyDXqKQmXfmW1v_kgPgYt7o-cfS0hYHxOsc', authDomain: 'chiikawa-tobatsu.firebaseapp.com', projectId: 'chiikawa-tobatsu',
-  storageBucket: 'chiikawa-tobatsu.firebasestorage.app', messagingSenderId: '1003122685004', appId: '1:1003122685004:web:b1dcc20f22d77e892430e9',
-});
-const auth = A.getAuth(app), db = F.getFirestore(app), COL = F.collection(db, 'private/notes/items');
+// 비공개 노트: 구글 로그인 + Firebase 규칙(private/** 은 관리자만)으로 잠겨 있어요. 로그인은 사이트 공통(js/auth.js)
+import { enabled, F, db, onUser, signIn, signOut, inAppBrowser, inAppText } from '../js/auth.js';
+const COL = enabled ? F.collection(db, 'private/notes/items') : null;
 const $app = document.getElementById('app');
-let notes = [], unsub = null, ready = false;
+let notes = [], unsub = null, ready = false, uid = undefined;
 const setOwner = v => { try { v ? localStorage.setItem('owner', '1') : localStorage.removeItem('owner'); } catch (e) {} };
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 
 function gate(msg, withLogin, withLogout){
-  $app.innerHTML = `<p class="gate">${msg}<br>${withLogin ? '<button class="btn main" id="in">구글로 로그인</button>' : ''}${withLogout ? '<button class="btn" id="out">로그아웃</button>' : ''}</p>`;
-  if (withLogin) document.getElementById('in').onclick = async () => {
-    const p = new A.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
-    try { await A.signInWithPopup(auth, p); } catch (e) { gate('로그인하지 못했어요 (' + esc(e.code || e.message) + ')', true); }
-  };
-  if (withLogout) document.getElementById('out').onclick = () => A.signOut(auth);
+  const inApp = withLogin && inAppBrowser();
+  $app.innerHTML = `<p class="gate">${msg}<br>${inApp ? esc(inAppText(inApp)) : withLogin ? '<button class="btn main" id="in">구글로 로그인</button>' : ''}${withLogout ? '<button class="btn" id="out">로그아웃</button>' : ''}</p>`;
+  if (withLogin && !inApp) document.getElementById('in').onclick = () => signIn();
+  if (withLogout) document.getElementById('out').onclick = () => signOut();
 }
 
-A.onAuthStateChanged(auth, u => {
+if (!enabled) gate('지금은 열 수 없어요.');
+onUser(({ user: u }) => {
+  if (!enabled || (u ? u.uid : null) === uid) return;
+  uid = u ? u.uid : null;
   if (unsub){ unsub(); unsub = null; } ready = false; notes = [];
   if (!u){ gate('비공개 공간이에요.', true); return; }
   unsub = F.onSnapshot(F.query(COL, F.limit(1000)), s => {
@@ -61,7 +57,7 @@ function list(){
     const L = notes.filter(n => !s || ((n.title || '') + ' ' + (n.body || '')).toLowerCase().includes(s)).sort(byDate);
     document.getElementById('list').innerHTML = L.map(n => `<li><a href="#n=${esc(n.id)}"><span class="t">${esc(n.title || '제목 없음')}</span><span class="date">${esc(n.date || '')}</span></a></li>`).join('') || `<li class="empty">${s ? '찾는 노트가 없어요' : '아직 없어요'}</li>`; };
   q.oninput = draw; draw();
-  document.getElementById('out').onclick = () => { setOwner(false); A.signOut(auth); };
+  document.getElementById('out').onclick = () => signOut();
 }
 function view(id){
   const n = notes.find(x => x.id === id); if (!n){ $app.innerHTML = '<a class="back" href="#">← notes</a><p class="gate">노트를 찾는 중...</p>'; return; }

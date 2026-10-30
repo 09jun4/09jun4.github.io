@@ -1,0 +1,34 @@
+// 09jun4.github.io 사이트 — Firestore 보안 규칙 (feedback 부분)
+// 사이트 프로젝트(chiikawa-tobatsu)에는 이미 치이카와 작품과 notes(private/**) 규칙이 게시돼 있어요.
+// 그 규칙은 지우지 말고, Firebase 콘솔 > Firestore Database > 규칙 탭에서
+//   service cloud.firestore { match /databases/{database}/documents { ... } }
+// 의 안쪽(다른 match 블록들 옆)에 아래 match /feedback/{id} { ... } 블록을 통째로 붙여 넣고 "게시"하세요.
+
+    // 피드백: 구글 로그인한 사람은 자기 이름으로 쓰기만, 읽기·정리·삭제는 관리자만 할 수 있어요.
+    match /feedback/{id} {
+      // 관리자: 소문자 구글 이메일의 SHA-256 (주소는 공개 저장소에 쓰지 않아요), 이메일 인증된 계정만
+      function siteAdmin() {
+        return request.auth != null
+          && request.auth.token.email_verified == true
+          && hashing.sha256(request.auth.token.email.lower()).toHexString().lower()
+             == 'c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991';
+      }
+      function shortText(v, min, max) {
+        return v is string && v.size() >= min && v.size() <= max;
+      }
+
+      allow read, delete: if siteAdmin();
+      allow update: if siteAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'work', 'text', 'device', 'read', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && shortText(request.resource.data.name, 0, 60)
+        && shortText(request.resource.data.work, 0, 80)
+        && shortText(request.resource.data.text, 1, 2000)
+        && request.resource.data.device in ['mobile', 'pc']
+        && request.resource.data.read == false
+        && request.resource.data.at == request.time;
+    }

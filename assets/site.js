@@ -1,11 +1,14 @@
 // 공통: 머리말, 작품 카드
-const BASE = /\/notes\//.test(location.pathname) ? '../' : '';
+const BASE = /\/(notes|feedback)\//.test(location.pathname) ? '../' : '';
 // 노트 탭은 관리자로 로그인한 적 있는 브라우저에만 보여요 (실제 내용은 Firebase 규칙으로 잠겨 있음)
 const OWNER = (() => { try { return localStorage.getItem('owner') === '1'; } catch (e) { return false; } })();
 function header(active){
   document.body.insertAdjacentHTML('afterbegin', `<div class="wrap"><header><a class="logo" href="${BASE || './'}">09jun<span>4</span></a>
-    <nav><a href="${BASE || './'}" class="${active === 'works' ? 'on' : ''}">works</a>${OWNER || active === 'notes' ? `<a href="${BASE}notes/" class="${active === 'notes' ? 'on' : ''}">notes</a>` : ''}</nav></header></div>`);
+    <nav><a href="${BASE || './'}" class="${active === 'works' ? 'on' : ''}">works</a><a href="${BASE}feedback/" data-nav="feedback" class="${active === 'feedback' ? 'on' : ''}">feedback</a>
+    <a href="${BASE}notes/" data-nav="notes" class="${active === 'notes' ? 'on' : ''}"${OWNER || active === 'notes' ? '' : ' hidden'}>notes</a><span class="acct" id="acct"></span></nav></header></div>`);
   document.body.insertAdjacentHTML('beforeend', '<div class="wrap"><footer>© ' + new Date().getFullYear() + ' 09jun4</footer></div>');
+  // 구글 로그인 (js/auth.js): 사이트에 로그인하면 작품을 열 때도 로그인돼 있어요
+  const s = document.createElement('script'); s.type = 'module'; s.src = BASE + 'js/auth.js'; document.head.appendChild(s);
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const byDate = (a, b) => String(b.date || '').localeCompare(String(a.date || ''));

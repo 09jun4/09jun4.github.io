@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<title>feedback · 09jun4</title>
+<meta name="description" content="09jun4 사이트와 작품에 의견 남기기">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main class="wrap" id="app"><h1>feedback</h1><p class="gate">불러오는 중...</p></main>
+<script src="../data/works.js"></script>
+<script src="../assets/site.js"></script>
+<script>header('feedback');</script>
+<script type="module">
+// 피드백: 구글 로그인한 방문자는 쓰기만, 관리자만 읽고 정리할 수 있어요 (규칙: firestore.rules 의 feedback)
+// 작품에서 ?work=/작품-이름/ 을 붙여 링크하면 그 작품이 미리 골라져요.
+import { enabled, F, db, onUser, signIn, inAppBrowser, inAppText, refreshBadge } from '../js/auth.js';
+const $app = document.getElementById('app');
+const COL = enabled ? F.collection(db, 'feedback') : null;
+const MAX = 2000, WAIT = 30e3;
+const WORK_LIST = (window.WORKS || []).slice().sort(byDate);
+const workTitle = url => url ? (WORK_LIST.find(w => w.url === url) || {}).title || url : '사이트 전체';
+const device = () => /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc';
+const last = { get: () => { try { return +localStorage.getItem('fb:last') || 0; } catch (e) { return 0; } }, set: () => { try { localStorage.setItem('fb:last', Date.now()); } catch (e) {} } };
+const LEAD = '<p class="lead">사이트나 작품에 대한 의견, 버그, 바라는 점을 자유롭게 남겨 주세요.<br>남긴 의견은 사이트 주인만 볼 수 있어요.</p>';
+let me = null, admin = false, unsub = null, items = [], onlyNew = false, uid;
+
+onUser(s => {
+  if (!enabled){ $app.innerHTML = '<h1>feedback</h1><p class="gate">지금은 의견을 받을 수 없어요.</p>'; return; }
+  if ((s.user ? s.user.uid : null) === uid && admin === s.admin) return;
+  uid = s.user ? s.user.uid : null; me = s.user; admin = s.admin;
+  if (unsub){ unsub(); unsub = null; }
+  route();
+});
+addEventListener('hashchange', () => uid !== undefined && route());
+function route(){ if (!me) gate(); else if (admin && location.hash !== '#write') inbox(); else form(); }
+
+function gate(){
+  const inApp = inAppBrowser();
+  $app.innerHTML = `<h1>feedback</h1>${LEAD}<div class="fb-gate"><p>의견을 남기려면 구글로 로그인해 주세요.</p>
+    ${inApp ? `<p class="warn">${esc(inAppText(inApp))}</p>` : '<button class="btn main" id="in">구글로 로그인</button>'}</div>`;
+  if (!inApp) document.getElementById('in').onclick = () => signIn();
+}
+
+// --- 방문자: 의견 보내기 ---------------------------------------------------
+function form(){
+  const pre = new URLSearchParams(location.search).get('work') || '';
+  $app.innerHTML = `<h1>feedback</h1>${LEAD}<div class="edit fb-form">
+    <label class="fld"><span>어떤 것에 대한 의견인가요?</span><select id="w"><option value="">사이트 전체</option>
+      ${WORK_LIST.map(w => `<option value="${esc(w.url)}"${w.url === pre ? ' selected' : ''}>${esc(w.title)}</option>`).join('')}</select></label>
+    <textarea id="t" maxlength="${MAX}" placeholder="의견을 적어 주세요"></textarea>
+    <div class="bar"><span class="msg" id="m"></span><span class="msg right" id="n">0 / ${MAX}</span><button class="btn main" id="send">보내기</button></div>
+    <p class="note">${esc(me.displayName || '구글 계정')} (${esc(me.email || '')}) 이름으로 보내요.</p></div>
+    ${admin ? '<a class="back" href="#">← 받은 의견</a>' : ''}`;
+  const t = document.getElementById('t'), m = document.getElementById('m'), b = document.getElementById('send');
+  t.oninput = () => { document.getElementById('n').textContent = t.value.length + ' / ' + MAX; };
+  b.onclick = async () => {
+    const text = t.value.trim();
+    if (!text){ m.textContent = '내용을 적어 주세요'; return; }
+    const wait = Math.ceil((last.get() + WAIT - Date.now()) / 1000);
+    if (wait > 0){ m.textContent = wait + '초 뒤에 다시 보낼 수 있어요'; return; }
+    b.disabled = true; m.textContent = '보내는 중...';
+    try {
+      await F.addDoc(COL, { uid: me.uid, name: (me.displayName || '').slice(0, 60), email: me.email || '', work: document.getElementById('w').value,
+        text, device: device(), read: false, at: F.serverTimestamp() });
+      last.set();
+      $app.innerHTML = `<h1>feedback</h1><div class="fb-gate"><p>고마워요. 의견이 잘 전달됐어요.</p><button class="btn" id="again">의견 하나 더 보내기</button></div>
+        ${admin ? '<a class="back" href="#">← 받은 의견</a>' : ''}`;
+      document.getElementById('again').onclick = form;
+    } catch (e) {
+      b.disabled = false;
+      m.textContent = e && e.code === 'permission-denied' ? '아직 의견을 받을 준비가 안 됐어요. 잠시 뒤 다시 시도해 주세요.' : '보내지 못했어요 (' + ((e && e.code) || 'error') + ')';
+    }
+  };
+  t.focus();
+}
+
+// --- 관리자: 받은 의견 -------------------------------------------------------
+function inbox(){
+  $app.innerHTML = '<h1>feedback</h1><p class="gate">받은 의견을 불러오는 중...</p>';
+  unsub = F.onSnapshot(F.query(COL, F.orderBy('at', 'desc'), F.limit(500)), s => {
+    items = s.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+    drawInbox(); refreshBadge();
+  }, e => {
+    $app.innerHTML = `<h1>feedback</h1><p class="gate">받은 의견을 읽지 못했어요 (${esc(e.code || 'error')}).<br>
+      Firebase 콘솔에서 firestore.rules 의 feedback 규칙을 게시했는지 확인해 주세요.</p><a class="more" href="#write">의견 쓰기 화면 보기 →</a>`;
+  });
+}
+const when = at => { const d = at && at.toDate ? at.toDate() : null; if (!d) return '';
+  const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+function drawInbox(){
+  const fresh = items.filter(x => !x.read).length, L = onlyNew ? items.filter(x => !x.read) : items;
+  $app.innerHTML = `<h1>feedback</h1><div class="bar fb-top"><span class="msg">받은 의견 ${items.length} · 새 의견 <b class="hl">${fresh}</b></span>
+      <button class="btn${onlyNew ? ' main' : ''} right" id="flt">${onlyNew ? '전체 보기' : '새 의견만'}</button>${fresh ? '<button class="btn" id="all">모두 읽음</button>' : ''}</div>
+    <ul class="fb-list">${L.map(x => `<li class="fb-item${x.read ? '' : ' new'}" data-id="${esc(x.id)}">
+      <div class="fb-meta"><span class="dot" title="${x.read ? '읽음' : '새 의견'}"></span><span>${esc(when(x.at))}</span><span class="w">${esc(workTitle(x.work))}</span><span>${esc(x.device || '')}</span></div>
+      <div class="fb-text">${esc(x.text)}</div>
+      <div class="fb-foot"><span class="who">${esc(x.name || '이름 없음')}${x.email ? ` · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : ''}</span>
+        <span class="right"><button class="btn" data-act="read">${x.read ? '안 읽음으로' : '읽음'}</button><button class="btn" data-act="del">삭제</button></span></div></li>`).join('')
+      || `<li class="empty">${onlyNew ? '새 의견이 없어요' : '아직 받은 의견이 없어요'}</li>`}</ul>
+    <a class="more" href="#write">의견 쓰기 화면 보기 →</a>`;
+  document.getElementById('flt').onclick = () => { onlyNew = !onlyNew; drawInbox(); };
+  const all = document.getElementById('all');
+  if (all) all.onclick = async () => { const B = F.writeBatch(db); items.filter(x => !x.read).forEach(x => B.update(F.doc(COL, x.id), { read: true })); await B.commit(); };
+  $app.querySelectorAll('.fb-item [data-act]').forEach(b => b.onclick = async () => {
+    const id = b.closest('.fb-item').dataset.id, x = items.find(y => y.id === id), ref = F.doc(COL, id);
+    if (b.dataset.act === 'read') return F.updateDoc(ref, { read: !x.read });
+    if (!b.dataset.armed){ b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 삭제'; return; }
+    await F.deleteDoc(ref);
+  });
+}
+</script>
+</body>
+</html>

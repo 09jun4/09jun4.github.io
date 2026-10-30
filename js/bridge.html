@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>bridge</title>
+</head>
+<body>
+<script type="module">
+// 사이트 로그인 연결: js/auth.js 가 숨은 틀로 열어서, 다른 Firebase 프로젝트를 쓰는 작품(#작품id)에
+// 같은 구글 계정으로 로그인시키거나 로그아웃시켜요. 로그인 상태는 이 주소(09jun4.github.io)에 저장돼서
+// 나중에 그 작품을 열면 이미 로그인돼 있어요.
+import { LINKED_WORKS } from './firebase-config.js';
+const SDK = 'https://www.gstatic.com/firebasejs/13.1.0/';
+const ROOT = new URL('../', import.meta.url).href;
+const send = m => parent.postMessage(m, location.origin);
+const work = LINKED_WORKS.find(w => w.id === decodeURIComponent(location.hash.slice(1)));
+
+function loadConfig(w){
+  if (w.config) return Promise.resolve(w.config);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = new URL(w.configScript, ROOT).href;
+    s.onload = () => res(window[w.configGlobal]); s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+if (parent !== window && work){
+  try {
+    const cfg = await loadConfig(work);
+    if (!cfg || !cfg.apiKey) throw { code: 'no-config' };
+    const [I, A] = await Promise.all(['firebase-app.js', 'firebase-auth.js'].map(f => import(SDK + f)));
+    const auth = A.getAuth(I.initializeApp(cfg));
+    await auth.authStateReady();
+    addEventListener('message', async e => {
+      if (e.source !== parent || e.origin !== location.origin) return;
+      const m = e.data || {};
+      try {
+        if (m.op === 'out') await A.signOut(auth);
+        else if (m.op === 'in'){
+          const cur = auth.currentUser;
+          if (!cur || (cur.email || '').toLowerCase() !== String(m.email || '').toLowerCase())
+            await A.signInWithCredential(auth, A.GoogleAuthProvider.credential(m.idToken || null, m.accessToken || null));
+        }
+        send({ ok: true });
+      } catch (err) { send({ ok: false, code: (err && err.code) || 'error' }); }
+    });
+    send({ ready: true });
+  } catch (err) { send({ ok: false, code: (err && err.code) || 'load' }); }
+}
+</script>
+</body>
+</html>
