@@ -220,14 +220,14 @@
     var c = Car.state;
     if (c.gear < CR.Config.GEAR_RATIOS.length) {
       c.gear++;
-      if (CR.Audio) CR.Audio.shift();
+      if (CR.Audio) CR.Audio.shift(true);
     }
   };
   Car.shiftDown = function () {
     var c = Car.state;
     if (c.gear > 1) {
       c.gear--;
-      if (CR.Audio) CR.Audio.shift();
+      if (CR.Audio) CR.Audio.shift(false);
     }
   };
 

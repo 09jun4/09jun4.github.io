@@ -11,7 +11,8 @@
 // `moneyPerSecond` is the car's earning rate (rises with price): a lap at
 // the reference pace pays it per second of the reference lap time, and
 // quicker laps pay more (garage.js lapPay). `physics` keys override CR.Config while it is driven.
-// `sound` is the engine voice for audio.js (see Audio.startEngine).
+// Engine sounds live in engine-sound.js (voices keyed by car id); the old
+// `sound` settings below are no longer used by audio.js.
 // `model` is the 3D model (renderer.js drawCarModel), parts drawn in order:
 //   prism: [[x, y], ...] outline in car-local metres (nose +y), or
 //   box: [centreX, centreY, width, length]

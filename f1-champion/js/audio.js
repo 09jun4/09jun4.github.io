@@ -1,22 +1,24 @@
 // audio.js — synthesized sound (Web Audio, no sound files).
-// Load order: after hud.js, before menu.js. Depends on: Config, Car (at call time).
+// Load order: after hud.js and engine-sound.js, before menu.js.
+// Depends on: Config, Car, EngineSound, Race (at call time).
 //
-//  - Engine: per-car voice (cars.js `sound`). Pitch follows the firing
-//    frequency rpm/60 * cylinders/2; a low-pass filter opens with throttle
-//    and rpm. In the red rpm zone (same threshold the HUD bar turns red) a
-//    distorted copy is mixed in, and at the rev limiter the sound stutters.
+//  - Engine: the player's car voice from engine-sound.js (firing pulses,
+//    exhaust resonances, turbo, pops, ignition cut on shifts, limiter).
+//  - AI cars (AI 대전): one engine voice per AI F1, placed by distance and
+//    direction from the player, with Doppler pitch shift.
+//  - Wind: road / air noise rising with speed (effects bus).
 //  - Tyres: band-passed noise when sliding past the grip limit or braking
 //    hard at speed.
-//  - Shift: short metallic "clunk" plus a brief engine dip.
+//  - Shift: short metallic "clunk" (the engine voice adds its own cut).
 //  - Crash: noise burst + thump scaled by wall impact speed.
 //  - Explosion: long roar + deep boom when the car blows up.
 // The AudioContext is created on the first Play (browsers only allow audio
 // after a user gesture). M toggles mute (remembered per browser).
 //
 // Volume: three sliders (전체 / 엔진 / 효과음, 0-100 %) kept per browser.
-// Engine voices go through the engine bus, tyres / shifts / crashes through
-// the effects bus; both feed the master gain and a limiter that stops loud
-// moments from clipping when the master is turned up.
+// Engine voices (player and AI) go through the engine bus, wind / tyres /
+// shifts / crashes through the effects bus; both feed the master gain and
+// a limiter that stops loud moments from clipping.
 (function () {
   'use strict';
   window.CR = window.CR || {};
@@ -26,7 +28,6 @@
   var VOLUME_KEY = 'f1-champion.volume';
   // Master gain at 100 %. The default 80 % gives the old fixed level (0.5).
   var MAX_GAIN = 0.78;
-  var RED_ZONE_START = 0.85; // rpm fraction where the HUD bar turns red (hud.js)
   var SMOOTH = 0.03; // s, time constant for per-frame parameter changes
 
   var ac = null, master = null, noiseBuffer = null;
@@ -34,7 +35,6 @@
   var listeners = [];
   var engine = null; // nodes for the current car's engine
   var tyre = null;
-  var duckUntil = 0;
 
   try { Audio.muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* storage unavailable */ }
   try {
@@ -96,92 +96,123 @@
     param.setTargetAtTime(value, ac.currentTime, SMOOTH);
   }
 
-  // Soft-clip curve for the red-zone rasp.
-  function distortionCurve(amount) {
-    var n = 1024, curve = new Float32Array(n);
-    for (var i = 0; i < n; i++) {
-      var x = (i / (n - 1)) * 2 - 1;
-      curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
-    }
-    return curve;
-  }
-
-  // --- Engine ---------------------------------------------------------------
-
-  function buildEngine(voice) {
-    var e = { voice: voice, oscs: [], oscGains: [] };
-
-    var mix = ac.createGain();
-    for (var i = 0; i < voice.waves.length; i++) {
-      var o = ac.createOscillator();
-      o.type = voice.waves[i];
-      var g = ac.createGain();
-      g.gain.value = voice.mix[i];
-      o.connect(g).connect(mix);
-      e.oscs.push(o);
-      e.oscGains.push(g);
-    }
-    e.sub = ac.createOscillator();
-    e.sub.type = 'sine';
-    var subGain = ac.createGain();
-    subGain.gain.value = voice.sub;
-    e.sub.connect(subGain).connect(mix);
-
-    // Clean and distorted paths, crossfaded by the red-zone amount.
-    e.clean = ac.createGain();
-    e.dist = ac.createGain();
-    e.dist.gain.value = 0;
-    var shaper = ac.createWaveShaper();
-    shaper.curve = distortionCurve(12);
-    mix.connect(e.clean);
-    mix.connect(shaper).connect(e.dist);
-
-    e.filter = ac.createBiquadFilter();
-    e.filter.type = 'lowpass';
-    e.filter.Q.value = voice.q;
-    e.clean.connect(e.filter);
-    e.dist.connect(e.filter);
-
-    // Amplitude modulation: V8 lope (follows rpm) + rev-limiter stutter.
-    e.am = ac.createGain();
-    e.am.gain.value = 1;
-    e.rumble = ac.createOscillator();
-    e.rumble.type = 'sine';
-    e.rumbleDepth = ac.createGain();
-    e.rumbleDepth.gain.value = 0;
-    e.rumble.connect(e.rumbleDepth).connect(e.am.gain);
-    e.stutter = ac.createOscillator();
-    e.stutter.type = 'square';
-    e.stutter.frequency.value = 18;
-    e.stutterDepth = ac.createGain();
-    e.stutterDepth.gain.value = 0;
-    e.stutter.connect(e.stutterDepth).connect(e.am.gain);
-    e.filter.connect(e.am);
-
-    e.out = ac.createGain();
-    e.out.gain.value = 0;
-    e.am.connect(e.out).connect(engineBus);
-
-    // Turbo whistle (only voices with turbo > 0 make it audible).
-    e.turbo = ac.createOscillator();
-    e.turbo.type = 'sine';
-    e.turboGain = ac.createGain();
-    e.turboGain.gain.value = 0;
-    e.turbo.connect(e.turboGain).connect(engineBus);
-
-    e.oscs.concat([e.sub, e.rumble, e.stutter, e.turbo]).forEach(function (o) { o.start(); });
-    e.all = e.oscs.concat([e.sub, e.rumble, e.stutter, e.turbo]);
-    return e;
-  }
+  // --- Engine (engine-sound.js voices) ---------------------------------------
 
   function stopEngine() {
     if (!engine) return;
-    var old = engine;
+    engine.stop(ac.currentTime);
     engine = null;
-    old.out.gain.setTargetAtTime(0, ac.currentTime, 0.05);
-    old.turboGain.gain.setTargetAtTime(0, ac.currentTime, 0.05);
-    var t = ac.currentTime + 0.4;
-    old.all.forEach(function (o) { o.stop(t); });
+  }
+
+  // --- Wind / road noise --------------------------------------------------------
+
+  var wind = null;
+
+  // --- AI cars (AI 대전) ----------------------------------------------------------
+  // Each AI F1 gets its own engine voice, heard from the player's car:
+  //  - distance: quieter and duller further away (air absorbs the highs),
+  //    a little duller again when it is behind you;
+  //  - direction: panned left/right relative to the player's heading;
+  //  - Doppler: pitch rises while a car closes in and drops as it pulls
+  //    away, f' = f (c + v_listener) / (c - v_source), c = 343 m/s.
+  // AI cars have no gearbox of their own, so a virtual 8-speed box turns
+  // their speed into rpm, and their speed change into throttle / brake.
+
+  var SPEED_OF_SOUND = 343;
+  var AI_GEARS = 8, AI_VMAX = 97;
+  var aiVoices = []; // {car, eng, lp, pan, gain, gear, prevV, thr, brk, rf}
+
+  function aiGearTop(g) { return AI_VMAX * Math.pow(g / AI_GEARS, 0.78); }
+
+  function buildAiVoice(car) {
+    var gain = ac.createGain();
+    gain.gain.value = 0;
+    var pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    var lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 8000;
+    lp.Q.value = 0.5;
+    lp.connect(gain);
+    if (pan) gain.connect(pan).connect(engineBus); else gain.connect(engineBus);
+    return {
+      car: car, lp: lp, pan: pan, gain: gain,
+      eng: CR.EngineSound.create(ac, 'f1', lp, { remote: true }),
+      gear: 1, prevV: car.v, thr: 0, brk: 0, rf: 0, accel: 0,
+      wobble: Math.random() * 10,
+    };
+  }
+
+  function stopAi() {
+    if (!aiVoices.length) return;
+    var t = ac.currentTime;
+    aiVoices.forEach(function (a) {
+      a.gain.gain.setTargetAtTime(0, t, 0.05);
+      a.eng.stop(t);
+    });
+    aiVoices = [];
+  }
+
+  function updateAi(dt) {
+    var R = CR.Race;
+    var cars = R && R.active ? R.ai : [];
+    if (aiVoices.length && (aiVoices.length !== cars.length || aiVoices[0].car !== cars[0])) stopAi();
+    if (!cars.length) return;
+    if (!aiVoices.length) aiVoices = cars.map(buildAiVoice);
+
+    var c = CR.Car.state, t = ac.currentTime;
+    var fx = Math.cos(c.heading), fy = Math.sin(c.heading); // player forward
+    var lx = -fy, ly = fx; // player left
+    var lights = R.phase === 'lights';
+
+    for (var i = 0; i < aiVoices.length; i++) {
+      var a = aiVoices[i], o = a.car;
+
+      // Engine state from the AI's motion.
+      var acc = dt > 0 ? (o.v - a.prevV) / dt : 0;
+      a.prevV = o.v;
+      a.accel += (acc - a.accel) * Math.min(1, dt * 6);
+      var thrT, brkT;
+      if (lights) {
+        // Waiting on the grid: holding revs, blipping now and then.
+        a.wobble += dt;
+        thrT = 0.25 + 0.2 * Math.max(0, Math.sin(a.wobble * 2.3));
+        brkT = 0;
+        a.rf += (0.42 + 0.12 * Math.sin(a.wobble * 2.3) - a.rf) * Math.min(1, dt * 5);
+      } else {
+        thrT = a.accel > 0.4 ? 1 : a.accel > -1.5 ? 0.35 : 0;
+        brkT = a.accel < -5 ? 1 : 0;
+        var prevGear = a.gear;
+        while (a.gear < AI_GEARS && o.v > aiGearTop(a.gear) * 0.965) a.gear++;
+        while (a.gear > 1 && o.v < aiGearTop(a.gear - 1) * 0.82) a.gear--;
+        if (a.gear !== prevGear) a.eng.shift(t, a.gear > prevGear);
+        var target = Math.min(1, o.v / aiGearTop(a.gear));
+        if (a.gear === 1 && o.v < aiGearTop(1) * 0.6) target = Math.max(target, 0.55 * thrT); // launch slip
+        a.rf += (target - a.rf) * Math.min(1, dt * 8);
+      }
+      a.thr += (thrT - a.thr) * Math.min(1, dt * 12);
+      a.brk += (brkT - a.brk) * Math.min(1, dt * 12);
+
+      // Where it is relative to the player.
+      var rx = o.x - c.x, ry = o.y - c.y;
+      var d = Math.max(1, Math.hypot(rx, ry));
+      var ux = rx / d, uy = ry / d;
+      var svx = (o.tx || 0) * o.v + (o.nx || 0) * (o.laneVel || 0);
+      var svy = (o.ty || 0) * o.v + (o.ny || 0) * (o.laneVel || 0);
+      var vSource = -(svx * ux + svy * uy); // source speed towards the player
+      var vListener = c.vx * ux + c.vy * uy; // player speed towards the source
+      var dop = (SPEED_OF_SOUND + vListener) / (SPEED_OF_SOUND - vSource);
+      dop = Math.max(0.7, Math.min(1.45, dop));
+
+      a.eng.update({ rpmFrac: a.rf, throttle: a.thr, brake: a.brk, speed: o.v, limiter: false, pitch: dop }, t);
+
+      var ahead = ux * fx + uy * fy; // +1 in front, -1 behind
+      var side = -(ux * lx + uy * ly); // +1 right, -1 left
+      var level = 0.75 / (1 + Math.pow(d / 14, 1.35));
+      if (d > 450) level = 0;
+      set(a.gain.gain, level);
+      set(a.lp.frequency, Math.max(900, 15000 / (1 + d / 35)) * (ahead < 0 ? 0.6 + 0.4 * (1 + ahead) : 1));
+      if (a.pan) set(a.pan.pan, Math.max(-0.85, Math.min(0.85, side * Math.min(1, d / 6))));
+    }
   }
 
   // --- Tyres ------------------------------------------------------------------
@@ -213,44 +244,41 @@
   Audio.startEngine = function (car) {
     if (!ensureContext()) return;
     stopEngine();
-    engine = buildEngine(car.sound);
+    engine = CR.EngineSound.create(ac, car.id, engineBus);
+    if (!wind) wind = CR.EngineSound.createWind(ac, sfxBus);
   };
 
   // Called when leaving the race (menu): fade everything out.
   Audio.silence = function () {
     if (!ac) return;
     stopEngine();
+    stopAi();
+    if (wind) { wind.stop(ac.currentTime); wind = null; }
     set(tyre.gain.gain, 0);
   };
 
   // Per-frame update from main.js while playing.
+  var lastUpdate = 0;
   Audio.update = function () {
-    if (!ac || !engine) return;
-    var c = CR.Car.state, cfg = CR.Config, input = CR.Input.state, v = engine.voice;
+    if (!ac) return;
+    // Results / menu can begin inside this same frame, after silence().
+    if (CR.Main && CR.Main.state !== 'playing') return;
+    var now = ac.currentTime, dt = lastUpdate ? Math.min(0.1, Math.max(0, now - lastUpdate)) : 1 / 60;
+    lastUpdate = now;
+    updateAi(dt);
+    if (!engine) return;
+    var c = CR.Car.state, cfg = CR.Config, input = CR.Input.state;
     var rpmFrac = Math.max(0, Math.min(1, (c.rpm - cfg.IDLE_RPM) / (cfg.REDLINE_RPM - cfg.IDLE_RPM)));
-    var throttle = input.throttle;
+    var throttle = c.coasting ? 0 : input.throttle;
 
-    var fire = (c.rpm / 60) * (v.cylinders / 2) * v.pitch;
-    for (var i = 0; i < engine.oscs.length; i++) set(engine.oscs[i].frequency, fire * v.ratios[i]);
-    set(engine.sub.frequency, fire * 0.5);
-    set(engine.rumble.frequency, c.rpm / 120);
-    set(engine.rumbleDepth.gain, v.rumble * (1 - rpmFrac * 0.7));
-
-    var cutoff = v.cutoff[0] + (v.cutoff[1] - v.cutoff[0]) * (0.35 * rpmFrac + 0.65 * rpmFrac * throttle);
-    set(engine.filter.frequency, cutoff);
-
-    // Red zone: crossfade to the distorted path; stutter at the limiter.
-    var red = Math.max(0, (rpmFrac - RED_ZONE_START) / (1 - RED_ZONE_START));
-    set(engine.clean.gain, 1 - 0.7 * red);
-    set(engine.dist.gain, 0.55 * red);
-    set(engine.stutterDepth.gain, c.rpm >= cfg.REDLINE_RPM - 60 && throttle > 0 ? 0.55 : 0);
-
-    var vol = 0.16 + 0.22 * throttle + 0.14 * rpmFrac;
-    if (ac.currentTime < duckUntil) vol *= 0.45;
-    set(engine.out.gain, vol);
-
-    set(engine.turbo.frequency, 1800 + 4200 * rpmFrac);
-    set(engine.turboGain.gain, v.turbo * throttle * rpmFrac);
+    engine.update({
+      rpmFrac: rpmFrac,
+      throttle: throttle,
+      brake: input.brake || 0,
+      speed: c.speed,
+      limiter: c.rpm >= cfg.REDLINE_RPM - 60 && throttle > 0,
+    }, now);
+    if (wind) wind.update(c.speed, now);
 
     // Tyre squeal: sideways slide past the grip limit, or hard braking at speed.
     var slide = Math.min(1, Math.max(0, Math.abs(c.lateralVelocity) - 1.2) / 4);
@@ -262,9 +290,10 @@
   };
 
   // Gear change: metallic clunk + brief engine dip.
-  Audio.shift = function () {
+  Audio.shift = function (up) {
     if (!ac || !engine) return;
     var t = ac.currentTime;
+    engine.shift(t, up !== false);
 
     var click = ac.createBufferSource();
     click.buffer = noiseBuffer;
@@ -273,7 +302,7 @@
     clickBand.frequency.value = 2200;
     clickBand.Q.value = 3;
     var clickGain = ac.createGain();
-    clickGain.gain.setValueAtTime(0.7, t);
+    clickGain.gain.setValueAtTime(0.35, t);
     clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
     click.connect(clickBand).connect(clickGain).connect(sfxBus);
     click.start(t, Math.random() * 1.5, 0.06);
@@ -286,13 +315,12 @@
     thunkFilter.type = 'lowpass';
     thunkFilter.frequency.value = 600;
     var thunkGain = ac.createGain();
-    thunkGain.gain.setValueAtTime(0.35, t);
+    thunkGain.gain.setValueAtTime(0.18, t);
     thunkGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     thunk.connect(thunkFilter).connect(thunkGain).connect(sfxBus);
     thunk.start(t);
     thunk.stop(t + 0.12);
 
-    duckUntil = t + 0.12;
   };
 
   // Wall impact: low noise burst + thump, louder for harder hits.
@@ -421,7 +449,10 @@
   // Current gains (for tests / debugging).
   Audio.levels = function () {
     if (!ac) return null;
-    return { master: master.gain.value, engine: engineBus.gain.value, sfx: sfxBus.gain.value };
+    return {
+      master: master.gain.value, engine: engineBus.gain.value, sfx: sfxBus.gain.value, player: !!engine,
+      ai: aiVoices.map(function (a) { return { gain: a.gain.gain.value, cutoff: a.lp.frequency.value, rf: a.rf, gear: a.gear }; }),
+    };
   };
 
   CR.Audio = Audio;
