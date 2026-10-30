@@ -1012,3 +1012,24 @@ body.in-race #tc-reset { display: none; } /* a retirement ends the race */
 /* Device glyph after names in rankings */
 .dev-icon { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--menu-dim); }
 .dev-mobile { color: #6fc3ff; }
+
+/* ================= Touch guard (touchguard.js) =================
+   No long-press menus, image "Look Up" / Google Lens, text selection,
+   drag or tap highlight anywhere in the game (inputs excepted). */
+html, body, canvas, #hud, #hud-laps, #hud-topleft, #touch-controls, #menu, .race-results {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-drag: none;
+}
+#game-canvas, #minimap { touch-action: none; }
+#menu canvas { touch-action: pan-y; } /* menu previews still scroll the menu */
+input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+button { touch-action: manipulation; }
+/* Driving: no browser gesture at all on the play area. */
+body:not(.in-menu) #game-canvas, body:not(.in-menu) #hud, body:not(.in-menu) #hud-laps,
+body:not(.in-menu) #hud-topleft, body:not(.in-menu) #touch-controls { touch-action: none; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
+body { overscroll-behavior: none; }
+#tc-full[hidden] { display: none; }

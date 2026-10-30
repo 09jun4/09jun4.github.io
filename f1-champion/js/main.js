@@ -326,6 +326,7 @@
 
     CR.Input.init();
     CR.Input.initTouch();
+    CR.TouchGuard.init();
     CR.Hud.cacheElements();
     CR.Minimap.init();
     CR.RaceUI.init();

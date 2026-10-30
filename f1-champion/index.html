@@ -2,7 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="F1 Champion">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>F1 Champion</title>
 <meta name="description" content="실제 F1 서킷 6곳에서 달리는 브라우저 3D 포뮬러 레이싱. 랩 수익으로 F4부터 F1까지 업그레이드하고, 튜닝하고, AI 5대와 시즌 챔피언을 다투세요.">
 <meta property="og:title" content="F1 Champion">
@@ -80,6 +88,7 @@
   <div class="tc-side">
     <button type="button" id="tc-reset" class="tc-small">↺ 리셋</button>
     <button type="button" id="tc-menu" class="tc-small">메뉴</button>
+    <button type="button" id="tc-full" class="tc-small" aria-pressed="false">⤢ 전체화면</button>
   </div>
 </div>
 
@@ -151,6 +160,7 @@
 <script src="js/tracks.js"></script>
 <script src="js/track.js"></script>
 <script src="js/input.js"></script>
+<script src="js/touchguard.js"></script>
 <script src="js/car.js"></script>
 <script src="js/laps.js"></script>
 <script src="js/race.js"></script>
