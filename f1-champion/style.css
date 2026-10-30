@@ -981,6 +981,7 @@ body.in-race #tc-reset { display: none; } /* a retirement ends the race */
 /* ================= Folding menu panels (menu.js makeFold) ================= */
 .fold { width: 100%; margin-top: 12px; border-radius: 16px; background: var(--menu-panel); border: 1px solid var(--menu-border); overflow: hidden; }
 .shop-top > .fold:first-child, #tab-practice > .fold:first-child { margin-top: 0; }
+.shop-top > .garage-car + .fold { margin-top: 12px; }
 .fold-head { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 0; background: transparent;
   color: var(--menu-fg); font: inherit; text-align: left; cursor: pointer; }
 .fold-head:hover { background: var(--menu-panel-hi); }

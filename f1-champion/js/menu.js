@@ -716,13 +716,8 @@
   }
 
   function renderFoldSummaries() {
-    if (!folds.car) return;
-    var G = CR.Garage, T = CR.Tuning, car = G.car(), s = stats[car.id];
-    if (!s) return;
-    folds.car.sum.textContent = '';
-    folds.car.sum.appendChild(el('b', null, car.name));
-    folds.car.sum.appendChild(el('span', null, Math.round(s.topSpeedKmh) + 'km/h · 0→100 ' + s.zeroTo100.toFixed(2) + '초'));
-    folds.car.sum.appendChild(el('span', 'fold-money', G.formatBalance()));
+    if (!folds.tune) return;
+    var G = CR.Garage, T = CR.Tuning, car = G.car();
 
     var lv = T.PARTS.reduce(function (n, p) { return n + T.level(car.id, p.key); }, 0), max = T.PARTS.length * T.MAX_LEVEL;
     folds.tune.sum.textContent = '';
@@ -748,7 +743,7 @@
   }
 
   function buildFolds() {
-    makeFold(document.querySelector('.garage-car'), 'car', '내 차');
+    // 내 차 stays always open (not a fold).
     makeFold(document.querySelector('.tuning'), 'tune', '튜닝');
     makeFold(document.querySelector('.shop'), 'shop', '상점');
     els.tracksSection = makeFold(document.querySelector('.tracks'), 'track', '서킷 선택');
