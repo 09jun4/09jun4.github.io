@@ -108,12 +108,16 @@ function render(){
   if (fb && state.admin && badgeFor !== state.user.uid){
     badgeFor = state.user.uid;
     F.getCountFromServer(F.query(F.collection(db, 'feedback'), F.where('read', '==', false)))
-      .then(s => { const n = s.data().count; fb.querySelector('.badge')?.remove(); if (n) fb.insertAdjacentHTML('beforeend', `<b class="badge">${n}</b>`); })
+      .then(s => setBadge(s.data().count))
       .catch(() => {});
   }
   if (!state.admin) badgeFor = '';
 }
-export function refreshBadge(){ badgeFor = ''; render(); }
+// 새 피드백(미처리) 수 표시. 피드백 페이지는 받은 의견을 직접 세어서 넘겨요.
+export function setBadge(n){
+  const fb = document.querySelector('nav [data-nav="feedback"]'); if (!fb) return;
+  fb.querySelector('.badge')?.remove(); if (n) fb.insertAdjacentHTML('beforeend', `<b class="badge">${n}</b>`);
+}
 
 if (enabled){
   A.getRedirectResult(auth).then(r => r && linkWorks(r)).catch(e => toast('로그인하지 못했어요 (' + ((e && e.code) || 'unknown') + ')'));
