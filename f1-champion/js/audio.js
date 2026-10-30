@@ -12,22 +12,52 @@
 //  - Explosion: long roar + deep boom when the car blows up.
 // The AudioContext is created on the first Play (browsers only allow audio
 // after a user gesture). M toggles mute (remembered per browser).
+//
+// Volume: three sliders (전체 / 엔진 / 효과음, 0-100 %) kept per browser.
+// Engine voices go through the engine bus, tyres / shifts / crashes through
+// the effects bus; both feed the master gain and a limiter that stops loud
+// moments from clipping when the master is turned up.
 (function () {
   'use strict';
   window.CR = window.CR || {};
 
-  var Audio = { muted: false };
+  var Audio = { muted: false, volume: { master: 0.8, engine: 1, sfx: 1 } };
   var MUTE_KEY = 'circuit-racer.muted';
-  var MASTER_VOLUME = 0.5;
+  var VOLUME_KEY = 'f1-champion.volume';
+  // Master gain at 100 %. The default 80 % gives the old fixed level (0.5).
+  var MAX_GAIN = 0.78;
   var RED_ZONE_START = 0.85; // rpm fraction where the HUD bar turns red (hud.js)
   var SMOOTH = 0.03; // s, time constant for per-frame parameter changes
 
   var ac = null, master = null, noiseBuffer = null;
+  var engineBus = null, sfxBus = null;
+  var listeners = [];
   var engine = null; // nodes for the current car's engine
   var tyre = null;
   var duckUntil = 0;
 
   try { Audio.muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* storage unavailable */ }
+  try {
+    var saved = JSON.parse(localStorage.getItem(VOLUME_KEY));
+    if (saved) ['master', 'engine', 'sfx'].forEach(function (k) {
+      if (typeof saved[k] === 'number' && isFinite(saved[k])) Audio.volume[k] = Math.max(0, Math.min(1, saved[k]));
+    });
+  } catch (e) { /* storage unavailable or bad data */ }
+
+  // Slider position -> gain. Squared so the slider feels even to the ear.
+  function curve(v) { return v * v; }
+  function masterLevel() { return Audio.muted ? 0 : MAX_GAIN * curve(Audio.volume.master); }
+
+  function applyVolume() {
+    if (!ac) return;
+    set(master.gain, masterLevel());
+    set(engineBus.gain, curve(Audio.volume.engine));
+    set(sfxBus.gain, curve(Audio.volume.sfx));
+  }
+  function changed() {
+    applyVolume();
+    listeners.forEach(function (fn) { try { fn(Audio.volume, Audio.muted); } catch (e) { /* ignore */ } });
+  }
 
   function ensureContext() {
     if (ac) {
@@ -38,8 +68,20 @@
     if (!Ctor) return false;
     ac = new Ctor();
     master = ac.createGain();
-    master.gain.value = Audio.muted ? 0 : MASTER_VOLUME;
-    master.connect(ac.destination);
+    master.gain.value = masterLevel();
+    var limiter = ac.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.12;
+    master.connect(limiter).connect(ac.destination);
+    engineBus = ac.createGain();
+    engineBus.gain.value = curve(Audio.volume.engine);
+    engineBus.connect(master);
+    sfxBus = ac.createGain();
+    sfxBus.gain.value = curve(Audio.volume.sfx);
+    sfxBus.connect(master);
 
     // 2 s of white noise, shared by tyres and shift clunks.
     noiseBuffer = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
@@ -118,14 +160,14 @@
 
     e.out = ac.createGain();
     e.out.gain.value = 0;
-    e.am.connect(e.out).connect(master);
+    e.am.connect(e.out).connect(engineBus);
 
     // Turbo whistle (only voices with turbo > 0 make it audible).
     e.turbo = ac.createOscillator();
     e.turbo.type = 'sine';
     e.turboGain = ac.createGain();
     e.turboGain.gain.value = 0;
-    e.turbo.connect(e.turboGain).connect(master);
+    e.turbo.connect(e.turboGain).connect(engineBus);
 
     e.oscs.concat([e.sub, e.rumble, e.stutter, e.turbo]).forEach(function (o) { o.start(); });
     e.all = e.oscs.concat([e.sub, e.rumble, e.stutter, e.turbo]);
@@ -160,7 +202,7 @@
     gain.gain.value = 0;
     src.connect(band).connect(gain);
     src.connect(band2).connect(gain);
-    gain.connect(master);
+    gain.connect(sfxBus);
     src.start();
     tyre = { band: band, band2: band2, gain: gain };
   }
@@ -233,7 +275,7 @@
     var clickGain = ac.createGain();
     clickGain.gain.setValueAtTime(0.7, t);
     clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-    click.connect(clickBand).connect(clickGain).connect(master);
+    click.connect(clickBand).connect(clickGain).connect(sfxBus);
     click.start(t, Math.random() * 1.5, 0.06);
 
     var thunk = ac.createOscillator();
@@ -246,7 +288,7 @@
     var thunkGain = ac.createGain();
     thunkGain.gain.setValueAtTime(0.35, t);
     thunkGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-    thunk.connect(thunkFilter).connect(thunkGain).connect(master);
+    thunk.connect(thunkFilter).connect(thunkGain).connect(sfxBus);
     thunk.start(t);
     thunk.stop(t + 0.12);
 
@@ -267,7 +309,7 @@
     var g = ac.createGain();
     g.gain.setValueAtTime(0.25 + 0.6 * level, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.25 + 0.35 * level);
-    src.connect(lp).connect(g).connect(master);
+    src.connect(lp).connect(g).connect(sfxBus);
     src.start(t, Math.random() * 1.2, 0.7);
 
     var thump = ac.createOscillator();
@@ -277,7 +319,7 @@
     var tg = ac.createGain();
     tg.gain.setValueAtTime(0.5 * level + 0.15, t);
     tg.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-    thump.connect(tg).connect(master);
+    thump.connect(tg).connect(sfxBus);
     thump.start(t);
     thump.stop(t + 0.3);
   };
@@ -295,7 +337,7 @@
     var g = ac.createGain();
     g.gain.setValueAtTime(1.2, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
-    src.connect(lp).connect(g).connect(master);
+    src.connect(lp).connect(g).connect(sfxBus);
     src.start(t, 0, 1.9);
 
     var boom = ac.createOscillator();
@@ -305,16 +347,81 @@
     var bg = ac.createGain();
     bg.gain.setValueAtTime(1.0, t);
     bg.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
-    boom.connect(bg).connect(master);
+    boom.connect(bg).connect(sfxBus);
     boom.start(t);
     boom.stop(t + 1);
   };
 
-  Audio.toggleMute = function () {
-    Audio.muted = !Audio.muted;
+  Audio.setMuted = function (on) {
+    Audio.muted = !!on;
     try { localStorage.setItem(MUTE_KEY, Audio.muted ? '1' : '0'); } catch (e) { /* storage unavailable */ }
-    if (master) set(master.gain, Audio.muted ? 0 : MASTER_VOLUME);
+    changed();
     return Audio.muted;
+  };
+  Audio.toggleMute = function () {
+    var m = Audio.setMuted(!Audio.muted);
+    if (CR.Hud && CR.Hud.flash && document.body && !document.body.classList.contains('in-menu')) {
+      CR.Hud.flash(m ? '소리 꺼짐' : '소리 켜짐', 'is-lap');
+    }
+    return m;
+  };
+
+  // kind: 'master' | 'engine' | 'sfx', value 0..1. Moving a slider up while
+  // muted turns the sound back on.
+  Audio.setVolume = function (kind, value) {
+    if (!(kind in Audio.volume)) return;
+    Audio.volume[kind] = Math.max(0, Math.min(1, +value || 0));
+    if (Audio.muted && value > 0) {
+      Audio.muted = false;
+      try { localStorage.setItem(MUTE_KEY, '0'); } catch (e) { /* storage unavailable */ }
+    }
+    try { localStorage.setItem(VOLUME_KEY, JSON.stringify(Audio.volume)); } catch (e) { /* storage unavailable */ }
+    changed();
+  };
+
+  // Called with (volume, muted) whenever a slider or mute changes.
+  Audio.onChange = function (fn) { listeners.push(fn); };
+
+  // Short sample sound for a slider, so the level can be judged in the menu.
+  // Runs from the slider's own touch/click, so the AudioContext may start here.
+  Audio.preview = function (kind) {
+    if (!ensureContext()) return;
+    var t = ac.currentTime + 0.01;
+    if (kind === 'engine') {
+      var o = ac.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(70, t);
+      o.frequency.exponentialRampToValueAtTime(210, t + 0.22);
+      o.frequency.exponentialRampToValueAtTime(90, t + 0.45);
+      var lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1400;
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.35, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(lp).connect(g).connect(engineBus);
+      o.start(t);
+      o.stop(t + 0.55);
+    } else {
+      var click = ac.createBufferSource();
+      click.buffer = noiseBuffer;
+      var band = ac.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 2200;
+      band.Q.value = 3;
+      var cg = ac.createGain();
+      cg.gain.setValueAtTime(0.7, t);
+      cg.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      click.connect(band).connect(cg).connect(kind === 'sfx' ? sfxBus : master);
+      click.start(t, Math.random() * 1.5, 0.07);
+    }
+  };
+
+  // Current gains (for tests / debugging).
+  Audio.levels = function () {
+    if (!ac) return null;
+    return { master: master.gain.value, engine: engineBus.gain.value, sfx: sfxBus.gain.value };
   };
 
   CR.Audio = Audio;

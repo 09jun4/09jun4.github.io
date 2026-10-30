@@ -747,6 +747,12 @@
     makeFold(document.querySelector('.tuning'), 'tune', '튜닝');
     makeFold(document.querySelector('.shop'), 'shop', '상점');
     els.tracksSection = makeFold(document.querySelector('.tracks'), 'track', '서킷 선택');
+    makeFold(document.querySelector('.sound'), 'sound', '소리');
+    CR.Volume.build(document.getElementById('sound-panel'));
+    CR.Volume.build(document.getElementById('pause-sound'), { compact: true });
+    CR.Volume.onSummary = function (text) { folds.sound.sum.textContent = text; };
+    CR.Volume.init();
+    folds.sound.sum.textContent = CR.Volume.summary();
     var st = foldState();
     Object.keys(folds).forEach(function (k) { setFold(k, !!st[k]); });
   }

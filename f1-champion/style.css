@@ -997,9 +997,9 @@ body.in-race #tc-reset { display: none; } /* a retirement ends the race */
 .fold.is-open .fold-chev { transform: rotate(-135deg) translate(-2px, -2px); }
 .fold.is-open > .fold-head { border-bottom: 1px solid var(--menu-border); }
 /* The panel inside a fold drops its own frame and duplicate title. */
-.fold-body > .garage-car, .fold-body > .tuning, .fold-body > .shop, .fold-body > .tracks {
+.fold-body > .garage-car, .fold-body > .tuning, .fold-body > .shop, .fold-body > .tracks, .fold-body > .sound {
   margin: 0; border: 0; border-radius: 0; background: transparent; }
-.fold-body .garage-car-head .menu-section, .fold-body #tuning-title, .fold-body #tracks-title { display: none; }
+.fold-body .garage-car-head .menu-section, .fold-body #tuning-title, .fold-body #tracks-title, .fold-body #sound-title { display: none; }
 .fold-body #shop-title { margin-bottom: 10px; font-size: 12px; letter-spacing: 0.02em; }
 .fold-body #shop-title::first-line { color: var(--menu-dim); }
 @media (max-width: 560px) {
@@ -1033,3 +1033,49 @@ body:not(.in-menu) #hud-topleft, body:not(.in-menu) #touch-controls { touch-acti
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
 body { overscroll-behavior: none; }
 #tc-full[hidden] { display: none; }
+
+/* --- Sound settings (volume.js): menu 소리 panel + pause card --------------- */
+.sound { margin-top: 16px; }
+.fold-body > .sound { padding: 14px 18px 18px; }
+.vol { display: flex; flex-direction: column; gap: 12px; }
+.vol-row { display: grid; grid-template-columns: 76px 1fr 46px; align-items: center; gap: 12px; }
+.vol-name { font-size: 14px; font-weight: 800; color: var(--menu-fg, #f2f4f8); line-height: 1.2; }
+.vol-name small { display: block; font-size: 11px; font-weight: 600; color: var(--menu-dim, #9aa3b2); }
+.vol-val { text-align: right; font-size: 13px; font-weight: 700; color: var(--menu-dim, #9aa3b2); font-variant-numeric: tabular-nums; }
+.vol-range {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent;
+  cursor: pointer; touch-action: pan-y; --fill: 80%;
+}
+.vol-range::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(to right, #ffd23f 0 var(--fill), rgba(255, 255, 255, 0.14) var(--fill) 100%);
+}
+.vol-range::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); }
+.vol-range::-moz-range-progress { height: 6px; border-radius: 999px; background: #ffd23f; }
+.vol-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%;
+  background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.vol-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; }
+.vol-range:focus-visible { outline: 2px solid #ffd23f; outline-offset: 2px; border-radius: 8px; }
+.vol.is-muted .vol-range, .vol.is-muted .vol-val { opacity: 0.4; }
+.vol-mute {
+  align-self: flex-start; padding: 9px 16px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06);
+  color: #f2f4f8; font: 700 13px/1 inherit; font-family: inherit;
+}
+.vol.is-muted .vol-mute { background: #ffd23f; border-color: #ffd23f; color: #121212; }
+.pause-sound { margin: 6px 0 2px; padding: 14px 0 4px; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: left; }
+.vol.is-compact { gap: 6px; }
+.vol.is-compact .vol-row { grid-template-columns: 52px 1fr 40px; gap: 10px; }
+.vol.is-compact .vol-mute { align-self: stretch; margin-top: 4px; }
+.pause-card { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+.vol-row { grid-template-columns: 116px 1fr 46px; }
+.vol-name small { white-space: nowrap; }
+/* Phone in landscape: buttons on the left, sound sliders on the right. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .pause-card { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(240px, 1fr); column-gap: 24px; row-gap: 10px; align-items: start; }
+  .pause-card > .pause-title, .pause-card > .pause-hint { grid-column: 1 / -1; }
+  .pause-card > .pause-btn { grid-column: 1; }
+  .pause-card > .pause-sound { grid-column: 2; grid-row: 2 / span 3; margin: 0; padding: 0 0 0 20px; border-top: 0; border-left: 1px solid rgba(255, 255, 255, 0.1); }
+}

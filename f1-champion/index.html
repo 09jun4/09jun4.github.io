@@ -72,6 +72,7 @@
     <button id="pause-resume" type="button" class="pause-btn is-primary">레이스 계속하기</button>
     <button id="pause-menu" type="button" class="pause-btn">메뉴로 돌아가기</button>
     <button id="pause-end" type="button" class="pause-btn is-danger">레이스 종료하기</button>
+    <div id="pause-sound" class="pause-sound"></div>
     <p class="pause-hint">메뉴의 상점에서 번 돈으로 새 차를 살 수 있습니다 · <kbd>Esc</kbd> 계속하기</p>
   </div>
 </div>
@@ -145,11 +146,15 @@
       </div>
       <div id="track-list" class="track-list" role="radiogroup" aria-labelledby="tracks-title"></div>
     </section>
+    <section class="sound" aria-labelledby="sound-title">
+      <h2 id="sound-title" class="menu-section">소리</h2>
+      <div id="sound-panel"></div>
+    </section>
     <div class="menu-actions">
       <button id="play-btn" type="button">플레이 ▶</button>
       <button id="end-race-btn" type="button" hidden>레이스 종료하기</button>
     </div>
-    <p class="menu-keys"><kbd>Enter</kbd> 시작 · <kbd>M</kbd> 소리 켜기/끄기 · 랩타임이 짧을수록 수익 증가 · 베스트 랩은 2배</p>
+    <p class="menu-keys"><kbd>Enter</kbd> 시작 · <kbd>M</kbd> 음소거 · 랩타임이 짧을수록 수익 증가 · 베스트 랩은 2배</p>
   </div>
 </div>
 
@@ -169,6 +174,7 @@
 <script src="js/minimap.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/volume.js"></script>
 <script src="js/vendor/firebase.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/cloud.js"></script>
