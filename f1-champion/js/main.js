@@ -105,7 +105,7 @@
   // AI 대전: 3 laps against five AI F1s, from P3, in the player's own
   // (tuned) F1. Needs UNLOCK_F1_LAPS laps in the F1 first.
   Main.startRace = function () {
-    if (!CR.Race.unlocked() || !CR.Garage.isOwned('f1')) return;
+    if (!CR.Race.canEnter()) return;
     // Always random, never a circuit already raced this season.
     var tracks = CR.Tracks.list, pool = CR.Garage.seasonTrackPool();
     var pick = pool[Math.floor(Math.random() * pool.length)];

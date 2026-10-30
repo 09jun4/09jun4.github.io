@@ -76,7 +76,13 @@
   };
 
   Race.unlocked = function () {
-    return CR.Garage.f1Laps >= Race.UNLOCK_F1_LAPS;
+    // Admin account (cloud.js): AI 대전 open from the start.
+    return CR.Garage.unlimited || CR.Garage.f1Laps >= Race.UNLOCK_F1_LAPS;
+  };
+
+  // Can enter now: unlocked and owns an F1 (the admin races the F1 regardless).
+  Race.canEnter = function () {
+    return Race.unlocked() && (CR.Garage.unlimited || CR.Garage.isOwned('f1'));
   };
 
   // --- Track geometry helpers ------------------------------------------------

@@ -765,7 +765,7 @@
     var racing = CR.Main.raceActive && !CR.Race.active;
     els.endRace.hidden = !racing || Menu.tab !== 'practice';
     if (Menu.tab === 'race') {
-      var ok = CR.Race.unlocked() && CR.Garage.isOwned('f1');
+      var ok = CR.Race.canEnter();
       els.play.textContent = ok ? '대전 시작 ▶' : '🔒 입장권 필요';
       els.play.disabled = !ok;
       els.sub.textContent = 'AI 5대와 3랩 대전! 순위별 포인트를 모아 5경기 시즌 챔피언에 도전하세요.';
