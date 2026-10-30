@@ -994,14 +994,19 @@ const GAME = {
       P.fallDist = 0;
     } else {
       const slip = BLOCKS[feetId] && BLOCKS[feetId].slip;
-      const acc = P.onGround ? (slip ? 1.2 : 14) : 2.2;
+      const acc = P.onGround ? (slip ? 1.2 : 14) : 5;
       const inLiq = P.inWater || P.inLava;
       const tsp = inLiq ? speed * 0.45 : speed;
       P.vel.x += (mx * tsp - P.vel.x) * Math.min(1, dt * (inLiq ? 6 : acc));
       P.vel.z += (mz * tsp - P.vel.z) * Math.min(1, dt * (inLiq ? 6 : acc));
+      const step = P.onGround && !inLiq ? this.stepAhead(mx, mz) : 0;
+      if (step > 0 && step <= 0.6) { P.pos.y += step + 0.001; P.vel.y = 0; P.skipGrav = true; } // walk up snow layers, carpets and slabs
+      else if (step > 0.6 && !K.Space && !P.sneaking && (this.jumpCool || 0) <= 0 && fwd > 0) {
+        P.vel.y = JUMP_V; P.exhaust(P.sprinting ? 0.2 : 0.05); this.jumpCool = 0.25;
+      }
       if (K.Space) {
         if (inLiq) { P.vel.y = Math.min(P.vel.y + GRAV * 0.55 * dt, 3.2); if (Math.random() < 0.05) this.sound('swim', P.pos); }
-        else if (P.onGround && (this.jumpCool || 0) <= 0) { P.vel.y = 9.0; if (P.sprinting) { P.vel.x += -sinY * 2; P.vel.z += -cosY * 2; P.exhaust(0.2); } else P.exhaust(0.05); this.jumpCool = 0.1; }
+        else if (P.onGround && (this.jumpCool || 0) <= 0) { P.vel.y = JUMP_V; if (P.sprinting) { P.vel.x += -sinY * 2; P.vel.z += -cosY * 2; P.exhaust(0.2); } else P.exhaust(0.05); this.jumpCool = 0.1; }
       }
       this.jumpCool = (this.jumpCool || 0) - dt;
       // sneaking edge guard
@@ -1046,6 +1051,22 @@ const GAME = {
     // eating / bow
     if (P.eating > 0) { if (!this.mouse.r) P.eating = 0; else { P.eating += dt; if (Math.floor(P.eating * 5) !== Math.floor((P.eating - dt) * 5)) { this.sound('eat', P.pos); const it = P.heldItem(); if (it) this.particles.burst(P.pos.x + P.lookDir().x * 0.4, P.pos.y + 1.3, P.pos.z + P.lookDir().z * 0.4, it.tex !== undefined ? it.tex : BLOCKS[it.block].faces.side, 3, 0.1); } if (P.eating >= 1.6) { P.eating = 0; this.finishEating(); } } }
     if (P.bowCharge > 0) P.bowCharge += dt;
+  },
+  // auto-jump: a step of at most 1.25 blocks right ahead, with room above it and above the player
+  stepAhead(mx, mz) {
+    const P = this.player, w = this.world;
+    if (!mx && !mz) return 0;
+    const ax = P.pos.x + mx * (P.w + 0.3), az = P.pos.z + mz * (P.w + 0.3);
+    const bx = Math.floor(ax), bz = Math.floor(az), fy = Math.floor(P.pos.y + 0.01);
+    if (bx === Math.floor(P.pos.x) && bz === Math.floor(P.pos.z)) return 0;
+    let top = -1;
+    for (const y of [fy, fy + 1]) { const bb = blockBox(w.getBlock(bx, y, bz)); if (bb) top = Math.max(top, y + bb[4]); }
+    const step = top - P.pos.y;
+    if (step <= 0.001 || step > 1.25) return 0;
+    const ty = Math.ceil(top - 0.01);
+    for (let k = 0; k < 2; k++) if (blockBox(w.getBlock(bx, ty + k, bz))) return 0;
+    if (!aabbFree(w, P.pos.x, P.pos.y + step + 0.002, P.pos.z, P.w, P.h)) return 0;
+    return step;
   },
   tick() {
     // 20 tps logic

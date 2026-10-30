@@ -1,6 +1,7 @@
 // Entities: physics, mobs, items, projectiles, particles, dragon
 'use strict';
 const GRAV = 32;
+const JUMP_V = Math.sqrt(2 * GRAV * 1.25); // 1.25-block jump
 function blockBox(id) {
   if (!id) return null;
   const b = BLOCKS[id];
@@ -55,12 +56,15 @@ class Entity {
     this.inWater = LIQ[feet] === 1 || LIQ[mid] === 1;
     this.inLava = LIQ[feet] === 2 || LIQ[mid] === 2;
     const web = BLOCKS[feet] && BLOCKS[feet].web || BLOCKS[mid] && BLOCKS[mid].web;
-    if (!this.noGravity) {
+    let airFall = false;
+    if (!this.noGravity && !this.skipGrav) {
       if (this.inWater || this.inLava) { this.vel.y -= GRAV * 0.25 * dt; this.vel.y *= Math.pow(this.inLava ? 0.1 : 0.2, dt); }
-      else this.vel.y -= GRAV * dt;
-      if (this.vel.y < -60) this.vel.y = -60;
+      else { this.vel.y -= GRAV * dt; airFall = true; }
+      if (this.vel.y < -60) { this.vel.y = -60; airFall = false; }
     }
-    let mx = this.vel.x * dt, my = this.vel.y * dt, mz = this.vel.z * dt;
+    // exact parabola (frame-rate independent jump height)
+    this.skipGrav = false;
+    let mx = this.vel.x * dt, my = this.vel.y * dt + (airFall ? 0.5 * GRAV * dt * dt : 0), mz = this.vel.z * dt;
     if (web) { mx *= 0.25; my *= 0.05; mz *= 0.25; this.fallDist = 0; }
     const r = moveAABB(world, this, mx, my, mz);
     if (r.hitX) this.vel.x = 0;
@@ -327,7 +331,7 @@ class Mob extends Entity {
     this.vel.z += (mvz * speed - this.vel.z) * Math.min(1, accel * dt);
     if (this.inWater) { this.vel.y += GRAV * 0.35 * dt; if (this.vel.y > 2) this.vel.y = 2; }
     const r = this.physics(dt, world);
-    if (this.hitWall && this.onGround && (mvx || mvz)) this.vel.y = 9;
+    if (this.hitWall && this.onGround && (mvx || mvz)) this.vel.y = JUMP_V;
     this.walk += Math.sqrt(this.vel.x * this.vel.x + this.vel.z * this.vel.z) * dt * 2.5;
     // contact damage blocks
     const fb = world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y), Math.floor(this.pos.z));
