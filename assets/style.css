@@ -107,3 +107,5 @@ header,nav a,.acct-btn{white-space:nowrap}
 .fb-foot a{color:var(--accent)}
 .fb-foot .right{display:flex;gap:6px}
 .fb-foot .btn{font-size:12px;padding:4px 10px}
+.owner-bar{margin-top:28px;padding-top:14px;border-top:1px dashed var(--line);color:var(--soft);font-size:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.owner-bar .btn{font-size:12px;padding:4px 10px}

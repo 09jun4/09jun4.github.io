@@ -17,34 +17,47 @@
 <script>header('notes');</script>
 <script type="module">
 // 노트: 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만 (Firebase 규칙: firestore.rules 의 notes 부분). 로그인은 사이트 공통(js/auth.js)
-import { enabled, F, db, onUser } from '../js/auth.js';
+import { enabled, F, db, onUser, signIn, signOut, inAppBrowser, inAppText } from '../js/auth.js';
 const COL = enabled ? F.collection(db, 'private/notes/items') : null;
 const $app = document.getElementById('app');
-let notes = [], unsub = null, ready = false, admin = false, uid;
+let notes = [], unsub = null, ready = false, admin = false, uid, me = null;
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-const gate = msg => { $app.innerHTML = `<h1>notes</h1><p class="gate">${msg}</p>`; };
+const gate = msg => { $app.innerHTML = `<h1>notes</h1><p class="gate">${msg}</p>${admin ? '<div class="bar"><a class="btn main" href="#new">+ 새 노트</a></div>' : ''}${ownerBar()}`; bindOwnerBar(); };
+// 맨 아래: 노트 쓰기용 로그인 안내 (관리자 계정만 쓸 수 있어요)
+function ownerBar(){
+  if (!enabled || admin) return '';
+  const inApp = inAppBrowser();
+  return `<div class="owner-bar">${me ? `${esc(me.email || '')} 계정은 읽기만 할 수 있어요. <button class="btn" id="other">다른 계정으로 로그인</button>`
+    : `노트 쓰기 ${inApp ? `<span>${esc(inAppText(inApp))}</span>` : '<button class="btn" id="in">구글로 로그인</button>'}`}</div>`;
+}
+function bindOwnerBar(){
+  const i = document.getElementById('in'), o = document.getElementById('other');
+  if (i) i.onclick = () => signIn();
+  if (o) o.onclick = async () => { await signOut(); signIn(); };
+}
 
 if (!enabled) gate('지금은 노트를 불러올 수 없어요.');
 // 로그인 상태가 바뀔 때마다 다시 구독해요 (관리자는 공개 규칙 게시 전에도 읽을 수 있어요)
 onUser(s => {
   if (!enabled || ((s.user ? s.user.uid : null) === uid && s.admin === admin)) return;
-  uid = s.user ? s.user.uid : null; admin = s.admin;
+  uid = s.user ? s.user.uid : null; admin = s.admin; me = s.user;
   if (unsub){ unsub(); unsub = null; }
   unsub = F.onSnapshot(F.query(COL, F.limit(1000)), snap => {
     notes = snap.docs.map(d => ({ id: d.id, ...d.data() })); ready = true; route();
-  }, () => { ready = false; gate('노트를 공개하는 중이에요. 조금 뒤에 다시 와 주세요.'); });
+  }, e => { ready = false; gate(admin ? `노트를 읽지 못했어요 (${esc(e.code || 'error')}). Firebase 콘솔에서 firestore.rules 의 사이트 규칙을 게시했는지 확인해 주세요.` : '노트를 공개하는 중이에요. 조금 뒤에 다시 와 주세요.'); });
 });
-addEventListener('hashchange', () => ready && route());
+addEventListener('hashchange', () => (ready || (admin && location.hash === '#new')) ? route() : null);
 
 function route(){
   const h = location.hash.slice(1), [k, id] = h.split('=');
   if (k === 'n') return view(id);
   if (k === 'edit' || k === 'new') return admin ? edit(k === 'edit' ? id : null) : (location.hash = '');
   list();
+  bindOwnerBar();
 }
 function list(){
   $app.innerHTML = `<h1>notes</h1><p class="lead">바이브 코딩을 하면서 공부한 내용을 정리해요.</p>
-    <div class="bar"><input class="search" id="q" type="search" placeholder="검색">${admin ? '<a class="btn main" href="#new">+ 새 노트</a>' : ''}</div><ul class="list" id="list"></ul>`;
+    <div class="bar"><input class="search" id="q" type="search" placeholder="검색">${admin ? '<a class="btn main" href="#new">+ 새 노트</a>' : ''}</div><ul class="list" id="list"></ul>${ownerBar()}`;
   const q = document.getElementById('q');
   const draw = () => { const s = q.value.trim().toLowerCase();
     const L = notes.filter(n => !s || ((n.title || '') + ' ' + (n.body || '')).toLowerCase().includes(s)).sort(byDate);
@@ -72,7 +85,7 @@ function edit(id){
     if (!title && !body.trim()){ document.getElementById('m').textContent = '내용을 써 주세요'; return; }
     const ref = id ? F.doc(COL, id) : F.doc(COL);
     try { await F.setDoc(ref, { title, body, date: n ? n.date : today(), updatedAt: Date.now() }); location.hash = 'n=' + ref.id; }
-    catch (e) { document.getElementById('m').textContent = '저장하지 못했어요 (' + (e.code || '') + ')'; }
+    catch (e) { document.getElementById('m').textContent = '저장하지 못했어요 (' + (e.code || '') + ')' + (e.code === 'permission-denied' ? ' — 콘솔에서 firestore.rules 의 사이트 규칙을 게시해 주세요' : ''); }
   };
 }
 </script>
