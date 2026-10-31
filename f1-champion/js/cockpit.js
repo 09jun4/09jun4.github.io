@@ -2,10 +2,9 @@
 // and sides, working rear-view mirrors and the F1 steering wheel.
 // Everything is modelled in car-local metres (x right, y forward, z up)
 // and projected through the same camera as the track, so it holds its
-// place in perspective and moves with the head shake. The wheel is the
-// SVG from wheel.js laid on a tilted plane in front of the driver: its
-// four projected corners give a CSS perspective transform (homography),
-// and steering turns it within that plane.
+// place in perspective and moves with the head shake. The steering wheel
+// (wheel.js) is a 3D object too: a carbon plate with thickness, grips,
+// buttons, knobs and gloves standing out of it, facing the driver.
 // Load order: after renderer.js, hud.js, wheel.js. Depends on: Camera,
 // Renderer, Car, Laps, Race, Wheel, EngineSound (at call time).
 //
@@ -27,7 +26,6 @@
   window.CR = window.CR || {};
 
   var Cockpit = {};
-  var wheelBox = null, wheelSvg = null;
   var mirror = null, mirrorCtx = null, mirrorFrame = 0;
   var ers = 0.7, tyres = [85, 85, 85, 85];
   var trace = [], bestTrace = null, traceLap = 0, traceTrack = null;
@@ -39,11 +37,6 @@
   }
 
   Cockpit.init = function () {
-    wheelBox = document.createElement('div');
-    wheelBox.id = 'cockpit-wheel';
-    wheelBox.hidden = true;
-    document.body.appendChild(wheelBox);
-    wheelSvg = CR.Wheel.build(wheelBox);
     mirror = document.createElement('canvas');
     mirrorCtx = mirror.getContext('2d');
     var b = document.getElementById('tc-view');
@@ -176,10 +169,15 @@
   }
 
   function drawHalo(ctx) {
+    // Centre pillar first (thin), reaching up inside the hoop so the hoop
+    // drawn over it closes the joint without a gap.
+    var top = [0, 0.11, 1.03], bot = PILLAR[1], wt = 0.014, wb = 0.021;
+    quads(ctx, [[[-wt, top[1], top[2]], [-wb, bot[1], bot[2]], [-wb * 0.5, bot[1] + 0.04, bot[2]], [-wt * 0.5, top[1] + 0.04, top[2]]]], '#262a31');
+    quads(ctx, [[[wt, top[1], top[2]], [wb, bot[1], bot[2]], [wb * 0.5, bot[1] + 0.04, bot[2]], [wt * 0.5, top[1] + 0.04, top[2]]]], '#0c0d10');
+    quads(ctx, [[[-wt, top[1], top[2]], [wt, top[1], top[2]], [wb, bot[1], bot[2]], [-wb, bot[1], bot[2]]]], '#17191e');
     var under = [], inner = [], w = HALO_W / 2, t = HALO_T;
     for (var i = 0; i < HALO.length - 1; i++) {
       var A = HALO[i], B = HALO[i + 1], a = A.p, b = B.p;
-      // the curve runs right -> left, so -n points inwards (towards the driver)
       var aOut = [a[0] + A.nx * w, a[1] + A.ny * w], aIn = [a[0] - A.nx * w, a[1] - A.ny * w];
       var bOut = [b[0] + B.nx * w, b[1] + B.ny * w], bIn = [b[0] - B.nx * w, b[1] - B.ny * w];
       under.push([[aIn[0], aIn[1], a[2] - t], [aOut[0], aOut[1], a[2] - t], [bOut[0], bOut[1], b[2] - t], [bIn[0], bIn[1], b[2] - t]]);
@@ -187,11 +185,6 @@
     }
     quads(ctx, inner, '#20242b');
     quads(ctx, under, '#111317');
-    // Centre pillar: back face (towards the driver) and the two sides.
-    var top = PILLAR[0], bot = PILLAR[1], wt = 0.026, wb = 0.04;
-    quads(ctx, [[[-wt, top[1], top[2]], [-wb, bot[1], bot[2]], [-wb * 0.5, bot[1] + 0.05, bot[2]], [-wt * 0.5, top[1] + 0.05, top[2]]]], '#262a31');
-    quads(ctx, [[[wt, top[1], top[2]], [wb, bot[1], bot[2]], [wb * 0.5, bot[1] + 0.05, bot[2]], [wt * 0.5, top[1] + 0.05, top[2]]]], '#0c0d10');
-    quads(ctx, [[[-wt, top[1], top[2]], [wt, top[1], top[2]], [wb, bot[1], bot[2]], [-wb, bot[1], bot[2]]]], '#17191e');
   }
 
   // Thin 3D bar (suspension arm) from a to b, as a ribbon facing up.
@@ -237,6 +230,15 @@
     var sideR = [[0.33, -0.75, 0.66], [0.33, 0.42, 0.66], [0.28, 0.75, 0.6], [0.62, 0.32, 0.48], [0.64, -0.75, 0.5]];
     poly(ctx, sideR, mid);
     poly(ctx, mirrorX(sideR), mid);
+    // Raised shoulders either side of the cockpit, reaching out over the
+    // front tyres as on a real car: from the seat only the tops of the
+    // tyres show above them.
+    var shoulderR = [[0.33, -0.75, 0.668], [0.33, 0.44, 0.668], [0.56, 0.5, 0.655], [0.8, 0.44, 0.635], [0.92, 0.18, 0.6], [0.94, -0.75, 0.56]];
+    poly(ctx, shoulderR, mid);
+    poly(ctx, mirrorX(shoulderR), mid);
+    var lipR = [[0.33, 0.44, 0.668], [0.56, 0.5, 0.655], [0.8, 0.44, 0.635], [0.8, 0.44, 0.62], [0.56, 0.5, 0.64], [0.33, 0.44, 0.655]];
+    poly(ctx, lipR, lit);
+    poly(ctx, mirrorX(lipR), lit);
     // front deck (towards the nose), with its sides falling to the floor
     poly(ctx, [[-0.33, 0.42, 0.66], [0.33, 0.42, 0.66], [0.22, 1.15, 0.5], [-0.22, 1.15, 0.5]], lit);
     [1, -1].forEach(function (sg) {
@@ -316,59 +318,40 @@
   }
   function rgb(c, k) { return 'rgb(' + ((c[0] * k) | 0) + ',' + ((c[1] * k) | 0) + ',' + ((c[2] * k) | 0) + ')'; }
 
-  // --- Steering wheel on its tilted plane ----------------------------------
+  // --- Steering wheel: a 3D object facing the driver ------------------------
+  // The wheel's face is parallel to the camera's image plane (it faces the
+  // driver straight on). Its sheet (wheel.js, 1000 x 640) maps to metres
+  // around the hub; steering turns it about the column, anticlockwise for
+  // left as the driver sees it.
 
-  var WHEEL = { forward: 0.3, below: 0.145, width: 0.33, tilt: 0.42 }; // m from the eyes; tilt rad from vertical
-  var SVG_W = 1000, SVG_H = 640, SVG_CX = 500, SVG_CY = 330;
+  var WHEEL = { forward: 0.3, below: 0.145, width: 0.33 }; // m from the eyes
+  var wheelState = null;
 
-  // Solves the 3x3 homography taking the SVG rectangle to four screen points.
-  function homography(dst) {
-    var src = [[0, 0], [SVG_W, 0], [SVG_W, SVG_H], [0, SVG_H]];
-    var A = [], b = [];
-    for (var i = 0; i < 4; i++) {
-      var x = src[i][0], y = src[i][1], u = dst[i][0], v = dst[i][1];
-      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
-      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
-    }
-    // Gaussian elimination
-    for (var c = 0; c < 8; c++) {
-      var piv = c;
-      for (var r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
-      var tA = A[c]; A[c] = A[piv]; A[piv] = tA;
-      var tb = b[c]; b[c] = b[piv]; b[piv] = tb;
-      for (var r2 = c + 1; r2 < 8; r2++) {
-        var f = A[r2][c] / A[c][c];
-        for (var k = c; k < 8; k++) A[r2][k] -= f * A[c][k];
-        b[r2] -= f * b[c];
-      }
-    }
-    var hh = new Array(8);
-    for (var r3 = 7; r3 >= 0; r3--) {
-      var sum = b[r3];
-      for (var k2 = r3 + 1; k2 < 8; k2++) sum -= A[r3][k2] * hh[k2];
-      hh[r3] = sum / A[r3][r3];
-    }
-    return hh;
-  }
-
-  function placeWheel(steerDeg) {
-    var eye = CR.Camera.EYE;
-    var cy0 = eye.forward - COCKPIT_Y + WHEEL.forward, cz0 = eye.height - WHEEL.below;
-    var s = WHEEL.width / SVG_W; // metres per SVG unit
-    var upY = -Math.sin(WHEEL.tilt), upZ = Math.cos(WHEEL.tilt); // wheel "up": up and back towards the driver
+  function wheelView(steerDeg) {
+    var eye = CR.Camera.EYE, p = eye.pitch * Math.PI / 180;
+    // camera axes in cockpit coordinates (right, forward, up)
+    var fY = Math.cos(p), fZ = -Math.sin(p), uY = Math.sin(p), uZ = Math.cos(p);
     var a = steerDeg * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    var corners = [[0, 0], [SVG_W, 0], [SVG_W, SVG_H], [0, SVG_H]], dst = [];
-    for (var i = 0; i < 4; i++) {
-      var px = (corners[i][0] - SVG_CX) * s, py = (SVG_CY - corners[i][1]) * s; // right, up in the wheel plane
-      var rx = px * ca - py * sa, ry = px * sa + py * ca; // turned by the steering
-      var q = P(rx, cy0 + ry * upY, cz0 + ry * upZ);
-      if (!q) return false;
-      dst.push([q.x, q.y]);
+    // turned axes of the sheet: R = right, U = up (both in the face plane)
+    var Rx = ca, Ry = sa * uY, Rz = sa * uZ;
+    var Ux = -sa, Uy = ca * uY, Uz = ca * uZ;
+    var Nx = 0, Ny = -fY, Nz = -fZ; // towards the driver
+    var cx = 0, cy = eye.forward - COCKPIT_Y + WHEEL.forward, cz = eye.height - WHEEL.below;
+    var s = WHEEL.width / CR.Wheel3D.SHEET.w, sx0 = CR.Wheel3D.SHEET.cx, sy0 = CR.Wheel3D.SHEET.cy;
+    var ex = 0, ey = eye.forward - COCKPIT_Y, ez = eye.height;
+    function pt(x, y, d) {
+      var u = (x - sx0) * s, v = (sy0 - y) * s;
+      return [cx + Rx * u + Ux * v + Nx * d, cy + Ry * u + Uy * v + Ny * d, cz + Rz * u + Uz * v + Nz * d];
     }
-    var hh = homography(dst);
-    var m = [hh[0], hh[3], 0, hh[6], hh[1], hh[4], 0, hh[7], 0, 0, 1, 0, hh[2], hh[5], 0, 1];
-    wheelBox.style.transform = 'matrix3d(' + m.map(function (v) { return v.toFixed(6); }).join(',') + ')';
-    return true;
+    return {
+      dpr: DPR, side: 1,
+      proj: function (x, y, d) { var q = pt(x, y, d); return P(q[0], q[1], q[2]); },
+      toEye: function (x, y, d, nx, ny) {
+        var q = pt(x, y, d);
+        var wx = Rx * nx - Ux * ny, wy = Ry * nx - Uy * ny, wz = Rz * nx - Uz * ny; // sheet y is down
+        return wx * (ex - q[0]) + wy * (ey - q[1]) + wz * (ez - q[2]) > 0;
+      },
+    };
   }
 
   // --- Frame --------------------------------------------------------------------
@@ -394,17 +377,16 @@
     drawBody(ctx, main);
     drawMirrors(ctx, w, h);
     drawHalo(ctx);
-    // ~±90° of wheel at parking speed, ~±25° at racing speed.
+    // ~±90° of wheel at parking speed, ~±25° at racing speed; + = left.
     steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 90;
-    placeWheel(steerDeg); // + = left = anticlockwise, as the driver sees it
+    if (wheelState) CR.Wheel3D.draw(ctx, wheelView(steerDeg), wheelState, performance.now());
     CR.Camera.setNear(0.5);
   };
 
-  // Per-frame wheel update (also hides / shows it).
+  // Per-frame state for the wheel's screen and lights.
   Cockpit.update = function (dt) {
     var on = CR.Camera.inCockpit() && (CR.Main.state === 'playing' || CR.Main.state === 'paused');
     document.body.classList.toggle('cockpit', on);
-    if (wheelBox.hidden === on) wheelBox.hidden = !on;
     if (!on || !dt) return;
     var c = CR.Car.state, cfg = CR.Config, input = CR.Input.state, def = CR.Car.def;
     updateSystems(dt, c, input);
@@ -422,7 +404,7 @@
         if (along < -1 && along > -22 && Math.abs(dx * -fy + dy * fx) < 6) flagR = 'blue';
       });
     }
-    CR.Wheel.update(wheelSvg, {
+    wheelState = {
       gear: def.electric ? 'D' : c.speed < 0.3 && !input.throttle ? 'N' : String(c.gear),
       kph: c.speed * 3.6,
       rpm: rpm,
@@ -440,9 +422,8 @@
       tyres: tyres,
       flagL: flagL,
       flagR: flagR,
-      steer: 0, // turned in 3D by placeWheel()
       accent: def.color,
-    }, performance.now());
+    };
   };
 
   function thrMode(input) {
