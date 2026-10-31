@@ -56,7 +56,9 @@
 
   // Practice: the track's all-time practice best in the lap panel.
   UI.showRecord = function (trackId) {
-    var rec = CR.Garage.practice[trackId];
+    if (trackId) UI.recordTrack = trackId;
+    var view = CR.Camera.mode, rec = CR.Garage.bestBook(view)[UI.recordTrack];
+    if (els.recordLabel) els.recordLabel.textContent = view === 'cockpit' ? '1인칭 기록' : '트랙 기록';
     els.record.textContent = rec ? CR.Laps.format(rec.time) : '—:——.———';
   };
 

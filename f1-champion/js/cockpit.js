@@ -54,6 +54,7 @@
   Cockpit.toggle = function () {
     var m = CR.Camera.toggleMode();
     updateButton();
+    if (CR.RaceUI && CR.RaceUI.showRecord && !(CR.Race && CR.Race.active)) CR.RaceUI.showRecord(); // record line follows the view
     if (CR.Hud && CR.Hud.flash) CR.Hud.flash(m === 'cockpit' ? '1인칭 시점' : '3인칭 시점', 'is-lap');
     return m;
   };

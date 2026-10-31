@@ -269,6 +269,16 @@
     setTimeout(function () { CR.Hud.flash(text, 'is-best'); }, 2300);
   }
 
+  // Which view the current lap is driven in: 'chase' / 'cockpit', or 'mixed'
+  // once the player switches mid-lap (records are kept per view).
+  var lapView = 'chase', lapNo = 0, lapClock = 0;
+  function trackLapView() {
+    var L = CR.Laps, mode = CR.Camera.mode;
+    if (L.lap !== lapNo || L.time < lapClock) { lapNo = L.lap; lapView = mode; }
+    else if (lapView !== mode) lapView = 'mixed';
+    lapClock = L.time;
+  }
+
   // Pay for every completed lap (the HUD notice reads ev.money).
   function handleLapEvents() {
     var ev = CR.Laps.events;
@@ -278,10 +288,10 @@
         CR.Hud.moneyPop();
         var trackId = CR.Tracks.list[Main.trackIndex].realName;
         var practice = !CR.Race.active;
-        var rec = CR.Garage.recordLap(CR.Car.def.id, trackId, ev[i].value, practice);
+        var rec = CR.Garage.recordLap(CR.Car.def.id, trackId, ev[i].value, practice, lapView);
         if (practice) CR.RaceUI.showRecord(trackId);
         if (rec.unlocked) flashLater('AI 대전 입장권 획득! 메뉴의 AI 대전 탭에서 도전하세요');
-        else if (rec.record) flashLater('연습 트랙 신기록! ' + CR.Laps.format(ev[i].value));
+        else if (rec.record) flashLater((lapView === 'cockpit' ? '1인칭' : '3인칭') + ' 트랙 신기록! ' + CR.Laps.format(ev[i].value));
         if (CR.Race.active) CR.Race.onPlayerLap(CR.Laps.history.length);
       }
     }
@@ -301,6 +311,7 @@
       }
       CR.Race.update(dt);
       handleLapEvents();
+      trackLapView();
       handleCarEvents(dt);
       handleRaceEvents(dt);
       CR.Camera.update(dt);

@@ -1091,3 +1091,5 @@ body.touch.cockpit #minimap { width: 140px; height: 140px; }
 /* ...and its buttons move under it as a 2 x 2 grid. */
 body.touch.cockpit .tc-side { top: 160px; transform: none; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
 body.touch.cockpit .tc-side .tc-small { padding: 7px 9px; font-size: 12px; }
+.rec-sub { display: block; font-size: 11px; font-weight: 600; color: var(--menu-dim); }
+.rank-views { margin-top: 8px; }

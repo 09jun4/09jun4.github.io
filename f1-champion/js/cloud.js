@@ -95,7 +95,9 @@
   provider.setCustomParameters({ prompt: 'select_account' });
 
   function userRef(uid) { return SDK.doc(db, 'users', uid); }
-  function lapRef(slug, uid) { return SDK.doc(db, 'tracks', slug, 'laps', uid); }
+  // Lap rankings are kept per view: 'laps' (3인칭) and 'laps_cockpit' (1인칭).
+  function lapCol(view) { return view === 'cockpit' ? 'laps_cockpit' : 'laps'; }
+  function lapRef(slug, uid, view) { return SDK.doc(db, 'tracks', slug, lapCol(view), uid); }
   function careerRef(uid) { return SDK.doc(db, 'career', uid); }
 
   function errText(e) {
@@ -217,11 +219,11 @@
     });
   }
 
-  function pushLap(trackId, force) {
+  function pushLap(trackId, force, view) {
     if (Cloud.state !== 'in') return Promise.resolve();
-    var rec = CR.Garage.practice[trackId];
+    var rec = CR.Garage.bestBook(view)[trackId];
     if (!rec || !(rec.time > 0)) return Promise.resolve();
-    var uid = Cloud.user.uid, ref = lapRef(Cloud.slug(trackId), uid), name = Cloud.displayName();
+    var uid = Cloud.user.uid, ref = lapRef(Cloud.slug(trackId), uid, view), name = Cloud.displayName();
     return SDK.getDoc(ref).then(function (snap) {
       var cur = snap.exists() ? snap.data() : null;
       var time = Math.round(rec.time * 1000) / 1000;
@@ -231,7 +233,11 @@
       var data = { uid: uid, name: name, time: best.time, car: best.car, at: SDK.serverTimestamp() };
       if (best.device === 'mobile' || best.device === 'pc') data.device = best.device;
       return setRank(ref, data);
-    }).catch(function (e) { console.error('[F1C] lap rank write failed', e); });
+    }).catch(function (e) {
+      // 1인칭 rankings need the updated firestore.rules published.
+      if (view === 'cockpit' && e && e.code === 'permission-denied') console.warn('[F1C] 1인칭 ranking needs the updated firestore.rules');
+      else console.error('[F1C] lap rank write failed', e);
+    });
   }
 
   function pushCareer() {
@@ -246,13 +252,14 @@
   }
 
   function syncAll(force) {
-    var jobs = Object.keys(CR.Garage.practice).map(function (t) { return pushLap(t, force); });
+    var jobs = Object.keys(CR.Garage.practice).map(function (t) { return pushLap(t, force, 'chase'); })
+      .concat(Object.keys(CR.Garage.practiceFP).map(function (t) { return pushLap(t, force, 'cockpit'); }));
     jobs.push(pushCareer());
     return Promise.all(jobs).then(function () { cache = {}; });
   }
 
-  CR.Garage.on('practiceRecord', function (trackId) {
-    pushLap(trackId).then(function () { delete cache['lap:' + Cloud.slug(trackId)]; });
+  CR.Garage.on('practiceRecord', function (r) {
+    pushLap(r.track, false, r.view).then(function () { delete cache['lap:' + r.view + ':' + Cloud.slug(r.track)]; });
   });
   CR.Garage.on('race', function () {
     pushCareer().then(function () { delete cache.career; });
@@ -279,15 +286,16 @@
   }
 
   // Top laps on a circuit + this player's rank. -> {top, me: {rank, total, time}|null, total}
-  Cloud.lapRanking = function (trackId, force) {
+  Cloud.lapRanking = function (trackId, force, view) {
     var slug = Cloud.slug(trackId);
-    return cached('lap:' + slug, function () {
-      var col = SDK.collection(db, 'tracks', slug, 'laps');
+    view = view === 'cockpit' ? 'cockpit' : 'chase';
+    return cached('lap:' + view + ':' + slug, function () {
+      var col = SDK.collection(db, 'tracks', slug, lapCol(view));
       var jobs = [
         SDK.getDocs(SDK.query(col, SDK.orderBy('time'), SDK.limit(50))).then(rows),
         SDK.getCountFromServer(col).then(function (c) { return c.data().count; }),
       ];
-      var mine = Cloud.state === 'in' ? CR.Garage.practice[trackId] : null;
+      var mine = Cloud.state === 'in' ? CR.Garage.bestBook(view)[trackId] : null;
       if (mine) {
         var t = Math.round(mine.time * 1000) / 1000;
         jobs.push(SDK.getCountFromServer(SDK.query(col, SDK.where('time', '<', t))).then(function (c) {

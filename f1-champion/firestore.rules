@@ -39,6 +39,22 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    // 1인칭(콕핏 시점) 베스트 랩 랭킹: 3인칭 랭킹과 따로, 규칙은 같아요.
+    match /tracks/{track}/laps_cockpit/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && track in ['monza', 'suzuka', 'lasvegas', 'spa', 'silverstone', 'interlagos']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at'])
+        && (!('device' in request.resource.data) || request.resource.data.device in ['mobile', 'pc'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && request.resource.data.time is number
+        && request.resource.data.time > 30 && request.resource.data.time < 3600
+        && request.resource.data.car in ['f4', 'f3', 'f2', 'fe', 'f1']
+        && request.resource.data.at == request.time;
+    }
+
     // AI 대전 커리어 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요.
     match /career/{uid} {
       allow read: if true;

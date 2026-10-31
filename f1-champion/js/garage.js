@@ -38,7 +38,8 @@
     track: 'random', // chosen circuit (CR.Tracks realName) or 'random'
     tune: {}, // car id -> {part key -> level} (tuning.js)
     f1Laps: 0, // laps completed in the F1 (5 unlock AI 대전)
-    practice: {}, // track id -> {time, car, at}: all-time practice best lap
+    practice: {}, // track id -> {time, car, at}: all-time practice best lap (3인칭, chase view)
+    practiceFP: {}, // the same for laps driven entirely in the cockpit view (1인칭)
     raceDifficulty: 'normal',
     season: { num: 1, races: [] }, // current season (race.js results, compact)
     seasons: [], // finished seasons, oldest first
@@ -50,7 +51,7 @@
   var listeners = {};
   Garage.uid = null; // signed-in account id, or null (guest)
 
-  // Events for cloud.js: 'practiceRecord' (trackId), 'race' (record).
+  // Events for cloud.js: 'practiceRecord' ({track, view}), 'race' (record).
   Garage.on = function (type, fn) { (listeners[type] = listeners[type] || []).push(fn); };
   function emit(type, arg) { (listeners[type] || []).forEach(function (fn) { try { fn(arg); } catch (e) { console.error(e); } }); }
 
@@ -66,7 +67,7 @@
 
   function snapshot() {
     return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track, tune: Garage.tune,
-      f1Laps: Garage.f1Laps, practice: Garage.practice, raceDifficulty: Garage.raceDifficulty,
+      f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, raceDifficulty: Garage.raceDifficulty,
       season: Garage.season, seasons: Garage.seasons, savedAt: Garage.savedAt };
   }
 
@@ -125,20 +126,23 @@
     Garage.tune = {};
     Garage.f1Laps = 0;
     Garage.practice = {};
+    Garage.practiceFP = {};
     Garage.raceDifficulty = 'normal';
     Garage.season = { num: 1, races: [] };
     Garage.seasons = [];
     if (data) {
       Garage.f1Laps = Math.max(0, Math.floor(Number(data.f1Laps)) || 0);
-      if (data.practice && typeof data.practice === 'object') {
-        for (var tid in data.practice) {
-          var rec = data.practice[tid];
+      [['practice', Garage.practice], ['practiceFP', Garage.practiceFP]].forEach(function (pair) {
+        var src = data[pair[0]], dst = pair[1];
+        if (!src || typeof src !== 'object') return;
+        for (var tid in src) {
+          var rec = src[tid];
           if (rec && Number(rec.time) > 0) {
-            Garage.practice[tid] = { time: Number(rec.time), car: String(rec.car || ''), at: Number(rec.at) || 0 };
-            if (rec.dev === 'mobile' || rec.dev === 'pc') Garage.practice[tid].dev = rec.dev;
+            dst[tid] = { time: Number(rec.time), car: String(rec.car || ''), at: Number(rec.at) || 0 };
+            if (rec.dev === 'mobile' || rec.dev === 'pc') dst[tid].dev = rec.dev;
           }
         }
-      }
+      });
       if (typeof data.raceDifficulty === 'string') Garage.raceDifficulty = data.raceDifficulty;
       if (data.season && Array.isArray(data.season.races)) {
         Garage.season = { num: Math.max(1, Math.floor(Number(data.season.num)) || 1), races: data.season.races.slice(0, 5) };
@@ -333,18 +337,21 @@
   // A completed lap: counts F1 laps; in practice also the track's all-time
   // best. Returns {unlocked: true} the moment AI 대전 unlocks, {record:
   // true} on a new practice record.
-  Garage.recordLap = function (carId, trackId, lapSeconds, practice) {
+  // view: 'chase' (3인칭) or 'cockpit' (1인칭) when the whole lap was driven
+  // in that view; anything else (switched mid-lap) sets no record.
+  Garage.bestBook = function (view) { return view === 'cockpit' ? Garage.practiceFP : Garage.practice; };
+  Garage.recordLap = function (carId, trackId, lapSeconds, practice, view) {
     var out = {};
     if (carId === 'f1') {
       Garage.f1Laps++;
       if (CR.Race && Garage.f1Laps === CR.Race.UNLOCK_F1_LAPS) out.unlocked = true;
     }
-    if (practice && trackId) {
-      var cur = Garage.practice[trackId];
+    if (practice && trackId && (view === 'chase' || view === 'cockpit')) {
+      var book = Garage.bestBook(view), cur = book[trackId];
       if (!cur || lapSeconds < cur.time) {
-        Garage.practice[trackId] = { time: lapSeconds, car: carId, at: Date.now(), dev: CR.deviceType() };
+        book[trackId] = { time: lapSeconds, car: carId, at: Date.now(), dev: CR.deviceType() };
         out.record = true;
-        emit('practiceRecord', trackId);
+        emit('practiceRecord', { track: trackId, view: view });
       }
     }
     save();

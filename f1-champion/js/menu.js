@@ -497,7 +497,7 @@
     return s;
   }
 
-  var rankView = { mode: 'laps', track: -1 };
+  var rankView = { mode: 'laps', track: -1, view: 'chase' };
   var rankSeq = 0;
 
   function renderRanking(card, force) {
@@ -533,6 +533,16 @@
         chips.appendChild(b);
       });
       card.appendChild(chips);
+      // separate rankings for laps driven in each view
+      var views = el('div', 'rank-modes rank-views');
+      [['chase', '3인칭'], ['cockpit', '1인칭']].forEach(function (v) {
+        var b = el('button', 'rank-mode' + (rankView.view === v[0] ? ' is-active' : ''), v[1]);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', rankView.view === v[0] ? 'true' : 'false');
+        b.addEventListener('click', function () { rankView.view = v[0]; renderRanking(card, false); });
+        views.appendChild(b);
+      });
+      card.appendChild(views);
     }
 
     var body = el('div', 'rank-body');
@@ -541,13 +551,13 @@
     var mine = C.state === 'in' ? C.user.uid : null;
     var seq = ++rankSeq;
     var track = CR.Tracks.list[rankView.track];
-    var load = rankView.mode === 'laps' ? C.lapRanking(track.realName, force) : C.careerRanking(force);
+    var load = rankView.mode === 'laps' ? C.lapRanking(track.realName, force, rankView.view) : C.careerRanking(force);
     load.then(function (data) {
       if (seq !== rankSeq) return;
       body.textContent = '';
       if (!data.top.length) {
         body.appendChild(el('p', 'race-card-note', rankView.mode === 'laps'
-          ? '아직 ' + track.name + ' 기록이 없어요. 첫 번째 주인공이 되어 보세요!'
+          ? '아직 ' + track.name + ' ' + (rankView.view === 'cockpit' ? '1인칭' : '3인칭') + ' 기록이 없어요. 첫 번째 주인공이 되어 보세요!'
           : '아직 AI 대전 기록이 없어요.'));
       } else {
         var table = el('table', 'rr-table rank-table');
@@ -590,7 +600,8 @@
       if (seq !== rankSeq) return;
       console.error('[F1C] ranking load failed', e);
       body.textContent = '';
-      body.appendChild(el('p', 'acct-error', '랭킹을 불러오지 못했어요. 네트워크를 확인하고 새로고침해 주세요.'));
+      var pending = rankView.mode === 'laps' && rankView.view === 'cockpit' && e && e.code === 'permission-denied';
+      body.appendChild(el('p', 'acct-error', pending ? '1인칭 랭킹은 서버 설정이 끝나면 열려요.' : '랭킹을 불러오지 못했어요. 네트워크를 확인하고 새로고침해 주세요.'));
     });
   }
 
@@ -622,19 +633,24 @@
 
     // Practice bests per track
     var prac = el('section', 'race-card');
-    prac.appendChild(el('h2', 'menu-section', '연습 베스트 랩 · 트랙별'));
+    prac.appendChild(el('h2', 'menu-section', '연습 베스트 랩 · 트랙별 · 시점별'));
+    prac.appendChild(el('p', 'race-card-note', '한 랩을 처음부터 끝까지 같은 시점으로 달려야 그 시점의 기록이 돼요.'));
     var table = el('table', 'rr-table');
     var hr = el('tr');
-    ['서킷', '베스트 랩', '차량', '날짜'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    ['서킷', '3인칭', '1인칭'].forEach(function (h, k) { hr.appendChild(el('th', k ? 'rr-num' : null, h)); });
     var thead = el('thead'); thead.appendChild(hr); table.appendChild(thead);
     var tb = el('tbody');
     CR.Tracks.list.forEach(function (t) {
-      var rec = G.practice[t.realName];
       var tr = el('tr');
       tr.appendChild(el('td', 'rr-driver', t.name));
-      tr.appendChild(el('td', 'rr-num' + (rec ? ' rec-best' : ''), rec ? fmt(rec.time) : '—'));
-      tr.appendChild(el('td', null, rec ? CR.Cars.byId(rec.car).name : ''));
-      tr.appendChild(el('td', 'rr-num', rec ? new Date(rec.at).toLocaleDateString('ko-KR') : ''));
+      [G.practice[t.realName], G.practiceFP[t.realName]].forEach(function (rec) {
+        var td = el('td', 'rr-num' + (rec ? ' rec-best' : ''), rec ? fmt(rec.time) : '—');
+        if (rec) {
+          td.appendChild(el('small', 'rec-sub', CR.Cars.byId(rec.car).name + ' · ' + new Date(rec.at).toLocaleDateString('ko-KR')));
+          td.title = CR.Cars.byId(rec.car).name;
+        }
+        tr.appendChild(td);
+      });
       tb.appendChild(tr);
     });
     table.appendChild(tb);
@@ -738,8 +754,9 @@
     var ti = G.trackIndex(G.track);
     folds.track.sum.textContent = '';
     folds.track.sum.appendChild(el('b', null, ti >= 0 ? CR.Tracks.list[ti].name : '랜덤'));
-    var rec = ti >= 0 ? G.practice[CR.Tracks.list[ti].realName] : null;
-    if (rec) folds.track.sum.appendChild(el('span', null, '내 기록 ' + fmt(rec.time)));
+    var rn = ti >= 0 ? CR.Tracks.list[ti].realName : null;
+    var rec = rn ? G.practice[rn] : null, recFP = rn ? G.practiceFP[rn] : null;
+    if (rec || recFP) folds.track.sum.appendChild(el('span', null, '내 기록 ' + (rec ? '3인칭 ' + fmt(rec.time) : '') + (rec && recFP ? ' · ' : '') + (recFP ? '1인칭 ' + fmt(recFP.time) : '')));
   }
 
   function buildFolds() {
