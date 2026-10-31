@@ -396,7 +396,7 @@
     drawHalo(ctx);
     // ~±90° of wheel at parking speed, ~±25° at racing speed.
     steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 90;
-    placeWheel(-steerDeg);
+    placeWheel(steerDeg); // + = left = anticlockwise, as the driver sees it
     CR.Camera.setNear(0.5);
   };
 
