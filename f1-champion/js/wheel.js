@@ -11,8 +11,8 @@
 // The wheel is designed on a 1000 x 640 sheet and built in 3D by
 // cockpit.js, which hands in proj(x, y, depth): sheet point + depth in
 // metres towards the driver -> screen point. The plate has thickness (its
-// edges show), and the grips, buttons, rotary knobs, thumb wheels, toggles
-// and gloves stand out from it: each is drawn as the side walls that face
+// edges show), and the grips, buttons, rotary knobs, thumb wheels and
+// toggles stand out from it, with the driver's gloved hands on the grips: each is drawn as the side walls that face
 // the eye plus a front cap. Flat artwork (carbon weave, screen, labels) is
 // painted on each face with that face's own transform (exact, because the
 // wheel faces the camera).
@@ -28,7 +28,7 @@
 
   var SHEET_W = 1000, SHEET_H = 640;
   var PLATE_T = 0.032, GRIP_FRONT = 0.03, GRIP_BACK = 0.035; // m
-  var BTN_H = 0.011, KNOB_H = 0.02, DRUM_H = 0.012, TOGGLE_H = 0.014, GLOVE_H = 0.05, THUMB_H = 0.065;
+  var BTN_H = 0.011, KNOB_H = 0.02, DRUM_H = 0.012, TOGGLE_H = 0.014;
 
   // Push buttons: [cx, cy, colour, label, text colour]
   var BUTTONS = [
@@ -46,8 +46,6 @@
 
   var GRIP = 'M 172 150 C 122 138 78 158 72 214 C 64 300 56 400 62 490 C 68 556 128 594 180 570 C 214 554 230 520 228 474 L 214 262 Z';
   var PLATE = 'M 236 88 Q 500 66 764 88 Q 846 96 854 168 L 856 300 Q 856 364 800 400 L 726 448 Q 708 532 640 540 L 360 540 Q 292 532 274 448 L 200 400 Q 144 364 144 300 L 146 168 Q 154 96 236 88 Z';
-  var GLOVE = 'M 66 232 C 56 280 54 346 60 398 C 66 436 86 452 114 450 L 150 444 C 166 440 172 426 170 410 L 166 330 C 166 312 160 300 150 294 L 152 284 C 156 258 146 238 128 228 C 108 216 76 214 66 232 Z';
-  var THUMB = 'M 150 296 C 162 284 184 280 198 286 C 208 290 208 302 198 306 C 184 312 168 314 156 316 Z';
 
   var NUM = "'Roboto Condensed', 'Arial Narrow', 'Segoe UI', Arial, sans-serif";
   var LBL = "'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif";
@@ -101,7 +99,6 @@
     return { pts: pts, edges: edges, path: mirror ? mirrorPath(d) : new Path2D(d) };
   }
   var PLATE_O = outline(PLATE), GRIPS = [outline(GRIP), outline(GRIP, true)];
-  var GLOVES = [outline(GLOVE), outline(GLOVE, true)], THUMBS_O = [outline(THUMB), outline(THUMB, true)];
 
   // --- Drawing helpers -----------------------------------------------------------
 
@@ -290,11 +287,109 @@
 
   // --- Per frame -----------------------------------------------------------------
 
-  var Wheel3D = {};
+  var Wheel3D = { hands: 'real' }; // 'real' | 'none'
+
+  // --- The driver's hands ---------------------------------------------------------
+  // Real size (a gloved hand is ~9 cm across the knuckles), built from
+  // spheres and capsules in metres around each grip (X right, Y down the
+  // sheet, D towards the driver), and drawn far to near with round shading:
+  // the thumb lies across the face towards the shoulder buttons, the index
+  // finger hooks round the top of the grip to the paddle, the other three
+  // fingers wrap round the back of the grip, the back of the hand and its
+  // knuckles sit on the outside, and the cuff and suit sleeve run back
+  // towards the driver.
+  var M_PER_UNIT = 0.33 / SHEET_W; // matches cockpit.js WHEEL.width
+  var GRIP_C = [104, 335]; // centre of the left handle on the sheet
+
+  function hand() {
+    var parts = [];
+    function sph(c, r, col) { parts.push({ t: 's', a: c, r: r, col: col || 'glove' }); }
+    function cap(a, b, r0, r1, col) { parts.push({ t: 'c', a: a, b: b, r0: r0, r1: r1 === undefined ? r0 : r1, col: col || 'glove' }); }
+    // sleeve and cuff, coming in from below and outside
+    cap([-0.075, 0.13, 0.05], [-0.16, 0.37, 0.3], 0.034, 0.044, 'suit');
+    cap([-0.05, 0.075, 0.018], [-0.075, 0.13, 0.05], 0.03, 0.033, 'cuff');
+    // back of the hand on the outside of the grip: metacarpals from the
+    // wrist fanning up to the knuckles
+    var rows = [-0.004, 0.018, 0.039, 0.058];
+    rows.forEach(function (y, i) {
+      cap([-0.052, 0.07 - i * 0.003, 0.012], [-0.046, y, -0.004], 0.0128 - i * 0.0007, 0.012 - i * 0.0008);
+    });
+    // four fingers wrapped round the outside edge and across the front of
+    // the grip, tips curling in towards the plate; knuckle caps
+    rows.forEach(function (y, i) {
+      var r = 0.0102 - i * 0.0006, k = [-0.046, y, -0.004];
+      cap(k, [-0.034, y + 0.002, 0.04], r, r * 0.97);
+      cap([-0.034, y + 0.002, 0.04], [-0.002, y + 0.004, 0.047], r * 0.97, r * 0.92);
+      cap([-0.002, y + 0.004, 0.047], [0.018, y + 0.005, 0.038], r * 0.92, r * 0.85);
+      sph(k, r * 1.25, 'knuckle');
+      sph([-0.034, y + 0.002, 0.04], r * 1.08, 'knuckle'); // middle joint
+    });
+    // thumb from the top of the fist up towards the shoulder buttons
+    sph([-0.03, -0.012, 0.026], 0.019);
+    cap([-0.03, -0.014, 0.028], [-0.006, -0.034, 0.036], 0.0128, 0.0112);
+    cap([-0.006, -0.034, 0.036], [0.016, -0.046, 0.034], 0.0106, 0.0096);
+    cap([0.016, -0.046, 0.034], [0.03, -0.052, 0.028], 0.0094, 0.0086);
+    return parts;
+  }
+  var HAND = hand();
+
+  var GLOVE = { glove: ['#4a5672', '#1e2433', '#0d1018'], knuckle: ['#5d6a88', '#283048', '#10131c'], cuff: ['#59647e', '#2a3142', '#121620'], suit: ['#2c3448', '#151a26', '#0a0d14'] };
+
+  function drawHands(ctx, view, s, behind) {
+    var list = [];
+    [1, -1].forEach(function (side) {
+      function sheet(p) { // metres around the grip -> sheet x, y, depth
+        var x = GRIP_C[0] + p[0] / M_PER_UNIT, y = GRIP_C[1] + p[1] / M_PER_UNIT;
+        return [side > 0 ? x : SHEET_W - x, y, p[2]];
+      }
+      HAND.forEach(function (h) {
+        var dMid = h.t === 's' ? h.a[2] : (h.a[2] + h.b[2]) / 2;
+        if ((dMid < -0.01) !== behind) return;
+        list.push({ h: h, side: side, d: dMid, sheet: sheet });
+      });
+    });
+    list.sort(function (a, b) { return a.d - b.d; }); // far (behind) first
+    list.forEach(function (it) {
+      var h = it.h, cols = GLOVE[h.col];
+      if (h.t === 's') {
+        var c = it.sheet(h.a), p = view.proj(c[0], c[1], c[2]), e = view.proj(c[0] + h.r / M_PER_UNIT, c[1], c[2]);
+        if (!p || !e) return;
+        var r = Math.hypot(e.x - p.x, e.y - p.y);
+        var g = ctx.createRadialGradient(p.x - r * 0.35, p.y - r * 0.45, r * 0.1, p.x, p.y, r);
+        g.addColorStop(0, cols[0]); g.addColorStop(0.55, cols[1]); g.addColorStop(1, cols[2]);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+      } else {
+        var a = it.sheet(h.a), b = it.sheet(h.b);
+        var pa = view.proj(a[0], a[1], a[2]), pb = view.proj(b[0], b[1], b[2]);
+        var ea = view.proj(a[0] + h.r0 / M_PER_UNIT, a[1], a[2]), eb = view.proj(b[0] + h.r1 / M_PER_UNIT, b[1], b[2]);
+        if (!pa || !pb || !ea || !eb) return;
+        var ra = Math.hypot(ea.x - pa.x, ea.y - pa.y), rb = Math.hypot(eb.x - pb.x, eb.y - pb.y);
+        var dx = pb.x - pa.x, dy = pb.y - pa.y, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+        if (ny > 0) { nx = -nx; ny = -ny; } // n points up the screen (towards the light)
+        var mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2, rm = (ra + rb) / 2;
+        var g2 = ctx.createLinearGradient(mx + nx * rm, my + ny * rm, mx - nx * rm, my - ny * rm);
+        g2.addColorStop(0, cols[0]); g2.addColorStop(0.45, cols[1]); g2.addColorStop(1, cols[2]);
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.moveTo(pa.x + nx * ra, pa.y + ny * ra); ctx.lineTo(pb.x + nx * rb, pb.y + ny * rb);
+        ctx.lineTo(pb.x - nx * rb, pb.y - ny * rb); ctx.lineTo(pa.x - nx * ra, pa.y - ny * ra);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.arc(pa.x, pa.y, ra, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pb.x, pb.y, rb, 0, Math.PI * 2); ctx.fill();
+        if (h.col === 'cuff') { // accent stripe round the cuff
+          ctx.strokeStyle = s.accent || '#ffd23f'; ctx.lineWidth = Math.max(1.5, ra * 0.25);
+          ctx.beginPath(); ctx.moveTo(pb.x + nx * rb * 0.95, pb.y + ny * rb * 0.95); ctx.lineTo(pb.x - nx * rb * 0.95, pb.y - ny * rb * 0.95); ctx.stroke();
+        }
+      }
+    });
+  }
 
   Wheel3D.draw = function (ctx, view, s, now) {
     if (!art) art = buildArt();
     ctx.save();
+    // 0. Fingers wrapped round the back of the grips (behind the plate).
+    if (Wheel3D.hands !== 'none') drawHands(ctx, view, s, true);
     // 1. Plate thickness (edges behind the face) and the grips' sides.
     walls(ctx, view, PLATE_O, -PLATE_T, 0, '#22252c');
     GRIPS.forEach(function (o) { walls(ctx, view, o, -GRIP_BACK, GRIP_FRONT, '#2d2f33'); });
@@ -359,30 +454,8 @@
       }
       resetT(ctx, view);
     });
-    // 5. Gloves on the handles, thumbs resting on the shoulders.
-    GLOVES.forEach(function (o, k) {
-      walls(ctx, view, o, GRIP_FRONT - 0.02, GLOVE_H, '#262d3d');
-      if (setFace(ctx, view, GLOVE_H)) {
-        var g = ctx.createLinearGradient(k ? 940 : 60, 220, k ? 830 : 170, 450);
-        g.addColorStop(0, '#38425c'); g.addColorStop(1, '#141824');
-        ctx.fillStyle = g; ctx.fill(o.path);
-        ctx.save(); ctx.clip(o.path);
-        ctx.strokeStyle = 'rgba(120,135,160,0.35)'; ctx.lineWidth = 2;
-        [330, 370, 410].forEach(function (y) { line(ctx, k ? 820 : 40, y, k ? 960 : 180, y); });
-        ctx.strokeStyle = s.accent || '#ffd23f'; ctx.lineWidth = 7; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(k ? 924 : 76, 242); ctx.bezierCurveTo(k ? 902 : 98, 232, k ? 878 : 122, 234, k ? 860 : 140, 246); ctx.stroke();
-        ctx.restore();
-      }
-      resetT(ctx, view);
-      var th = THUMBS_O[k];
-      walls(ctx, view, th, GLOVE_H - 0.02, THUMB_H, '#262d3d');
-      if (setFace(ctx, view, THUMB_H)) {
-        var tg = ctx.createLinearGradient(0, 280, 0, 316);
-        tg.addColorStop(0, '#3c4763'); tg.addColorStop(1, '#161b28');
-        ctx.fillStyle = tg; ctx.fill(th.path);
-      }
-      resetT(ctx, view);
-    });
+    // 5. The driver's hands (in front of the plate).
+    if (Wheel3D.hands !== 'none') drawHands(ctx, view, s, false);
     ctx.restore();
   };
 
