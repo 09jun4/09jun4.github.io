@@ -308,7 +308,9 @@
       document.body.classList.toggle('finish-shot', !!CR.Car.state.autopilot);
       var t0 = performance.now();
       CR.Renderer.render(ctx, canvas, dt);
+      if (CR.Camera.inCockpit()) CR.Cockpit.draw(ctx, canvas, dt);
       adaptResolution(performance.now() - t0, now);
+      CR.Cockpit.update(dt);
       CR.Hud.update();
       CR.Hud.updateLaps();
       CR.RaceUI.update(dt);
@@ -316,7 +318,9 @@
       CR.Audio.update();
     } else if (Main.state === 'paused') {
       CR.Renderer.render(ctx, canvas, 0); // frozen frame behind the overlay
+      if (CR.Camera.inCockpit()) CR.Cockpit.draw(ctx, canvas, 0);
     }
+    if (Main.state !== 'playing') CR.Cockpit.update(0);
 
     requestAnimationFrame(frame);
   }
@@ -335,6 +339,7 @@
     CR.Minimap.init();
     CR.RaceUI.init();
     CR.Menu.init();
+    CR.Cockpit.init();
     Main.toGarage();
 
     requestAnimationFrame(function (t) {

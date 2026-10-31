@@ -1082,3 +1082,16 @@ body { overscroll-behavior: none; }
 
 /* Finish shot after the chequered flag (AI 대전): clean view of the car. */
 body.finish-shot #touch-controls, body.finish-shot #hud-help { visibility: hidden; }
+
+/* --- Cockpit view (cockpit.js / wheel.js) ------------------------------------ */
+#cockpit-wheel {
+  /* Laid out at the SVG's own size; cockpit.js places it in 3D with matrix3d(). */
+  position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none;
+  width: 1000px; height: 640px; transform-origin: 0 0;
+}
+#cockpit-wheel[hidden] { display: none; }
+#cockpit-wheel .cw { width: 1000px; height: 640px; display: block; overflow: visible; filter: drop-shadow(0 14px 22px rgba(0,0,0,0.6)); }
+.cw-rot { transition: none; will-change: transform; }
+.cw-font { font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif; }
+.cw-num { font-family: 'Roboto Condensed', 'Arial Narrow', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+body.cockpit #hud, body.cockpit #hud-help { display: none; }

@@ -121,6 +121,240 @@
     Cam.endPoly(ctx);
   }
 
+  // --- Scenery: catch fencing and grandstands --------------------------------
+  //
+  // Catch fencing stands on every wall: posts leaning in towards the track
+  // at the top, cables, and a see-through mesh from the wall top up to
+  // FENCE_TOP. Grandstands are placed once per circuit along the straights
+  // (both sides of the start/finish straight), set back behind the wall:
+  // a front parapet, a raked seating bowl full of spectators, a back wall
+  // and a roof with a coloured fascia. The crowd is a texture mapped onto
+  // each section of the seating (affine per section), so the people get
+  // smaller with distance instead of staying fixed on the screen.
+  var FENCE_TOP = 4.1, FENCE_LEAN = 0.55, FENCE_NEAR = 220; // m
+  var FENCE_MESH = 'rgba(48, 54, 62, 0.26)', FENCE_POST = '#4f555e', FENCE_CABLE = '#80868f';
+
+  function fenceFace(ctx, samples, i, o, oTop, z0, z1) {
+    var a = samples[i], b = samples[nextIdx[i]];
+    Cam.beginPoly();
+    Cam.vertex(a.x + a.nx * o, a.y + a.ny * o, z0);
+    Cam.vertex(b.x + b.nx * o, b.y + b.ny * o, z0);
+    Cam.vertex(b.x + b.nx * oTop, b.y + b.ny * oTop, z1);
+    Cam.vertex(a.x + a.nx * oTop, a.y + a.ny * oTop, z1);
+    Cam.endPoly(ctx);
+  }
+
+  function fencePost(ctx, s, o, oTop) {
+    var tx = Math.cos(s.heading) * 0.07, ty = Math.sin(s.heading) * 0.07;
+    var bx = s.x + s.nx * o, by = s.y + s.ny * o, ux = s.x + s.nx * oTop, uy = s.y + s.ny * oTop;
+    Cam.beginPoly();
+    Cam.vertex(bx - tx, by - ty, WALL_HEIGHT);
+    Cam.vertex(bx + tx, by + ty, WALL_HEIGHT);
+    Cam.vertex(ux + tx, uy + ty, FENCE_TOP + 0.05);
+    Cam.vertex(ux - tx, uy - ty, FENCE_TOP + 0.05);
+    Cam.endPoly(ctx);
+  }
+
+  // Grandstand layout for the current circuit (built once per track).
+  var stands = null, standsFor = null;
+  var STAND = { depth: 11, rise: 8, parapet: 1.6, back: 11.6, roof: 12.4, roofFront: 2.2, gap: 3.5 };
+  var FASCIA = ['#c8102e', '#f4f4f4', '#1f4fd1', '#ffd23f', '#0fa3a3', '#1e9a52'];
+
+  function buildStands(samples) {
+    var cfg = CR.Config, n = samples.length, sp = cfg.TRACK_SAMPLE_SPACING;
+    var straight = function (i) { var s = samples[(i + n) % n]; return Math.abs(s.curvature) < 1 / 700 && !s.bridge; };
+    // Runs of straight samples, walking the loop once from a corner.
+    var start = 0;
+    while (start < n && straight(start)) start++;
+    var runs = [], cur = null;
+    for (var k = 1; k <= n; k++) {
+      var i = (start + k) % n;
+      if (straight(i)) { if (!cur) cur = { i0: i, len: 0 }; cur.len++; }
+      else if (cur) { runs.push(cur); cur = null; }
+    }
+    if (cur) runs.push(cur);
+    var list = [], minLen = Math.ceil(90 / sp), maxLen = Math.ceil(150 / sp);
+    var clear = cfg.TRACK_WIDTH / 2 + cfg.RUNOFF_MAX + 6;
+    function free(i0, len, side, off) {
+      // No other part of the lap may run through the stand's footprint.
+      for (var j = 0; j <= len; j += 3) {
+        var s = samples[(i0 + j) % n];
+        for (var d = 0; d <= STAND.back; d += STAND.back / 2) {
+          var px = s.x + s.nx * side * (off + d), py = s.y + s.ny * side * (off + d);
+          for (var m = 0; m < n; m += 2) {
+            var gap = Math.abs(m - (i0 + j) % n); gap = Math.min(gap, n - gap);
+            if (gap < 40) continue;
+            var q = samples[m];
+            if (Math.abs(q.x - px) < clear && Math.abs(q.y - py) < clear && Math.hypot(q.x - px, q.y - py) < clear) return false;
+          }
+        }
+      }
+      return true;
+    }
+    runs.sort(function (a, b) { return b.len - a.len; });
+    runs.forEach(function (r, ri) {
+      if (r.len < minLen || list.length >= 10) return;
+      var len = Math.min(maxLen, r.len - 6), i0 = (r.i0 + Math.floor((r.len - len) / 2)) % n;
+      var into = (0 - r.i0 + n) % n; // how far sample 0 (the line) is into this run
+      var main = into < r.len; // the start/finish straight
+      if (main) {
+        // Stands both sides along the grid and the line: from ~60 % of
+        // their length before the line, clamped inside the straight.
+        var before = Math.min(into - 2, Math.floor(len * 0.6));
+        var after = Math.min(r.len - into - 2, len - before);
+        if (before < 0) before = 0;
+        len = before + Math.max(0, after);
+        i0 = (n - before) % n;
+      }
+      var sides = main ? [1, -1] : [ri % 2 ? -1 : 1];
+      sides.forEach(function (side) {
+        var off = 0;
+        for (var j = 0; j <= len; j++) {
+          var s = samples[(i0 + j) % n];
+          off = Math.max(off, (side > 0 ? s.wallLeft : s.wallRight) + WALL_THICKNESS + STAND.gap);
+        }
+        if (free(i0, len, side, off)) list.push({ i0: i0, len: len, side: side, off: off, fascia: FASCIA[(list.length * 7 + ri) % FASCIA.length] });
+      });
+    });
+    return list;
+  }
+
+  var crowdPattern = null, CROWD_PX_M = 16, CROWD_TILE_M = 10, CROWD_ROW_M = 0.95, CROWD_ROWS = 2;
+  function makeCrowd(ctx) {
+    var W = CROWD_PX_M * CROWD_TILE_M, rowPx = Math.round(CROWD_PX_M * CROWD_ROW_M), H = rowPx * CROWD_ROWS;
+    var cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    var g = cv.getContext('2d');
+    var shirts = ['#d63a3a', '#f2f2f2', '#2b5fd9', '#ffd23f', '#1e9a52', '#ff8a1f', '#14171c', '#c8102e', '#7a4bd1', '#0fa3a3', '#e8e8e8', '#e86aa6'];
+    var skin = ['#f1c9a5', '#d9a77f', '#a8714f', '#6e452b', '#f5d7bd'];
+    var seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var r = 0; r < CROWD_ROWS; r++) {
+      var y0 = r * rowPx;
+      g.fillStyle = '#3d4654'; // seat row / step
+      g.fillRect(0, y0, W, rowPx);
+      g.fillStyle = '#2b323d';
+      g.fillRect(0, y0 + rowPx - 3, W, 3);
+      for (var x = 1; x < W - 4; x += 7 + Math.floor(rnd() * 3)) {
+        if (rnd() < 0.08) continue; // an empty seat
+        var stand = rnd() < 0.12, top = y0 + (stand ? 1 : 4);
+        g.fillStyle = shirts[Math.floor(rnd() * shirts.length)];
+        g.fillRect(x, top + 5, 6, rowPx - (top - y0) - 7);
+        g.fillStyle = skin[Math.floor(rnd() * skin.length)];
+        g.beginPath();
+        g.arc(x + 3, top + 3, 2.6, 0, Math.PI * 2);
+        g.fill();
+        if (rnd() < 0.05) { // a waved flag
+          g.fillStyle = shirts[Math.floor(rnd() * shirts.length)];
+          g.fillRect(x + 4, top - 1, 6, 4);
+        }
+      }
+    }
+    crowdPattern = ctx.createPattern(cv, 'repeat');
+  }
+
+  function standPoint(s, side, off, d) {
+    return [s.x + s.nx * side * (off + d), s.y + s.ny * side * (off + d)];
+  }
+
+  function drawStand(ctx, samples, st, near) {
+    var n = samples.length, step = near ? 3 : 6;
+    var D = STAND, slopeLen = Math.hypot(D.depth, D.rise - D.parapet);
+    var layers = { back: [], seat: [], parapet: [], roof: [], fascia: [] };
+    var u = 0;
+    for (var j = 0; j < st.len; j += step) {
+      var a = samples[(st.i0 + j) % n], b = samples[(st.i0 + Math.min(st.len, j + step)) % n];
+      layers.back.push([a, b]);
+      var segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      // seating: affine crowd texture from three projected corners
+      var aLow = standPoint(a, st.side, st.off, 0.5), aHigh = standPoint(a, st.side, st.off, D.depth), bHigh = standPoint(b, st.side, st.off, D.depth);
+      var ok = Cam.project(aHigh[0], aHigh[1], D.rise);
+      var tl = ok && { x: Cam.out.x, y: Cam.out.y };
+      ok = ok && Cam.project(bHigh[0], bHigh[1], D.rise);
+      var tr = ok && { x: Cam.out.x, y: Cam.out.y };
+      ok = ok && Cam.project(aLow[0], aLow[1], D.parapet);
+      var bl = ok && { x: Cam.out.x, y: Cam.out.y };
+      layers.seat.push([a, b, ok ? [tl, tr, bl] : null, u, segLen]);
+      u += segLen;
+    }
+    function quad(a, b, d0, z0, d1, z1) {
+      var p0 = standPoint(a, st.side, st.off, d0), p1 = standPoint(b, st.side, st.off, d0);
+      var p2 = standPoint(b, st.side, st.off, d1), p3 = standPoint(a, st.side, st.off, d1);
+      Cam.beginPoly();
+      Cam.vertex(p0[0], p0[1], z0); Cam.vertex(p1[0], p1[1], z0);
+      Cam.vertex(p2[0], p2[1], z1); Cam.vertex(p3[0], p3[1], z1);
+      return Cam.endPoly(ctx);
+    }
+    // back wall
+    ctx.fillStyle = '#566070';
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], D.back, 0, D.back, D.roof); });
+    ctx.fill();
+    // seating with the crowd
+    var tile = CROWD_PX_M * CROWD_TILE_M, rows = CROWD_PX_M * CROWD_ROW_M * CROWD_ROWS / (CROWD_ROW_M * CROWD_ROWS);
+    layers.seat.forEach(function (q) {
+      ctx.beginPath();
+      if (!quad(q[0], q[1], 0.5, D.parapet, D.depth, D.rise)) return;
+      var c = q[2];
+      if (c && crowdPattern && crowdPattern.setTransform) {
+        var sx = CROWD_PX_M * q[4], sy = rows * slopeLen;
+        var A = (c[1].x - c[0].x) / sx, B = (c[1].y - c[0].y) / sx;
+        var Cc = (c[2].x - c[0].x) / sy, Dd = (c[2].y - c[0].y) / sy;
+        var u0 = (q[3] * CROWD_PX_M) % tile;
+        crowdPattern.setTransform(new DOMMatrix([A, B, Cc, Dd, c[0].x - A * u0, c[0].y - B * u0]));
+        ctx.fillStyle = crowdPattern;
+      } else ctx.fillStyle = '#5a6272';
+      ctx.fill();
+    });
+    // front parapet and its sponsor stripe
+    ctx.fillStyle = '#2b313b';
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], 0, 0, 0, D.parapet); });
+    ctx.fill();
+    ctx.fillStyle = st.fascia;
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], -0.02, D.parapet - 0.55, -0.02, D.parapet - 0.15); });
+    ctx.fill();
+    // ends (cross-section profile)
+    ctx.fillStyle = '#48505d';
+    [0, st.len].forEach(function (j) {
+      var s = samples[(st.i0 + j) % n];
+      var prof = [[0, 0], [0, D.parapet], [D.depth, D.rise], [D.back, D.roof], [D.back, 0]];
+      Cam.beginPoly();
+      prof.forEach(function (p) { var w = standPoint(s, st.side, st.off, p[0]); Cam.vertex(w[0], w[1], p[1]); });
+      ctx.beginPath();
+      if (Cam.endPoly(ctx)) ctx.fill();
+    });
+    // roof underside and the fascia along its front edge
+    ctx.fillStyle = '#1f242c';
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], D.roofFront, D.roof, D.back + 0.3, D.roof); });
+    ctx.fill();
+    ctx.fillStyle = st.fascia;
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], D.roofFront, D.roof - 0.9, D.roofFront, D.roof + 0.1); });
+    ctx.fill();
+  }
+
+  Renderer.standsFor = function (samples) { return buildStands(samples); }; // for tests
+
+  function drawStands(ctx, samples, lite) {
+    if (lite) return;
+    if (standsFor !== samples) { stands = buildStands(samples); standsFor = samples; }
+    if (!crowdPattern) makeCrowd(ctx);
+    var n = samples.length, fov = Cam.halfFov(), cfg = CR.Config, vis = [];
+    for (var k = 0; k < stands.length; k++) {
+      var st = stands[k], mid = samples[(st.i0 + (st.len >> 1)) % n];
+      var p = standPoint(mid, st.side, st.off, 6);
+      var f = Cam.forward(p[0], p[1]), half = st.len * cfg.TRACK_SAMPLE_SPACING / 2 + 15;
+      if (f < -half || f > cfg.VIEW_FAR + half) continue;
+      if (Math.abs(Cam.side(p[0], p[1])) > Math.max(f, 0) * fov + half) continue;
+      vis.push({ st: st, f: f });
+    }
+    vis.sort(function (a, b) { return b.f - a.f; });
+    for (var v = 0; v < vis.length; v++) drawStand(ctx, samples, vis[v].st, vis[v].f < LOD_FAR);
+  }
+
   // --- Car ---------------------------------------------------------------------
 
   // Car-local (right, forward) -> world, then a projected vertex at height h.
@@ -389,6 +623,40 @@
     }
   }
 
+  // The player's own car seen from the driver's seat: the top of the
+  // chassis ahead (clipped at the near plane), nose, front wing and the
+  // front tyres, which steer and roll. Everything at or behind the driver
+  // is left out (the cockpit overlay covers it).
+  function drawCockpitCar(ctx, car, model) {
+    for (var i = 0; i < model.length; i++) {
+      var part = model[i];
+      if (part.prism && part.prism.length > 6) {
+        // chassis: its top face only, as a clipped polygon
+        ctx.fillStyle = shade(part.color, 0.92 * carTint);
+        ctx.beginPath();
+        carPoly(ctx, part.prism, part.z[1], 1);
+        ctx.fill();
+        continue;
+      }
+      if (part.wheel) { if (part.front) drawWheel(ctx, car, part); continue; }
+      if (part.decal) {
+        var r = part.decal.rect;
+        if (r && r[1] - r[3] / 2 > 0.5) drawDecal(ctx, part.decal, 0.465);
+        continue;
+      }
+      var minY = part.box ? part.box[1] - part.box[3] / 2 : Math.min.apply(null, part.prism.map(function (p) { return p[1]; }));
+      if (minY > 0.9) drawPrism(ctx, car, part);
+    }
+  }
+
+  // Seen in the mirrors: only the rear tyres of the player's own car.
+  function drawMirrorCar(ctx, car, model) {
+    for (var i = 0; i < model.length; i++) {
+      var part = model[i];
+      if (part.wheel && !part.front) drawWheel(ctx, car, part);
+    }
+  }
+
   // 3D preview for the car-select cards: the car at the origin, seen
   // three-quarters from behind and above.
   var PREVIEW_CAR = { wheelSteer: 0.3, wheelDist: 0, forwardSpeed: 0 }; // fronts turned to show steering
@@ -575,15 +843,21 @@
     for (var k = 0; k < ps.length; k++) drawPrism(ctx, null, ps[k]);
   }
 
-  Renderer.render = function (ctx, canvas, dt) {
+  // opts (optional): { w, h, view(w, h) to set the camera instead of
+  // Camera.begin, player: 'full' | 'cockpit' | 'mirror', particles: bool,
+  // lite: true to skip the grandstands and fencing (small mirror image) }.
+  // The rear-view mirrors render through this with their own camera.
+  Renderer.render = function (ctx, canvas, dt, opts) {
     Cam = CR.Camera;
     var cfg = CR.Config;
     var car = CR.Car.state;
     var samples = CR.Track.samples;
-    var w = canvas.clientWidth, h = canvas.clientHeight;
+    opts = opts || {};
+    var w = opts.w || canvas.clientWidth, h = opts.h || canvas.clientHeight;
     var half = cfg.TRACK_WIDTH / 2;
+    var playerMode = opts.player || (Cam.inCockpit && Cam.inCockpit() ? 'cockpit' : 'full');
 
-    Cam.begin(canvas);
+    if (opts.view) opts.view(w, h); else Cam.begin(canvas);
     var horizon = Cam.horizonY;
 
     // 1. Sky above the horizon, grass below.
@@ -707,6 +981,9 @@
         }
       }
 
+      // 2e2. Grandstands (behind the walls, so drawn before them).
+      drawStands(ctx, samples, opts.lite);
+
       // 2f. Walls: vertical faces plus a lighter top, drawn far to near in
       // chunks of WALL_CHUNK samples (2 fills per chunk) so nearer walls
       // still overlap farther ones without a fill call per sample.
@@ -730,11 +1007,50 @@
           strip(ctx, samples, idx, n, -a.wallRight, -a.wallRight - WALL_THICKNESS, -b.wallRight, -b.wallRight - WALL_THICKNESS, WALL_HEIGHT);
         }
         ctx.fill();
+        // Catch fencing on top of this chunk of wall (near the camera only).
+        if (opts.lite) continue;
+        var fenceAny = false;
+        for (k = end - 1; k >= start; k--) {
+          a = samples[visible[k]];
+          if (!a.bridge && Cam.forward(a.x, a.y) < FENCE_NEAR) { fenceAny = true; break; }
+        }
+        if (!fenceAny) continue;
+        var fo = WALL_THICKNESS / 2;
+        ctx.fillStyle = FENCE_MESH;
+        ctx.beginPath();
+        for (k = end - 1; k >= start; k--) {
+          idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
+          if (a.bridge || Cam.forward(a.x, a.y) > FENCE_NEAR) continue;
+          fenceFace(ctx, samples, idx, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
+          fenceFace(ctx, samples, idx, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
+        }
+        ctx.fill();
+        ctx.fillStyle = FENCE_CABLE;
+        ctx.beginPath();
+        for (k = end - 1; k >= start; k--) {
+          idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
+          if (a.bridge || Cam.forward(a.x, a.y) > FENCE_NEAR) continue;
+          var lf = FENCE_LEAN * 0.45;
+          fenceFace(ctx, samples, idx, a.wallLeft + fo - lf, a.wallLeft + fo - lf, 2.45, 2.5);
+          fenceFace(ctx, samples, idx, -a.wallRight - fo + lf, -a.wallRight - fo + lf, 2.45, 2.5);
+          fenceFace(ctx, samples, idx, a.wallLeft + fo - FENCE_LEAN, a.wallLeft + fo - FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
+          fenceFace(ctx, samples, idx, -a.wallRight - fo + FENCE_LEAN, -a.wallRight - fo + FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
+        }
+        ctx.fill();
+        ctx.fillStyle = FENCE_POST;
+        ctx.beginPath();
+        for (k = end - 1; k >= start; k--) {
+          idx = visible[k]; a = samples[idx];
+          if (a.bridge || idx % 2 || Cam.forward(a.x, a.y) > FENCE_NEAR * 0.7) continue;
+          fencePost(ctx, a, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN);
+          fencePost(ctx, a, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN);
+        }
+        ctx.fill();
       }
     }
 
     // 3. Distance haze from HAZE_START metres ahead up to the horizon.
-    if (Cam.project(car.x + Math.cos(Cam.heading) * HAZE_START, car.y + Math.sin(Cam.heading) * HAZE_START, 0)) {
+    if (Cam.project(car.x + Math.cos(Cam.viewHeading) * HAZE_START, car.y + Math.sin(Cam.viewHeading) * HAZE_START, 0)) {
       var hazeStart = Cam.out.y;
       var top = Math.max(0, horizon);
       if (hazeStart > top) {
@@ -780,6 +1096,12 @@
         var oc = item.obj;
         carX = oc.x; carY = oc.y;
         carCos = Math.cos(oc.heading); carSin = Math.sin(oc.heading);
+        if (oc === car && playerMode !== 'full') {
+          carTint = item.tint;
+          if (playerMode === 'cockpit') drawCockpitCar(ctx, oc, item.model);
+          else if (playerMode === 'mirror') drawMirrorCar(ctx, oc, item.model);
+          continue;
+        }
         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         ctx.beginPath();
         shadowRect[2] = item.hw * 2.05;
@@ -791,8 +1113,10 @@
       }
       carTint = 1;
 
-      updateParticles(car, dt || 0);
-      drawParticles(ctx, w, h);
+      if (opts.particles !== false) {
+        updateParticles(car, dt || 0);
+        drawParticles(ctx, w, h);
+      }
     }
   };
 

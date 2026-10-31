@@ -13,6 +13,10 @@
 // Finish shot (AI 대전, after the chequered flag while the autopilot
 // drives): the camera swings round the car over FRONT_SWING seconds and
 // tracks it from in front of the nose, low and close.
+// Cockpit view (C key / 시점 button): the camera sits at the driver's eyes,
+// fixed to the chassis, with a little engine/road vibration; cockpit.js
+// draws the halo, mirrors and steering wheel over it. The outside camera
+// takes over for the finish shot and when the car is wrecked.
 (function () {
   'use strict';
   window.CR = window.CR || {};
@@ -27,7 +31,33 @@
     height: 0,
     pos: { x: 0, y: 0, h: 0 }, // camera position (world metres)
     frontT: 0, // 0 = chase view, 1 = finish shot from the front
+    mode: 'chase', // 'chase' | 'cockpit' (player's choice, kept per browser)
+    viewHeading: Math.PI / 2, // heading of the view drawn this frame
   };
+
+  var VIEW_KEY = 'f1-champion.view';
+  try { if (localStorage.getItem(VIEW_KEY) === 'cockpit') Camera.mode = 'cockpit'; } catch (e) { /* storage unavailable */ }
+
+  // Driver's eye in car-local metres (forward, height) and the lens.
+  // A game-style cockpit camera: the whole cockpit (eye, halo, mirrors and
+  // wheel, see cockpit.js COCKPIT_Y) sits 0.6 m further forward than the
+  // driver's real seat, with a wide lens, so the wheel is big and the front
+  // tyres fill the lower corners of the screen.
+  var EYE = { forward: 0.4, height: 0.9, pitch: 5, focal: 0.72, centerY: 0.45 };
+  Camera.EYE = EYE;
+  var shakeT = 0;
+
+  // True while the cockpit view is what's on screen.
+  Camera.inCockpit = function () {
+    var c = CR.Car.state;
+    return Camera.mode === 'cockpit' && !c.retired && !c.autopilot;
+  };
+  Camera.setMode = function (m) {
+    Camera.mode = m === 'cockpit' ? 'cockpit' : 'chase';
+    try { localStorage.setItem(VIEW_KEY, Camera.mode); } catch (e) { /* storage unavailable */ }
+    return Camera.mode;
+  };
+  Camera.toggleMode = function () { return Camera.setMode(Camera.mode === 'cockpit' ? 'chase' : 'cockpit'); };
 
   var FRONT_SWING = 0.8; // s to swing round
   var FRONT = { distance: 8.5, height: 1.9, pitch: 5, centerY: 0.52 };
@@ -35,6 +65,9 @@
   function ease(t) { return t * t * (3 - 2 * t); }
 
   var NEAR = 0.5; // m, near clipping plane depth
+  // The cockpit parts sit within half a metre of the driver's eyes, so the
+  // cockpit overlay draws with a closer near plane, then restores it.
+  Camera.setNear = function (d) { NEAR = d; };
 
   var camX = 0, camY = 0, fx = 0, fy = 1, rx = 1, ry = 0;
   var cosP = 1, sinP = 0, camH = 10, cx = 0, cy = 0;
@@ -61,6 +94,7 @@
 
     if (c.autopilot) Camera.frontT = Math.min(1, Camera.frontT + dt / FRONT_SWING);
     else Camera.frontT = 0;
+    shakeT += dt;
   };
 
   Camera.snapToCar = function () {
@@ -72,6 +106,17 @@
   // Sets up the projection for this frame (canvas CSS-pixel size).
   Camera.begin = function (canvas) {
     var c = CR.Car.state, cfg = CR.Config;
+    if (Camera.inCockpit()) {
+      // Fixed to the chassis at the driver's eyes; a fine vibration that
+      // grows with speed, plus a slow bob over the road surface.
+      var sp = Math.min(1, c.speed / 90);
+      var shake = 0.0035 * sp * Math.sin(shakeT * 61) + 0.006 * sp * Math.sin(shakeT * 7.3) + 0.002 * Math.sin(shakeT * 23);
+      var fx0 = Math.cos(c.heading), fy0 = Math.sin(c.heading);
+      var ex = c.x + fx0 * EYE.forward, ey = c.y + fy0 * EYE.forward;
+      Camera.setView(canvas.clientWidth, canvas.clientHeight, ex + fx0, ey + fy0, c.heading, 1,
+        EYE.height + shake, EYE.pitch + shake * 40, EYE.focal, EYE.centerY);
+      return;
+    }
     var dist = Camera.distance || cfg.CAM_DISTANCE, k = ease(Camera.frontT);
     if (k > 0) {
       // Orbit from behind (0) to in front (pi), easing height/pitch/distance.
@@ -88,6 +133,7 @@
   // General view: looking along `heading` at target (tx, ty) from `dist`
   // behind and `height` up. Also used for the car-select previews.
   Camera.setView = function (w, h, tx, ty, heading, dist, height, pitchDeg, focal, centerY) {
+    Camera.viewHeading = heading;
     fx = Math.cos(heading);
     fy = Math.sin(heading);
     rx = fy; // right of the heading

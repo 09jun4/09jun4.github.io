@@ -50,6 +50,7 @@
     recomputeState();
 
     if (e.code === 'KeyM' && !e.repeat) CR.Audio.toggleMute();
+    if (e.code === 'KeyC' && !e.repeat && CR.Main && CR.Main.state === 'playing') CR.Cockpit.toggle();
     // Esc: pause the race / close the pause overlay again.
     if (e.code === 'Escape' && !e.repeat) {
       if (playing()) CR.Main.pause();
