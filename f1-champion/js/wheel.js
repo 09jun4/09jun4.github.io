@@ -11,8 +11,8 @@
 // The wheel is designed on a 1000 x 640 sheet and built in 3D by
 // cockpit.js, which hands in proj(x, y, depth): sheet point + depth in
 // metres towards the driver -> screen point. The plate has thickness (its
-// edges show), and the grips, buttons, rotary knobs, thumb wheels, toggles
-// and gloves stand out from it: each is drawn as the side walls that face
+// edges show), and the grips, buttons, rotary knobs, thumb wheels and
+// toggles stand out from it (no driver's hands, so every control shows): each is drawn as the side walls that face
 // the eye plus a front cap. Flat artwork (carbon weave, screen, labels) is
 // painted on each face with that face's own transform (exact, because the
 // wheel faces the camera).
@@ -28,7 +28,7 @@
 
   var SHEET_W = 1000, SHEET_H = 640;
   var PLATE_T = 0.032, GRIP_FRONT = 0.03, GRIP_BACK = 0.035; // m
-  var BTN_H = 0.011, KNOB_H = 0.02, DRUM_H = 0.012, TOGGLE_H = 0.014, GLOVE_H = 0.05, THUMB_H = 0.065;
+  var BTN_H = 0.011, KNOB_H = 0.02, DRUM_H = 0.012, TOGGLE_H = 0.014;
 
   // Push buttons: [cx, cy, colour, label, text colour]
   var BUTTONS = [
@@ -46,8 +46,6 @@
 
   var GRIP = 'M 172 150 C 122 138 78 158 72 214 C 64 300 56 400 62 490 C 68 556 128 594 180 570 C 214 554 230 520 228 474 L 214 262 Z';
   var PLATE = 'M 236 88 Q 500 66 764 88 Q 846 96 854 168 L 856 300 Q 856 364 800 400 L 726 448 Q 708 532 640 540 L 360 540 Q 292 532 274 448 L 200 400 Q 144 364 144 300 L 146 168 Q 154 96 236 88 Z';
-  var GLOVE = 'M 66 232 C 56 280 54 346 60 398 C 66 436 86 452 114 450 L 150 444 C 166 440 172 426 170 410 L 166 330 C 166 312 160 300 150 294 L 152 284 C 156 258 146 238 128 228 C 108 216 76 214 66 232 Z';
-  var THUMB = 'M 150 296 C 162 284 184 280 198 286 C 208 290 208 302 198 306 C 184 312 168 314 156 316 Z';
 
   var NUM = "'Roboto Condensed', 'Arial Narrow', 'Segoe UI', Arial, sans-serif";
   var LBL = "'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif";
@@ -101,7 +99,6 @@
     return { pts: pts, edges: edges, path: mirror ? mirrorPath(d) : new Path2D(d) };
   }
   var PLATE_O = outline(PLATE), GRIPS = [outline(GRIP), outline(GRIP, true)];
-  var GLOVES = [outline(GLOVE), outline(GLOVE, true)], THUMBS_O = [outline(THUMB), outline(THUMB, true)];
 
   // --- Drawing helpers -----------------------------------------------------------
 
@@ -356,30 +353,6 @@
         g.addColorStop(0, shadeHex(b[2], 1.6)); g.addColorStop(0.45, b[2]); g.addColorStop(1, shadeHex(b[2], 0.7));
         ctx.fillStyle = g; ctx.fill();
         text(ctx, b[3], b[0], b[1] + 4.5, '800 ' + (b[3].length > 3 ? 9.5 : b[3].length > 2 ? 11 : 13) + 'px ' + LBL, b[4]);
-      }
-      resetT(ctx, view);
-    });
-    // 5. Gloves on the handles, thumbs resting on the shoulders.
-    GLOVES.forEach(function (o, k) {
-      walls(ctx, view, o, GRIP_FRONT - 0.02, GLOVE_H, '#262d3d');
-      if (setFace(ctx, view, GLOVE_H)) {
-        var g = ctx.createLinearGradient(k ? 940 : 60, 220, k ? 830 : 170, 450);
-        g.addColorStop(0, '#38425c'); g.addColorStop(1, '#141824');
-        ctx.fillStyle = g; ctx.fill(o.path);
-        ctx.save(); ctx.clip(o.path);
-        ctx.strokeStyle = 'rgba(120,135,160,0.35)'; ctx.lineWidth = 2;
-        [330, 370, 410].forEach(function (y) { line(ctx, k ? 820 : 40, y, k ? 960 : 180, y); });
-        ctx.strokeStyle = s.accent || '#ffd23f'; ctx.lineWidth = 7; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(k ? 924 : 76, 242); ctx.bezierCurveTo(k ? 902 : 98, 232, k ? 878 : 122, 234, k ? 860 : 140, 246); ctx.stroke();
-        ctx.restore();
-      }
-      resetT(ctx, view);
-      var th = THUMBS_O[k];
-      walls(ctx, view, th, GLOVE_H - 0.02, THUMB_H, '#262d3d');
-      if (setFace(ctx, view, THUMB_H)) {
-        var tg = ctx.createLinearGradient(0, 280, 0, 316);
-        tg.addColorStop(0, '#3c4763'); tg.addColorStop(1, '#161b28');
-        ctx.fillStyle = tg; ctx.fill(th.path);
       }
       resetT(ctx, view);
     });

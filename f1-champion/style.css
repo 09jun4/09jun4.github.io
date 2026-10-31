@@ -1085,3 +1085,9 @@ body.finish-shot #touch-controls, body.finish-shot #hud-help { visibility: hidde
 
 /* --- Cockpit view (cockpit.js / wheel.js) ------------------------------------ */
 body.cockpit #hud, body.cockpit #hud-help { display: none; }
+/* Cockpit view: a bigger map (the gauges are on the wheel instead). */
+body.cockpit #minimap { width: clamp(170px, 24vw, 290px); height: clamp(170px, 24vw, 290px); }
+body.touch.cockpit #minimap { width: 140px; height: 140px; }
+/* ...and its buttons move under it as a 2 x 2 grid. */
+body.touch.cockpit .tc-side { top: 160px; transform: none; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
+body.touch.cockpit .tc-side .tc-small { padding: 7px 9px; font-size: 12px; }

@@ -93,7 +93,10 @@
   // nextIdx[i] = the next sample drawn after i this frame (i + 1 near the
   // camera, further apart in the distance — see LOD in render()).
   var nextIdx = new Int32Array(0);
-  var LOD_NEAR = 120, LOD_FAR = 250; // m: every sample / every 2nd / every 4th
+  var LOD_NEAR = 120, LOD_FAR = 250, LOD_FARTHEST = 520; // m: every sample / 2nd / 4th / 8th
+  // The cockpit sees further (corners show up earlier from the low seat).
+  var COCKPIT_VIEW_FAR = 900, COCKPIT_HAZE_START = 260, COCKPIT_HAZE_ALPHA = 0.5;
+  var viewFar = 380;
 
   // Strip between signed offsets o1 and o2 from the centreline (+ = left),
   // sample i to the next, at height h.
@@ -347,7 +350,7 @@
       var st = stands[k], mid = samples[(st.i0 + (st.len >> 1)) % n];
       var p = standPoint(mid, st.side, st.off, 6);
       var f = Cam.forward(p[0], p[1]), half = st.len * cfg.TRACK_SAMPLE_SPACING / 2 + 15;
-      if (f < -half || f > cfg.VIEW_FAR + half) continue;
+      if (f < -half || f > viewFar + half) continue;
       if (Math.abs(Cam.side(p[0], p[1])) > Math.max(f, 0) * fov + half) continue;
       vis.push({ st: st, f: f });
     }
@@ -856,6 +859,9 @@
     var w = opts.w || canvas.clientWidth, h = opts.h || canvas.clientHeight;
     var half = cfg.TRACK_WIDTH / 2;
     var playerMode = opts.player || (Cam.inCockpit && Cam.inCockpit() ? 'cockpit' : 'full');
+    var cockpitView = playerMode === 'cockpit';
+    viewFar = cockpitView ? COCKPIT_VIEW_FAR : cfg.VIEW_FAR;
+    var hazeStart = cockpitView ? COCKPIT_HAZE_START : HAZE_START, hazeAlpha = cockpitView ? COCKPIT_HAZE_ALPHA : 0.9;
 
     if (opts.view) opts.view(w, h); else Cam.begin(canvas);
     var horizon = Cam.horizonY;
@@ -887,9 +893,9 @@
       for (var i = 0; i < n; i++) {
         var si = samples[i];
         var fwd = Cam.forward(si.x, si.y);
-        if (fwd > -25 && fwd < cfg.VIEW_FAR && Math.abs(Cam.side(si.x, si.y)) < Math.max(fwd, 0) * fov + margin) {
+        if (fwd > -25 && fwd < viewFar && Math.abs(Cam.side(si.x, si.y)) < Math.max(fwd, 0) * fov + margin) {
           // Level of detail: far road is tiny on screen, so skip samples.
-          var stride = fwd > LOD_FAR ? 4 : fwd > LOD_NEAR ? 2 : 1;
+          var stride = fwd > LOD_FARTHEST ? 8 : fwd > LOD_FAR ? 4 : fwd > LOD_NEAR ? 2 : 1;
           if (i % stride === 0) visible[nv++] = i;
         }
       }
@@ -960,7 +966,7 @@
       var nx0 = -Math.sin(s0.heading), ny0 = Math.cos(s0.heading);
       var fx0 = Math.cos(s0.heading) * 0.9, fy0 = Math.sin(s0.heading) * 0.9;
       var step = (2 * half) / START_LINE_SQUARES;
-      if (Cam.forward(s0.x, s0.y) > -25 && Cam.forward(s0.x, s0.y) < cfg.VIEW_FAR) {
+      if (Cam.forward(s0.x, s0.y) > -25 && Cam.forward(s0.x, s0.y) < viewFar) {
         for (var shade01 = 0; shade01 < 2; shade01++) {
           ctx.fillStyle = shade01 === 0 ? START_LINE_LIGHT : START_LINE_DARK;
           ctx.beginPath();
@@ -1050,19 +1056,19 @@
     }
 
     // 3. Distance haze from HAZE_START metres ahead up to the horizon.
-    if (Cam.project(car.x + Math.cos(Cam.viewHeading) * HAZE_START, car.y + Math.sin(Cam.viewHeading) * HAZE_START, 0)) {
-      var hazeStart = Cam.out.y;
+    if (Cam.project(car.x + Math.cos(Cam.viewHeading) * hazeStart, car.y + Math.sin(Cam.viewHeading) * hazeStart, 0)) {
+      var hazeY = Cam.out.y;
       var top = Math.max(0, horizon);
-      if (hazeStart > top) {
-        var ht = Math.round(top), hs = Math.round(hazeStart);
-        if (hazeCache.top !== ht || hazeCache.start !== hs) {
+      if (hazeY > top) {
+        var ht = Math.round(top), hs = Math.round(hazeY);
+        if (hazeCache.top !== ht || hazeCache.start !== hs || hazeCache.alpha !== hazeAlpha) {
           hazeCache.g = ctx.createLinearGradient(0, ht, 0, hs);
-          hazeCache.g.addColorStop(0, 'rgba(' + HAZE + ', 0.9)');
+          hazeCache.g.addColorStop(0, 'rgba(' + HAZE + ', ' + hazeAlpha + ')');
           hazeCache.g.addColorStop(1, 'rgba(' + HAZE + ', 0)');
-          hazeCache.top = ht; hazeCache.start = hs;
+          hazeCache.top = ht; hazeCache.start = hs; hazeCache.alpha = hazeAlpha;
         }
         ctx.fillStyle = hazeCache.g;
-        ctx.fillRect(0, top, w, hazeStart - top);
+        ctx.fillRect(0, top, w, hazeY - top);
       }
     }
 
@@ -1085,7 +1091,7 @@
         var e = drawList[di], o = e.obj;
         e.depth = Cam.forward(o.x, o.y);
         var reach = e.kind === 'gantry' ? 30 : 4;
-        if ((e.kind === 'car' && e.obj !== car && e.depth < 3.5) || e.depth < -reach || e.depth > cfg.VIEW_FAR || Math.abs(Cam.side(o.x, o.y)) > Math.max(e.depth, 1) * maxSide + reach) {
+        if ((e.kind === 'car' && e.obj !== car && e.depth < 3.5) || e.depth < -reach || e.depth > viewFar || Math.abs(Cam.side(o.x, o.y)) > Math.max(e.depth, 1) * maxSide + reach) {
           if (e.obj !== car) drawList.splice(di, 1);
         }
       }

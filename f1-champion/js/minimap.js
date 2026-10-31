@@ -95,6 +95,8 @@
 
   Minimap.update = function () {
     if (!canvas || !cssSize) return;
+    // The cockpit view shows a bigger map: re-fit when the size changes.
+    if (canvas.clientWidth && Math.abs(canvas.clientWidth - cssSize) > 1) drawTrackCache();
     var car = CR.Car.state;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
