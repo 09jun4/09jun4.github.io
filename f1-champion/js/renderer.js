@@ -163,26 +163,35 @@
   var STAND = { depth: 11, rise: 8, parapet: 1.6, back: 11.6, roof: 12.4, roofFront: 2.2, gap: 3.5 };
   var FASCIA = ['#c8102e', '#f4f4f4', '#1f4fd1', '#ffd23f', '#0fa3a3', '#1e9a52'];
 
-  function buildStands(samples) {
+  // Covered grandstands at each circuit's real grandstand spots (metres
+  // along the lap from the line; 'out' = outside of the corner there),
+  // then low general-admission banks round the rest of the lap.
+  var GA = { depth: 6, rise: 2.8, parapet: 0.9, back: 6.2, roof: 3.1, gap: 3.5, ga: true };
+  var NAMED = {
+    'Autodromo Nazionale Monza': [[700, 860, 'out'], [860, 1010, 'out'], [2020, 2160, 'out'], [2440, 2580, 'out'],
+      [3530, 3680, 'out'], [3700, 3840, 'out'], [4840, 4990, 'out'], [4990, 5140, 'out'], [5150, 5300, 'in']],
+    'Suzuka International Racing Course': [[190, 330, 'out'], [460, 610, 'out'], [640, 780, 'out'], [1100, 1250, 'out'],
+      [1530, 1680, 'out'], [2830, 2980, 'out'], [5540, 5690, 'out'], [5940, 6080, 'out']],
+    'Las Vegas Street Circuit': [[1380, 1520, 'out'], [2600, 2740, 'out'], [2900, 3050, 'out'], [3200, 3330, 'out'],
+      [3350, 3500, 'R'], [5200, 5350, 'out']],
+    'Circuit de Spa-Francorchamps': [[60, 200, 'out'], [200, 330, 'in'], [780, 920, 'out'], [920, 1060, 'R'],
+      [2480, 2620, 'out'], [2900, 3050, 'out'], [3740, 3890, 'out'], [5000, 5150, 'out'], [6980, 7130, 'out']],
+    'Silverstone Circuit': [[60, 210, 'out'], [2160, 2310, 'out'], [2310, 2440, 'in'], [3580, 3720, 'out'],
+      [4100, 4240, 'out'], [4280, 4420, 'out'], [5200, 5350, 'out'], [5460, 5610, 'out'], [5860, 6010, 'out']],
+    'Autódromo José Carlos Pace': [[100, 250, 'out'], [250, 400, 'out'], [1300, 1440, 'out'], [2030, 2180, 'out'],
+      [2760, 2910, 'out'], [3480, 3600, 'out'], [4500, 4650, 'R']],
+  };
+
+  function buildStands(samples, name) {
     var cfg = CR.Config, n = samples.length, sp = cfg.TRACK_SAMPLE_SPACING;
-    var straight = function (i) { var s = samples[(i + n) % n]; return Math.abs(s.curvature) < 1 / 700 && !s.bridge; };
-    // Runs of straight samples, walking the loop once from a corner.
-    var start = 0;
-    while (start < n && straight(start)) start++;
-    var runs = [], cur = null;
-    for (var k = 1; k <= n; k++) {
-      var i = (start + k) % n;
-      if (straight(i)) { if (!cur) cur = { i0: i, len: 0 }; cur.len++; }
-      else if (cur) { runs.push(cur); cur = null; }
-    }
-    if (cur) runs.push(cur);
-    var list = [], minLen = Math.ceil(90 / sp), maxLen = Math.ceil(150 / sp);
+    if (name === undefined) { var tr = CR.Tracks.list[CR.Main && CR.Main.trackIndex]; name = tr ? tr.realName : ''; }
     var clear = cfg.TRACK_WIDTH / 2 + cfg.RUNOFF_MAX + 6;
-    function free(i0, len, side, off) {
+    var list = [], taken = [];
+    function free(i0, len, side, off, D) {
       // No other part of the lap may run through the stand's footprint.
       for (var j = 0; j <= len; j += 3) {
         var s = samples[(i0 + j) % n];
-        for (var d = 0; d <= STAND.back; d += STAND.back / 2) {
+        for (var d = 0; d <= D.back; d += D.back / 2) {
           var px = s.x + s.nx * side * (off + d), py = s.y + s.ny * side * (off + d);
           for (var m = 0; m < n; m += 2) {
             var gap = Math.abs(m - (i0 + j) % n); gap = Math.min(gap, n - gap);
@@ -194,31 +203,49 @@
       }
       return true;
     }
-    runs.sort(function (a, b) { return b.len - a.len; });
-    runs.forEach(function (r, ri) {
-      if (r.len < minLen || list.length >= 10) return;
-      var len = Math.min(maxLen, r.len - 6), i0 = (r.i0 + Math.floor((r.len - len) / 2)) % n;
-      var into = (0 - r.i0 + n) % n; // how far sample 0 (the line) is into this run
-      var main = into < r.len; // the start/finish straight
-      if (main) {
-        // Stands both sides along the grid and the line: from ~60 % of
-        // their length before the line, clamped inside the straight.
-        var before = Math.min(into - 2, Math.floor(len * 0.6));
-        var after = Math.min(r.len - into - 2, len - before);
-        if (before < 0) before = 0;
-        len = before + Math.max(0, after);
-        i0 = (n - before) % n;
+    function used(i0, len, side) {
+      for (var t = 0; t < taken.length; t++) {
+        var u = taken[t];
+        if (u.side !== side) continue;
+        var d = (i0 - u.i0 + n) % n;
+        if (d < u.len + 3 || (n - d) < len + 3) return true;
       }
-      var sides = main ? [1, -1] : [ri % 2 ? -1 : 1];
-      sides.forEach(function (side) {
-        var off = 0;
-        for (var j = 0; j <= len; j++) {
-          var s = samples[(i0 + j) % n];
-          off = Math.max(off, (side > 0 ? s.wallLeft : s.wallRight) + WALL_THICKNESS + STAND.gap);
-        }
-        if (free(i0, len, side, off)) list.push({ i0: i0, len: len, side: side, off: off, fascia: FASCIA[(list.length * 7 + ri) % FASCIA.length] });
-      });
+      return false;
+    }
+    function add(i0, len, side, D, fascia) {
+      i0 = ((i0 % n) + n) % n;
+      if (len < 8 || used(i0, len, side)) return false;
+      var off = 0;
+      for (var j = 0; j <= len; j++) {
+        var s = samples[(i0 + j) % n];
+        if (s.bridge) return false;
+        off = Math.max(off, (side > 0 ? s.wallLeft : s.wallRight) + WALL_THICKNESS + D.gap);
+      }
+      if (!free(i0, len, side, off, D)) return false;
+      var st = { i0: i0, len: len, side: side, off: off, fascia: fascia, ga: !!D.ga };
+      list.push(st); taken.push(st);
+      return true;
+    }
+    function bend(i0, len) { var k = 0; for (var j = 0; j <= len; j++) k += samples[(i0 + j) % n].curvature; return k; }
+    // 1. Both sides of the start/finish straight, from ~90 m before the line.
+    var pre = Math.round(90 / sp), mainLen = Math.round(150 / sp);
+    add(n - pre, mainLen, 1, STAND, FASCIA[0]);
+    add(n - pre, mainLen, -1, STAND, FASCIA[2]);
+    // 2. The circuit's named grandstands.
+    (NAMED[name] || []).forEach(function (e, k) {
+      var i0 = Math.round(e[0] / sp) % n, len = Math.round((e[1] - e[0]) / sp);
+      var k0 = bend(i0, len), side;
+      if (e[2] === 'L') side = 1; else if (e[2] === 'R') side = -1;
+      else side = (k0 >= 0 ? -1 : 1) * (e[2] === 'in' ? -1 : 1); // + curvature = left turn: outside is right
+      add(i0, len, side, STAND, FASCIA[(k * 7 + 3) % FASCIA.length]) || add(i0, len, -side, STAND, FASCIA[(k * 7 + 3) % FASCIA.length]);
     });
+    // 3. General-admission banks round the rest of the lap: outside of the
+    // bends, alternating sides on the straights.
+    var chunk = Math.round(110 / sp), step = Math.round(140 / sp), flip = 1;
+    for (var i = 0; i + chunk < n; i += step) {
+      var kk = bend(i, chunk), sd = Math.abs(kk) * sp > 0.15 ? (kk > 0 ? -1 : 1) : (flip = -flip);
+      add(i, chunk, sd, GA, '#2b313b') || add(i, chunk, -sd, GA, '#2b313b');
+    }
     return list;
   }
 
@@ -262,7 +289,7 @@
 
   function drawStand(ctx, samples, st, near) {
     var n = samples.length, step = near ? 3 : 6;
-    var D = STAND, slopeLen = Math.hypot(D.depth, D.rise - D.parapet);
+    var D = st.ga ? GA : STAND, slopeLen = Math.hypot(D.depth, D.rise - D.parapet);
     var layers = { back: [], seat: [], parapet: [], roof: [], fascia: [] };
     var u = 0;
     for (var j = 0; j < st.len; j += step) {
@@ -328,6 +355,7 @@
       ctx.beginPath();
       if (Cam.endPoly(ctx)) ctx.fill();
     });
+    if (st.ga) return; // open bank: no roof
     // roof underside and the fascia along its front edge
     ctx.fillStyle = '#1f242c';
     ctx.beginPath();
@@ -339,7 +367,7 @@
     ctx.fill();
   }
 
-  Renderer.standsFor = function (samples) { return buildStands(samples); }; // for tests
+  Renderer.standsFor = function (samples, name) { return buildStands(samples, name); }; // for tests
 
   function drawStands(ctx, samples, lite) {
     if (lite) return;
