@@ -20,7 +20,7 @@
         <span><i class="key"></i>노트</span>
         <span id="legend-hub"><i class="key hub"></i>허브</span>
       </div>
-      <p class="map-count">노트 <b id="m-notes">—</b>개 <span class="sep">·</span> 연결 <b id="m-links">—</b>개</p>
+      <p class="map-count" aria-live="polite">노트 <b id="m-notes">—</b>개 <span class="sep">·</span> 연결 <b id="m-links">—</b>개</p>
     </div>
   </section>
 
@@ -38,7 +38,7 @@
 <script>header('map');</script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script type="module">
-import { enabled, F, db } from '../js/auth.js';
+import { enabled, F, db, toast } from '../js/auth.js';
 
 const frame = document.getElementById('frame');
 const svgEl = document.getElementById('graph');
@@ -350,9 +350,20 @@ if (typeof d3 === 'undefined'){
 } else if (!enabled || !F){
   showState('<p>지금은 노트를 불러올 수 없어요.</p><p class="sub"><a href="../notes/">노트 목록으로 이동 →</a></p>');
 } else {
+  let firstSnapshot = true;
   try {
     F.onSnapshot(F.query(COL, F.limit(1000)), snap => {
+      const changes = snap.docChanges();
       draw(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      if (!firstSnapshot){
+        const added = changes.filter(c => c.type === 'added').length;
+        const removed = changes.filter(c => c.type === 'removed').length;
+        const modified = changes.filter(c => c.type === 'modified').length;
+        if (added) toast(added === 1 ? '새 노트를 지도에 추가했어요.' : `새 노트 ${added}개를 지도에 추가했어요.`);
+        else if (removed) toast(removed === 1 ? '노트를 지도에서 뺐어요.' : `노트 ${removed}개를 지도에서 뺐어요.`);
+        else if (modified) toast('노트 변경을 지도에 반영했어요.');
+      }
+      firstSnapshot = false;
     }, err => {
       ready = false;
       console.warn('map notes', err);
