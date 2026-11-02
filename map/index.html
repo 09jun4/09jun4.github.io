@@ -186,8 +186,8 @@ function render(data){
   const link = linkLayer.selectAll('line').data(data.links).join('line')
     .attr('class', 'map-link')
     .attr('vector-effect', 'non-scaling-stroke')
-    .attr('stroke-opacity', d => Math.min(.10 + d.tags.length * .04, .30))
-    .attr('stroke-width', d => 1 + Math.min(d.tags.length - 1, 2) * .25);
+    .attr('stroke-opacity', d => Math.min(.30 + d.tags.length * .08, .62))
+    .attr('stroke-width', d => 1.2 + Math.min(d.tags.length - 1, 2) * .3);
   const linkData = data.links;
 
   const node = nodeLayer.selectAll('g').data(data.nodes).join('g')
@@ -292,10 +292,10 @@ function render(data){
       n.ph2 = Math.random() * Math.PI * 2;
       n.ampX = 4 + Math.random() * 5;
       n.ampY = 4 + Math.random() * 5;
-      n.speedX = .14 + Math.random() * .14;
-      n.speedY = .14 + Math.random() * .14;
-      n.speedX2 = .05 + Math.random() * .05;
-      n.speedY2 = .05 + Math.random() * .05;
+      n.speedX = .7;
+      n.speedY = .7;
+      n.speedX2 = .22;
+      n.speedY2 = .22;
     });
     const token = driftToken;
     const started = performance.now();
