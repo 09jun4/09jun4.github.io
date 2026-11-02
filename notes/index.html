@@ -16,7 +16,7 @@
 <script src="../assets/site.js"></script>
 <script>header('notes');</script>
 <script type="module">
-// 노트: 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만 (Firebase 규칙: firestore.rules 의 notes 부분). 로그인은 사이트 공통(js/auth.js)
+// 위키식 노트: [[노트 제목]] 링크 · 역링크 · 분류 · 태그 · 목차. 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만 (Firebase 규칙: firestore.rules 의 notes 부분). 로그인은 사이트 공통(js/auth.js)
 import { enabled, F, db, onUser, signIn, signOut, inAppBrowser, inAppText } from '../js/auth.js';
 const COL = enabled ? F.collection(db, 'private/notes/items') : null;
 const $app = document.getElementById('app');
@@ -46,28 +46,71 @@ onUser(s => {
     notes = snap.docs.map(d => ({ id: d.id, ...d.data() })); ready = true; route();
   }, e => { ready = false; gate(admin ? `노트를 읽지 못했어요 (${esc(e.code || 'error')}). Firebase 콘솔에서 firestore.rules 의 사이트 규칙을 게시했는지 확인해 주세요.` : '노트를 공개하는 중이에요. 조금 뒤에 다시 와 주세요.'); });
 });
-addEventListener('hashchange', () => (ready || (admin && location.hash === '#new')) ? route() : null);
+addEventListener('hashchange', () => (ready || (admin && location.hash.startsWith('#new'))) ? route() : null);
+
+// --- 위키 도우미 ----------------------------------------------------------
+const norm = t => String(t || '').trim().toLowerCase();
+const byTitle = t => notes.find(n => norm(n.title) === norm(t));
+const LINK = /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g;
+const tagsOf = n => Array.isArray(n.tags) ? n.tags : [];
+// [[제목]] / [[제목|표시할 글]] 을 링크로 바꿔요 (코드 안은 그대로 둬요). 없는 제목은 빨간 링크(관리자가 누르면 새 노트)
+const wiki = text => String(text || '').split(/(```[\s\S]*?```|`[^`\n]*`)/).map((p, i) => i % 2 ? p : p.replace(LINK, (m, t, alias) => {
+  const n = byTitle(t), label = (alias || t).trim();
+  return n ? `[${label}](#n=${n.id})` : `[${label}](#new=${encodeURIComponent(t.trim())})`;
+})).join('');
+const linksTo = (n, title) => { const t = norm(title); let m; LINK.lastIndex = 0; const src = String(n.body || '');
+  while ((m = LINK.exec(src))) if (norm(m[1]) === t) return true; return false; };
+const parseTags = v => [...new Set(String(v).split(/[,#\s]+/).map(x => x.trim()).filter(Boolean))].slice(0, 20);
+const render = md => DOMPurify.sanitize(marked.parse(wiki(md)));
+let tagFilter = '';
 
 function route(){
-  const h = location.hash.slice(1), [k, id] = h.split('=');
+  const h = location.hash.slice(1), i = h.indexOf('='), k = i < 0 ? h : h.slice(0, i), id = i < 0 ? '' : decodeURIComponent(h.slice(i + 1));
   if (k === 'n') return view(id);
-  if (k === 'edit' || k === 'new') return admin ? edit(k === 'edit' ? id : null) : (location.hash = '');
+  if (k === 'edit' || k === 'new') return admin ? edit(k === 'edit' ? id : null, k === 'new' ? id : '') : (location.hash = '');
   list();
   bindOwnerBar();
 }
+
+// --- 목록: 분류별로 묶어서, 검색과 태그로 거르기 ---------------------------------
 function list(){
-  $app.innerHTML = `<h1>notes</h1><p class="lead">바이브 코딩을 하면서 공부한 내용을 정리해요.</p>
-    <div class="bar"><input class="search" id="q" type="search" placeholder="검색">${admin ? '<a class="btn main" href="#new">+ 새 노트</a>' : ''}</div><ul class="list" id="list"></ul>${ownerBar()}`;
+  const allTags = {}; notes.forEach(n => tagsOf(n).forEach(t => allTags[t] = (allTags[t] || 0) + 1));
+  $app.innerHTML = `<h1>notes</h1><p class="lead">바이브 코딩을 하면서 공부한 내용을 위키처럼 정리해요. 노트 안의 <code>[[다른 노트 제목]]</code>은 그 노트로 이어져요.</p>
+    <div class="bar"><input class="search" id="q" type="search" placeholder="제목·내용 검색">${admin ? '<a class="btn main" href="#new">+ 새 노트</a>' : ''}</div>
+    <div class="tags" id="tags">${Object.keys(allTags).sort().map(t => `<button class="tag${t === tagFilter ? ' on' : ''}" data-t="${esc(t)}">#${esc(t)} <b>${allTags[t]}</b></button>`).join('')}</div>
+    <div id="list"></div>${ownerBar()}`;
   const q = document.getElementById('q');
   const draw = () => { const s = q.value.trim().toLowerCase();
-    const L = notes.filter(n => !s || ((n.title || '') + ' ' + (n.body || '')).toLowerCase().includes(s)).sort(byDate);
-    document.getElementById('list').innerHTML = L.map(n => `<li><a href="#n=${esc(n.id)}"><span class="t">${esc(n.title || '제목 없음')}</span><span class="date">${esc(n.date || '')}</span></a></li>`).join('') || `<li class="empty">${s ? '찾는 노트가 없어요' : '아직 없어요'}</li>`; };
+    const L = notes.filter(n => (!s || ((n.title || '') + ' ' + (n.body || '') + ' ' + tagsOf(n).join(' ')).toLowerCase().includes(s)) && (!tagFilter || tagsOf(n).includes(tagFilter)));
+    const groups = {}; L.forEach(n => (groups[(n.category || '').trim() || '미분류'] = groups[(n.category || '').trim() || '미분류'] || []).push(n));
+    const names = Object.keys(groups).sort((a, b) => a === '미분류' ? 1 : b === '미분류' ? -1 : a.localeCompare(b, 'ko'));
+    document.getElementById('list').innerHTML = names.map(c => `<h2 class="cat">${esc(c)} <span>${groups[c].length}</span></h2><ul class="list">${groups[c].sort((a, b) => String(a.title).localeCompare(String(b.title), 'ko')).map(n =>
+      `<li><a href="#n=${esc(n.id)}"><span class="t">${esc(n.title || '제목 없음')}</span><span class="date">${esc(n.date || '')}</span></a></li>`).join('')}</ul>`).join('')
+      || `<p class="empty">${s || tagFilter ? '찾는 노트가 없어요' : '아직 없어요'}</p>`; };
   q.oninput = draw; draw();
+  document.querySelectorAll('#tags .tag').forEach(b => b.onclick = () => { tagFilter = tagFilter === b.dataset.t ? '' : b.dataset.t; list(); bindOwnerBar(); });
 }
+
+// --- 보기: 목차 · 본문 · 역링크 -------------------------------------------------
 function view(id){
   const n = notes.find(x => x.id === id); if (!n){ $app.innerHTML = '<a class="back" href="#">← notes</a><p class="gate">노트를 찾지 못했어요.</p>'; return; }
-  $app.innerHTML = `<a class="back" href="#">← notes</a><article><h1>${esc(n.title || '제목 없음')}</h1><p class="date">${esc(n.date || '')}</p>${DOMPurify.sanitize(marked.parse(n.body || ''))}</article>
+  const back = notes.filter(x => x.id !== id && linksTo(x, n.title)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'ko'));
+  $app.innerHTML = `<a class="back" href="#">← notes</a><article><h1>${esc(n.title || '제목 없음')}</h1>
+    <p class="date">${n.category ? `<a href="#" class="catlink" data-c="${esc(n.category)}">${esc(n.category)}</a> · ` : ''}${esc(n.date || '')}${n.updatedAt ? ' · 수정 ' + esc(new Date(n.updatedAt).toISOString().slice(0, 10)) : ''}</p>
+    ${tagsOf(n).length ? `<div class="tags">${tagsOf(n).map(t => `<a class="tag" href="#" data-t="${esc(t)}">#${esc(t)}</a>`).join('')}</div>` : ''}
+    <nav class="toc" id="toc" hidden></nav><div id="doc">${render(n.body)}</div></article>
+    ${back.length ? `<section class="backlinks"><h2>이 노트를 가리키는 노트</h2><ul class="list">${back.map(x => `<li><a href="#n=${esc(x.id)}"><span class="t">${esc(x.title || '제목 없음')}</span></a></li>`).join('')}</ul></section>` : ''}
     ${admin ? `<div class="bar"><a class="btn" href="#edit=${esc(id)}">수정</a><button class="btn right" id="del">삭제</button></div>` : ''}`;
+  const doc = document.getElementById('doc'), heads = [...doc.querySelectorAll('h2, h3')];
+  doc.querySelectorAll('a[href^="#new="]').forEach(a => { if (admin) a.classList.add('miss'); else { const sp = document.createElement('span'); sp.textContent = a.textContent; a.replaceWith(sp); } });
+  doc.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+  if (heads.length >= 3){
+    heads.forEach((h, i) => h.id = 'h' + i);
+    const toc = document.getElementById('toc'); toc.hidden = false;
+    toc.innerHTML = '<b>목차</b>' + heads.map((h, i) => `<button class="${h.tagName === 'H3' ? 'sub' : ''}" data-i="${i}">${esc(h.textContent)}</button>`).join('');
+    toc.querySelectorAll('button').forEach(b => b.onclick = () => heads[+b.dataset.i].scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+  $app.querySelectorAll('.tag[data-t]').forEach(a => a.onclick = e => { e.preventDefault(); tagFilter = a.dataset.t; location.hash = ''; });
   if (!admin) return;
   let armed = false;
   document.getElementById('del').onclick = async e => {
@@ -75,17 +118,26 @@ function view(id){
     await F.deleteDoc(F.doc(COL, id)); location.hash = '';
   };
 }
-function edit(id){
+
+// --- 편집: 제목 · 분류 · 태그 · 본문 (+ 미리보기) ------------------------------------
+function edit(id, presetTitle){
   const n = id ? notes.find(x => x.id === id) : null; if (id && !n){ location.hash = ''; return; }
-  $app.innerHTML = `<a class="back" href="${id ? '#n=' + esc(id) : '#'}">← 취소</a><div class="edit"><input id="t" placeholder="제목" value="${esc(n ? n.title : '')}">
-    <textarea id="b" placeholder="내용 (마크다운: # 제목, **굵게**, \`코드\`, - 목록)">${esc(n ? n.body : '')}</textarea>
-    <div class="bar"><span class="msg" id="m">저장하면 누구나 볼 수 있어요</span><button class="btn main right" id="save">저장</button></div></div>`;
-  document.getElementById('save').onclick = async () => {
-    const title = document.getElementById('t').value.trim(), body = document.getElementById('b').value;
-    if (!title && !body.trim()){ document.getElementById('m').textContent = '내용을 써 주세요'; return; }
+  const cats = [...new Set(notes.map(x => (x.category || '').trim()).filter(Boolean))].sort();
+  $app.innerHTML = `<a class="back" href="${id ? '#n=' + esc(id) : '#'}">← 취소</a><div class="edit"><input id="t" placeholder="제목 (다른 노트에서 [[제목]]으로 이어져요)" value="${esc(n ? n.title : presetTitle)}">
+    <div class="row2"><input id="c" list="cats" placeholder="분류 (예: Firebase, 바이브 코딩)" value="${esc(n ? n.category || '' : '')}"><datalist id="cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <input id="g" placeholder="태그 (쉼표로 구분)" value="${esc(n ? tagsOf(n).join(', ') : '')}"></div>
+    <textarea id="b" placeholder="내용 (마크다운: ## 제목, **굵게**, \`코드\`, - 목록 / 다른 노트 링크: [[노트 제목]] 또는 [[노트 제목|보이는 글]])">${esc(n ? n.body : '')}</textarea>
+    <article class="preview" id="pv" hidden></article>
+    <div class="bar"><span class="msg" id="m">저장하면 누구나 볼 수 있어요</span><button class="btn right" id="pvb">미리보기</button><button class="btn main" id="save">저장</button></div></div>`;
+  const $ = x => document.getElementById(x);
+  $('pvb').onclick = () => { const on = $('pv').hidden; $('pv').hidden = !on; $('b').hidden = on; $('pvb').textContent = on ? '편집' : '미리보기'; if (on) $('pv').innerHTML = render($('b').value); };
+  $('save').onclick = async () => {
+    const title = $('t').value.trim(), body = $('b').value;
+    if (!title){ $('m').textContent = '제목을 써 주세요'; return; }
+    if (notes.some(x => x.id !== id && norm(x.title) === norm(title))){ $('m').textContent = '같은 제목의 노트가 이미 있어요'; return; }
     const ref = id ? F.doc(COL, id) : F.doc(COL);
-    try { await F.setDoc(ref, { title, body, date: n ? n.date : today(), updatedAt: Date.now() }); location.hash = 'n=' + ref.id; }
-    catch (e) { document.getElementById('m').textContent = '저장하지 못했어요 (' + (e.code || '') + ')' + (e.code === 'permission-denied' ? ' — 콘솔에서 firestore.rules 의 사이트 규칙을 게시해 주세요' : ''); }
+    try { await F.setDoc(ref, { title, category: $('c').value.trim(), tags: parseTags($('g').value), body, date: n ? n.date : today(), updatedAt: Date.now() }); location.hash = 'n=' + ref.id; }
+    catch (e) { $('m').textContent = '저장하지 못했어요 (' + (e.code || '') + ')' + (e.code === 'permission-denied' ? ' — 콘솔에서 firestore.rules 의 사이트 규칙을 게시해 주세요' : ''); }
   };
 }
 </script>

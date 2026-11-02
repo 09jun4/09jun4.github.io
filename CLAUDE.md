@@ -40,6 +40,6 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
 - `feedback/` — 방문자 의견 남기기(구글 로그인 필요). 읽기·정리는 관리자만. 작품에서 `/feedback/?work=/작품-이름/`으로 링크하면 그 작품이 골라져요.
 - `js/auth.js`, `js/firebase-config.js`, `js/bridge.html` — 사이트 공통 구글 로그인 (머리말 login 버튼, 연결된 작품 같이 로그인·로그아웃)
 - `firestore.rules` — 사이트 프로젝트(chiikawa-tobatsu)에 게시된 규칙에 덧붙이는 `notes`·`feedback` 규칙. 콘솔에 있는 기존 규칙(치이카와, `private/**`)은 지우지 않아요.
-- `notes/` — 공개 노트(바이브 코딩하며 공부한 내용). 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만. 내용은 Firestore `private/notes/items`에 있고(이름만 private), 저장소에 파일로 올리지 않아요.
+- `notes/` — 위키식 공개 노트(바이브 코딩하며 공부한 내용). `[[노트 제목]]` 링크·역링크·분류·태그·목차 지원. 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만. 내용은 Firestore `private/notes/items`에 있고(이름만 private), 저장소에 파일로 올리지 않아요.
 - `assets/style.css`, `assets/site.js` — 공통 스타일·카드
 - 치이카와 토벌 대작전은 별도 저장소 `09jun4/chiikawa-tobatsu` (주소 `/chiikawa-tobatsu/`)
