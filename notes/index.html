@@ -63,6 +63,7 @@ const linksTo = (n, title) => { const t = norm(title); let m; LINK.lastIndex = 0
 const parseTags = v => [...new Set(String(v).split(/[,#\s]+/).map(x => x.trim()).filter(Boolean))].slice(0, 20);
 const render = md => DOMPurify.sanitize(marked.parse(wiki(md)));
 let tagFilter = '';
+let tagsExpanded = false;
 
 function route(){
   const h = location.hash.slice(1), i = h.indexOf('='), k = i < 0 ? h : h.slice(0, i), id = i < 0 ? '' : decodeURIComponent(h.slice(i + 1));
@@ -75,6 +76,10 @@ function route(){
 // --- 목록: 분류별로 묶어서, 검색과 태그로 거르기 ---------------------------------
 function list(){
   const allTags = {}; notes.forEach(n => tagsOf(n).forEach(t => allTags[t] = (allTags[t] || 0) + 1));
+  const tagEntries = Object.entries(allTags).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'));
+  const topTags = tagEntries.slice(0, 7).map(([t]) => t);
+  const extraTags = tagEntries.slice(7).map(([t]) => t);
+  const tagChip = (t, extra = false) => `<button class="chip${t === tagFilter ? ' on' : ''}${extra ? ' tag-extra' : ''}" type="button" data-t="${esc(t)}"${extra && !tagsExpanded && t !== tagFilter ? ' hidden' : ''}>#${esc(t)} <b>${allTags[t]}</b></button>`;
   $app.innerHTML = `<div class="shell page-hero">
     <p class="eyebrow"><span class="live"></span>Wiki — ${notes.length} notes</p>
     <h1>notes</h1>
@@ -88,7 +93,9 @@ function list(){
     </div>
     <div class="chips" id="tags">
       <button class="chip${tagFilter ? '' : ' on'}" type="button" data-t="">#전체 <b>${notes.length}</b></button>
-      ${Object.keys(allTags).sort().map(t => `<button class="chip${t === tagFilter ? ' on' : ''}" type="button" data-t="${esc(t)}">#${esc(t)} <b>${allTags[t]}</b></button>`).join('')}
+      ${topTags.map(t => tagChip(t)).join('')}
+      ${extraTags.map(t => tagChip(t, true)).join('')}
+      ${extraTags.length ? `<button class="chip tag-more" id="tag-more" type="button" aria-expanded="${tagsExpanded}">${tagsExpanded ? '접기' : `더보기 <b>${extraTags.length}</b>`}</button>` : ''}
     </div>
   </div>
   <section class="shell" style="padding-bottom:30px"><div id="list"></div>${ownerBar()}</section>`;
@@ -101,11 +108,20 @@ function list(){
       `<a class="row" href="#n=${esc(n.id)}"><span class="t">${esc(n.title || '제목 없음')}</span><span class="meta">${esc(n.date || '')}</span></a>`).join('')}</div></div>`).join('')
       || `<p class="empty">${s || tagFilter ? '찾는 노트가 없어요' : '아직 없어요'}</p>`; };
   q.oninput = draw; draw();
-  document.querySelectorAll('#tags .chip').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#tags .chip[data-t]').forEach(b => b.onclick = () => {
     const t = b.dataset.t || '';
     tagFilter = t && tagFilter !== t ? t : '';
     list(); bindOwnerBar();
   });
+  const moreTags = document.getElementById('tag-more');
+  if (moreTags) moreTags.onclick = () => {
+    tagsExpanded = !tagsExpanded;
+    document.querySelectorAll('#tags .tag-extra').forEach(b => {
+      b.hidden = !tagsExpanded && b.dataset.t !== tagFilter;
+    });
+    moreTags.setAttribute('aria-expanded', String(tagsExpanded));
+    moreTags.innerHTML = tagsExpanded ? '접기' : `더보기 <b>${extraTags.length}</b>`;
+  };
 }
 
 // --- 보기: 목차 · 본문 · 역링크 -------------------------------------------------

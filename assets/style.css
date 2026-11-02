@@ -126,6 +126,8 @@ h1{margin:0 0 18px;font:600 clamp(34px,5.2vw,54px)/1.18 var(--sans);letter-spaci
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
 .chip{display:inline-flex;align-items:center;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--soft);font:12px/1.4 var(--mono);transition:border-color .18s,color .18s,background .18s}
 .chip b{margin-left:2px;font-weight:400;color:var(--dim)}
+.chip[hidden]{display:none}
+.tag-more{border-style:dashed}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .chip.on b{color:var(--accent)}
 .group{margin-bottom:34px}
