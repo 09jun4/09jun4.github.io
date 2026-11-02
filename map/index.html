@@ -267,12 +267,14 @@ function render(data){
     label.attr('display', d => shown.has(d.id) ? null : 'none');
   };
 
-  // 자리가 잡히면 그래프 전체가 패널 가운데에 꽉 차도록 맞춰요.
+  // 자리가 잡히면 그래프 전체가 패널 가운데에 여유 있게 들어오도록 맞춰요.
+  // 좁은 화면에서는 한 번 더 축소해 테두리에 닿지 않게 합니다.
   const fitView = () => {
     const b = root.node().getBBox();
     if (!b.width || !b.height) return;
-    const pad = 54;
-    const k = Math.min((W - pad * 2) / b.width, (H - pad * 2) / b.height, 1.42);
+    const pad = compact ? 34 : 54;
+    const maxK = compact ? 1 : 1.42;
+    const k = Math.min((W - pad * 2) / b.width, (H - pad * 2) / b.height, maxK);
     homeTransform = d3.zoomIdentity
       .translate(W / 2 - k * (b.x + b.width / 2), H / 2 - k * (b.y + b.height / 2))
       .scale(k);
@@ -367,7 +369,7 @@ function render(data){
   let fitted = false;
   simulation.on('end', () => {
     fitLabels();
-    if (!compact && !fitted){ fitted = true; fitView(); }
+    if (!fitted){ fitted = true; fitView(); }
     beginDrift();
   });
 }
