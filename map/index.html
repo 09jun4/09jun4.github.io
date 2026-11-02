@@ -304,10 +304,8 @@ function render(data){
       if (!last || now - last >= 33){
         const t = (now - started) / 1000;
         data.nodes.forEach(n => {
-          n.x = Math.max(26, Math.min(W - 26,
-            n.bx + Math.sin(t * n.speedX + n.ph1) * n.ampX + Math.sin(t * n.speedX2 + n.ph2) * n.ampX * .3));
-          n.y = Math.max(24, Math.min(H - 24,
-            n.by + Math.cos(t * n.speedY + n.ph2) * n.ampY + Math.cos(t * n.speedY2 + n.ph1) * n.ampY * .3));
+          n.x = n.bx + Math.sin(t * n.speedX + n.ph1) * n.ampX + Math.sin(t * n.speedX2 + n.ph2) * n.ampX * .3;
+          n.y = n.by + Math.cos(t * n.speedY + n.ph2) * n.ampY + Math.cos(t * n.speedY2 + n.ph1) * n.ampY * .3;
         });
         link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
           .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
@@ -357,10 +355,6 @@ function render(data){
     .alphaDecay(.045)
     .velocityDecay(.35)
     .on('tick', () => {
-      data.nodes.forEach(n => {
-        n.x = Math.max(26, Math.min(W - 26, n.x));
-        n.y = Math.max(24, Math.min(H - 24, n.y));
-      });
       link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
         .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
       node.attr('transform', d => `translate(${d.x},${d.y})`);
