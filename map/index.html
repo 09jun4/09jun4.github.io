@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<title>map · 09jun4</title>
+<meta name="description" content="태그로 이어진 노트 지도">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main id="main">
+  <section class="shell page-hero map-hero">
+    <p class="eyebrow"><span class="live"></span>Map — notes</p>
+    <h1>노트 지도</h1>
+    <p class="lede">노트들이 태그를 통해 어떻게 이어지는지 한눈에 볼 수 있어요.</p>
+    <div class="map-meta">
+      <div class="map-legend" aria-hidden="true">
+        <span><i class="key"></i>노트</span>
+        <span id="legend-hub"><i class="key hub"></i>허브</span>
+      </div>
+      <p class="map-count">노트 <b id="m-notes">—</b>개 <span class="sep">·</span> 연결 <b id="m-links">—</b>개</p>
+    </div>
+  </section>
+
+  <section class="shell map-section">
+    <div class="map-frame" id="frame" role="region" aria-label="태그로 이어진 노트 지도">
+      <div class="map-state" id="state"><span class="live"></span><p>지도를 그리는 중...</p></div>
+      <svg class="map-graph" id="graph" role="group" aria-label="노트 지도"></svg>
+      <div class="map-tip" id="tip" hidden><b id="tip-title"></b><span id="tip-tags"></span></div>
+      <p class="map-hint" id="hint" hidden>누르기 열기 · 끌기 이동 · 두 손가락 확대</p>
+    </div>
+  </section>
+</main>
+
+<script src="../assets/site.js"></script>
+<script>header('map');</script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script type="module">
+import { enabled, F, db } from '../js/auth.js';
+
+const frame = document.getElementById('frame');
+const svgEl = document.getElementById('graph');
+const stateEl = document.getElementById('state');
+const hintEl = document.getElementById('hint');
+const noteCount = document.getElementById('m-notes');
+const linkCount = document.getElementById('m-links');
+const hubLegend = document.getElementById('legend-hub');
+const tip = document.getElementById('tip');
+const tipTitle = document.getElementById('tip-title');
+const tipTags = document.getElementById('tip-tags');
+
+const COL = enabled ? F.collection(db, 'private/notes/items') : null;
+let current = [], simulation = null, ready = false, lastW = 0, resizeTimer = 0;
+
+const showState = html => {
+  stateEl.innerHTML = html;
+  stateEl.hidden = false;
+  svgEl.style.visibility = 'hidden';
+  hintEl.hidden = true;
+  tip.hidden = true;
+  hubLegend.hidden = true;
+};
+const hideState = () => {
+  stateEl.hidden = true;
+  svgEl.style.visibility = '';
+  hintEl.hidden = false;
+};
+const openNote = id => { location.href = '../notes/#n=' + encodeURIComponent(id); };
+
+function normalize(raw){
+  return raw
+    .filter(n => n && n.id && String(n.title || '').trim())
+    .map(n => {
+      const seen = new Set();
+      const tags = (Array.isArray(n.tags) ? n.tags : [])
+        .map(t => String(t).trim())
+        .filter(t => {
+          if (!t) return false;
+          const k = t.toLowerCase();
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+      return { id: n.id, title: String(n.title).trim(), tags };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title, 'ko'));
+}
+
+// 같은 태그를 가진 노트를 모두 이어요. 여러 태그가 겹쳐도 두 노트 사이에는
+// 선 하나만 그리고, 노드에 마우스를 올리면 그 노트의 태그를 보여 줍니다.
+function graphData(list){
+  const nodes = list.map(n => ({ ...n, degree: 0, r: 5, hub: false }));
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const tags = new Map();
+
+  nodes.forEach(n => n.tags.forEach(t => {
+    const key = t.toLowerCase();
+    if (!tags.has(key)) tags.set(key, { label: t, items: [] });
+    tags.get(key).items.push(n);
+  }));
+
+  const pairs = new Map();
+  for (const { label, items } of tags.values()){
+    if (items.length < 2) continue;
+    for (let i = 0; i < items.length; i++){
+      for (let j = i + 1; j < items.length; j++){
+        const a = items[i].id, b = items[j].id;
+        const key = a < b ? a + '\u0000' + b : b + '\u0000' + a;
+        let edge = pairs.get(key);
+        if (!edge){ edge = { source: a, target: b, tags: [] }; pairs.set(key, edge); }
+        edge.tags.push(label);
+      }
+    }
+  }
+
+  const links = [...pairs.values()];
+  links.forEach(l => { byId.get(l.source).degree++; byId.get(l.target).degree++; });
+
+  const maxDegree = nodes.reduce((m, n) => Math.max(m, n.degree), 0);
+  const hubAt = maxDegree >= 4 ? Math.max(3, Math.ceil(maxDegree * .55)) : Infinity;
+  nodes.forEach(n => {
+    n.hub = n.degree >= hubAt;
+    n.r = 5 + Math.sqrt(n.degree) * 2.2;
+  });
+
+  return { nodes, links, maxDegree };
+}
+
+function moveTip(event){
+  const box = frame.getBoundingClientRect();
+  const x0 = event.clientX - box.left, y0 = event.clientY - box.top;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = x0 + 16, y = y0 + 16;
+  if (x + w > box.width - 12) x = x0 - w - 16;
+  if (y + h > box.height - 12) y = y0 - h - 16;
+  x = Math.max(10, Math.min(box.width - w - 10, x));
+  y = Math.max(10, Math.min(box.height - h - 10, y));
+  tip.style.transform = `translate(${x}px, ${y}px)`;
+}
+function showTip(event, d){
+  tipTitle.textContent = d.title;
+  tipTags.textContent = d.tags.length ? d.tags.map(t => '#' + t).join('  ') : '태그 없음';
+  tip.hidden = false;
+  moveTip(event);
+}
+const hideTip = () => { tip.hidden = true; };
+
+function render(data){
+  const W = Math.max(280, frame.clientWidth);
+  const H = Math.max(320, frame.clientHeight);
+  lastW = W;
+
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  svg.attr('viewBox', `0 0 ${W} ${H}`)
+    .attr('aria-label', `노트 ${data.nodes.length}개가 태그로 ${data.links.length}번 이어져 있습니다.`);
+
+  const root = svg.append('g');
+  const linkLayer = root.append('g').attr('stroke-linecap', 'round');
+  const nodeLayer = root.append('g');
+
+  const zoom = d3.zoom()
+    .scaleExtent([.45, 4])
+    .filter(event => event.type !== 'wheel' || event.ctrlKey)
+    .on('zoom', event => root.attr('transform', event.transform));
+  let homeTransform = d3.zoomIdentity;
+  svg.call(zoom).on('dblclick.zoom', null);
+  svg.on('dblclick', () => svg.transition().duration(260).call(zoom.transform, homeTransform));
+
+  const ring = Math.min(W, H) * .29;
+  data.nodes.forEach((n, i) => {
+    const a = (i / data.nodes.length) * Math.PI * 2 - Math.PI / 2;
+    n.x = W / 2 + Math.cos(a) * ring;
+    n.y = H / 2 + Math.sin(a) * ring;
+  });
+
+  const link = linkLayer.selectAll('line').data(data.links).join('line')
+    .attr('class', 'map-link')
+    .attr('vector-effect', 'non-scaling-stroke')
+    .attr('stroke-opacity', d => Math.min(.10 + d.tags.length * .04, .30))
+    .attr('stroke-width', d => 1 + Math.min(d.tags.length - 1, 2) * .25);
+  const linkData = data.links;
+
+  const node = nodeLayer.selectAll('g').data(data.nodes).join('g')
+    .attr('class', d => 'map-node' + (d.hub ? ' hub' : ''))
+    .attr('tabindex', 0)
+    .attr('role', 'link')
+    .attr('aria-label', d => d.title + (d.tags.length ? `, 태그 ${d.tags.join(', ')}` : ''))
+    .on('click', (event, d) => {
+      if (d.dragMoved){ d.dragMoved = false; return; }
+      openNote(d.id);
+    })
+    .on('keydown', (event, d) => {
+      if (event.key === 'Enter' || event.key === ' '){ event.preventDefault(); openNote(d.id); }
+    })
+    .on('pointerenter', (event, d) => { highlight(d); showTip(event, d); })
+    .on('pointermove', moveTip)
+    .on('pointerleave', () => { highlight(null); hideTip(); })
+    .on('focus', (event, d) => highlight(d))
+    .on('blur', () => highlight(null));
+
+  // 노드를 끌어서 옮길 수 있게 (끌고 난 뒤에는 클릭으로 열리지 않아요)
+  node.call(d3.drag()
+    .on('start', (event, d) => {
+      d.dragMoved = false;
+      if (!event.active) simulation.alphaTarget(.18).restart();
+      d.fx = d.x; d.fy = d.y;
+      hideTip();
+    })
+    .on('drag', (event, d) => {
+      if (Math.abs(event.dx) + Math.abs(event.dy) > 1) d.dragMoved = true;
+      d.fx = event.x; d.fy = event.y;
+    })
+    .on('end', (event, d) => {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null; d.fy = null;
+    }));
+
+  node.append('circle')
+    .attr('class', 'halo')
+    .attr('r', d => d.hub ? d.r + 8 : 0)
+    .attr('fill', 'rgba(94,234,212,.07)');
+  node.append('circle')
+    .attr('class', 'dot')
+    .attr('r', d => d.r)
+    .attr('fill', d => d.hub ? '#5eead4' : '#c0c7d1')
+    .attr('stroke', '#1b1e23')
+    .attr('stroke-width', 2);
+
+  const narrow = W < 620;
+  const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const label = node.append('text')
+    .attr('class', 'label')
+    .attr('dy', '.34em')
+    .text(d => cut(d.title, narrow ? 11 : 15));
+  const atRight = d => d.x > W - (narrow ? 120 : 190);
+  const labelX = d => atRight(d) ? -(d.r + 7) : d.r + 7;
+  const compact = W < 400;
+
+  // 아주 좁은 화면에서는 라벨이 서로 겹치지 않도록, 허브와 연결이 많은 노트부터
+  // 자리를 잡고 나머지는 숨겨요. (노드를 누르면 그대로 노트가 열립니다)
+  const fitLabels = () => {
+    if (!compact) return;
+    label.attr('display', null);
+    const used = [];
+    const shown = new Set();
+    [...data.nodes].sort((a, b) => (b.hub - a.hub) || (b.degree - a.degree)).forEach(d => {
+      const text = label.filter(n => n.id === d.id).node();
+      if (!text) return;
+      const bb = text.getBBox();
+      const bx = d.x + labelX(d) - (atRight(d) ? bb.width : 0) - 4;
+      const box = { x: bx, y: d.y - 8, w: bb.width + 8, h: 16 };
+      if (box.x < 4 || box.x + box.w > W - 4) return;
+      if (used.some(u => box.x < u.x + u.w && box.x + box.w > u.x && box.y < u.y + u.h && box.y + box.h > u.y)) return;
+      used.push(box);
+      shown.add(d.id);
+    });
+    label.attr('display', d => shown.has(d.id) ? null : 'none');
+  };
+
+  // 자리가 잡히면 그래프 전체가 패널 가운데에 꽉 차도록 맞춰요.
+  const fitView = () => {
+    const b = root.node().getBBox();
+    if (!b.width || !b.height) return;
+    const pad = 54;
+    const k = Math.min((W - pad * 2) / b.width, (H - pad * 2) / b.height, 1.42);
+    homeTransform = d3.zoomIdentity
+      .translate(W / 2 - k * (b.x + b.width / 2), H / 2 - k * (b.y + b.height / 2))
+      .scale(k);
+    svg.transition().duration(350).call(zoom.transform, homeTransform);
+  };
+
+  const endpoint = (l, side) => {
+    const v = l[side];
+    return typeof v === 'object' ? v.id : v;
+  };
+  function highlight(focus){
+    if (!focus){
+      node.classed('faded', false);
+      link.classed('faded', false).classed('on', false);
+      return;
+    }
+    const related = new Set([focus.id]);
+    linkData.forEach(l => {
+      const a = endpoint(l, 'source'), b = endpoint(l, 'target');
+      if (a === focus.id) related.add(b);
+      if (b === focus.id) related.add(a);
+    });
+    node.classed('faded', n => !related.has(n.id));
+    link.classed('on', l => endpoint(l, 'source') === focus.id || endpoint(l, 'target') === focus.id)
+      .classed('faded', l => endpoint(l, 'source') !== focus.id && endpoint(l, 'target') !== focus.id);
+  }
+
+  const many = data.nodes.length > 30;
+  const linkBase = many ? 84 : narrow ? 118 : 168;
+  const charge = many ? -260 : narrow ? -520 : -1400;
+  const collide = many ? 18 : narrow ? 30 : 56;
+  simulation = d3.forceSimulation(data.nodes)
+    .force('link', d3.forceLink(data.links).id(d => d.id)
+      .distance(d => linkBase + Math.min(d.tags.length, 3) * 9)
+      .strength(d => .22 + Math.min(d.tags.length, 3) * .06))
+    .force('charge', d3.forceManyBody().strength(charge).distanceMax(Math.max(W, H) * 1.2))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('x', d3.forceX(W / 2).strength(.035))
+    .force('y', d3.forceY(H / 2).strength(.045))
+    .force('collide', d3.forceCollide().radius(d => d.r + collide).strength(.85))
+    .alphaDecay(.045)
+    .velocityDecay(.35)
+    .on('tick', () => {
+      data.nodes.forEach(n => {
+        n.x = Math.max(26, Math.min(W - 26, n.x));
+        n.y = Math.max(24, Math.min(H - 24, n.y));
+      });
+      link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+      node.attr('transform', d => `translate(${d.x},${d.y})`);
+      label.attr('x', labelX).attr('text-anchor', d => atRight(d) ? 'end' : 'start');
+    });
+  let fitted = false;
+  simulation.on('end', () => {
+    fitLabels();
+    if (!compact && !fitted){ fitted = true; fitView(); }
+  });
+}
+
+function draw(raw){
+  current = normalize(raw);
+  ready = true;
+  noteCount.textContent = current.length;
+  if (simulation){ simulation.stop(); simulation = null; }
+  if (!current.length){
+    linkCount.textContent = '0';
+    hubLegend.hidden = true;
+    d3.select(svgEl).selectAll('*').remove();
+    svgEl.setAttribute('aria-label', '아직 노트가 없습니다.');
+    showState('<p>아직 노트가 없어요.</p><p class="sub"><a href="../notes/">첫 노트 쓰러 가기 →</a></p>');
+    return;
+  }
+  const data = graphData(current);
+  linkCount.textContent = data.links.length;
+  hubLegend.hidden = !data.nodes.some(n => n.hub);
+  hideState();
+  render(data);
+}
+
+if (typeof d3 === 'undefined'){
+  showState('<p>지도를 그리지 못했어요.</p><p class="sub"><a href="../notes/">노트 목록으로 이동 →</a></p>');
+} else if (!enabled || !F){
+  showState('<p>지금은 노트를 불러올 수 없어요.</p><p class="sub"><a href="../notes/">노트 목록으로 이동 →</a></p>');
+} else {
+  try {
+    F.onSnapshot(F.query(COL, F.limit(1000)), snap => {
+      draw(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => {
+      ready = false;
+      console.warn('map notes', err);
+      showState('<p>노트 지도를 불러오지 못했어요.</p><p class="sub"><a href="./">다시 시도 →</a></p>');
+    });
+  } catch (e) {
+    ready = false;
+    showState('<p>노트 지도를 불러오지 못했어요.</p><p class="sub"><a href="./">다시 시도 →</a></p>');
+  }
+}
+
+addEventListener('resize', () => {
+  if (!ready) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (frame.clientWidth !== lastW) draw(current);
+  }, 200);
+});
+</script>
+</body>
+</html>

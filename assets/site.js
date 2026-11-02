@@ -1,5 +1,5 @@
 // 공통: 머리말, 바닥글, 작품 카드
-const BASE = /\/(notes|feedback)\//.test(location.pathname) ? '../' : '';
+const BASE = /\/(notes|feedback|map)\//.test(location.pathname) ? '../' : '';
 const ARROW = '<svg class="arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 11.5 11.5 4.5M5.5 4.5h6v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const pad = n => String(n).padStart(2, '0');
 
@@ -10,6 +10,7 @@ function header(active){
     <nav class="nav" aria-label="주요 메뉴">
       <a href="${BASE || './'}" class="${active === 'works' ? 'on' : ''}">works</a>
       <a href="${BASE}notes/" data-nav="notes" class="${active === 'notes' ? 'on' : ''}">notes</a>
+      <a href="${BASE}map/" class="${active === 'map' ? 'on' : ''}">map</a>
       <a href="${BASE}feedback/" data-nav="feedback" class="${active === 'feedback' ? 'on' : ''}">feedback</a>
       <span class="acct" id="acct"></span>
     </nav>
