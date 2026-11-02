@@ -52,7 +52,6 @@ const tipTitle = document.getElementById('tip-title');
 const tipTags = document.getElementById('tip-tags');
 
 const COL = enabled ? F.collection(db, 'private/notes/items') : null;
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let current = [], simulation = null, ready = false, lastW = 0, resizeTimer = 0;
 let driftFrame = 0, driftToken = 0;
 const stopDrift = () => {
@@ -277,15 +276,13 @@ function render(data){
     homeTransform = d3.zoomIdentity
       .translate(W / 2 - k * (b.x + b.width / 2), H / 2 - k * (b.y + b.height / 2))
       .scale(k);
-    if (reduceMotion) svg.call(zoom.transform, homeTransform);
-    else svg.transition().duration(350).call(zoom.transform, homeTransform);
+    svg.transition().duration(350).call(zoom.transform, homeTransform);
   };
 
   // 배치가 끝난 뒤에는 각자 다른 느린 주기로 아주 조금씩 떠다녀요.
   // 위치가 바뀔 때마다 연결선도 같은 좌표로 다시 그려서 선이 끊기지 않습니다.
   const beginDrift = () => {
     stopDrift();
-    if (reduceMotion) return;
     data.nodes.forEach(n => {
       n.bx = n.x; n.by = n.y;
       n.ph1 = Math.random() * Math.PI * 2;
