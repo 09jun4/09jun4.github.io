@@ -162,9 +162,11 @@
   };
 
   // The race, practice and record code all need the track that is actually
-  // loaded. Drift uses its own fixed Tokyo course, not the F1 circuit picker.
+  // loaded. Drift uses its own touge list, not the F1 circuit picker.
   function activeTrack() {
-    if (Main.mode === 'drift' && CR.Tracks.drift) return CR.Tracks.drift;
+    if (Main.mode === 'drift') {
+      return CR.Tracks.driftById(CR.Garage.driftTrack) || CR.Tracks.driftList[0];
+    }
     return CR.Tracks.list[Main.trackIndex];
   }
 
@@ -176,7 +178,8 @@
     Main.mode = 'drift';
     Main.applyCar(CR.Cars.byId('f2'), 0);
 
-    var track = CR.Tracks.drift;
+    var tracks = CR.Tracks.driftList;
+    var track = CR.Tracks.driftById(CR.Garage.driftTrack) || tracks[0];
     CR.Track.buildTrack(track.segments);
     CR.Car.spawnAtTrackStart();
     CR.Renderer.resetEffects();
@@ -187,7 +190,7 @@
     enterPlaying();
     if (!CR.Car.state.retired) CR.Audio.startEngine(CR.Car.def);
     CR.Minimap.setTrack();
-    CR.Hud.showTrack(1, 1, track.name, '드리프트 레이스 · F2 · ' + track.subtitle + ' · W+Space 드리프트');
+    CR.Hud.showTrack(tracks.indexOf(track) + 1, tracks.length, track.name, '드리프트 레이스 · F2 · ' + track.subtitle + ' · W+Space 드리프트');
     CR.RaceUI.showRecord(track.realName);
   };
 

@@ -105,10 +105,22 @@
     ],
   };
 
-  // Dedicated drift event course. It is deliberately not part of the F1
-  // circuit list: the menu, records table and track builder all treat it as
-  // one fixed Tokyo-style touge course. The tight, alternating radii give
-  // the hand-built layout a chain of switchbacks and a long launch straight.
+  // Dedicated drift event courses. They are deliberately not part of the F1
+  // circuit list: the menu, records table and track builder all treat them as
+  // a separate set of touge courses. The tight, alternating radii give the
+  // hand-built layouts chains of switchbacks while the outer roads provide a
+  // launch straight and a place to unwind the car.
+  // The drift surface is twice as wide as an F1 circuit so a sliding car has
+  // room to catch the rear without immediately finding a wall.
+  var DRIFT_TRACK_WIDTH = CR.Config.TRACK_WIDTH * 2;
+  function touge(points, radii) {
+    var segs = poly(points, radii);
+    segs.points = points;
+    segs.theme = 'mountain';
+    segs.width = DRIFT_TRACK_WIDTH;
+    return segs;
+  }
+
   var DRIFT_TOKYO_POINTS = [
     [-300, 20], [-250, 150], [-140, 210], [-30, 170], [30, 90],
     [110, 130], [190, 210], [300, 180], [340, 70], [290, -20],
@@ -120,12 +132,87 @@
   ]);
   driftSegments.points = DRIFT_TOKYO_POINTS;
   driftSegments.theme = 'tokyo';
+  driftSegments.width = DRIFT_TRACK_WIDTH;
 
-  CR.Tracks.drift = {
-    name: '도쿄 드리프트',
-    realName: 'Tokyo Drift: Neon Touge',
-    subtitle: '네온 토게',
-    theme: 'tokyo',
-    segments: driftSegments,
+  // Five linked hairpins and a long outer return. The alternating tips keep
+  // the road folded without crossing itself, so every wall stays visible.
+  var AKINA_POINTS = [
+    [-200, 650], [-40, 620], [-280, 520], [-80, 460], [-280, 400],
+    [-80, 340], [-280, 280], [-80, 220], [-280, 160], [-80, 100],
+    [-260, 40], [-100, -40], [-240, -120], [-100, -220], [-260, -340],
+    [-420, -380], [-480, -250], [-490, -100], [-470, 50], [-430, 200],
+    [-380, 360], [-320, 500], [-280, 610],
+  ];
+  var akinaSegments = touge(AKINA_POINTS, [
+    16, 12, 12, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 14, 18, 20, 20, 20, 18, 16, 12, 10,
+  ]);
+
+  // Two stacked hairpin sections: the descent folds down the left side and
+  // the climb folds back up the right, joined by a short valley road.
+  var IROHAZAKA_POINTS = [
+    [-40, 440], [-300, 390], [-100, 340], [-300, 280], [-100, 230],
+    [-300, 170], [-100, 120], [-280, 50], [-110, -30], [-260, -110],
+    [-100, -200], [-240, -300], [-100, -390], [80, -420],
+    [240, -370], [320, -260], [180, -210], [320, -140], [180, -80],
+    [320, -10], [180, 50], [320, 120], [180, 180], [320, 250],
+    [380, 350], [260, 420], [120, 450],
+  ];
+  // 0.72 keeps the double-hairpin layout at a drivable ~3 km lap instead of
+  // the 4.2 km the raw points would make.
+  var IROHAZAKA_SCALE = 0.72;
+  var irohazakaSegments = touge(
+    IROHAZAKA_POINTS.map(function (p) { return [p[0] * IROHAZAKA_SCALE, p[1] * IROHAZAKA_SCALE]; }),
+    [16, 12, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 10, 14, 16, 12, 8, 8, 8, 8,
+      8, 8, 8, 8, 12, 16, 14].map(function (r) { return r * IROHAZAKA_SCALE; })
+  );
+
+  // A faster, flowing mountain loop: four hairpins, then a long right-hand
+  // sweep back to the start. Good for learning throttle control.
+  var MYOGI_POINTS = [
+    [40, 440], [-200, 400], [30, 340], [-200, 280], [30, 220],
+    [-200, 160], [20, 90], [-180, 20], [-30, -80], [140, -140],
+    [290, -80], [330, 60], [320, 200], [250, 340],
+  ];
+  var myogiSegments = touge(MYOGI_POINTS, [
+    16, 12, 10, 10, 10, 10, 10, 10, 14, 18, 20, 20, 18, 14,
+  ]);
+
+  CR.Tracks.driftList = [
+    {
+      name: '도쿄 네온 토게',
+      realName: 'Tokyo Drift: Neon Touge',
+      subtitle: '네온 토게',
+      theme: 'tokyo',
+      segments: driftSegments,
+    },
+    {
+      name: '아키나 다운힐',
+      realName: 'Akina Downhill',
+      subtitle: '하늘 아래 연속 헤어핀',
+      theme: 'mountain',
+      segments: akinaSegments,
+    },
+    {
+      name: '이로하자카 다운힐',
+      realName: 'Irohazaka Downhill',
+      subtitle: '이중 헤어핀 산길',
+      theme: 'mountain',
+      segments: irohazakaSegments,
+    },
+    {
+      name: '묘기 하이랜드',
+      realName: 'Myogi Highland',
+      subtitle: '고속 산악 라인',
+      theme: 'mountain',
+      segments: myogiSegments,
+    },
+  ];
+  // Kept for older callers/readers: the first course is still the default.
+  CR.Tracks.drift = CR.Tracks.driftList[0];
+  CR.Tracks.driftById = function (id) {
+    for (var i = 0; i < CR.Tracks.driftList.length; i++) {
+      if (CR.Tracks.driftList[i].realName === id) return CR.Tracks.driftList[i];
+    }
+    return null;
   };
 })();

@@ -36,6 +36,7 @@
     owned: {}, // id -> true
     selected: '',
     track: 'random', // chosen circuit (CR.Tracks realName) or 'random'
+    driftTrack: '', // chosen touge course (CR.Tracks.driftList realName)
     tune: {}, // car id -> {part key -> level} (tuning.js)
     f1Laps: 0, // laps completed in the F1 (5 unlock AI 대전)
     practice: {}, // track id -> {time, car, at}: all-time practice best lap (3인칭, chase view)
@@ -67,7 +68,8 @@
   Garage.onCloudChange = null; // set by menu.js: redraw after an account load
 
   function snapshot() {
-    return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track, tune: Garage.tune,
+    return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track,
+      driftTrack: Garage.driftTrack, tune: Garage.tune,
       f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, drift: Garage.drift,
       raceDifficulty: Garage.raceDifficulty,
       season: Garage.season, seasons: Garage.seasons, savedAt: Garage.savedAt };
@@ -125,6 +127,7 @@
     Garage.selected = starter;
     Garage.savedAt = 0;
     Garage.track = 'random';
+    Garage.driftTrack = '';
     Garage.tune = {};
     Garage.f1Laps = 0;
     Garage.practice = {};
@@ -166,6 +169,7 @@
       if (data.selected && known(data.selected)) Garage.selected = data.selected;
       // Checked against CR.Tracks at Play (tracks.js loads after this file).
       if (typeof data.track === 'string' && data.track) Garage.track = data.track;
+      if (typeof data.driftTrack === 'string' && data.driftTrack) Garage.driftTrack = data.driftTrack;
       // Tuning levels: whole numbers 0..5 for cars that still exist.
       if (data.tune && typeof data.tune === 'object') {
         for (var cid in data.tune) {
@@ -268,6 +272,13 @@
   Garage.selectTrack = function (id) {
     if (id !== 'random' && Garage.trackIndex(id) < 0) return false;
     Garage.track = id;
+    save();
+    return true;
+  };
+
+  Garage.selectDriftTrack = function (id) {
+    if (!CR.Tracks || !CR.Tracks.driftById || !CR.Tracks.driftById(id)) return false;
+    Garage.driftTrack = id;
     save();
     return true;
   };

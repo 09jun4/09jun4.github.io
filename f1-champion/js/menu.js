@@ -297,7 +297,7 @@
     els.tabRace.hidden = tab !== 'race';
     els.tabDrift.hidden = tab !== 'drift';
     els.tabRecords.hidden = tab !== 'records';
-    els.tracksSection.hidden = tab === 'race' || tab === 'records' || tab === 'drift'; // drift has one fixed Tokyo course
+    els.tracksSection.hidden = tab === 'race' || tab === 'records' || tab === 'drift'; // drift has its own course picker
     els.actions.hidden = tab === 'records';
     els.keys.hidden = tab === 'records' || tab === 'drift';
     if (!Menu.el.hidden) Menu.refresh();
@@ -611,17 +611,51 @@
     var G = CR.Garage, panel = els.driftPanel;
     if (!panel) return;
     panel.textContent = '';
-    var track = CR.Tracks.drift;
+    var tracks = CR.Tracks.driftList || [CR.Tracks.drift];
+    var track = CR.Tracks.driftById(G.driftTrack) || tracks[0];
+    var locked = !!(CR.Main.raceActive && CR.Main.mode === 'drift');
 
     var event = el('section', 'race-card drift-card');
-    event.appendChild(el('div', 'drift-kicker', 'SPECIAL EVENT · F2 · TOKYO'));
-    event.appendChild(el('h2', 'race-card-title', 'F2 드리프트 레이스 · 도쿄'));
-    event.appendChild(el('p', 'race-card-text', 'F2 머신으로 도쿄 스타일의 전용 네온 토게를 달리며 드리프트 랩타임을 겨루는 특별 이벤트입니다. 차량은 기본 세팅으로 제공되며 구매나 튜닝이 필요하지 않습니다.'));
+    event.appendChild(el('div', 'drift-kicker', 'SPECIAL EVENT · F2 · TOUGE'));
+    event.appendChild(el('h2', 'race-card-title', 'F2 드리프트 레이스 · 산길'));
+    event.appendChild(el('p', 'race-card-text', 'F2 머신으로 도쿄 네온 토게와 이니셜D 스타일의 산길을 달리는 특별 이벤트입니다. 차량은 기본 세팅으로 제공되며 구매나 튜닝이 필요하지 않습니다.'));
     var chips = el('div', 'race-rules');
-    ['F2 고정 머신', '도쿄 전용 코스', 'Space 드리프트', '기록 별도 저장'].forEach(function (t) {
+    ['F2 고정 머신', '토게 ' + tracks.length + '코스', 'W+Space 드리프트', '코스별 기록'].forEach(function (t) {
       chips.appendChild(el('span', 'race-rule', t));
     });
     event.appendChild(chips);
+
+    var courseHead = el('div', 'drift-course-head');
+    courseHead.appendChild(el('span', 'drift-course-label', '코스 선택 · ' + tracks.length + '개'));
+    courseHead.appendChild(el('span', 'drift-course-note', locked ? '레이스 중에는 코스를 바꿀 수 없습니다' : '코스마다 베스트 랩이 따로 저장됩니다'));
+    event.appendChild(courseHead);
+
+    var picker = el('div', 'track-list drift-track-list');
+    picker.setAttribute('role', 'radiogroup');
+    picker.setAttribute('aria-label', '드리프트 코스');
+    var draws = [];
+    tracks.forEach(function (t) {
+      var selected = t === track;
+      var card = el('button', 'track-card drift-track-card' + (selected ? ' is-selected' : ''));
+      card.type = 'button';
+      card.setAttribute('role', 'radio');
+      card.setAttribute('aria-checked', selected ? 'true' : 'false');
+      card.disabled = locked;
+      var cnv = el('canvas', 'track-preview');
+      cnv.setAttribute('aria-hidden', 'true');
+      card.appendChild(cnv);
+      draws.push(function () {
+        drawTrackOutline(cnv, t, selected ? '#5ee39a' : (t.theme === 'tokyo' ? '#43e7ff' : '#ffb347'));
+      });
+      card.appendChild(el('span', 'track-name', t.name));
+      card.appendChild(el('span', 'track-sub', t.subtitle + ' · ' + lapKm(t.segments).toFixed(2) + 'km'));
+      card.addEventListener('click', function () {
+        if (G.selectDriftTrack(t.realName)) Menu.refresh();
+      });
+      picker.appendChild(card);
+    });
+    event.appendChild(picker);
+    if (locked) event.appendChild(el('p', 'race-card-note', '드리프트 레이스를 마친 뒤 코스를 바꿀 수 있습니다.'));
 
     var map = el('div', 'drift-map-wrap');
     var mapCanvas = el('canvas', 'drift-map');
@@ -629,11 +663,14 @@
     map.appendChild(mapCanvas);
     var cap = el('div', 'drift-map-caption');
     cap.appendChild(el('b', null, track.name));
-    cap.appendChild(el('span', null, track.subtitle + ' · F1 서킷과 별개의 전용 맵'));
+    cap.appendChild(el('span', null, track.subtitle + ' · ' + lapKm(track.segments).toFixed(2) + 'km · F1 서킷과 별개'));
     map.appendChild(cap);
     event.appendChild(map);
     requestAnimationFrame(function () {
-      if (mapCanvas.clientWidth) drawTrackOutline(mapCanvas, track, '#43e7ff');
+      if (mapCanvas.clientWidth) {
+        drawTrackOutline(mapCanvas, track, track.theme === 'tokyo' ? '#43e7ff' : '#ffb347');
+      }
+      draws.forEach(function (draw) { draw(); });
     });
 
     var how = el('div', 'drift-how');
@@ -650,7 +687,7 @@
     event.appendChild(how);
     event.appendChild(el('p', 'race-card-note', 'Space를 누르는 동안 브레이크 대신 리어 타이어가 풀립니다. W로 구동을 유지하면 뒷바퀴가 옆으로 미끄러지고, 놓으면 리어 그립이 돌아옵니다.'));
     event.appendChild(el('p', 'race-card-note', '모바일에서는 브레이크 버튼을 누르고 있으면 드리프트가 됩니다.'));
-    event.appendChild(el('p', 'race-card-note', '완주한 랩은 이 모드 전용 베스트 랩으로 기록 탭에 따로 저장됩니다. 전용 코스에서 바로 시작하며 F1 서킷 선택과는 무관합니다.'));
+    event.appendChild(el('p', 'race-card-note', '완주한 랩은 이 모드 전용 베스트 랩으로 기록 탭에 따로 저장됩니다. 코스를 고른 뒤 시작하며 F1 서킷 선택과는 무관합니다.'));
 
     var rec = G.drift[track.realName];
     var record = el('div', 'drift-record');
@@ -721,14 +758,15 @@
     ['코스', '베스트 랩'].forEach(function (h, k) { dhr.appendChild(el('th', k ? 'rr-num' : null, h)); });
     var dthead = el('thead'); dthead.appendChild(dhr); dtable.appendChild(dthead);
     var dtb = el('tbody');
-    var t = CR.Tracks.drift;
-    var rec = G.drift[t.realName];
-    var tr = el('tr');
-    tr.appendChild(el('td', 'rr-driver', t.name));
-    var td = el('td', 'rr-num' + (rec ? ' rec-best' : ''), rec ? fmt(rec.time) : '—');
-    if (rec) td.appendChild(el('small', 'rec-sub', 'F2 · ' + new Date(rec.at).toLocaleDateString('ko-KR')));
-    tr.appendChild(td);
-    dtb.appendChild(tr);
+    (CR.Tracks.driftList || [CR.Tracks.drift]).forEach(function (t) {
+      var rec = G.drift[t.realName];
+      var tr = el('tr');
+      tr.appendChild(el('td', 'rr-driver', t.name));
+      var td = el('td', 'rr-num' + (rec ? ' rec-best' : ''), rec ? fmt(rec.time) : '—');
+      if (rec) td.appendChild(el('small', 'rec-sub', 'F2 · ' + new Date(rec.at).toLocaleDateString('ko-KR')));
+      tr.appendChild(td);
+      dtb.appendChild(tr);
+    });
     dtable.appendChild(dtb);
     drift.appendChild(dtable);
     panel.appendChild(drift);
@@ -876,7 +914,7 @@
       els.play.textContent = pausedDrift ? '드리프트 레이스로 돌아가기 ▶' : '드리프트 레이스 시작 ▶';
       els.sub.textContent = pausedDrift
         ? '드리프트 레이스가 일시정지되었습니다. F2 머신으로 돌아가 계속 달릴 수 있습니다.'
-        : 'F2 특별 이벤트. Space로 리어 그립을 풀고 W와 카운터스티어로 도쿄 네온 토게를 미끄러집니다. 랩타임은 전용 기록으로 저장됩니다.';
+        : 'F2 특별 이벤트. Space로 리어 그립을 풀고 W와 카운터스티어로 ' + (CR.Tracks.driftById(CR.Garage.driftTrack) || CR.Tracks.driftList[0]).name + '에서 미끄러집니다. 랩타임은 코스별 전용 기록으로 저장됩니다.';
     } else {
       els.play.disabled = false;
       var resumePractice = racing && !pausedDrift;

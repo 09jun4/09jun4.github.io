@@ -138,9 +138,11 @@
     // Half-extent of the car's rectangle along the track normal.
     var rel = c.heading - s.heading;
     var extent = Math.abs(cfg.CAR_HALF_WIDTH * Math.cos(rel)) + Math.abs(cfg.CAR_HALF_LENGTH * Math.sin(rel));
-    // Track limits: the whole car is beyond a white line.
-    c.beyondTrackLimit = Math.abs(offset) - extent > cfg.TRACK_WIDTH / 2;
-    c.insideTrackLimit = Math.abs(offset) <= cfg.TRACK_WIDTH / 2; // centre back inside
+    // Track limits: the whole car is beyond a white line. Drift courses use
+    // their own (wider) surface width.
+    var trackHalf = CR.Track.halfWidth || cfg.TRACK_WIDTH / 2;
+    c.beyondTrackLimit = Math.abs(offset) - extent > trackHalf;
+    c.insideTrackLimit = Math.abs(offset) <= trackHalf; // centre back inside
 
     // Walls sit at the outer edge of the run-off (width varies per sample).
     var side = offset > 0 ? 1 : -1;

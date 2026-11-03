@@ -7,6 +7,8 @@
   var Track = {
     segments: [],   // runtime segment list (Section 2.2)
     samples: [],    // flat tessellated sample array (Section 2.3)
+    width: CR.Config.TRACK_WIDTH,
+    halfWidth: CR.Config.TRACK_WIDTH / 2,
   };
 
   // --- 3.1 Segment walking formulas -----------------------------------
@@ -81,14 +83,15 @@
     return true;
   }
 
-  function computeMaxSafeSpeed(type, radius, turnAngle) {
+  function computeMaxSafeSpeed(type, radius, turnAngle, halfWidth) {
     var cfg = CR.Config;
     if (type !== 'corner' || !(radius > 0) || !isFinite(radius)) return cfg.STRAIGHT_SPEED_CAP;
     var angle = Math.min(Math.abs(turnAngle || Math.PI), Math.PI - 1e-6);
+    var trackHalf = typeof halfWidth === 'number' ? halfWidth : cfg.TRACK_WIDTH / 2;
     var lo = radius, hi = radius * 50;
     for (var it = 0; it < 28; it++) {
       var mid = (lo + hi) / 2;
-      if (cornerClears(radius, angle, mid, cfg.TRACK_WIDTH / 2)) lo = mid;
+      if (cornerClears(radius, angle, mid, trackHalf)) lo = mid;
       else hi = mid;
     }
     // What the tyres actually hold: steering may ask for more (STEER_GRIP_TARGET
@@ -169,7 +172,7 @@
   // over the group's total turn angle.
   // Returns a speed per definition index (null for straights outside groups).
   var CORNER_GROUP_GAP = 25; // m
-  function computeGroupSpeeds(def) {
+  function computeGroupSpeeds(def, halfWidth) {
     var speeds = new Array(def.length), n = def.length, i = 0;
     for (var k = 0; k < n; k++) speeds[k] = null;
     while (i < n) {
@@ -194,7 +197,7 @@
       // turn, so a tight part keeps a low speed inside a long sweep; short
       // straights inside the group take the slower neighbouring arc's speed.
       for (var g = i; g <= last; g++) {
-        if (def[g].type === 'corner') speeds[g] = computeMaxSafeSpeed('corner', def[g].radius, sign * angle);
+        if (def[g].type === 'corner') speeds[g] = computeMaxSafeSpeed('corner', def[g].radius, sign * angle, halfWidth);
       }
       for (g = i + 1; g < last; g++) {
         if (def[g].type !== 'corner') speeds[g] = Math.min(speeds[g - 1], speeds[g + 1]);
@@ -212,14 +215,18 @@
     // The event course carries its own visual theme. F1 circuits leave this
     // unset and keep the daytime circuit renderer.
     Track.theme = authored.theme || 'circuit';
+    // Drift courses can widen their racing surface; F1 circuits leave width
+    // unset and keep the standard 14 m.
+    Track.width = authored.width || cfg.TRACK_WIDTH;
+    Track.halfWidth = Track.width / 2;
     // Real circuits start at their start/finish line; generated layouts
     // start in the middle of their longest straight.
     var closed = closeLoop(authored);
     var rotated = authored.keepStart ? { def: closed, turned: 0 } : startOnLongestStraight(closed);
     var def = rotated.def;
-    var groupSpeed = computeGroupSpeeds(def);
+    var groupSpeed = computeGroupSpeeds(def, Track.halfWidth);
     var spacing = cfg.TRACK_SAMPLE_SPACING;
-    var halfWidth = cfg.TRACK_WIDTH / 2;
+    var halfWidth = Track.halfWidth;
 
     var segments = [];
     var samples = [];
@@ -326,7 +333,7 @@
   // wall) for every sample — see config.js RUNOFF_* — and s.bridge where
   // another part of the lap crosses (figure-of-eight circuits like Suzuka).
   function computeRunoff(samples) {
-    var cfg = CR.Config, n = samples.length, half = cfg.TRACK_WIDTH / 2;
+    var cfg = CR.Config, n = samples.length, half = Track.width / 2;
     var spread = Math.max(1, Math.round(cfg.RUNOFF_SPREAD / cfg.TRACK_SAMPLE_SPACING));
     var outL = new Float64Array(n), outR = new Float64Array(n);
     var reach = 2 * half + 6 + 2 * cfg.RUNOFF_MAX, reach2 = reach * reach;
@@ -442,7 +449,7 @@
     var dx = x - s.x;
     var dy = y - s.y;
     var perpDist = Math.abs(dx * nx + dy * ny);
-    return perpDist <= CR.Config.TRACK_WIDTH / 2;
+    return perpDist <= Track.width / 2;
   };
 
   // Exposed for isolated/unit testing (e.g. `node -e`).
