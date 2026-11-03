@@ -112,6 +112,9 @@ h1{margin:0 0 18px;font:600 clamp(34px,5.2vw,54px)/1.18 var(--sans);letter-spaci
 .foot-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .foot-links{display:flex;gap:20px}
 .foot-links a{transition:color .18s}
+.foot-stats{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.foot-stats b{font-weight:500;color:var(--soft);font-variant-numeric:tabular-nums}
+.foot-stats .sep{color:var(--line-2)}
 .foot-links a:hover{color:var(--accent)}
 
 /* 노트 목록 */
@@ -322,6 +325,7 @@ h1{margin:0 0 18px;font:600 clamp(34px,5.2vw,54px)/1.18 var(--sans);letter-spaci
   .article-layout{padding-top:38px}
   .edit .row2{grid-template-columns:1fr}
   .site-foot{margin-top:48px}
+  .foot-stats{order:3;flex-basis:100%;justify-content:center}
 }
 @media (max-width:480px){
   .head-inner{height:auto;flex-direction:column;justify-content:center;gap:8px;padding:10px 0}

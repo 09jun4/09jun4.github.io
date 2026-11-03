@@ -20,10 +20,13 @@ function header(active){
     : `<a href="${BASE}feedback/">feedback</a>`;
   document.body.insertAdjacentHTML('beforeend', `<footer class="site-foot"><div class="shell foot-inner">
     <span>© ${new Date().getFullYear()} 09jun4</span>
+    <span class="foot-stats" aria-label="방문자 수" title="한국 시간 기준"><span>오늘 <b data-visitors="today">—</b></span><span class="sep">·</span><span>누적 <b data-visitors="total">—</b></span></span>
     <span class="foot-links"><a href="https://github.com/09jun4/09jun4.github.io">github</a>${footLink}</span>
   </div></footer>`);
   // 구글 로그인 (js/auth.js): 사이트에 로그인하면 작품을 열 때도 로그인돼 있어요
   const s = document.createElement('script'); s.type = 'module'; s.src = BASE + 'js/auth.js'; document.head.appendChild(s);
+  // 방문자 수 (js/visitors.js): 하루 한 번 오늘·누적을 세고, 주인 계정은 제외해요
+  const v = document.createElement('script'); v.type = 'module'; v.src = BASE + 'js/visitors.js'; document.head.appendChild(v);
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
