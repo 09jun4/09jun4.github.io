@@ -161,17 +161,23 @@
     CR.RaceUI.showRecord(tracks[pick].realName);
   };
 
-  // Special F2 drift event: a fixed, unmodified F2 on the normal circuit
-  // picker. car.js applies the drift handling only while Space is held and
+  // The race, practice and record code all need the track that is actually
+  // loaded. Drift uses its own fixed Tokyo course, not the F1 circuit picker.
+  function activeTrack() {
+    if (Main.mode === 'drift' && CR.Tracks.drift) return CR.Tracks.drift;
+    return CR.Tracks.list[Main.trackIndex];
+  }
+
+  // Special F2 drift event: a fixed F2 on a dedicated Tokyo-style course.
+  // car.js applies the drift handling only while Space is held and
   // Main.mode is 'drift'; practice and AI races are untouched.
   Main.startDrift = function () {
     if (CR.Race.active) CR.Race.end();
     Main.mode = 'drift';
     Main.applyCar(CR.Cars.byId('f2'), 0);
 
-    var tracks = CR.Tracks.list;
-    var pick = pickTrack();
-    CR.Track.buildTrack(tracks[pick].segments);
+    var track = CR.Tracks.drift;
+    CR.Track.buildTrack(track.segments);
     CR.Car.spawnAtTrackStart();
     CR.Renderer.resetEffects();
     CR.Laps.reset(false);
@@ -181,8 +187,8 @@
     enterPlaying();
     if (!CR.Car.state.retired) CR.Audio.startEngine(CR.Car.def);
     CR.Minimap.setTrack();
-    CR.Hud.showTrack(pick + 1, tracks.length, tracks[pick].name, '드리프트 레이스 · F2 · Space 드리프트');
-    CR.RaceUI.showRecord(tracks[pick].realName);
+    CR.Hud.showTrack(1, 1, track.name, '드리프트 레이스 · F2 · ' + track.subtitle + ' · Space 드리프트');
+    CR.RaceUI.showRecord(track.realName);
   };
 
   // Back from the shop into the paused race, in the selected car (it may
@@ -192,7 +198,7 @@
     if (Main.state === 'menu') {
       if (Main.mode === 'drift') Main.applyCar(CR.Cars.byId('f2'), 0);
       else Main.applyCar();
-      CR.Track.buildTrack(CR.Tracks.list[Main.trackIndex].segments);
+      CR.Track.buildTrack(activeTrack().segments);
     }
     enterPlaying();
     CR.Minimap.setTrack();
@@ -311,7 +317,7 @@
     var ev = CR.Laps.events;
     for (var i = 0; i < ev.length; i++) {
       if (ev[i].type === 'lap') {
-        var trackId = CR.Tracks.list[Main.trackIndex].realName;
+        var trackId = activeTrack().realName;
         if (Main.mode === 'drift') {
           // Drift laps feed only the separate drift record: no practice
           // record, no F1-lap credit and no lap payout.

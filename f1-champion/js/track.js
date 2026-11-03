@@ -209,6 +209,9 @@
   Track.buildTrack = function (definition) {
     var cfg = CR.Config;
     var authored = definition || CR.Tracks.list[0].segments;
+    // The event course carries its own visual theme. F1 circuits leave this
+    // unset and keep the daytime circuit renderer.
+    Track.theme = authored.theme || 'circuit';
     // Real circuits start at their start/finish line; generated layouts
     // start in the middle of their longest straight.
     var closed = closeLoop(authored);

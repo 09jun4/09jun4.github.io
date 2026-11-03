@@ -12,7 +12,9 @@
 
   var TRACK_OUTLINE = 'rgba(0, 0, 0, 0.55)';
   var TRACK_COLOR = '#d9dce2';
+  var TRACK_COLOR_TOKYO = '#54e7ff';
   var START_COLOR = '#ffd23f';
+  var START_COLOR_TOKYO = '#ff4fa3';
   var NORTH_COLOR = 'rgba(245, 247, 251, 0.7)';
   var PADDING = 12; // CSS px around the track
 
@@ -46,6 +48,7 @@
     offsetX = PADDING + (inner - (maxX - minX) * scale) / 2 - minX * scale;
     offsetY = PADDING + (inner - (maxY - minY) * scale) / 2 + maxY * scale;
 
+    var tokyo = CR.Track.theme === 'tokyo';
     var c = cache.getContext('2d');
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, cssSize, cssSize);
@@ -58,7 +61,7 @@
     c.strokeStyle = TRACK_OUTLINE;
     c.lineWidth = 6;
     c.stroke();
-    c.strokeStyle = TRACK_COLOR;
+    c.strokeStyle = tokyo ? TRACK_COLOR_TOKYO : TRACK_COLOR;
     c.lineWidth = 3;
     c.stroke();
 
@@ -69,7 +72,7 @@
     c.beginPath();
     c.moveTo(toMapX(s0.x + nx * half), toMapY(s0.y + ny * half));
     c.lineTo(toMapX(s0.x - nx * half), toMapY(s0.y - ny * half));
-    c.strokeStyle = START_COLOR;
+    c.strokeStyle = tokyo ? START_COLOR_TOKYO : START_COLOR;
     c.lineWidth = 2.5;
     c.stroke();
 

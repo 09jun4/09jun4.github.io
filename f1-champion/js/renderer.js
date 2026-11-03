@@ -33,6 +33,16 @@
   var OVERLAY_BUCKETS = 40; // speed ratio quantized so equal-coloured runs share one fill
   var HAZE_START = 90; // m ahead where the haze starts
 
+  // Tokyo drift event theme: a night street circuit. F1 circuits keep the
+  // daylight palette above; the loaded track's theme flag chooses the look.
+  var TOKYO = {
+    skyTop: '#040711', skyHorizon: '#172b4c', ground: '#080b12',
+    runoff: '#1c2029', wall: '#171f2b', wallTop: '#43e7ff',
+    edge: 'rgba(151, 244, 255, 0.85)', kerbA: '#ff2f8f', kerbB: '#edfaff',
+    haze: '27, 43, 70',
+  };
+  var TOKYO_ASPHALT_RGB = [0x12, 0x16, 0x1e];
+
   var START_LINE_LIGHT = '#f4f4f4';
   var START_LINE_DARK = '#1a1a1a';
   var START_LINE_SQUARES = 8;
@@ -70,22 +80,88 @@
   // Asphalt colour per speed bucket: the translucent speed colour already
   // blended over ASPHALT_COLOR, built once (no per-frame strings, and the
   // road is filled in one opaque layer instead of two).
-  var overlayStyles = [];
+  var overlayStyles = [], overlayStylesTokyo = [];
   var ASPHALT_RGB = [0x2a, 0x2b, 0x2f]; // = ASPHALT_COLOR
-  function overlayStyle(bucket) {
-    var st = overlayStyles[bucket];
+  function overlayStyle(bucket, tokyo) {
+    var styles = tokyo ? overlayStylesTokyo : overlayStyles;
+    var base = tokyo ? TOKYO_ASPHALT_RGB : ASPHALT_RGB;
+    var st = styles[bucket];
     if (!st) {
       var col = colorForSpeedRatio(bucket / OVERLAY_BUCKETS), al = col.a;
-      st = overlayStyles[bucket] = 'rgb(' +
-        Math.round(ASPHALT_RGB[0] * (1 - al) + col.r * al) + ',' +
-        Math.round(ASPHALT_RGB[1] * (1 - al) + col.g * al) + ',' +
-        Math.round(ASPHALT_RGB[2] * (1 - al) + col.b * al) + ')';
+      st = styles[bucket] = 'rgb(' +
+        Math.round(base[0] * (1 - al) + col.r * al) + ',' +
+        Math.round(base[1] * (1 - al) + col.g * al) + ',' +
+        Math.round(base[2] * (1 - al) + col.b * al) + ')';
     }
     return st;
   }
 
-  // Gradients are rebuilt only when the horizon / haze line moves.
-  var skyCache = { y: -1, g: null }, hazeCache = { top: -1, start: -1, g: null };
+  // A deterministic night skyline, shifted by camera heading. Two layers give
+  // the flat horizon some depth without adding any world collision geometry.
+  var tokyoSkyline = null;
+  function drawTokyoSkyline(ctx, w, horizon) {
+    if (!tokyoSkyline) {
+      var seed = 271, x = 0, arr = [];
+      function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+      while (x < 2600) {
+        var bw = 44 + rnd() * 88, bh = 42 + rnd() * 154;
+        arr.push({ x: x, w: bw, h: bh, seed: Math.floor(rnd() * 997),
+          sign: rnd() < 0.28 ? (rnd() < 0.5 ? '#ff409c' : '#3fe8ff') : null });
+        x += bw + 13 + rnd() * 30;
+      }
+      arr.span = x;
+      tokyoSkyline = arr;
+    }
+    var span = tokyoSkyline.span;
+    var offset = ((Cam.viewHeading / (Math.PI * 2)) * span * 0.85) % span;
+    if (offset < 0) offset += span;
+
+    var gy = Math.max(0, horizon - 110);
+    var glow = ctx.createLinearGradient(0, gy, 0, horizon);
+    glow.addColorStop(0, 'rgba(58, 102, 168, 0)');
+    glow.addColorStop(0.65, 'rgba(61, 105, 181, 0.08)');
+    glow.addColorStop(1, 'rgba(232, 57, 153, 0.16)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, gy, w, horizon - gy);
+
+    for (var layer = 0; layer < 2; layer++) {
+      var scale = layer ? 1 : 0.74;
+      var shift = layer ? offset : offset * 0.55 + 260;
+      var alpha = layer ? 1 : 0.55;
+      for (var base = -span - shift; base < w + span; base += span) {
+        for (var i = 0; i < tokyoSkyline.length; i++) {
+          var b = tokyoSkyline[i], bx = base + b.x, bw = b.w * scale;
+          if (bx + bw < 0 || bx > w) continue;
+          var bh = b.h * scale, top = horizon - bh;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = layer ? '#0b1321' : '#111c2e';
+          ctx.fillRect(bx, top, bw, bh);
+          ctx.fillStyle = layer ? 'rgba(99, 150, 198, 0.2)' : 'rgba(78, 119, 161, 0.12)';
+          ctx.fillRect(bx, top, bw, 1);
+          if (b.sign) {
+            ctx.fillStyle = b.sign;
+            ctx.globalAlpha = layer ? 0.8 : 0.25;
+            ctx.fillRect(bx + bw - 5, top + 8, 2, Math.min(38, bh * 0.42));
+          }
+          var cols = Math.max(1, Math.floor(bw / 14));
+          var rows = Math.max(1, Math.floor(bh / 15));
+          for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+              if ((r * 13 + c * 7 + b.seed) % 9 > (layer ? 2 : 1)) continue;
+              ctx.fillStyle = ((r + c + b.seed) % 6 === 0) ? '#ff5aa8' : '#6eeaff';
+              ctx.globalAlpha = layer ? 0.56 : 0.18;
+              ctx.fillRect(bx + 4 + c * (bw / cols), top + 6 + r * (bh / rows), 2, 3);
+            }
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Gradients are rebuilt only when the horizon / haze line / theme changes.
+  var skyCache = { y: -1, theme: '', g: null }, hazeCache = { top: -1, start: -1, theme: '', alpha: 0, g: null };
 
   // --- Track geometry helpers (each adds one projected polygon) -----------
 
@@ -370,7 +446,7 @@
   Renderer.standsFor = function (samples, name) { return buildStands(samples, name); }; // for tests
 
   function drawStands(ctx, samples, lite) {
-    if (lite) return;
+    if (lite || CR.Track.theme === 'tokyo') return;
     if (standsFor !== samples) { stands = buildStands(samples); standsFor = samples; }
     if (!crowdPattern) makeCrowd(ctx);
     var n = samples.length, fov = Cam.halfFov(), cfg = CR.Config, vis = [];
@@ -890,24 +966,29 @@
     var cockpitView = playerMode === 'cockpit';
     viewFar = cockpitView ? COCKPIT_VIEW_FAR : cfg.VIEW_FAR;
     var hazeStart = cockpitView ? COCKPIT_HAZE_START : HAZE_START, hazeAlpha = cockpitView ? COCKPIT_HAZE_ALPHA : 0.9;
+    var tokyo = CR.Track.theme === 'tokyo';
+    var themeKey = tokyo ? 'tokyo' : 'circuit';
 
     if (opts.view) opts.view(w, h); else Cam.begin(canvas);
     var horizon = Cam.horizonY;
 
-    // 1. Sky above the horizon, grass below.
-    ctx.fillStyle = GRASS_COLOR;
+    // 1. Sky above the horizon, ground below. Tokyo swaps the daylight grass
+    // for dark city tarmac and draws its skyline above the horizon.
+    ctx.fillStyle = tokyo ? TOKYO.ground : GRASS_COLOR;
     var grassTop = Math.max(0, Math.floor(horizon));
     ctx.fillRect(0, grassTop, w, h - grassTop);
     if (horizon > 0) {
       var hy = Math.round(horizon);
-      if (skyCache.y !== hy) {
+      if (skyCache.y !== hy || skyCache.theme !== themeKey) {
         skyCache.g = ctx.createLinearGradient(0, 0, 0, hy);
-        skyCache.g.addColorStop(0, SKY_TOP);
-        skyCache.g.addColorStop(1, SKY_HORIZON);
+        skyCache.g.addColorStop(0, tokyo ? TOKYO.skyTop : SKY_TOP);
+        skyCache.g.addColorStop(1, tokyo ? TOKYO.skyHorizon : SKY_HORIZON);
         skyCache.y = hy;
+        skyCache.theme = themeKey;
       }
       ctx.fillStyle = skyCache.g;
       ctx.fillRect(0, 0, w, Math.ceil(horizon));
+      if (tokyo && !opts.lite) drawTokyoSkyline(ctx, w, hy);
     }
 
     var n = samples.length;
@@ -937,7 +1018,7 @@
 
       // 2a. Run-off: only the strips between the white lines and the walls
       // (not under the asphalt, to save fill rate).
-      ctx.fillStyle = RUNOFF_COLOR;
+      ctx.fillStyle = tokyo ? TOKYO.runoff : RUNOFF_COLOR;
       ctx.beginPath();
       for (k = 0; k < nv; k++) {
         idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
@@ -957,7 +1038,7 @@
         var contiguous = k > 0 && nextIdx[visible[k - 1]] === idx;
         if (bucket !== runBucket || !contiguous) {
           if (runBucket >= 0) ctx.fill();
-          ctx.fillStyle = overlayStyle(bucket);
+          ctx.fillStyle = overlayStyle(bucket, tokyo);
           ctx.beginPath();
           runBucket = bucket;
         }
@@ -967,7 +1048,7 @@
 
       // 2c. Kerbs just outside both white lines on corner samples.
       for (var colour = 0; colour < 2; colour++) {
-        ctx.fillStyle = colour === 0 ? KERB_RED : KERB_WHITE;
+        ctx.fillStyle = colour === 0 ? (tokyo ? TOKYO.kerbA : KERB_RED) : (tokyo ? TOKYO.kerbB : KERB_WHITE);
         ctx.beginPath();
         for (k = 0; k < nv; k++) {
           idx = visible[k];
@@ -981,7 +1062,7 @@
 
       // 2d. White lines = track limits.
       var lo = half - EDGE_LINE_INSET - EDGE_LINE_WIDTH / 2, hi = lo + EDGE_LINE_WIDTH;
-      ctx.fillStyle = EDGE_LINE_COLOR;
+      ctx.fillStyle = tokyo ? TOKYO.edge : EDGE_LINE_COLOR;
       ctx.beginPath();
       for (k = 0; k < nv; k++) {
         strip(ctx, samples, visible[k], n, lo, hi, lo, hi, 0);
@@ -1021,9 +1102,11 @@
       // 2f. Walls: vertical faces plus a lighter top, drawn far to near in
       // chunks of WALL_CHUNK samples (2 fills per chunk) so nearer walls
       // still overlap farther ones without a fill call per sample.
+      var wallColor = tokyo ? TOKYO.wall : WALL_COLOR;
+      var wallTopColor = tokyo ? TOKYO.wallTop : WALL_TOP_COLOR;
       for (var end = nv; end > 0; end -= WALL_CHUNK) {
         var start = Math.max(0, end - WALL_CHUNK);
-        ctx.fillStyle = WALL_COLOR;
+        ctx.fillStyle = wallColor;
         ctx.beginPath();
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
@@ -1032,7 +1115,7 @@
           wallFace(ctx, samples, idx, n, -a.wallRight, -b.wallRight);
         }
         ctx.fill();
-        ctx.fillStyle = WALL_TOP_COLOR;
+        ctx.fillStyle = wallTopColor;
         ctx.beginPath();
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
@@ -1041,8 +1124,9 @@
           strip(ctx, samples, idx, n, -a.wallRight, -a.wallRight - WALL_THICKNESS, -b.wallRight, -b.wallRight - WALL_THICKNESS, WALL_HEIGHT);
         }
         ctx.fill();
-        // Catch fencing on top of this chunk of wall (near the camera only).
-        if (opts.lite) continue;
+        // Catch fencing is an F1 circuit feature; Tokyo's low neon walls stay
+        // open so the city skyline remains visible over them.
+        if (opts.lite || tokyo) continue;
         var fenceAny = false;
         for (k = end - 1; k >= start; k--) {
           a = samples[visible[k]];
@@ -1089,11 +1173,12 @@
       var top = Math.max(0, horizon);
       if (hazeY > top) {
         var ht = Math.round(top), hs = Math.round(hazeY);
-        if (hazeCache.top !== ht || hazeCache.start !== hs || hazeCache.alpha !== hazeAlpha) {
+        var hazeRgb = tokyo ? TOKYO.haze : HAZE;
+        if (hazeCache.top !== ht || hazeCache.start !== hs || hazeCache.alpha !== hazeAlpha || hazeCache.theme !== themeKey) {
           hazeCache.g = ctx.createLinearGradient(0, ht, 0, hs);
-          hazeCache.g.addColorStop(0, 'rgba(' + HAZE + ', ' + hazeAlpha + ')');
-          hazeCache.g.addColorStop(1, 'rgba(' + HAZE + ', 0)');
-          hazeCache.top = ht; hazeCache.start = hs; hazeCache.alpha = hazeAlpha;
+          hazeCache.g.addColorStop(0, 'rgba(' + hazeRgb + ', ' + hazeAlpha + ')');
+          hazeCache.g.addColorStop(1, 'rgba(' + hazeRgb + ', 0)');
+          hazeCache.top = ht; hazeCache.start = hs; hazeCache.alpha = hazeAlpha; hazeCache.theme = themeKey;
         }
         ctx.fillStyle = hazeCache.g;
         ctx.fillRect(0, top, w, hazeY - top);
