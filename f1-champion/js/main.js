@@ -187,7 +187,7 @@
     enterPlaying();
     if (!CR.Car.state.retired) CR.Audio.startEngine(CR.Car.def);
     CR.Minimap.setTrack();
-    CR.Hud.showTrack(1, 1, track.name, '드리프트 레이스 · F2 · ' + track.subtitle + ' · Space 드리프트');
+    CR.Hud.showTrack(1, 1, track.name, '드리프트 레이스 · F2 · ' + track.subtitle + ' · W+Space 드리프트');
     CR.RaceUI.showRecord(track.realName);
   };
 

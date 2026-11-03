@@ -274,15 +274,17 @@
     engine.update({
       rpmFrac: rpmFrac,
       throttle: throttle,
-      brake: c.autopilot ? CR.Car.autopilotInput.brake : (input.brake || 0),
+      brake: c.drifting ? 0 : (c.autopilot ? CR.Car.autopilotInput.brake : (input.brake || 0)),
       speed: c.speed,
       limiter: c.rpm >= cfg.REDLINE_RPM - 60 && throttle > 0,
     }, now);
     if (wind) wind.update(c.speed, now);
 
-    // Tyre squeal: sideways slide past the grip limit, or hard braking at speed.
+    // Tyre squeal: sideways slide past the grip limit, rear-wheel breakaway,
+    // or hard braking at speed. Space is a drift trigger, not a brake pedal.
     var slide = Math.min(1, Math.max(0, Math.abs(c.lateralVelocity) - 1.2) / 4);
-    var lockup = input.brake > 0 && c.speed > 25 ? 0.45 * Math.min(1, (c.speed - 25) / 30) : 0;
+    if (c.drifting) slide = Math.max(slide, c.rearSlide * 0.85);
+    var lockup = !c.drifting && input.brake > 0 && c.speed > 25 ? 0.45 * Math.min(1, (c.speed - 25) / 30) : 0;
     var screech = Math.max(slide, lockup);
     set(tyre.gain.gain, 0.32 * screech);
     set(tyre.band.frequency, 1200 + 500 * screech + Math.random() * 250);

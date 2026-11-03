@@ -638,9 +638,9 @@
 
     var how = el('div', 'drift-how');
     [
-      ['01', 'W / ↑ 로 가속합니다.'],
-      ['02', '코너에서 Space를 누르고 있습니다.'],
-      ['03', 'A / D 로 급하게 조향합니다.'],
+      ['01', 'W / ↑ 로 속도를 올립니다.'],
+      ['02', '코너에서 Space로 뒷바퀴를 풀고 W를 계속 누릅니다.'],
+      ['03', 'A / D 로 각도를 만들고 반대로 카운터스티어합니다.'],
     ].forEach(function (s) {
       var step = el('div', 'drift-step');
       step.appendChild(el('b', null, s[0]));
@@ -648,7 +648,7 @@
       how.appendChild(step);
     });
     event.appendChild(how);
-    event.appendChild(el('p', 'race-card-note', 'Space를 누르는 동안 속도가 크게 줄고, F2 기본 세팅보다 훨씬 강한 조향과 횡그립으로 코너를 파고듭니다. 놓으면 평소 그립으로 돌아옵니다.'));
+    event.appendChild(el('p', 'race-card-note', 'Space를 누르는 동안 브레이크 대신 리어 타이어가 풀립니다. W로 구동을 유지하면 뒷바퀴가 옆으로 미끄러지고, 놓으면 리어 그립이 돌아옵니다.'));
     event.appendChild(el('p', 'race-card-note', '모바일에서는 브레이크 버튼을 누르고 있으면 드리프트가 됩니다.'));
     event.appendChild(el('p', 'race-card-note', '완주한 랩은 이 모드 전용 베스트 랩으로 기록 탭에 따로 저장됩니다. 전용 코스에서 바로 시작하며 F1 서킷 선택과는 무관합니다.'));
 
@@ -876,7 +876,7 @@
       els.play.textContent = pausedDrift ? '드리프트 레이스로 돌아가기 ▶' : '드리프트 레이스 시작 ▶';
       els.sub.textContent = pausedDrift
         ? '드리프트 레이스가 일시정지되었습니다. F2 머신으로 돌아가 계속 달릴 수 있습니다.'
-        : 'F2 특별 이벤트. 도쿄 전용 네온 토게에서 Space를 누르는 동안 F2 기본보다 훨씬 강하게 조향됩니다. 랩타임은 전용 기록으로 저장됩니다.';
+        : 'F2 특별 이벤트. Space로 리어 그립을 풀고 W와 카운터스티어로 도쿄 네온 토게를 미끄러집니다. 랩타임은 전용 기록으로 저장됩니다.';
     } else {
       els.play.disabled = false;
       var resumePractice = racing && !pausedDrift;

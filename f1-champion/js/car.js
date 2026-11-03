@@ -27,7 +27,11 @@
       rpm: 0, // set to IDLE_RPM in init() once Config exists
       steerSmoothed: 0,
       wheelSteer: 0, // rad, front-wheel angle drawn by renderer.js (+ = left)
-      wheelDist: 0, // m rolled by the tyres (renderer.js spins them with it)
+      wheelDist: 0, // m rolled by the front tyres (renderer.js spins them with it)
+      rearWheelDist: 0, // m rolled by the rear tyres; spins faster when they break traction
+      rearWheelSpeed: 0, // m/s, rear wheel surface speed (wheelspin included)
+      drifting: false, // true only while Space is held in the drift event
+      rearSlide: 0, // 0..1, rear-tyre breakaway state used by physics and effects
       touchingWall: false,
       retired: false, // no control: exploded
       exploded: false,
@@ -188,6 +192,9 @@
     // The drift event is the only place Space modifies handling. Normal
     // practice and AI races keep exactly the same physics as before.
     var drifting = !!(CR.Main && CR.Main.mode === 'drift' && input.drift);
+    // Space is the drift trigger, not a brake pedal: throttle has to stay
+    // available so the rear tyres can be driven past their grip limit.
+    var brakeInput = drifting ? 0 : input.brake;
 
     // Body-frame split of the world velocity.
     var fx = Math.cos(c.heading), fy = Math.sin(c.heading);
@@ -195,8 +202,13 @@
     var vf = c.vx * fx + c.vy * fy;
     var vl = c.vx * lx + c.vy * ly;
 
-    vf += longitudinalAccel(vf, c.gear, input.throttle, input.brake) * dt;
-    if (drifting) vf = Math.max(0, vf - cfg.DRIFT_SPEED_DECEL * dt);
+    vf += longitudinalAccel(vf, c.gear, input.throttle, brakeInput) * dt;
+    if (drifting) {
+      // Rear-tyre scrub grows with speed, so a standing start can still build
+      // speed before the car settles into a slide.
+      var driftDrag = cfg.DRIFT_SPEED_DECEL * clamp(vf / cfg.DRIFT_SPEED_DECEL_REF, 0, 1);
+      vf = Math.max(0, vf - driftDrag * dt);
+    }
     if (c.retired) vf = Math.max(0, vf - cfg.RETIRED_DECEL * dt);
     if (vf < 0) vf = 0; // no reverse gear
     c.rpm = lastRpm;
@@ -210,9 +222,28 @@
     var boost = CR.turnBoost(c.speed); // more turning at low speed
     c.steerSmoothed += clamp(steerDelta, -1, 1) * steerRate * (towardCentre ? 1 : boost) * dt;
 
+    // Rear-tyre breakaway. Steering scrubs the rear tyres sideways and
+    // throttle keeps them spinning; without throttle the rear grip recovers.
+    // This state feeds both the rear-slip yaw below and the smoke/wheelspin
+    // effects, so the physics and the visual stay in sync.
+    var rearTarget = 0;
+    if (drifting && vf > 4) {
+      var speedSlide = clamp((vf - 4) / 18, 0, 1);
+      rearTarget = speedSlide * (0.3 + 0.7 * input.throttle) *
+        Math.min(1, Math.abs(c.steerSmoothed) * 1.5);
+    }
+    var rearRate = rearTarget > c.rearSlide ? cfg.DRIFT_REAR_ENGAGE : cfg.DRIFT_REAR_RECOVER;
+    c.rearSlide += clamp(rearTarget - c.rearSlide, -rearRate * dt, rearRate * dt);
+    c.drifting = drifting;
+
     // Slip angle: body heading relative to the direction of travel
     // (+ = nose rotated left of where the car is going).
     var slip = c.speed > 0.5 ? Math.atan2(-vl, Math.max(vf, 0.01)) : 0;
+    // Countersteering means the front wheels point against the direction the
+    // rear is sliding. Catch the slide with extra grip instead of letting the
+    // front steering snap the body straight past centre.
+    var counterSteer = drifting && Math.abs(slip) > cfg.DRIFT_COUNTERSTEER_DEADBAND &&
+      c.steerSmoothed * slip < 0;
 
     // Grip: kinematic bicycle with a speed-sensitive lock so full lock never
     // asks for more than STEER_GRIP_TARGET x the tyre grip.
@@ -222,6 +253,14 @@
       steerLimit = Math.min(steerLimit, Math.atan((cfg.WHEELBASE * gripTarget * boost * mu * cfg.GRAVITY) / (vf * vf)));
     }
     var yawRate = (vf / cfg.WHEELBASE) * Math.tan(c.steerSmoothed * steerLimit);
+    if (drifting) {
+      // The rear is past its grip limit, so it steers the body toward the
+      // requested slip angle instead of merely following the front wheels.
+      // Releasing the drift or countersteering moves the target back toward
+      // straight, which is what makes the car recoverable.
+      var targetSlip = counterSteer ? 0 : c.steerSmoothed * cfg.DRIFT_SLIP_ANGLE * c.rearSlide;
+      yawRate += (targetSlip - slip) * cfg.DRIFT_SLIP_YAW_GAIN;
+    }
     // Front-wheel angle on screen: the real (speed-limited) angle, but at
     // least WHEEL_STEER_MIN_VISUAL at full lock so it stays visible at speed.
     var visualLock = cfg.MAX_STEER_ANGLE * (drifting ? cfg.DRIFT_MAX_STEER_MULT : 1);
@@ -232,12 +271,18 @@
     var excessSlip = Math.abs(slip) - cfg.SLIDE_ALIGN_DEADBAND;
     var alignRate = cfg.SLIDE_ALIGN_RATE * (drifting ? cfg.DRIFT_ALIGN_RATE_MULT : 1);
     if (excessSlip > 0) yawRate -= (slip > 0 ? excessSlip : -excessSlip) * alignRate;
+    if (counterSteer) {
+      // Hands on the opposite lock: bleed the drift angle steadily instead of
+      // letting the front wheels throw the car into a mirrored slide.
+      yawRate = -slip * cfg.DRIFT_COUNTERSTEER_YAW;
+    }
 
     // Lateral tyre friction: removes up to LATERAL_GRIP*mu*g of sideways
-    // speed per second — as fast as full-lock steering creates it. Drifting
-    // raises this so the velocity vector follows the extra yaw into the
-    // corner; cutting it made the body spin while the car kept going straight.
-    var lateralGrip = cfg.LATERAL_GRIP * (drifting ? cfg.DRIFT_LATERAL_GRIP_MULT : 1);
+    // speed per second. A sliding rear loses part of that grip, so the
+    // velocity lags behind the rotating body instead of following it exactly.
+    var rearGrip = 1 - (drifting ? c.rearSlide * cfg.DRIFT_REAR_GRIP_LOSS : 0);
+    var lateralGrip = cfg.LATERAL_GRIP * (drifting ? cfg.DRIFT_LATERAL_GRIP_MULT * rearGrip : 1);
+    if (counterSteer) lateralGrip *= cfg.DRIFT_COUNTERSTEER_GRIP;
     var latStep = lateralGrip * boost * mu * cfg.GRAVITY * dt;
     vl = Math.abs(vl) <= latStep ? 0 : vl - (vl > 0 ? latStep : -latStep);
 
@@ -261,7 +306,9 @@
     c.forwardSpeed = c.vx * fx + c.vy * fy;
     c.lateralVelocity = -c.vx * fy + c.vy * fx;
     c.speed = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
-    c.wheelDist += c.forwardSpeed * dt; // tyres roll with the forward motion
+    c.wheelDist += c.forwardSpeed * dt; // front tyres roll with the forward motion
+    c.rearWheelSpeed = c.forwardSpeed + (drifting ? c.rearSlide * cfg.DRIFT_WHEELSPIN : 0);
+    c.rearWheelDist += c.rearWheelSpeed * dt;
   };
 
   // Shifting is edge-triggered, called directly from input.js's mouse handler.
@@ -315,6 +362,10 @@
     c.rpm = CR.Config.IDLE_RPM;
     c.steerSmoothed = 0;
     c.wheelSteer = 0;
+    c.rearSlide = 0;
+    c.drifting = false;
+    c.rearWheelDist = c.wheelDist;
+    c.rearWheelSpeed = 0;
     c.touchingWall = false;
     c.retired = false;
     c.exploded = false;

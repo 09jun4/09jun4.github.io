@@ -641,8 +641,10 @@
     wCx = w[0]; wCy = w[1];
     wAx = Math.cos(steer); wAy = Math.sin(steer); // axle (right)
     wFx = -wAy; wFy = wAx; // rolling direction (forward)
-    var spin = (car.wheelDist || 0) / r;
-    var omega = Math.abs(car.forwardSpeed || 0) / r;
+    var spinDist = part.front ? (car.wheelDist || 0) : (car.rearWheelDist !== undefined ? car.rearWheelDist : car.wheelDist || 0);
+    var spin = spinDist / r;
+    var rollSpeed = part.front ? (car.forwardSpeed || 0) : (car.rearWheelSpeed !== undefined ? car.rearWheelSpeed : car.forwardSpeed || 0);
+    var omega = Math.abs(rollSpeed) / r;
     var blur = Math.max(0, Math.min(1, (omega - WHEEL_BLUR_START) / (WHEEL_BLUR_FULL - WHEEL_BLUR_START)));
 
     // Rim edges on both sides of the tread.
@@ -791,12 +793,14 @@
   for (var pi = 0; pi < MAX_PARTICLES; pi++) {
     parts.push({ life: 0, max: 1, kind: 0, x: 0, y: 0, h: 0, vx: 0, vy: 0, vh: 0, size: 0, grow: 0 });
   }
-  var FIRE = 0, SMOKE = 1, DEBRIS = 2;
+  var FIRE = 0, SMOKE = 1, DEBRIS = 2, TIRE_SMOKE = 3;
   var MAX_PARTICLE_SIZE = 2.4; // m
   var PARTICLE_FADE_HEIGHT = 5; // m, smoke/fire fade out above this
   var PARTICLE_MIN_DEPTH = 5; // m, don't draw particles right in front of the camera
   var flash = 0; // s of screen flash left
   var wreckAccum = 0;
+  var driftSmokeAccum = 0, driftSmokeSide = 0;
+  var rearWheelsFor = null, rearWheelsDef = null;
 
   function spawn(kind, x, y, h, vx, vy, vh, size, grow, life) {
     for (var i = 0; i < MAX_PARTICLES; i++) {
@@ -811,6 +815,45 @@
   }
 
   function rnd(a) { return (Math.random() * 2 - 1) * a; }
+
+  // Rear wheel contact points from the active car model, cached by definition.
+  function rearWheelPoints() {
+    var def = CR.Car.def;
+    if (rearWheelsDef !== def) {
+      rearWheelsDef = def;
+      rearWheelsFor = [];
+      var model = def && def.model;
+      if (model) {
+        for (var i = 0; i < model.length; i++) {
+          var part = model[i];
+          if (part.wheel && !part.front) rearWheelsFor.push([part.wheel[0], part.wheel[1]]);
+        }
+      }
+    }
+    return rearWheelsFor;
+  }
+
+  // Light tyre smoke from the two rear contact patches while the rear is
+  // sliding. The emission rate follows rearSlide, so off-throttle grip
+  // recovery visibly stops the smoke as well as stopping the slide.
+  function emitDriftSmoke(car, dt) {
+    if (!car.drifting || car.rearSlide < 0.12 || car.speed < 6 || car.retired) return;
+    var wheels = rearWheelPoints();
+    if (!wheels.length) return;
+    driftSmokeAccum += dt * (6 + 34 * car.rearSlide);
+    var count = Math.min(10, Math.floor(driftSmokeAccum));
+    if (count <= 0) return;
+    driftSmokeAccum -= count;
+    var cos = Math.cos(car.heading), sin = Math.sin(car.heading);
+    for (var i = 0; i < count; i++) {
+      var w = wheels[driftSmokeSide++ % wheels.length];
+      var x = car.x + w[1] * cos + w[0] * sin;
+      var y = car.y + w[1] * sin - w[0] * cos;
+      spawn(TIRE_SMOKE, x + rnd(0.12), y + rnd(0.12), 0.12 + Math.random() * 0.18,
+        car.vx * 0.06 + rnd(0.8), car.vy * 0.06 + rnd(0.8), 0.35 + Math.random() * 0.8,
+        0.28 + Math.random() * 0.18, 0.75 + Math.random() * 0.45, 0.8 + Math.random() * 0.9);
+    }
+  }
 
   // Called by main.js when the car explodes.
   Renderer.explode = function (car) {
@@ -839,6 +882,8 @@
         else spawn(SMOKE, car.x + rnd(0.8), car.y + rnd(1.2), 1.0, rnd(0.8), rnd(0.8), 0.9 + Math.random() * 0.6, 0.6, 0.6, 2.2);
       }
     }
+    if (!car.exploded) emitDriftSmoke(car, dt);
+    else driftSmokeAccum = 0;
     if (flash > 0) flash -= dt;
     for (var i = 0; i < MAX_PARTICLES; i++) {
       var p = parts[i];
@@ -870,6 +915,8 @@
         // yellow -> orange -> dark red as it burns out
         var g = (90 + 150 * t) | 0, b = (20 + 60 * t * t) | 0;
         ctx.fillStyle = 'rgba(255,' + g + ',' + b + ',' + (0.85 * t).toFixed(3) + ')';
+      } else if (p.kind === TIRE_SMOKE) {
+        ctx.fillStyle = 'rgba(191, 207, 216, ' + (0.3 * t).toFixed(3) + ')';
       } else if (p.kind === SMOKE) {
         ctx.fillStyle = 'rgba(45, 45, 48, ' + (0.4 * t).toFixed(3) + ')';
       } else {
@@ -889,6 +936,8 @@
     for (var i = 0; i < MAX_PARTICLES; i++) parts[i].life = 0;
     flash = 0;
     wreckAccum = 0;
+    driftSmokeAccum = 0;
+    driftSmokeSide = 0;
   };
 
   // --- Section 7.1: draw order --------------------------------------------
