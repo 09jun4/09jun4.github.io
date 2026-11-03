@@ -197,6 +197,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #111; touch-
 #hud-track.is-visible { opacity: 1; }
 #hud-track small { display: block; font-size: 0.6em; font-weight: 600; color: var(--hud-fg-dim); }
 #hud-help-track { color: var(--hud-fg); font-weight: 600; }
+#hud-help-drift { color: #ffd23f; font-weight: 700; }
 
 /* In the menu, all race HUD is hidden. */
 body.in-menu #hud,
@@ -873,10 +874,14 @@ body.touch .race-tower li { padding: 2px 4px; }
 .menu-tab { flex: 1; padding: 11px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--menu-dim); font: 800 15px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif; cursor: pointer; }
 .menu-tab.is-active { background: var(--menu-panel-hi); color: var(--menu-fg); box-shadow: inset 0 -3px 0 var(--menu-accent); }
 .menu-tab:focus-visible { outline: 3px solid var(--menu-accent); outline-offset: 2px; }
+@media (max-width: 560px) {
+  .menu-tabs { gap: 4px; }
+  .menu-tab { padding: 9px 4px; font-size: 12px; line-height: 1.2; }
+}
 .tab-lock { font-size: 12px; }
 .tab-panel { width: 100%; }
-#tab-race, #tab-records { display: grid; gap: 16px; }
-#race-panel, #records-panel { display: grid; gap: 16px; }
+#tab-race, #tab-drift, #tab-records { display: grid; gap: 16px; }
+#race-panel, #drift-panel, #records-panel { display: grid; gap: 16px; }
 #play-btn:disabled { opacity: 0.55; cursor: default; }
 
 .race-card { width: 100%; box-sizing: border-box; padding: 16px; border-radius: 16px; background: var(--menu-panel); border: 1px solid var(--menu-border); }
@@ -887,6 +892,18 @@ body.touch .race-tower li { padding: 2px 4px; }
 .race-card-title { margin: 6px 0 4px; font-size: 22px; font-weight: 900; }
 .race-card-text { margin: 0 auto 14px; max-width: 420px; color: var(--menu-dim); font-size: 14px; }
 .race-card-note { margin: 10px 0 0; color: var(--menu-dim); font-size: 13px; }
+
+/* ---------- Drift special event ---------- */
+.drift-card { border-color: rgba(47, 191, 113, 0.48); background: linear-gradient(180deg, rgba(47, 191, 113, 0.08), var(--menu-panel) 64%); }
+.drift-card .race-card-title { margin-top: 0; }
+.drift-kicker { margin-bottom: 8px; color: #5ee39a; font: 800 11px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif; letter-spacing: 0.16em; }
+.drift-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.drift-step { padding: 10px 12px; border-radius: 10px; background: var(--menu-panel-hi); color: var(--menu-dim); font-size: 12px; }
+.drift-step b { display: block; margin-bottom: 4px; color: #5ee39a; font-size: 11px; letter-spacing: 0.08em; }
+.drift-record { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--menu-border); }
+.drift-record span { color: var(--menu-dim); font-size: 12px; font-weight: 800; }
+.drift-record b { color: #5ee39a; font-size: 20px; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .drift-how { grid-template-columns: 1fr; } }
 .race-progress { width: min(320px, 100%); height: 12px; margin: 0 auto; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
 .race-progress span { display: block; height: 100%; background: linear-gradient(90deg, #d4a82a, #ffd23f); }
 .race-progress-text { margin: 8px 0 0; font-weight: 800; color: var(--menu-accent); font-variant-numeric: tabular-nums; }

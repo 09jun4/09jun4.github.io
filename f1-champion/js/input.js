@@ -1,4 +1,5 @@
 // input.js — keyboard state: digital throttle/brake (S, ↓, Space)/steer; Q/E = down/up shift;
+// Space is also the held drift input in the F2 drift event (touch brake mirrors it).
 // R = restart after retiring; Esc = pause; M = mute; mouse left/right click = shift up/down
 // (all shifting is edge-triggered).
 // Load order: 3rd. Depends on: Config.
@@ -11,6 +12,7 @@
       throttle: 0,
       brake: 0,
       steerTarget: 0,
+      drift: 0, // Space held (touch brake mirrors it); car.js only uses it in drift mode
     },
   };
 
@@ -38,6 +40,7 @@
   function recomputeState() {
     Input.state.throttle = anyPressed(ACCEL_KEYS) || touch.gas ? 1 : 0;
     Input.state.brake = anyPressed(BRAKE_KEYS) || touch.brake ? 1 : 0;
+    Input.state.drift = pressedKeys.has('Space') || touch.brake ? 1 : 0;
     var left = anyPressed(LEFT_KEYS) || touch.left;
     var right = anyPressed(RIGHT_KEYS) || touch.right;
     // steerTarget=+1 must mean "turn left" to match PLAN.md's world convention

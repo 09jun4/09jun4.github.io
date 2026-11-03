@@ -65,6 +65,17 @@
     // car goes where it points.
     LATERAL_GRIP: 1.15, // matches STEER_GRIP_TARGET: full lock stays within grip
 
+    // --- Drift event (F2) ---
+    // Space adds yaw authority and enough lateral grip to pull the velocity
+    // around the tighter arc, on top of the normal brake force. Too little
+    // lateral grip only rotated the body while the car kept sliding straight.
+    DRIFT_STEER_TARGET_MULT: 1.7,
+    DRIFT_MAX_STEER_MULT: 1.35,
+    DRIFT_STEER_RATE_MULT: 1.45,
+    DRIFT_LATERAL_GRIP_MULT: 1.3,
+    DRIFT_ALIGN_RATE_MULT: 0.7,
+    DRIFT_SPEED_DECEL: 6,
+
     // --- Slides ---
     SLIDE_ALIGN_RATE: 4.0, // /s, body straightens toward travel after a slide
     SLIDE_ALIGN_DEADBAND: 0.05, // rad; slip below this is left alone

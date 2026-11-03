@@ -185,6 +185,9 @@
     if (c.gear > cfg.GEAR_RATIOS.length) c.gear = cfg.GEAR_RATIOS.length;
     if (c.retired || c.coasting) input = RETIRED_INPUT; // no control; rolls to a stop (coasting: after a forfeit)
     else if (c.autopilot) input = autopilotInput(c); // after the chequered flag
+    // The drift event is the only place Space modifies handling. Normal
+    // practice and AI races keep exactly the same physics as before.
+    var drifting = !!(CR.Main && CR.Main.mode === 'drift' && input.drift);
 
     // Body-frame split of the world velocity.
     var fx = Math.cos(c.heading), fy = Math.sin(c.heading);
@@ -193,6 +196,7 @@
     var vl = c.vx * lx + c.vy * ly;
 
     vf += longitudinalAccel(vf, c.gear, input.throttle, input.brake) * dt;
+    if (drifting) vf = Math.max(0, vf - cfg.DRIFT_SPEED_DECEL * dt);
     if (c.retired) vf = Math.max(0, vf - cfg.RETIRED_DECEL * dt);
     if (vf < 0) vf = 0; // no reverse gear
     c.rpm = lastRpm;
@@ -202,6 +206,7 @@
     var steerDelta = input.steerTarget - c.steerSmoothed;
     var towardCentre = Math.abs(input.steerTarget) < Math.abs(c.steerSmoothed);
     var steerRate = towardCentre ? cfg.STEER_RETURN_RATE : cfg.STEER_RESPONSE_RATE;
+    if (drifting) steerRate *= cfg.DRIFT_STEER_RATE_MULT;
     var boost = CR.turnBoost(c.speed); // more turning at low speed
     c.steerSmoothed += clamp(steerDelta, -1, 1) * steerRate * (towardCentre ? 1 : boost) * dt;
 
@@ -211,23 +216,29 @@
 
     // Grip: kinematic bicycle with a speed-sensitive lock so full lock never
     // asks for more than STEER_GRIP_TARGET x the tyre grip.
-    var steerLimit = cfg.MAX_STEER_ANGLE;
+    var steerLimit = cfg.MAX_STEER_ANGLE * (drifting ? cfg.DRIFT_MAX_STEER_MULT : 1);
     if (vf > 0.1) {
-      steerLimit = Math.min(steerLimit, Math.atan((cfg.WHEELBASE * cfg.STEER_GRIP_TARGET * boost * mu * cfg.GRAVITY) / (vf * vf)));
+      var gripTarget = cfg.STEER_GRIP_TARGET * (drifting ? cfg.DRIFT_STEER_TARGET_MULT : 1);
+      steerLimit = Math.min(steerLimit, Math.atan((cfg.WHEELBASE * gripTarget * boost * mu * cfg.GRAVITY) / (vf * vf)));
     }
     var yawRate = (vf / cfg.WHEELBASE) * Math.tan(c.steerSmoothed * steerLimit);
     // Front-wheel angle on screen: the real (speed-limited) angle, but at
     // least WHEEL_STEER_MIN_VISUAL at full lock so it stays visible at speed.
-    c.wheelSteer = c.steerSmoothed * Math.min(cfg.MAX_STEER_ANGLE, Math.max(steerLimit, cfg.WHEEL_STEER_MIN_VISUAL));
+    var visualLock = cfg.MAX_STEER_ANGLE * (drifting ? cfg.DRIFT_MAX_STEER_MULT : 1);
+    c.wheelSteer = c.steerSmoothed * Math.min(visualLock, Math.max(steerLimit, cfg.WHEEL_STEER_MIN_VISUAL));
     // After a slide (over the grip limit, or a wall knock) the body
     // straightens toward the direction of travel. The deadband ignores the
     // tiny slip normal cornering produces, so turning is not weakened.
     var excessSlip = Math.abs(slip) - cfg.SLIDE_ALIGN_DEADBAND;
-    if (excessSlip > 0) yawRate -= (slip > 0 ? excessSlip : -excessSlip) * cfg.SLIDE_ALIGN_RATE;
+    var alignRate = cfg.SLIDE_ALIGN_RATE * (drifting ? cfg.DRIFT_ALIGN_RATE_MULT : 1);
+    if (excessSlip > 0) yawRate -= (slip > 0 ? excessSlip : -excessSlip) * alignRate;
 
     // Lateral tyre friction: removes up to LATERAL_GRIP*mu*g of sideways
-    // speed per second — as fast as full-lock steering creates it.
-    var latStep = cfg.LATERAL_GRIP * boost * mu * cfg.GRAVITY * dt;
+    // speed per second — as fast as full-lock steering creates it. Drifting
+    // raises this so the velocity vector follows the extra yaw into the
+    // corner; cutting it made the body spin while the car kept going straight.
+    var lateralGrip = cfg.LATERAL_GRIP * (drifting ? cfg.DRIFT_LATERAL_GRIP_MULT : 1);
+    var latStep = lateralGrip * boost * mu * cfg.GRAVITY * dt;
     vl = Math.abs(vl) <= latStep ? 0 : vl - (vl > 0 ? latStep : -latStep);
 
     // Recombine into world velocity. The velocity is not rotated with the

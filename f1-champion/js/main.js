@@ -10,7 +10,7 @@
 
   var Main = {
     state: 'menu', // 'menu' | 'playing' | 'paused' | 'results' (AI 대전 over, results screens)
-    mode: 'practice', // 'practice' | 'race' (AI 대전)
+    mode: 'practice', // 'practice' | 'race' (AI 대전) | 'drift' (F2 special event)
     raceActive: false,
     trackIndex: -1,
   };
@@ -86,6 +86,7 @@
     CR.Menu.hide();
     hideOverlays();
     document.body.classList.remove('in-menu');
+    CR.Hud.setMode(Main.mode);
     CR.Input.clear();
   }
 
@@ -160,12 +161,37 @@
     CR.RaceUI.showRecord(tracks[pick].realName);
   };
 
+  // Special F2 drift event: a fixed, unmodified F2 on the normal circuit
+  // picker. car.js applies the drift handling only while Space is held and
+  // Main.mode is 'drift'; practice and AI races are untouched.
+  Main.startDrift = function () {
+    if (CR.Race.active) CR.Race.end();
+    Main.mode = 'drift';
+    Main.applyCar(CR.Cars.byId('f2'), 0);
+
+    var tracks = CR.Tracks.list;
+    var pick = pickTrack();
+    CR.Track.buildTrack(tracks[pick].segments);
+    CR.Car.spawnAtTrackStart();
+    CR.Renderer.resetEffects();
+    CR.Laps.reset(false);
+    CR.Car.events.length = 0;
+    Main.raceActive = true;
+    CR.RaceUI.setRaceHud(false);
+    enterPlaying();
+    if (!CR.Car.state.retired) CR.Audio.startEngine(CR.Car.def);
+    CR.Minimap.setTrack();
+    CR.Hud.showTrack(pick + 1, tracks.length, tracks[pick].name, '드리프트 레이스 · F2 · Space 드리프트');
+    CR.RaceUI.showRecord(tracks[pick].realName);
+  };
+
   // Back from the shop into the paused race, in the selected car (it may
   // have changed; the track is rebuilt so corner colours match its grip).
   Main.resume = function () {
     if (!Main.raceActive) return;
     if (Main.state === 'menu') {
-      Main.applyCar();
+      if (Main.mode === 'drift') Main.applyCar(CR.Cars.byId('f2'), 0);
+      else Main.applyCar();
       CR.Track.buildTrack(CR.Tracks.list[Main.trackIndex].segments);
     }
     enterPlaying();
@@ -188,6 +214,7 @@
     document.body.classList.add('in-menu');
     hideOverlays();
     CR.Audio.silence();
+    CR.Hud.setMode('menu');
     CR.Menu.show();
   };
 
@@ -284,15 +311,23 @@
     var ev = CR.Laps.events;
     for (var i = 0; i < ev.length; i++) {
       if (ev[i].type === 'lap') {
-        ev[i].money = CR.Garage.payLap(ev[i].value, CR.Track.length, ev[i].best);
-        CR.Hud.moneyPop();
         var trackId = CR.Tracks.list[Main.trackIndex].realName;
-        var practice = !CR.Race.active;
-        var rec = CR.Garage.recordLap(CR.Car.def.id, trackId, ev[i].value, practice, lapView);
-        if (practice) CR.RaceUI.showRecord(trackId);
-        if (rec.unlocked) flashLater('AI 대전 입장권 획득! 메뉴의 AI 대전 탭에서 도전하세요');
-        else if (rec.record) flashLater((lapView === 'cockpit' ? '1인칭' : '3인칭') + ' 트랙 신기록! ' + CR.Laps.format(ev[i].value));
-        if (CR.Race.active) CR.Race.onPlayerLap(CR.Laps.history.length);
+        if (Main.mode === 'drift') {
+          // Drift laps feed only the separate drift record: no practice
+          // record, no F1-lap credit and no lap payout.
+          var drift = CR.Garage.recordDriftLap(trackId, ev[i].value);
+          CR.RaceUI.showRecord(trackId);
+          if (drift.record) CR.Hud.flash('드리프트 신기록! ' + CR.Laps.format(ev[i].value), 'is-best');
+        } else {
+          ev[i].money = CR.Garage.payLap(ev[i].value, CR.Track.length, ev[i].best);
+          CR.Hud.moneyPop();
+          var practice = Main.mode === 'practice' && !CR.Race.active;
+          var rec = CR.Garage.recordLap(CR.Car.def.id, trackId, ev[i].value, practice, lapView);
+          if (practice) CR.RaceUI.showRecord(trackId);
+          if (rec.unlocked) flashLater('AI 대전 입장권 획득! 메뉴의 AI 대전 탭에서 도전하세요');
+          else if (rec.record) flashLater((lapView === 'cockpit' ? '1인칭' : '3인칭') + ' 트랙 신기록! ' + CR.Laps.format(ev[i].value));
+          if (CR.Race.active) CR.Race.onPlayerLap(CR.Laps.history.length);
+        }
       }
     }
   }

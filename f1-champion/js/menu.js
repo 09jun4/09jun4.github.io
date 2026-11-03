@@ -281,7 +281,7 @@
   }
 
   // Redraws money, current car and shop (after a purchase / switch or on show).
-  // --- Tabs: 연습 | AI 대전 | 기록 ----------------------------------------------
+  // --- Tabs: 연습 | AI 대전 | 드리프트 레이스 | 기록 -------------------------
 
   Menu.tab = 'practice';
 
@@ -295,10 +295,11 @@
     }
     els.tabPractice.hidden = tab !== 'practice';
     els.tabRace.hidden = tab !== 'race';
+    els.tabDrift.hidden = tab !== 'drift';
     els.tabRecords.hidden = tab !== 'records';
-    els.tracksSection.hidden = tab !== 'practice'; // AI 대전 circuits are drawn at random
+    els.tracksSection.hidden = tab === 'race' || tab === 'records'; // AI 대전 circuits are drawn at random
     els.actions.hidden = tab === 'records';
-    els.keys.hidden = tab === 'records';
+    els.keys.hidden = tab === 'records' || tab === 'drift';
     if (!Menu.el.hidden) Menu.refresh();
   };
 
@@ -605,6 +606,47 @@
     });
   }
 
+  // --- Drift special event (F2) -------------------------------------------
+  function renderDriftPanel() {
+    var G = CR.Garage, panel = els.driftPanel;
+    if (!panel) return;
+    panel.textContent = '';
+
+    var event = el('section', 'race-card drift-card');
+    event.appendChild(el('div', 'drift-kicker', 'SPECIAL EVENT · F2'));
+    event.appendChild(el('h2', 'race-card-title', 'F2 드리프트 레이스'));
+    event.appendChild(el('p', 'race-card-text', 'F2 머신으로 서킷을 달리며 드리프트 랩타임을 겨루는 특별 이벤트입니다. 차량은 기본 세팅으로 제공되며 구매나 튜닝이 필요하지 않습니다.'));
+    var chips = el('div', 'race-rules');
+    ['F2 고정 머신', '구매·튜닝 불필요', 'Space 드리프트', '기록 별도 저장'].forEach(function (t) {
+      chips.appendChild(el('span', 'race-rule', t));
+    });
+    event.appendChild(chips);
+    var how = el('div', 'drift-how');
+    [
+      ['01', 'W / ↑ 로 가속합니다.'],
+      ['02', '코너에서 Space를 누르고 있습니다.'],
+      ['03', 'A / D 로 급하게 조향합니다.'],
+    ].forEach(function (s) {
+      var step = el('div', 'drift-step');
+      step.appendChild(el('b', null, s[0]));
+      step.appendChild(document.createTextNode(s[1]));
+      how.appendChild(step);
+    });
+    event.appendChild(how);
+    event.appendChild(el('p', 'race-card-note', 'Space를 누르는 동안 속도가 크게 줄고 조향이 급해지며 차체가 미끄러집니다. 놓으면 평소 그립으로 돌아옵니다.'));
+    event.appendChild(el('p', 'race-card-note', '모바일에서는 브레이크 버튼을 누르고 있으면 드리프트가 됩니다.'));
+    event.appendChild(el('p', 'race-card-note', '완주한 랩은 이 모드 전용 베스트 랩으로 기록 탭에 따로 저장됩니다.'));
+    event.appendChild(el('p', 'race-card-note', '아래 서킷 선택에서 트랙을 고른 뒤 플레이하세요.'));
+
+    var idx = G.trackIndex(G.track);
+    var rec = idx >= 0 ? G.drift[CR.Tracks.list[idx].realName] : null;
+    var record = el('div', 'drift-record');
+    record.appendChild(el('span', null, idx >= 0 ? CR.Tracks.list[idx].name + ' 드리프트 베스트' : '서킷별 드리프트 베스트'));
+    record.appendChild(el('b', null, rec ? fmt(rec.time) : '—:——.———'));
+    event.appendChild(record);
+    panel.appendChild(event);
+  }
+
   function renderRecords() {
     var G = CR.Garage, panel = els.recordsPanel;
     panel.textContent = '';
@@ -656,6 +698,28 @@
     table.appendChild(tb);
     prac.appendChild(table);
     panel.appendChild(prac);
+
+    // Drift event bests, deliberately separate from practice.
+    var drift = el('section', 'race-card');
+    drift.appendChild(el('h2', 'menu-section', '드리프트 레이스 베스트 랩 · F2 이벤트'));
+    drift.appendChild(el('p', 'race-card-note', 'Space 드리프트를 사용한 F2 이벤트 기록입니다. 연습 기록과 섞이지 않습니다.'));
+    var dtable = el('table', 'rr-table');
+    var dhr = el('tr');
+    ['서킷', '베스트 랩'].forEach(function (h, k) { dhr.appendChild(el('th', k ? 'rr-num' : null, h)); });
+    var dthead = el('thead'); dthead.appendChild(dhr); dtable.appendChild(dthead);
+    var dtb = el('tbody');
+    CR.Tracks.list.forEach(function (t) {
+      var rec = G.drift[t.realName];
+      var tr = el('tr');
+      tr.appendChild(el('td', 'rr-driver', t.name));
+      var td = el('td', 'rr-num' + (rec ? ' rec-best' : ''), rec ? fmt(rec.time) : '—');
+      if (rec) td.appendChild(el('small', 'rec-sub', 'F2 · ' + new Date(rec.at).toLocaleDateString('ko-KR')));
+      tr.appendChild(td);
+      dtb.appendChild(tr);
+    });
+    dtable.appendChild(dtb);
+    drift.appendChild(dtable);
+    panel.appendChild(drift);
 
     // Current season
     var cur = el('section', 'race-card');
@@ -781,21 +845,31 @@
     renderShop();
     renderTracks();
     renderRacePanel();
+    renderDriftPanel();
     if (Menu.tab === 'records') renderRecords();
     renderFoldSummaries();
     if (!Menu.el.hidden) { drawAllPreviews(); drawTracks(); }
 
     var racing = CR.Main.raceActive && !CR.Race.active;
-    els.endRace.hidden = !racing || Menu.tab !== 'practice';
+    var pausedDrift = racing && CR.Main.mode === 'drift';
+    var canEnd = racing && ((Menu.tab === 'practice' && !pausedDrift) || (Menu.tab === 'drift' && pausedDrift));
+    els.endRace.hidden = !canEnd;
     if (Menu.tab === 'race') {
       var ok = CR.Race.canEnter();
       els.play.textContent = ok ? '대전 시작 ▶' : '🔒 입장권 필요';
       els.play.disabled = !ok;
       els.sub.textContent = 'AI 5대와 3랩 대전! 순위별 포인트를 모아 5경기 시즌 챔피언에 도전하세요.';
+    } else if (Menu.tab === 'drift') {
+      els.play.disabled = false;
+      els.play.textContent = pausedDrift ? '드리프트 레이스로 돌아가기 ▶' : '드리프트 레이스 시작 ▶';
+      els.sub.textContent = pausedDrift
+        ? '드리프트 레이스가 일시정지되었습니다. F2 머신으로 돌아가 계속 달릴 수 있습니다.'
+        : 'F2 특별 이벤트. Space를 누르는 동안 속도가 크게 줄고 급격하게 조향됩니다. 랩타임은 전용 기록으로 저장됩니다.';
     } else {
       els.play.disabled = false;
-      els.play.textContent = racing ? '연습으로 돌아가기 ▶' : '연습 주행 ▶';
-      els.sub.textContent = racing
+      var resumePractice = racing && !pausedDrift;
+      els.play.textContent = resumePractice ? '연습으로 돌아가기 ▶' : '연습 주행 ▶';
+      els.sub.textContent = resumePractice
         ? '연습이 일시정지되었습니다. 상점에서 차를 바꾼 뒤 돌아갈 수 있습니다.'
         : '실제 F1 서킷 ' + CR.Tracks.list.length + '곳에서 연습 주행. 랩타임이 짧을수록 더 많은 돈을 받고, 트랙별 베스트 랩은 기록 탭에 저장됩니다. F1으로 ' + CR.Race.UNLOCK_F1_LAPS + '랩을 달리면 AI 대전 입장권!';
     }
@@ -805,6 +879,14 @@
     if (Menu.tab === 'race') {
       if (CR.Main.raceActive) { CR.Main.raceActive = false; CR.Laps.reset(false); } // drop a paused practice
       CR.Main.startRace();
+    } else if (Menu.tab === 'drift') {
+      if (CR.Main.raceActive && CR.Main.mode === 'drift') CR.Main.resume();
+      else CR.Main.startDrift();
+    } else if (CR.Main.raceActive && CR.Main.mode === 'drift') {
+      // Switching from a paused drift event to practice: drop it cleanly.
+      CR.Main.raceActive = false;
+      CR.Laps.reset(false);
+      CR.Main.start();
     } else if (CR.Main.raceActive) CR.Main.resume();
     else CR.Main.start();
   }
@@ -843,8 +925,10 @@
     renderAccount();
     els.tabPractice = document.getElementById('tab-practice');
     els.tabRace = document.getElementById('tab-race');
+    els.tabDrift = document.getElementById('tab-drift');
     els.tabRecords = document.getElementById('tab-records');
     els.racePanel = document.getElementById('race-panel');
+    els.driftPanel = document.getElementById('drift-panel');
     els.recordsPanel = document.getElementById('records-panel');
     els.raceLock = document.getElementById('race-tab-lock');
     buildFolds();
