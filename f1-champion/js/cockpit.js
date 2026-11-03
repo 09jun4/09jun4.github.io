@@ -378,8 +378,9 @@
     drawBody(ctx, main);
     drawMirrors(ctx, w, h);
     drawHalo(ctx);
-    // ~±90° of wheel at parking speed, ~±25° at racing speed; + = left.
-    steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 90;
+    // ~±45° of wheel at parking speed, ~±13° at racing speed; + = left.
+    // This is 50% of the previous ±90° visual range.
+    steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 45;
     if (wheelState) CR.Wheel3D.draw(ctx, wheelView(steerDeg), wheelState, performance.now());
     CR.Camera.setNear(0.5);
   };

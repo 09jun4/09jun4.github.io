@@ -1,5 +1,6 @@
-// input.js — keyboard state: digital throttle/brake (S, ↓, Space)/steer; R = restart after retiring; Esc = pause; M = mute;
-// mouse left/right click = shift up/down (edge-triggered).
+// input.js — keyboard state: digital throttle/brake (S, ↓, Space)/steer; Q/E = down/up shift;
+// R = restart after retiring; Esc = pause; M = mute; mouse left/right click = shift up/down
+// (all shifting is edge-triggered).
 // Load order: 3rd. Depends on: Config.
 (function () {
   'use strict';
@@ -64,6 +65,9 @@
     // Edge-triggered actions, ignoring OS key-repeat.
     // R restarts the race, only after the car has retired.
     if (e.code === 'KeyR' && CR.Car.state.retired) CR.Main.restart();
+    // Keyboard shifting: Q = down, E = up (left/right click stays the same).
+    if (e.code === 'KeyQ') CR.Car.shiftDown();
+    else if (e.code === 'KeyE') CR.Car.shiftUp();
   }
 
   function playing() {

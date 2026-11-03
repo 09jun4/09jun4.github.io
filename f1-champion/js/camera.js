@@ -43,7 +43,9 @@
   // wheel, see cockpit.js COCKPIT_Y) sits 0.6 m further forward than the
   // driver's real seat, with a wide lens, so the wheel is big and the front
   // tyres fill the lower corners of the screen.
-  var EYE = { forward: 0.4, height: 0.9, pitch: 5, focal: 0.72, centerY: 0.45 };
+  // Raised a little (0.9 -> 0.95 m) and angled further down so more of the
+  // road ahead clears the cockpit rim while the halo stays above it.
+  var EYE = { forward: 0.4, height: 0.95, pitch: 10, focal: 0.72, centerY: 0.45 };
   Camera.EYE = EYE;
   var shakeT = 0;
 
