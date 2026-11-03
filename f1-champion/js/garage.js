@@ -36,12 +36,10 @@
     owned: {}, // id -> true
     selected: '',
     track: 'random', // chosen circuit (CR.Tracks realName) or 'random'
-    driftTrack: '', // chosen touge course (CR.Tracks.driftList realName)
     tune: {}, // car id -> {part key -> level} (tuning.js)
     f1Laps: 0, // laps completed in the F1 (5 unlock AI 대전)
     practice: {}, // track id -> {time, car, at}: all-time practice best lap (3인칭, chase view)
     practiceFP: {}, // the same for laps driven entirely in the cockpit view (1인칭)
-    drift: {}, // track id -> {time, car, at, dev}: F2 drift event best lap (separate mode)
     raceDifficulty: 'normal',
     season: { num: 1, races: [] }, // current season (race.js results, compact)
     seasons: [], // finished seasons, oldest first
@@ -68,10 +66,8 @@
   Garage.onCloudChange = null; // set by menu.js: redraw after an account load
 
   function snapshot() {
-    return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track,
-      driftTrack: Garage.driftTrack, tune: Garage.tune,
-      f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, drift: Garage.drift,
-      raceDifficulty: Garage.raceDifficulty,
+    return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track, tune: Garage.tune,
+      f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, raceDifficulty: Garage.raceDifficulty,
       season: Garage.season, seasons: Garage.seasons, savedAt: Garage.savedAt };
   }
 
@@ -127,12 +123,10 @@
     Garage.selected = starter;
     Garage.savedAt = 0;
     Garage.track = 'random';
-    Garage.driftTrack = '';
     Garage.tune = {};
     Garage.f1Laps = 0;
     Garage.practice = {};
     Garage.practiceFP = {};
-    Garage.drift = {};
     Garage.raceDifficulty = 'normal';
     Garage.season = { num: 1, races: [] };
     Garage.seasons = [];
@@ -149,15 +143,6 @@
           }
         }
       });
-      if (data.drift && typeof data.drift === 'object') {
-        for (var did in data.drift) {
-          var drec = data.drift[did];
-          if (drec && Number(drec.time) > 0) {
-            Garage.drift[did] = { time: Number(drec.time), car: 'f2', at: Number(drec.at) || 0 };
-            if (drec.dev === 'mobile' || drec.dev === 'pc') Garage.drift[did].dev = drec.dev;
-          }
-        }
-      }
       if (typeof data.raceDifficulty === 'string') Garage.raceDifficulty = data.raceDifficulty;
       if (data.season && Array.isArray(data.season.races)) {
         Garage.season = { num: Math.max(1, Math.floor(Number(data.season.num)) || 1), races: data.season.races.slice(0, 5) };
@@ -169,7 +154,6 @@
       if (data.selected && known(data.selected)) Garage.selected = data.selected;
       // Checked against CR.Tracks at Play (tracks.js loads after this file).
       if (typeof data.track === 'string' && data.track) Garage.track = data.track;
-      if (typeof data.driftTrack === 'string' && data.driftTrack) Garage.driftTrack = data.driftTrack;
       // Tuning levels: whole numbers 0..5 for cars that still exist.
       if (data.tune && typeof data.tune === 'object') {
         for (var cid in data.tune) {
@@ -276,13 +260,6 @@
     return true;
   };
 
-  Garage.selectDriftTrack = function (id) {
-    if (!CR.Tracks || !CR.Tracks.driftById || !CR.Tracks.driftById(id)) return false;
-    Garage.driftTrack = id;
-    save();
-    return true;
-  };
-
   Garage.car = function () {
     return CR.Cars.byId(Garage.selected);
   };
@@ -376,20 +353,6 @@
         out.record = true;
         emit('practiceRecord', { track: trackId, view: view });
       }
-    }
-    save();
-    return out;
-  };
-
-  // Best lap in the fixed-F2 drift event. Kept apart from practice so neither
-  // mode can overwrite the other's records.
-  Garage.recordDriftLap = function (trackId, lapSeconds) {
-    var out = { record: false };
-    if (!trackId || !(lapSeconds > 0)) return out;
-    var cur = Garage.drift[trackId];
-    if (!cur || lapSeconds < cur.time) {
-      Garage.drift[trackId] = { time: lapSeconds, car: 'f2', at: Date.now(), dev: CR.deviceType() };
-      out.record = true;
     }
     save();
     return out;

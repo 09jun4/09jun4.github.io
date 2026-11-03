@@ -54,13 +54,11 @@
     towerTimer = 0;
   };
 
-  // Practice / drift: the active mode's best lap in the lap panel.
+  // Practice: the track's all-time practice best in the lap panel.
   UI.showRecord = function (trackId) {
     if (trackId) UI.recordTrack = trackId;
-    var drift = CR.Main && CR.Main.mode === 'drift';
-    var view = CR.Camera.mode;
-    var rec = drift ? CR.Garage.drift[UI.recordTrack] : CR.Garage.bestBook(view)[UI.recordTrack];
-    if (els.recordLabel) els.recordLabel.textContent = drift ? '드리프트 기록' : view === 'cockpit' ? '1인칭 기록' : '트랙 기록';
+    var view = CR.Camera.mode, rec = CR.Garage.bestBook(view)[UI.recordTrack];
+    if (els.recordLabel) els.recordLabel.textContent = view === 'cockpit' ? '1인칭 기록' : '트랙 기록';
     els.record.textContent = rec ? CR.Laps.format(rec.time) : '—:——.———';
   };
 

@@ -65,36 +65,6 @@
     // car goes where it points.
     LATERAL_GRIP: 1.15, // matches STEER_GRIP_TARGET: full lock stays within grip
 
-    // --- Drift event (F2) ---
-    // Space adds yaw authority and enough lateral grip to pull the velocity
-    // around the tighter arc, on top of the normal brake force. Too little
-    // lateral grip only rotated the body while the car kept sliding straight.
-    // Tokyo drift is deliberately a different car from the normal F2: much
-    // more steering lock and lateral grip so tight hairpins can actually be
-    // rotated, while the body still slips. These values are only read while
-    // the drift input is held in Car.update; normal F2 handling is unchanged.
-    DRIFT_STEER_TARGET_MULT: 2.4,
-    DRIFT_MAX_STEER_MULT: 1.8,
-    DRIFT_STEER_RATE_MULT: 1.9,
-    DRIFT_LATERAL_GRIP_MULT: 2.2,
-    DRIFT_ALIGN_RATE_MULT: 0.45,
-    DRIFT_SPEED_DECEL: 8,
-    DRIFT_SPEED_DECEL_REF: 15, // m/s; drift scrub builds with speed instead of stopping launches
-    // Rear-tyre breakaway. The rear loses grip as it slides, and a slip-angle
-    // target lets the rear steer the body while countersteer brings it back.
-    DRIFT_REAR_ENGAGE: 4.5, // /s, how quickly the rear breaks away
-    DRIFT_REAR_RECOVER: 2.0, // /s, how quickly grip returns off-throttle
-    DRIFT_SLIP_ANGLE: 0.38, // rad, target slip at full steer and slide (~22deg)
-    DRIFT_SLIP_YAW_GAIN: 4.0, // /s per rad of slip error
-    DRIFT_REAR_GRIP_LOSS: 0.3, // fraction of lateral grip lost at full slide
-    DRIFT_WHEELSPIN: 14, // m/s, extra rear-wheel surface speed at full slide
-    // Countersteer catches the slide instead of snapping the body to the
-    // opposite slip angle. The opposing front wheels add grip and a controlled
-    // correcting yaw that fades as the slip angle returns to zero.
-    DRIFT_COUNTERSTEER_DEADBAND: 0.08, // rad
-    DRIFT_COUNTERSTEER_YAW: 2.2, // /s per rad of slip while countersteering
-    DRIFT_COUNTERSTEER_GRIP: 1.35,
-
     // --- Slides ---
     SLIDE_ALIGN_RATE: 4.0, // /s, body straightens toward travel after a slide
     SLIDE_ALIGN_DEADBAND: 0.05, // rad; slip below this is left alone

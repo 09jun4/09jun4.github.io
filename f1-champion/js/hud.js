@@ -19,7 +19,6 @@
     Hud.rpmBarFillEl = document.getElementById('hud-rpm-bar-fill');
     Hud.trackEl = document.getElementById('hud-track');
     Hud.helpTrackEl = document.getElementById('hud-help-track');
-    Hud.helpDriftEl = document.getElementById('hud-help-drift');
     Hud.lapNoEl = document.getElementById('lap-no');
     Hud.lapTimeEl = document.getElementById('lap-time');
     Hud.lapPenaltyEl = document.getElementById('lap-penalty');
@@ -34,14 +33,6 @@
     document.getElementById('pause-menu').addEventListener('click', function () { CR.Main.toGarage(); });
     document.getElementById('pause-end').addEventListener('click', function () { CR.Main.endRace(); });
     document.getElementById('retired-btn').addEventListener('click', function () { CR.Main.restart(); });
-  };
-
-  // The drift event gets one extra controls line; every other mode stays
-  // exactly as it was.
-  Hud.setMode = function (mode) {
-    var drift = mode === 'drift';
-    if (Hud.helpDriftEl) Hud.helpDriftEl.hidden = !drift;
-    document.body.classList.toggle('drift-mode', drift);
   };
 
   Hud.update = function () {
