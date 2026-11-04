@@ -1,0 +1,21 @@
+:root { --bg: #0b0e11; --panel: rgba(14, 18, 22, 0.86); --line: #2a333b; --blue: #2a8cff; --blue2: #6cb6ff; --red: #ff3b3b; --text: #d9e1e8; --dim: #7c8a96; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--text); font-family: 'Noto Sans KR', sans-serif; }
+#view { position: fixed; inset: 0; display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+#ui > * { pointer-events: auto; }
+.hidden { display: none !important; }
+.fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none !important; z-index: 50; }
+.boot { position: fixed; inset: 0; background: #050607; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; z-index: 100; transition: opacity .6s; }
+.boot.done { opacity: 0; pointer-events: none; }
+.boot-logo { font: 700 54px Rajdhani, sans-serif; letter-spacing: .4em; color: #e6edf3; }
+.boot-line { font: 14px 'Share Tech Mono', monospace; color: var(--blue2); letter-spacing: .15em; }
+.hud { position: fixed; inset: 0; pointer-events: none !important; }
+.hud-debug { position: absolute; left: 12px; top: 10px; font: 12px 'Share Tech Mono', monospace; color: #9fb3c4; }
+.crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: #fff; border-radius: 50%; }
+.menu { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.menu h1 { font: 700 64px Rajdhani; letter-spacing: .4em; margin: 0; }
+button { font: 600 18px Rajdhani; letter-spacing: .2em; background: #11161b; color: var(--text); border: 1px solid var(--line); padding: 10px 28px; cursor: pointer; }
+button:hover { border-color: var(--blue); color: #fff; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; }
+.panel { background: var(--panel); border: 1px solid var(--line); padding: 24px; display: flex; flex-direction: column; gap: 10px; }
