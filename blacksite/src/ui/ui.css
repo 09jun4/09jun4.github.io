@@ -26,19 +26,27 @@ button:disabled { opacity: .45; cursor: default; }
 @keyframes vig { 0% { opacity: 1; } 100% { opacity: 0; } }
 
 .crosshair { --gap: 7px; position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: opacity .12s; }
-.crosshair i { position: absolute; background: rgba(235,245,255,.92); box-shadow: 0 0 2px rgba(0,0,0,.9); transition: transform .06s linear; }
-.crosshair .c-t, .crosshair .c-b { width: 2px; height: 8px; left: -1px; }
-.crosshair .c-l, .crosshair .c-r { height: 2px; width: 8px; top: -1px; }
+.crosshair i { position: absolute; background: rgba(235,245,255,.9); box-shadow: 0 0 1px rgba(0,0,0,.8); transition: transform .06s linear; }
+.crosshair .c-t, .crosshair .c-b { width: 1px; height: 8px; left: -0.5px; }
+.crosshair .c-l, .crosshair .c-r { height: 1px; width: 8px; top: -0.5px; }
 .crosshair .c-t { top: calc(-8px - var(--gap)); } .crosshair .c-b { top: var(--gap); }
 .crosshair .c-l { left: calc(-8px - var(--gap)); } .crosshair .c-r { left: var(--gap); }
-.crosshair .c-dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+.crosshair .c-dot { width: 1px; height: 1px; left: -0.5px; top: -0.5px; }
 .crosshair.aim { opacity: 0; }
 .hitmarker { position: absolute; left: 50%; top: 50%; opacity: 0; }
-.hitmarker i { position: absolute; width: 2px; height: 9px; background: #fff; left: -1px; top: -4.5px; box-shadow: 0 0 2px #000; }
-.hitmarker i:nth-child(1) { transform: rotate(45deg) translateY(-11px); }
-.hitmarker i:nth-child(2) { transform: rotate(135deg) translateY(-11px); }
-.hitmarker i:nth-child(3) { transform: rotate(225deg) translateY(-11px); }
-.hitmarker i:nth-child(4) { transform: rotate(315deg) translateY(-11px); }
+.hitmarker i { position: absolute; width: 1px; height: 7px; background: #fff; left: -0.5px; top: -3.5px; box-shadow: 0 0 1px rgba(0,0,0,.8); }
+.hitmarker i:nth-child(1) { transform: rotate(45deg) translateY(-10px); }
+.hitmarker i:nth-child(2) { transform: rotate(135deg) translateY(-10px); }
+.hitmarker i:nth-child(3) { transform: rotate(225deg) translateY(-10px); }
+.hitmarker i:nth-child(4) { transform: rotate(315deg) translateY(-10px); }
+.hitmarker b { position: absolute; width: 1px; height: 7px; background: #fff; left: -0.5px; top: -3.5px; box-shadow: 0 0 1px rgba(0,0,0,.8); display: none; }
+.hitmarker b:nth-of-type(1) { transform: rotate(45deg) translateY(-20px); }
+.hitmarker b:nth-of-type(2) { transform: rotate(135deg) translateY(-20px); }
+.hitmarker b:nth-of-type(3) { transform: rotate(225deg) translateY(-20px); }
+.hitmarker b:nth-of-type(4) { transform: rotate(315deg) translateY(-20px); }
+.hitmarker.head b { display: block; }
+.hitmarker.head.on { animation: hm .32s ease-out; }
+.hitmarker.kill b { background: var(--red); }
 .hitmarker.on { animation: hm .22s ease-out; }
 .hitmarker.kill i { background: var(--red); }
 @keyframes hm { 0% { opacity: 1; transform: scale(1.25); } 100% { opacity: 0; transform: scale(1); } }

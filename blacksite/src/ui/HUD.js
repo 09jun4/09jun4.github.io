@@ -10,7 +10,7 @@ export class HUD {
       <div class="hud-objective hidden"><div class="obj-tag">OBJECTIVE</div><div class="obj-text"></div><div class="obj-dist"></div></div>
       <div class="hud-marker hidden"><div class="mk-diamond"></div><div class="mk-dist"></div></div>
       <div class="crosshair"><i class="c-t"></i><i class="c-b"></i><i class="c-l"></i><i class="c-r"></i><i class="c-dot"></i></div>
-      <div class="hitmarker"><i></i><i></i><i></i><i></i></div>
+      <div class="hitmarker"><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b></div>
       <div class="hud-prompt hidden"><span class="key">F</span><span class="txt"></span></div>
       <div class="hud-progress hidden"><div class="pg-label">DOWNLOADING</div><div class="pg-bar"><i></i></div><div class="pg-pct">0%</div></div>
       <div class="hud-toast hidden"><div class="t-title"></div><div class="t-sub"></div></div>
@@ -67,11 +67,13 @@ export class HUD {
       this.e.cross.classList.toggle('hidden', hidden);
     });
   }
-  hitMarker(kill) {
-    this.e.hit.classList.remove('on', 'kill');
+  // 명중 표시: X 모양, 헤드샷이면 X를 두 겹으로
+  hitMarker(kill, head = false) {
+    this.e.hit.classList.remove('on', 'kill', 'head');
     void this.e.hit.offsetWidth;
     this.e.hit.classList.add('on');
     if (kill) this.e.hit.classList.add('kill');
+    if (head) this.e.hit.classList.add('head');
   }
   damage() {
     this.e.vignette.classList.remove('on');

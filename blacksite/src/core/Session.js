@@ -300,7 +300,7 @@ export class Session {
       const dmg = c.damage * (best.part === 'head' ? c.headshotMultiplier : 1);
       const res = best.target.onHit(dmg, { part: best.part, point: end, dir, from: o });
       this.effects.impact(end, null, { decal: false, spark: true });
-      this.hud.hitMarker(res && res.killed);
+      this.hud.hitMarker(res && res.killed, best.part === 'head');
       bus.emit('shot:hit', { target: best.target, killed: res && res.killed, part: best.part });
     } else if (wall) {
       this.effects.impact(end, new THREE.Vector3(wall.nx, wall.ny, wall.nz));

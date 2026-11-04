@@ -138,7 +138,10 @@ export class AudioManager {
     bus.on('terminal:complete', () => this.play('complete'));
     bus.on('terminal:cancel', () => this.play('dry', { rate: 0.6 }));
     bus.on('objective:updated', () => this.play('complete', { rate: 0.8 }));
-    bus.on('shot:hit', ({ killed }) => this.play(killed ? 'kill' : 'hit'));
+    bus.on('shot:hit', ({ killed, part }) => {
+      this.play(killed ? 'kill' : 'hit');
+      if (part === 'head') this.play('hit', { rate: 1.45, delay: 0.035, volume: 0.8 }); // 헤드샷: 높은 틱 한 번 더
+    });
     bus.on('shot:impact', ({ point }) => this.play('impact', { at: point, vary: 0.3, range: 30 }));
     bus.on('player:damaged', () => this.play('hurt', { vary: 0.1 }));
     bus.on('guard:fire', ({ x, z }) => this.play('guardShot', { at: { x, z }, vary: 0.08, range: 40 }));

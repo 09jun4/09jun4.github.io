@@ -5,7 +5,7 @@
   "magazine": 15,
   "reserve": "infinite",
   "damage": 25,
-  "headshotMultiplier": 1.0,
+  "headshotMultiplier": 2.0,
   "fireInterval": 0.16,
   "range": 80,
   "spreadDeg": 0.35,
