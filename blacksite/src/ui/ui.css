@@ -316,7 +316,20 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 /* ---------------- 자동 플레이 관전 ---------------- */
 .spec { position: fixed; right: 16px; top: 16px; width: min(380px, calc(100vw - 32px)); z-index: 40; background: rgba(6,9,12,.86); border: 1px solid #22303c; border-top: 2px solid var(--blue); padding: 10px 12px 12px; font: 12px 'Share Tech Mono', monospace; color: var(--text); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
 .spec-head { display: flex; justify-content: space-between; letter-spacing: .12em; }
-.spec-live { color: #ff5b4b; animation: blink 1.4s steps(2) infinite; }
+@keyframes specpulse { 50% { opacity: .35; } }
+.spec-head { align-items: center; gap: 8px; }
+.spec-power { display: inline-flex; align-items: center; gap: 7px; background: #0d1216; border: 1px solid #33404b; padding: 4px 9px; cursor: pointer; color: var(--dim); font: 600 12px Rajdhani, sans-serif; letter-spacing: .18em; }
+.spec-power i { width: 8px; height: 8px; border-radius: 50%; background: #55636f; }
+.spec-power b { font: 11px 'Share Tech Mono', monospace; letter-spacing: .08em; padding: 1px 6px; background: #1a232b; color: #8a98a4; }
+.spec-power.on { border-color: var(--blue); color: #fff; }
+.spec-power.on i { background: #ff5b4b; box-shadow: 0 0 6px #ff5b4b; animation: specpulse 1.4s steps(2) infinite; }
+.spec-power.on b { background: rgba(42,140,255,.3); color: #fff; }
+.spec-run { flex: 1; text-align: right; }
+.spec-fold { background: none; border: 1px solid #33404b; color: var(--text); width: 26px; height: 24px; cursor: pointer; font-size: 13px; }
+.spec-fold:hover, .spec-power:hover { border-color: var(--blue); }
+.spec-body { display: flex; flex-direction: column; gap: 8px; }
+.spec.folded .spec-body, .spec.folded .spec-off, .spec.is-off .spec-body { display: none; }
+.spec-off { font: 12px 'Noto Sans KR', sans-serif; color: #c9d4dd; line-height: 1.6; }
 .spec-run { color: var(--dim); }
 .spec-map { width: 100%; height: auto; display: block; border: 1px solid #1a2836; }
 .spec-bot { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

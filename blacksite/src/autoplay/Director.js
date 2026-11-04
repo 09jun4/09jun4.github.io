@@ -11,6 +11,7 @@ export class Director {
     this.runs = 0; this.wins = 0; this.fails = 0;
     this.best = 0;
     this.tour = true;
+    this.enabled = true;
     this.history = []; // { ok, time, kills, takedowns, detections }
     game.timeScale = 1;
     this.spectator = new Spectator(game, this);
@@ -20,6 +21,7 @@ export class Director {
         this.runs++;
         game.session.autopilot = new AutoPilot(game.session);
         game.session.autopilot.tour = this.tour;
+        game.session.autopilot.enabled = this.enabled;
         game.session.controlsEnabled = false;
       }
     });
@@ -35,6 +37,17 @@ export class Director {
   }
 
   setDifficulty(d) { this.difficulty = d; }
+  // 자동 플레이 켜기/끄기: 끄면 봇이 멈추고 직접 조작할 수 있다(캔버스를 클릭해 마우스 고정)
+  setEnabled(on) {
+    const g = this.game, s = g.session;
+    this.enabled = on;
+    g.autoplay = on;
+    document.body.classList.toggle('autoplay', on);
+    if (s?.autopilot) s.autopilot.enabled = on;
+    if (!on) g.timeScale = 1;
+    if (on) { g.input.exitLock(); g.input.clear(); if (s?.paused) g.fsm.current.resume?.(); }
+    else if (s) { g.input.clear(); g.input.requestLock(); }
+  }
   setTour(v) { this.tour = v; if (this.game.session?.autopilot) this.game.session.autopilot.tour = v; }
   restart() {
     if (this.restarting) return;
@@ -45,11 +58,13 @@ export class Director {
   update(dt) {
     const g = this.game, name = g.fsm.name;
     this.t += dt;
-    if ((name === 'menu' || name === 'briefing') && this.t > 1.5) this.restart();
-    if ((name === 'results' || name === 'failure') && this.t > 6) this.restart();
+    if (this.enabled) {
+      if ((name === 'menu' || name === 'briefing') && this.t > 1.5) this.restart();
+      if ((name === 'results' || name === 'failure') && this.t > 6) this.restart();
+    }
     // 로그 창: 2초 뒤 전체 표시, 4.5초 뒤 닫기
     const lv = g.ui.logViewer;
-    if (lv.isOpen) {
+    if (lv.isOpen && this.enabled) {
       this.logT = (this.logT || 0) + dt;
       if (this.logT > 2 && !lv.done) lv.advance();
       if (this.logT > 4.5) { lv.close('auto'); this.logT = 0; }

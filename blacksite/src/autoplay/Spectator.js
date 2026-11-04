@@ -11,7 +11,12 @@ export class Spectator {
     this.game = game; this.d = director;
     this.root = el('div', 'spec');
     this.root.innerHTML = `
-      <div class="spec-head"><span class="spec-live">● AUTO PLAY</span><span class="spec-run"></span></div>
+      <div class="spec-head">
+        <button class="spec-power on" aria-pressed="true" title="자동 플레이 켜기/끄기"><i></i><span>AUTO PLAY</span><b>ON</b></button>
+        <span class="spec-run"></span>
+        <button class="spec-fold" aria-expanded="true" title="패널 접기/펴기">▾</button>
+      </div>
+      <div class="spec-body">
       <canvas class="spec-map" width="720" height="300"></canvas>
       <div class="spec-bot"><span class="lbl">BOT</span><b class="spec-mode">—</b><span class="spec-obj"></span></div>
       <div class="spec-guards"></div>
@@ -23,7 +28,9 @@ export class Spectator {
         <button class="btn small spec-restart">재시작</button>
         <button class="btn small spec-sound">소리 켜기</button>
       </div>
-      <div class="spec-stats"></div>`;
+      <div class="spec-stats"></div>
+      </div>
+      <div class="spec-off hidden">자동 플레이가 꺼져 있어요. 화면을 클릭해 직접 조작할 수 있어요. (WASD · 마우스 · F · R)</div>`;
     game.uiRoot.appendChild(this.root);
     this.canvas = this.root.querySelector('.spec-map');
     this.ctx = this.canvas.getContext('2d');
@@ -43,6 +50,19 @@ export class Spectator {
     const snd = this.root.querySelector('.spec-sound');
     snd.onclick = () => { game.audio?.unlock(); snd.remove(); };
     this.root.querySelector('.spec-restart').onclick = () => director.restart();
+    const power = this.root.querySelector('.spec-power'), fold = this.root.querySelector('.spec-fold');
+    power.onclick = () => {
+      const on = !director.enabled;
+      director.setEnabled(on);
+      power.classList.toggle('on', on); power.setAttribute('aria-pressed', on);
+      power.querySelector('b').textContent = on ? 'ON' : 'OFF';
+      this.root.classList.toggle('is-off', !on);
+      this.root.querySelector('.spec-off').classList.toggle('hidden', on);
+    };
+    fold.onclick = () => {
+      const open = this.root.classList.toggle('folded') === false;
+      fold.setAttribute('aria-expanded', open); fold.textContent = open ? '▾' : '▸';
+    };
     this.feed = [];
     this._t = 0;
     const name = (g) => { const z = game.session?.facility.zoneById[g.def.zone]; return (z ? z.name : '') + ' 경비원'; };

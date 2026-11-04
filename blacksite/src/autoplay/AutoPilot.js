@@ -118,6 +118,7 @@ export class AutoPilot {
 
   // --- 매 프레임 ------------------------------------------------------------------
   update(dt) {
+    if (this.enabled === false) return; // 자동 플레이 꺼짐: 직접 조작
     this._begin();
     const s = this.s, p = s.player, w = s.weapon;
     this.wantMove = false;
