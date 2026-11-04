@@ -260,75 +260,296 @@
     return car;
   }
 
-  // Mazda RX-7 (FD3S): low rounded nose with a big centre intake, corner
-  // lamps and closed pop-ups, bulging front wings, bubble cabin, steep
-  // rear glass to a short tail, side scoops behind the front wheels,
-  // three-piece rear wing, thin 5-spoke wheels.
-  function buildRX7(spec) {
-    var car = new THREE.Group(), body = phong(spec.color, 90);
-    var top = [[2.16, 0.5], [2.02, 0.66, 2.16, 0.64], [1.2, 0.8, 1.7, 0.76], [0.45, 0.9, 0.8, 0.86], [-1.0, 0.95], [-1.75, 0.97], [-2.1, 0.86, -2.04, 0.97], [-2.15, 0.62, -2.17, 0.76], [-2.14, 0.48]];
-    car.add(extrude(bodyShape(spec, top, 0.28, 0.38), spec.wid, body, 0.09));
-    cabin(car, [[0.45, 0.88], [0.15, 1.05], [-0.25, 1.2], [-0.5, 1.22], [-0.7, 1.205], [-0.92, 1.215], [-1.3, 1.15], [-1.7, 1.0], [-1.7, 0.92], [0.45, 0.85]], spec.wid - 0.34, body, [-0.2, -1.0]);
-    // Front wings bulge above the bonnet line.
-    var wing = new THREE.Shape();
-    wing.moveTo(0.75, 0.7); wing.quadraticCurveTo(1.2, 0.9, 1.75, 0.78); wing.lineTo(1.9, 0.66); wing.lineTo(0.75, 0.66);
-    [-1, 1].forEach(function (s) { var w = extrude(wing, 0.36, body, 0.06); w.position.z = s * (spec.wid / 2 - 0.2); car.add(w); });
-    car.add(extrude((function () {
-      var s = new THREE.Shape(); s.moveTo(-2.12, 0.28); s.lineTo(2.2, 0.28); s.lineTo(2.22, 0.33); s.lineTo(-2.12, 0.33); s.lineTo(-2.12, 0.28); return s;
-    })(), spec.wid + 0.02, black(), 0.02));
-    var hw = spec.wid / 2 + 0.004;
-    [-1, 1].forEach(function (s) {
-      car.add(sidePoly([[0.95, 0.58], [0.72, 0.66], [0.72, 0.52]], s * (hw + 0.006), black())); // side scoop
-      car.add(box(0.13, 0.05, 0.2, lamp(), 2.11, 0.55, s * 0.68)); // corner lamps
-      car.add(box(0.06, 0.04, 0.16, amber(), 2.12, 0.47, s * 0.7));
-      car.add(box(0.4, 0.015, 0.3, mat('popline', function () { return phong(0x6a0a10, 40); }), 1.6, 0.775, s * 0.55)); // closed pop-up seams
+  // --- Lofted bodies (RX-7, Miata) -----------------------------------------
+  // The body is a smooth surface swept along the car: at each station x the
+  // cross-section is a superellipse between bottom B(x) and top T(x) with
+  // half-width W(x). The upper half is rounder than the lower (nUp / nLo),
+  // pulls in towards the roof (tuck) and rises at the sides over the
+  // wheels (bulge: the front wings standing proud of the bonnet). Wheel
+  // arches lift the bottom line in a circle round each wheel. Rounded
+  // noses and tails come from W and T shrinking at the ends.
+
+  // Smooth curve through [[x, v], ...] (Catmull-Rom, clamped at the ends).
+  function curve(pts) {
+    pts = pts.slice().sort(function (a, b) { return a[0] - b[0]; });
+    return function (x) {
+      var n = pts.length;
+      if (x <= pts[0][0]) return pts[0][1];
+      if (x >= pts[n - 1][0]) return pts[n - 1][1];
+      var i = 0;
+      while (x > pts[i + 1][0]) i++;
+      var p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n - 1, i + 2)];
+      var t = (x - p1[0]) / (p2[0] - p1[0]), t2 = t * t, t3 = t2 * t;
+      var m1 = ((p2[1] - p0[1]) / (p2[0] - p0[0] || 1)) * (p2[0] - p1[0]);
+      var m2 = ((p3[1] - p1[1]) / (p3[0] - p1[0] || 1)) * (p2[0] - p1[0]);
+      return (2 * t3 - 3 * t2 + 1) * p1[1] + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * p2[1] + (t3 - t2) * m2;
+    };
+  }
+  function pw(v, e) { return v < 0 ? -Math.pow(-v, e) : Math.pow(v, e); }
+
+  // Section point at station x, angle phi (0 = right side, pi/2 = top).
+  function secPoint(d, x, phi, out) {
+    var W = d.W(x), T = d.T(x), B = d.B(x);
+    var c = Math.cos(phi), s = Math.sin(phi), up = s > 0;
+    var n = up ? d.nUp(x) : d.nLo;
+    var yc = (T + B) / 2, ry = (T - B) / 2;
+    if (d.mid) { yc = d.mid(x); ry = up ? T - yc : yc - B; }
+    var z = W * pw(c, 2 / n), y = yc + ry * pw(s, 2 / n);
+    if (up) {
+      z *= 1 - (d.tuck || 0) * s * s;
+      if (d.bulge) {
+        var q = Math.abs(z) / W, g = Math.exp(-Math.pow((q - (d.bulgeAt || 0.74)) / 0.22, 2));
+        y += d.bulge(x) * g * Math.sqrt(s);
+      }
+    }
+    out.y = y; out.z = z;
+    return out;
+  }
+
+  // Builds the swept mesh. opts: {from, to, step, K, phiA, phiB, grow, lift, cap}
+  function loft(d, material, opts) {
+    opts = opts || {};
+    var x0 = opts.from != null ? opts.from : d.x0, x1 = opts.to != null ? opts.to : d.x1;
+    var K = opts.K || 44, phiA = opts.phiA != null ? opts.phiA : -Math.PI, phiB = opts.phiB != null ? opts.phiB : Math.PI;
+    var closed = opts.phiA == null, grow = opts.grow || 1, lift = opts.lift || 0;
+    var step = opts.step || 0.035, xs = [];
+    for (var x = x0; x < x1 - 1e-6; x += step) xs.push(x);
+    xs.push(x1);
+    var pos = [], idx = [], o = { y: 0, z: 0 }, ring = closed ? K : K + 1;
+    xs.forEach(function (xx) {
+      for (var k = 0; k < ring; k++) {
+        secPoint(d, xx, phiA + ((phiB - phiA) * k) / K, o);
+        pos.push(xx, o.y + lift, o.z * grow);
+      }
     });
-    mirror(car, 0.3, 1.0, spec.wid / 2 - 0.12, body, true);
-    car.add(box(0.05, 0.18, 0.95, black(), 2.15, 0.43, 0)); // centre intake
-    car.add(box(0.3, 0.025, spec.wid - 0.1, black(), 2.06, 0.29, 0)); // front lip
-    // Three-piece wing on two uprights.
-    car.add(box(0.26, 0.035, spec.wid - 0.16, body, -1.98, 1.18, 0));
-    [-1, 1].forEach(function (s) { car.add(box(0.2, 0.24, 0.06, body, -1.95, 1.05, s * 0.72)); });
-    lights(car, spec, 0.75, 0.46, 0.08);
-    car.add(box(0.03, 0.08, spec.wid - 0.6, black(), -2.17, 0.75, 0));
+    for (var i = 0; i < xs.length - 1; i++) {
+      for (var j = 0; j < (closed ? K : K); j++) {
+        var a = i * ring + j, b = i * ring + ((j + 1) % ring), c = a + ring, e = b + ring;
+        idx.push(a, c, b, b, c, e);
+      }
+    }
+    if (opts.cap !== false && closed) {
+      // Fan caps at both ends.
+      [0, xs.length - 1].forEach(function (si, end) {
+        var cx = xs[si], cy = 0, base = si * ring;
+        for (var k2 = 0; k2 < ring; k2++) cy += pos[(base + k2) * 3 + 1];
+        cy /= ring;
+        var ci = pos.length / 3;
+        pos.push(cx, cy, 0);
+        for (var k3 = 0; k3 < ring; k3++) {
+          var p = base + k3, q2 = base + ((k3 + 1) % ring);
+          if (end) idx.push(ci, p, q2); else idx.push(ci, q2, p);
+        }
+      });
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    var m = new THREE.Mesh(g, material);
+    m.castShadow = true;
+    return m;
+  }
+
+  // Surface helpers for placing details on a lofted body.
+  function topY(d, x, z) { // height of the upper surface at (x, z)
+    var o = { y: 0, z: 0 }, lo = 0, hi = Math.PI / 2;
+    for (var i = 0; i < 24; i++) { var m = (lo + hi) / 2; secPoint(d, x, m, o); if (o.z > Math.abs(z)) lo = m; else hi = m; }
+    return secPoint(d, x, (lo + hi) / 2, o).y;
+  }
+  function inside(d, x, y, z) {
+    if (x < d.x0 || x > d.x1) return false;
+    var o = { y: 0, z: 0 };
+    var B = d.B(x), T = d.T(x) + (d.bulge ? d.bulge(x) : 0);
+    if (y < B || y > T) return false;
+    // widest |z| at this height: scan the section
+    for (var k = -16; k <= 16; k++) {
+      secPoint(d, x, (k / 16) * (Math.PI / 2), o);
+      if (Math.abs(o.y - y) < 0.03 && Math.abs(z) <= o.z) return y <= topY(d, x, z) + 0.001;
+    }
+    return false;
+  }
+  // Extreme x of the body at height y, side offset z (dir +1 nose, -1 tail).
+  function endX(d, y, z, dir) {
+    var x = dir > 0 ? d.x1 : d.x0;
+    for (var i = 0; i < 200; i++) { if (inside(d, x, y, z)) return x; x -= dir * 0.01; }
+    return x;
+  }
+  function arches(wheels, r, R, base) {
+    return function (x) {
+      var b = base;
+      wheels.forEach(function (w) { var dx = x - w; if (Math.abs(dx) < R) b = Math.max(b, r + Math.sqrt(R * R - dx * dx) - 0.02); });
+      return b;
+    };
+  }
+  // Soft sky reflection so the curves catch the light.
+  var envTex = null;
+  function env() {
+    if (envTex) return envTex;
+    var faces = [];
+    for (var f = 0; f < 6; f++) {
+      var c = document.createElement('canvas'); c.width = c.height = 64;
+      var g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 64);
+      if (f === 2) { g.fillStyle = '#dfeaf5'; g.fillRect(0, 0, 64, 64); }
+      else if (f === 3) { g.fillStyle = '#3c3f3a'; g.fillRect(0, 0, 64, 64); }
+      else { gr.addColorStop(0, '#d8e6f3'); gr.addColorStop(0.48, '#a9c4dc'); gr.addColorStop(0.52, '#55604c'); gr.addColorStop(1, '#2f342c'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+      faces.push(c);
+    }
+    envTex = new THREE.CubeTexture(faces);
+    envTex.needsUpdate = true;
+    return envTex;
+  }
+  function paint(color) {
+    return new THREE.MeshPhongMaterial({ color: color, shininess: 110, specular: 0x8a8a8a, envMap: env(), reflectivity: 0.22, combine: THREE.MixOperation });
+  }
+  function glassMat() {
+    return mat('loftGlass', function () { return new THREE.MeshPhongMaterial({ color: 0x0f161e, shininess: 160, specular: 0xcccccc, envMap: env(), reflectivity: 0.35, combine: THREE.MixOperation }); });
+  }
+  // A lens / intake: a flattened sphere set into the surface.
+  function blob(car, mtl, x, y, z, sx, sy, sz, ry) {
+    var m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), mtl);
+    m.scale.set(sx, sy, sz); m.position.set(x, y, z);
+    if (ry) m.rotation.y = ry;
+    car.add(m);
+    return m;
+  }
+
+  // Mazda RX-7 (FD3S).
+  function buildRX7(spec) {
+    var car = new THREE.Group(), body = paint(spec.color);
+    var wf = spec.wb / 2 + spec.wbShift, wr = -spec.wb / 2 + spec.wbShift;
+    var d = {
+      x0: -2.14, x1: 2.15, nLo: 4.5, tuck: 0.1, bulgeAt: 0.76,
+      W: curve([[-2.14, 0.6], [-2.08, 0.76], [-1.9, 0.85], [-1.4, 0.88], [0.4, 0.875], [1.3, 0.875], [1.75, 0.85], [1.98, 0.76], [2.09, 0.6], [2.15, 0.36]]),
+      T: curve([[-2.14, 0.6], [-2.09, 0.84], [-1.96, 0.95], [-1.6, 0.97], [-0.8, 0.93], [0.3, 0.9], [0.7, 0.85], [1.2, 0.76], [1.65, 0.68], [1.95, 0.6], [2.1, 0.5], [2.15, 0.4]]),
+      B: arches([wf, wr], spec.tyre, 0.38, 0.27),
+      mid: curve([[-2.14, 0.52], [0, 0.56], [1.8, 0.48], [2.15, 0.38]]),
+      nUp: curve([[-2.14, 2.2], [-1.6, 2.8], [0.5, 3.2], [1.6, 2.4], [2.15, 2.0]]),
+      bulge: curve([[-2.0, 0.0], [-1.7, 0.05], [-1.3, 0.07], [-0.9, 0.03], [-0.3, 0], [0.5, 0], [0.9, 0.05], [1.3, 0.1], [1.7, 0.08], [2.0, 0.02], [2.12, 0]]),
+    };
+    car.add(loft(d, body));
+    // Bubble glasshouse, roof and window frames.
+    var gh = {
+      x0: -1.72, x1: 0.55, nLo: 6, tuck: 0.16, nUp: function () { return 2.4; },
+      W: curve([[-1.72, 0.72], [-1.2, 0.64], [-0.5, 0.62], [0.2, 0.66], [0.55, 0.72]]),
+      T: curve([[-1.72, 0.97], [-1.35, 1.12], [-0.95, 1.205], [-0.6, 1.215], [-0.3, 1.19], [0.05, 1.07], [0.35, 0.96], [0.55, 0.88]]),
+      B: function () { return 0.78; },
+      mid: function () { return 0.86; },
+    };
+    car.add(loft(gh, glassMat(), { cap: true }));
+    car.add(loft(gh, body, { from: -1.05, to: -0.22, phiA: 0.5, phiB: Math.PI - 0.5, grow: 1.012, lift: 0.006, K: 20 }));
+    [[0.12, 0.42], [Math.PI - 0.42, Math.PI - 0.12]].forEach(function (r) {
+      car.add(loft(gh, black(), { from: -1.68, to: 0.5, phiA: r[0], phiB: r[1], grow: 1.01, lift: 0.004, K: 4 }));
+    });
+    // Nose: big centre intake, corner lamps under clear covers, indicators,
+    // closed pop-up lids, front lip.
+    var nx = endX(d, 0.42, 0, 1);
+    blob(car, black(), nx - 0.06, 0.42, 0, 0.08, 0.11, 0.42);
+    [-1, 1].forEach(function (s) {
+      var lx = endX(d, 0.53, s * 0.63, 1);
+      blob(car, lamp(), lx - 0.035, 0.53, s * 0.63, 0.05, 0.045, 0.13, s * -0.5);
+      var ax = endX(d, 0.42, s * 0.7, 1);
+      blob(car, amber(), ax - 0.03, 0.42, s * 0.7, 0.03, 0.022, 0.08, s * -0.6);
+      var px = 1.55, pz = s * 0.56, py = topY(d, px, pz);
+      car.add(box(0.44, 0.012, 0.012, mat('seam', function () { return phong(0x2a0306, 20); }), px, py + 0.002, pz + s * 0.15));
+      car.add(box(0.44, 0.012, 0.012, mat('seam', function () { return phong(0x2a0306, 20); }), px, py + 0.002, pz - s * 0.15));
+      // side scoop behind the front wheel
+      var sc = blob(car, black(), wf - 0.55, 0.62, s * 0.86, 0.16, 0.06, 0.03);
+      sc.rotation.z = -0.25;
+    });
+    var lip = loft(d, black(), { from: 1.7, to: 2.1, phiA: -Math.PI + 0.25, phiB: -0.25, grow: 1.02, lift: -0.01, K: 12 });
+    car.add(lip);
+    mirror(car, 0.28, topY(gh, 0.28, 0.6) - 0.02, 0.7, body, true);
+    // Three-piece wing.
+    var deck = topY(d, -1.95, 0.6);
+    car.add(box(0.26, 0.035, spec.wid - 0.18, body, -1.97, deck + 0.22, 0));
+    [-1, 1].forEach(function (s) { car.add(box(0.22, 0.24, 0.05, body, -1.93, deck + 0.1, s * 0.7)); });
+    // Tail lamps on the rounded tail.
+    var tail = new THREE.MeshPhongMaterial({ color: 0x5a0a0a, emissive: 0x220000, shininess: 90 });
+    [-1, 1].forEach(function (s) {
+      var tx = endX(d, 0.8, s * 0.6, -1);
+      blob(car, tail, tx + 0.03, 0.8, s * 0.6, 0.04, 0.05, 0.2, s * 0.35);
+    });
+    car.add(box(0.04, 0.06, 0.6, black(), endX(d, 0.8, 0, -1) + 0.01, 0.8, 0));
+    car.userData.tail = tail;
     addWheels(car, spec, 0x8d939b, 5, 0.24);
     return car;
   }
 
-  // Mazda MX-5 Miata (NA): round body, black hardtop, open round pop-ups,
-  // oval front lamps and the small oval mouth, round body-colour mirrors,
-  // multi-spoke mesh wheels.
+  // Mazda MX-5 Miata (NA).
   function buildMiata(spec) {
-    var car = new THREE.Group(), body = phong(spec.color, 85);
-    var top = [[1.98, 0.56], [1.78, 0.71, 1.98, 0.7], [0.55, 0.84], [-1.6, 0.86], [-1.92, 0.82, -1.86, 0.86], [-1.99, 0.56]];
-    car.add(extrude(bodyShape(spec, top, 0.27, 0.36), spec.wid, body, 0.1));
-    car.add(extrude((function () {
-      var s = new THREE.Shape(); s.moveTo(-1.98, 0.27); s.lineTo(1.99, 0.27); s.lineTo(2.0, 0.32); s.lineTo(-1.98, 0.32); s.lineTo(-1.98, 0.27); return s;
-    })(), spec.wid + 0.02, black(), 0.02));
-    // Black hardtop: windscreen frame to the rear deck, with side windows.
-    var ht = new THREE.Shape();
-    ht.moveTo(0.42, 0.86); ht.lineTo(0.02, 1.22); ht.lineTo(-0.7, 1.24); ht.quadraticCurveTo(-1.2, 1.2, -1.45, 0.87); ht.lineTo(0.42, 0.86);
-    var roof = extrude(ht, spec.wid - 0.24, mat('hardtop', function () { return phong(0x15171a, 80); }), 0.06);
-    car.add(roof);
-    var hw = (spec.wid - 0.24) / 2 + 0.004;
-    [-1, 1].forEach(function (s) {
-      car.add(sidePoly([[0.3, 0.9], [0.0, 1.17], [-0.55, 1.18], [-0.62, 0.9]], s * hw, glass()));
-      car.add(sidePoly([[-0.7, 0.9], [-0.7, 1.17], [-1.05, 1.12], [-1.3, 0.9]], s * hw, glass()));
+    var car = new THREE.Group(), body = paint(spec.color);
+    var wf = spec.wb / 2 + spec.wbShift, wr = -spec.wb / 2 + spec.wbShift;
+    var d = {
+      x0: -1.985, x1: 1.99, nLo: 4, tuck: 0.06, bulgeAt: 0.8,
+      W: curve([[-1.985, 0.56], [-1.93, 0.72], [-1.75, 0.81], [-1.3, 0.835], [0.6, 0.835], [1.35, 0.82], [1.7, 0.75], [1.9, 0.6], [1.97, 0.45], [1.99, 0.3]]),
+      T: curve([[-1.985, 0.56], [-1.94, 0.76], [-1.8, 0.85], [-1.3, 0.87], [0.0, 0.86], [0.45, 0.84], [1.0, 0.79], [1.5, 0.72], [1.82, 0.64], [1.95, 0.55], [1.99, 0.45]]),
+      B: arches([wf, wr], spec.tyre, 0.36, 0.26),
+      mid: curve([[-1.985, 0.5], [0, 0.55], [1.7, 0.5], [1.99, 0.42]]),
+      nUp: curve([[-1.985, 2.0], [-1.5, 2.4], [0.3, 2.8], [1.4, 2.3], [1.99, 1.8]]),
+      bulge: curve([[-1.7, 0], [-1.35, 0.035], [-0.9, 0.0], [0.6, 0], [1.0, 0.035], [1.4, 0.04], [1.8, 0.0]]),
+    };
+    car.add(loft(d, body));
+    // Black hardtop with glass sides and windscreen.
+    var gh = {
+      x0: -1.45, x1: 0.46, nLo: 6, tuck: 0.12, nUp: function () { return 2.6; },
+      W: curve([[-1.45, 0.74], [-1.0, 0.7], [-0.3, 0.68], [0.2, 0.7], [0.46, 0.74]]),
+      T: curve([[-1.45, 0.88], [-1.2, 1.1], [-0.85, 1.22], [-0.4, 1.24], [-0.05, 1.21], [0.25, 1.03], [0.46, 0.88]]),
+      B: function () { return 0.76; },
+      mid: function () { return 0.84; },
+    };
+    car.add(loft(gh, glassMat(), { cap: true }));
+    var hard = mat('hardtop', function () { return new THREE.MeshPhongMaterial({ color: 0x14161a, shininess: 100, specular: 0x666666, envMap: env(), reflectivity: 0.15, combine: THREE.MixOperation }); });
+    car.add(loft(gh, hard, { from: -1.44, to: -0.02, phiA: 0.42, phiB: Math.PI - 0.42, grow: 1.012, lift: 0.006, K: 22 }));
+    [[0.1, 0.42], [Math.PI - 0.42, Math.PI - 0.1]].forEach(function (r) {
+      car.add(loft(gh, hard, { from: -1.44, to: 0.44, phiA: r[0], phiB: r[1], grow: 1.01, lift: 0.004, K: 4 }));
     });
-    car.add(crossQuad([0.42, 0.87], [0.02, 1.23], hw - 0.06, hw - 0.1, glass()));
-    car.add(crossQuad([-0.85, 1.22], [-1.38, 0.9], hw - 0.12, hw - 0.12, glass()));
-    mirror(car, 0.3, 1.0, spec.wid / 2 - 0.06, body, true);
+    // Open round pop-ups, the oval parking lamps and the small oval mouth.
     [-1, 1].forEach(function (s) {
-      popup(car, 1.5, 0.74, s * 0.5, 0.32, 0.26, true);
-      var ov = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 8), lamp());
-      ov.scale.set(0.25, 0.4, 1.4); ov.position.set(1.97, 0.62, s * 0.5); car.add(ov);
-      car.add(box(0.03, 0.05, 0.1, amber(), 1.95, 0.48, s * 0.68));
+      var px = 1.44, pz = s * 0.52, py = topY(d, px, pz);
+      var pod = loftPod(0.29, 0.2, 0.17);
+      pod.position.set(px, py - 0.045, pz);
+      pod.rotation.z = -0.08;
+      car.add(pod);
+      var ox = endX(d, 0.6, s * 0.5, 1);
+      blob(car, lamp(), ox - 0.03, 0.6, s * 0.5, 0.04, 0.035, 0.12, s * -0.55);
+      var ax = endX(d, 0.47, s * 0.72, 1);
+      blob(car, amber(), ax - 0.02, 0.47, s * 0.72, 0.025, 0.025, 0.05, s * -0.9);
     });
-    var mouth = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 8), black());
-    mouth.scale.set(0.15, 0.35, 1.6); mouth.position.set(2.0, 0.42, 0); car.add(mouth);
-    lights(car, spec, 0.7, 0.42, 0.1);
+    var mx = endX(d, 0.43, 0, 1);
+    blob(car, black(), mx - 0.04, 0.43, 0, 0.06, 0.065, 0.3);
+    mirror(car, 0.32, topY(d, 0.32, 0.7) + 0.12, 0.76, body, true);
+    var tail = new THREE.MeshPhongMaterial({ color: 0x5a0a0a, emissive: 0x220000, shininess: 90 });
+    [-1, 1].forEach(function (s) {
+      var tx = endX(d, 0.72, s * 0.52, -1);
+      blob(car, tail, tx + 0.03, 0.72, s * 0.52, 0.035, 0.05, 0.22, s * 0.25);
+    });
+    car.userData.tail = tail;
     addWheels(car, spec, 0xc9ccd1, 12, 0.2);
     return car;
+  }
+
+  // Open pop-up pod with a round lamp, rounded edges (Miata).
+  function loftPod(w, h, len) {
+    var g = new THREE.Group();
+    var shape = new THREE.Shape();
+    var r = 0.05, x0 = -w / 2, y0 = 0;
+    shape.moveTo(x0 + r, y0); shape.lineTo(-x0 - r, y0); shape.quadraticCurveTo(-x0, y0, -x0, y0 + r);
+    shape.lineTo(-x0, h - r); shape.quadraticCurveTo(-x0, h, -x0 - r, h); shape.lineTo(x0 + r, h);
+    shape.quadraticCurveTo(x0, h, x0, h - r); shape.lineTo(x0, y0 + r); shape.quadraticCurveTo(x0, y0, x0 + r, y0);
+    var geo = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2, curveSegments: 6 });
+    geo.translate(0, 0, -len / 2);
+    var m = new THREE.Mesh(geo, black());
+    m.rotation.y = Math.PI / 2; // the face points forward (+x)
+    m.castShadow = true;
+    g.add(m);
+    var lens = new THREE.Mesh(new THREE.CylinderGeometry(h * 0.36, h * 0.36, 0.02, 24), lamp());
+    lens.rotation.z = Math.PI / 2; lens.position.set(len / 2 + 0.02, h / 2, 0);
+    g.add(lens);
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(h * 0.37, 0.012, 6, 24), chrome());
+    rim.rotation.y = Math.PI / 2; rim.position.set(len / 2 + 0.025, h / 2, 0);
+    g.add(rim);
+    return g;
   }
 
   var BUILD = { ae86: buildAE86, rx7: buildRX7, miata: buildMiata };
