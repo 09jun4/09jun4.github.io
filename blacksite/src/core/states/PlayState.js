@@ -18,6 +18,14 @@ export class PlayState {
     g.input.requestLock();
     this.offs.push(bus.on('input:escape', () => this.togglePause()));
     this.offs.push(bus.on('input:unlocked', () => { if (!g.session.paused && !g.ui.modalOpen) this.pause(); }));
+    this.offs.push(bus.on('mission:failed', (info) => {
+      g.ui.fadeToBlack?.(0.9);
+      setTimeout(() => { if (g.fsm.current === this) g.fsm.change('failure', { ...info, difficulty: this.difficulty }); }, 1100);
+    }));
+    this.offs.push(bus.on('mission:complete', (result) => {
+      g.ui.fadeToBlack?.(0.8);
+      setTimeout(() => { if (g.fsm.current === this) g.fsm.change('results', result); }, 900);
+    }));
     this.game.canvas.onclick = () => { if (!g.session.paused && !g.ui.modalOpen) g.input.requestLock(); };
   }
 

@@ -10,6 +10,13 @@ import { Interaction } from '../player/Interaction.js';
 import { Pistol } from '../weapons/Pistol.js';
 import { WorldEffects } from '../weapons/Effects.js';
 import { getEnvironment } from '../environments/EnvMap.js';
+import { NavGraph } from '../ai/NavGraph.js';
+import { Guard } from '../ai/EnemyAI.js';
+import { createPlayerBodyModel } from '../characters/PlayerBodyModel.js';
+import { pickTakedown } from '../animations/assassination/index.js';
+
+// 적 종류 레지스트리 (맵 JSON의 enemies[].type → 클래스, 설정 키)
+export const ENEMY_TYPES = { guard: { cls: Guard, cfg: 'guard' } };
 import { clamp, DEG } from '../utils/math.js';
 
 export function hfovToV(hfovDeg, aspect) {
@@ -54,9 +61,43 @@ export class Session {
     this.targets = []; // 사격 대상: { rayTest(o, d, max) → {t, part}, onHit(dmg, info) }
     this.hud = game.ui.hud;
     this.hud.reset();
-
-    // 상호작용
     this.interaction = new Interaction(this);
+
+    // 적
+    this.nav = new NavGraph(this.facility, this.collision);
+    this.enemies = [];
+    for (const def of this.cfg.map.enemies || []) {
+      const T = ENEMY_TYPES[def.type || 'guard'];
+      if (!T) { console.warn('[Session] unknown enemy type', def.type); continue; }
+      const e = new T.cls(def, this.cfg[T.cfg], this);
+      this.enemies.push(e);
+      this.targets.push(e);
+    }
+    this.combatCount = 0;
+
+    // 암살: 플레이어 전신 모델 + 시네마틱 카메라
+    this.body = createPlayerBodyModel();
+    this.body.group = new THREE.Group();
+    this.body.group.add(this.body.root);
+    this.scene.add(this.body.group);
+    this.cineCamera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 80);
+    this.cinematic = null;
+    this.interaction.add({
+      find: () => {
+        if (this.cinematic) return null;
+        let best = null, bd = Infinity;
+        for (const e of this.enemies) {
+          if (!e.canTakedown(this.player)) continue;
+          const d = Math.hypot(e.x - this.player.x, e.z - this.player.z);
+          if (d < bd) { bd = d; best = e; }
+        }
+        return best ? { priority: 100, label: 'TAKEDOWN', action: () => this.startTakedown(best) } : null;
+      },
+    });
+    this.disposers.push(bus.on('player:died', () => this.onPlayerDied()));
+    this.disposers.push(bus.on('player:damaged', () => this.hud.damage()));
+
+    // 상호작용 (문)
     this.interaction.add({
       find: (it) => {
         let best = null, bestD = this.cfg.game.interact.distance;
@@ -105,7 +146,68 @@ export class Session {
   }
 
   // 문 닫힘 판정 등에 쓰는 캐릭터 위치 목록 (적은 M3에서 추가)
-  allChars() { return [{ x: this.player.x, z: this.player.z }]; }
+  allChars() {
+    const out = [{ x: this.player.x, z: this.player.z }];
+    for (const e of this.enemies) if (e.alive) out.push({ x: e.x, z: e.z });
+    return out;
+  }
+
+  onDetected(guard) {
+    this.stats.detections++;
+    bus.emit('guard:detected', { guard });
+  }
+
+  onGuardDown(guard, kind) {
+    if (kind === 'takedown') this.stats.takedowns++; else this.stats.kills++;
+    bus.emit('guard:down', { guard, kind });
+  }
+
+  startTakedown(guard) {
+    const seq = pickTakedown(this.cfg.guard.takedown.sequence);
+    const ctx = {
+      session: this, guard, body: this.body, player: this.player, camera: this.cineCamera,
+      setFade: (v) => this.game.ui.setFade(v),
+    };
+    this.cinematic = { seq, ctx, t: 0 };
+    this.player.health.invulnerable = true;
+    this.weapon.cancelReload();
+    guard.inCinematic = true;
+    guard.anim.override = () => {};
+    guard.icon.set(null);
+    this.cineCamera.aspect = innerWidth / innerHeight;
+    this.hud.cinematic(true);
+    this.hud.setPrompt(null);
+    seq.start(ctx);
+    bus.emit('takedown:start', { guard });
+  }
+
+  updateCinematic(dt) {
+    const c = this.cinematic;
+    c.t += dt;
+    c.seq.update(c.ctx, Math.min(c.t, c.seq.duration), dt);
+    if (c.t < c.seq.duration) return;
+    c.seq.end(c.ctx);
+    const g = c.ctx.guard;
+    g.inCinematic = false;
+    g.kill('takedown', -1);
+    g.anim.death = 0.999; // 연출이 끝난 자세에서 바로 쓰러진 상태로
+    this.cinematic = null;
+    this.player.health.invulnerable = false;
+    this.hud.cinematic(false);
+    bus.emit('takedown:end', { guard: g });
+    // 연출 중 다른 적에게 보였다면 이제 발견 상태로
+    for (const e of this.enemies) {
+      if (e.alive && e.pendingDetect) { e.pendingDetect = false; e.knowPlayer(); if (!e.aware) e.setState('alert'); }
+      e.pendingDetect = false;
+    }
+  }
+
+  onPlayerDied() {
+    if (this.ended) return;
+    this.ended = true;
+    this.controlsEnabled = false;
+    bus.emit('mission:failed', { reason: 'killed' });
+  }
 
   update(dt) {
     if (this.paused) return;
@@ -124,6 +226,20 @@ export class Session {
 
     p.update(dt, input);
     this.facility.update(dt);
+    if (this.cinematic) this.updateCinematic(dt);
+
+    // 적
+    let combat = 0;
+    for (const e of this.enemies) {
+      e.update(dt);
+      if (e.alive && (e.stateName === 'combat' || e.stateName === 'alert')) combat++;
+      // 플레이어가 적을 통과하지 못하게
+      if (e.alive) {
+        const dx = p.pos.x - e.x, dz = p.pos.z - e.z, d = Math.hypot(dx, dz), min = e.cfg.radius + p.radius;
+        if (d < min && d > 1e-4) { p.pos.x = e.x + (dx / d) * min; p.pos.z = e.z + (dz / d) * min; }
+      }
+    }
+    if (combat !== this.combatCount) { this.combatCount = combat; bus.emit('combat:count', combat); }
 
     // 사격·재장전
     w.update(dt);
@@ -193,12 +309,14 @@ export class Session {
   }
 
   render(renderer) {
-    renderer.render(this.scene, this.camera);
+    renderer.render(this.scene, this.cinematic ? this.cineCamera : this.camera);
     if (!this.cinematic) this.rig.render(renderer);
   }
 
   dispose() {
     for (const off of this.disposers) off();
+    for (const e of this.enemies) e.dispose();
+    this.body.dispose();
     this.rig.dispose();
     this.effects.dispose();
     this.facility.dispose();

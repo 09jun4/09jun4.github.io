@@ -16,18 +16,36 @@
     "closeRange": 1.4,
     "checkInterval": 0.1
   },
-  "suspicious": { "investigateAfter": 1.4, "giveUpAfter": 4.0 },
+  "suspicious": {
+    "investigateAfter": 1.4,
+    "giveUpAfter": 4.0
+  },
   "combat": {
-    "preferredRange": [4, 10],
+    "preferredRange": [
+      4,
+      10
+    ],
     "maxFireRange": 24,
     "lostSightToSearch": 2.5,
     "firstShotDelayMul": 1.0,
     "damage": 12,
     "missOffset": 0.9
   },
-  "search": { "lookAroundTime": 2.5, "points": 2, "radius": 3.5 },
-  "hitbox": { "bodyRadius": 0.27, "bodyTop": 1.52, "headRadius": 0.14 },
-  "takedown": { "maxDistance": 1.7, "behindAngleDeg": 75 },
+  "search": {
+    "lookAroundTime": 2.5,
+    "points": 2,
+    "radius": 3.5
+  },
+  "hitbox": {
+    "bodyRadius": 0.27,
+    "bodyTop": 1.52,
+    "headRadius": 0.14
+  },
+  "takedown": {
+    "maxDistance": 1.7,
+    "behindAngleDeg": 75,
+    "sequence": "silhouette"
+  },
   "appearance": {
     "uniform": "#2c333a",
     "vest": "#3d454c",

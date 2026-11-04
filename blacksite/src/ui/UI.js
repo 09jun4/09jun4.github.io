@@ -34,6 +34,8 @@ export class UI {
   showPause() { this.pauseEl.classList.remove('hidden'); }
   hidePause() { this.pauseEl.classList.add('hidden'); }
   closeModal() {}
+  setFade(v) { this.fade.style.transition = 'none'; this.fade.style.opacity = v; }
+  fadeToBlack(t) { this.fade.style.transition = `opacity ${t}s ease`; this.fade.style.opacity = 1; }
   fadeFromBlack(t) {
     this.fade.style.transition = 'none';
     this.fade.style.opacity = 1;
