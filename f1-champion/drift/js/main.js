@@ -253,7 +253,7 @@
       var cam = { x: camera.position.x, y: -camera.position.z, heading: G.camHeading || 0 };
       var list = [{ car: G.player, throttle: G.player.lastIn ? G.player.lastIn.throttle : 0 }];
       if (G.rival) list.push({ car: G.rival, throttle: G.rival.lastIn ? G.rival.lastIn.throttle : 0 });
-      if (G.state !== 'paused') DR.Audio.update(list, cam);
+      if (G.state !== 'paused') DR.Audio.update(list, cam, dt);
       updateCamera(dt);
       updateHUD();
     } else if (G.state === 'menu') {
@@ -377,7 +377,7 @@
       b.className = 'car' + (s.id === G.carId ? ' on' : '');
       var best = DR.Cloud.save.best[s.id];
       b.innerHTML = '<b>' + s.name + '</b><small>' + s.tagline + '</small>' +
-        '<span class="spec">' + s.engine + ' · ' + s.weight + '</span>' +
+        '<span class="spec">' + s.engine + ' · ' + s.weight + '</span><span class="spec tune">튜닝: ' + s.tune + '</span>' +
         '<span class="stat">파워 ' + bar(s.stats.power) + '</span><span class="stat">그립 ' + bar(s.stats.grip) + '</span><span class="stat">드리프트 ' + bar(s.stats.drift) + '</span>' +
         '<span class="pb">내 기록 ' + (best ? fmt(best.time) : '없음') + '</span>';
       b.addEventListener('click', function () { G.carId = s.id; savePref(); renderMenu(); });

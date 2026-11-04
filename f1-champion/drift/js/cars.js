@@ -19,7 +19,11 @@
         engine: '1.6L 직렬 4기통 4A-GE · 130마력', weight: '940kg',
         len: 4.205, wid: 1.625, hgt: 1.335, wb: 2.4, tyre: 0.29,
         color: 0xf4f4f0, eye: { fwd: 1.0, up: 1.08 },
-        sound: { cyl: 4, base: 0.5, cutoff: 2600, buzz: 0.25 },
+        // 4A-GE with individual throttle bodies and a 4-2-1 header into a
+        // straight-through muffler: no turbo, a high-rev intake howl.
+        tune: '4A-GE · 개별 스로틀(ITB) · 4-2-1 헤더 · 스트레이트 머플러',
+        sound: { pulses: 2, harm: [1, 0.62, 0.42, 0.3, 0.22, 0.16, 0.12, 0.08], sub: 0.35, drive: 2.2, res: 3, cut: 3600, level: 1.0,
+          rasp: 0.55, raspF: 1500, raspQ: 1.4, intake: 0.9, turbo: 0, pops: 0.8 },
         physics: { FINAL_DRIVE: 4.6, TORQUE_SCALE: 0.82, CAR_MASS: 880, DRAG_COEF: 0.37, TIRE_GRIP_TARMAC: 1.08,
           MAX_STEER_ANGLE: 0.56, STEER_RESPONSE_RATE: 6.0, DRIFT_TURN_ACCEL: 2.5, DRIFT_SPEED_COST: 0.32,
           CAR_HALF_WIDTH: 0.82, CAR_HALF_LENGTH: 2.1, REDLINE_RPM: 7600 },
@@ -31,7 +35,11 @@
         engine: '1.3L 트윈터보 로터리 13B-REW · 280마력', weight: '1260kg',
         len: 4.285, wid: 1.76, hgt: 1.23, wb: 2.425, tyre: 0.31,
         color: 0xb3121c, eye: { fwd: 0.95, up: 1.1 },
-        sound: { cyl: 2, base: 0.75, cutoff: 3400, buzz: 0.6 },
+        // 13B-REW converted to a big single turbo, bridge-ported feel: buzzy
+        // rotary note, lumpy idle, turbo whine and compressor flutter.
+        tune: '13B 로터리 · 빅 싱글 터보 · 브릿지 포트 · 플러터(서지) 사운드',
+        sound: { pulses: 2, harm: [1, 0.85, 0.75, 0.62, 0.55, 0.48, 0.4, 0.34, 0.28, 0.22], sub: 0.5, drive: 3.2, res: 5, cut: 4200, level: 1.05,
+          rasp: 0.9, raspF: 1100, raspQ: 1.1, intake: 0.25, turbo: 1.0, turboPitch: 0.85, spool: 1.6, spoolAt: 0.35, bov: 'flutter', pops: 1.0, lope: 1.0 },
         physics: { FINAL_DRIVE: 4.1, TORQUE_SCALE: 1.32, CAR_MASS: 960, DRAG_COEF: 0.31, TIRE_GRIP_TARMAC: 1.15,
           MAX_STEER_ANGLE: 0.5, STEER_RESPONSE_RATE: 5.0, DRIFT_TURN_ACCEL: 1.95, DRIFT_SPEED_COST: 0.42,
           CAR_HALF_WIDTH: 0.89, CAR_HALF_LENGTH: 2.14, REDLINE_RPM: 8000 },
@@ -43,7 +51,10 @@
         engine: '1.6L 직렬 4기통 B6-ZE · 115마력', weight: '940kg',
         len: 3.97, wid: 1.675, hgt: 1.235, wb: 2.265, tyre: 0.285,
         color: 0x18a39d, eye: { fwd: 0.8, up: 1.1 },
-        sound: { cyl: 4, base: 0.45, cutoff: 2300, buzz: 0.2 },
+        // B6 with a bolt-on turbo kit and blow-off valve, cat-back exhaust.
+        tune: 'B6 · 볼트온 터보 키트 · 블로오프 밸브 · 캣백 머플러',
+        sound: { pulses: 2, harm: [1, 0.5, 0.36, 0.22, 0.15, 0.1, 0.06], sub: 0.45, drive: 1.8, res: 2.5, cut: 3000, level: 1.0,
+          rasp: 0.45, raspF: 1300, raspQ: 1.6, intake: 0.3, turbo: 0.85, turboPitch: 1.1, spool: 2.6, spoolAt: 0.28, bov: 'pssh', pops: 0.6 },
         physics: { FINAL_DRIVE: 4.8, TORQUE_SCALE: 0.76, CAR_MASS: 840, DRAG_COEF: 0.38, TIRE_GRIP_TARMAC: 1.32,
           MAX_STEER_ANGLE: 0.6, STEER_RESPONSE_RATE: 7.2, DRIFT_TURN_ACCEL: 2.15, DRIFT_SPEED_COST: 0.36,
           CAR_HALF_WIDTH: 0.84, CAR_HALF_LENGTH: 1.98, REDLINE_RPM: 7200 },
@@ -224,42 +235,6 @@
     });
   }
 
-  // Toyota Sprinter Trueno 3-door (AE86) in the classic two-tone: white
-  // upper, black lower body and bumpers with a thin pinstripe, raised
-  // square pop-ups, black grille with amber indicators, yellow fog lamps,
-  // long hatch glass, separate rear quarter window, black 8-spoke wheels.
-  function buildAE86(spec) {
-    var car = new THREE.Group(), body = phong(spec.color, 70);
-    var top = [[2.1, 0.5], [2.09, 0.71], [0.98, 0.86], [-1.95, 0.93], [-2.09, 0.97], [-2.1, 0.5]];
-    car.add(extrude(bodyShape(spec, top, 0.3, 0.37), spec.wid, body, 0.05));
-    cabin(car, [[1.0, 0.85], [0.22, 1.3], [-0.2, 1.33], [-0.88, 1.33], [-1.93, 0.99], [-1.95, 0.9], [1.0, 0.82]], spec.wid - 0.2, body, [0.25, -0.9]);
-    // Black lower body (split at the door-handle line) and bumpers.
-    var low = new THREE.Shape();
-    low.moveTo(-2.13, 0.3); low.lineTo(2.14, 0.3); low.lineTo(2.15, 0.62); low.lineTo(-2.14, 0.66); low.lineTo(-2.13, 0.3);
-    car.add(extrude(low, spec.wid + 0.02, black(), 0.03));
-    var hw = spec.wid / 2 + 0.012, cw = (spec.wid - 0.2) / 2 + 0.006, stripe = mat('stripe', function () { return phong(0xd9d9d9, 40); });
-    [-1, 1].forEach(function (s) {
-      car.add(sidePoly([[-2.02, 0.565], [2.0, 0.535], [2.0, 0.555], [-2.02, 0.585]], s * hw, stripe));
-      car.add(box(0.1, 0.42, 0.02, black(), -0.36, 1.1, s * cw)); // B-pillar
-      car.add(box(0.13, 0.025, 0.02, black(), -0.1, 0.8, s * (hw + 0.004))); // door handle
-    });
-    mirror(car, 0.78, 1.0, spec.wid / 2, black());
-    // Open square pop-ups, black grille with the indicators, fog lamps.
-    [-1, 1].forEach(function (s) {
-      popup(car, 1.84, 0.71, s * 0.55, 0.4, 0.24, false);
-      car.add(box(0.03, 0.07, 0.3, amber(), 2.16, 0.6, s * 0.6));
-      car.add(box(0.04, 0.07, 0.12, fog(), 2.15, 0.36, s * 0.55));
-    });
-    car.add(box(0.03, 0.08, 0.75, mat('grille', function () { return phong(0x1d1f22, 10); }), 2.16, 0.6, 0));
-    car.add(box(0.03, 0.035, 0.24, stripe, 2.17, 0.6, 0)); // badge
-    // Hatch spoiler and the black tail panel between the lamps.
-    car.add(box(0.3, 0.035, spec.wid - 0.12, body, -1.92, 1.035, 0));
-    car.add(box(0.03, 0.14, spec.wid - 0.6, black(), -2.17, 0.79, 0));
-    lights(car, spec, 0.79, 0.34, 0.14);
-    addWheels(car, spec, 0x232427, 8, 0.2);
-    return car;
-  }
-
   // --- Lofted bodies (RX-7, Miata) -----------------------------------------
   // The body is a smooth surface swept along the car: at each station x the
   // cross-section is a superellipse between bottom B(x) and top T(x) with
@@ -315,11 +290,12 @@
     var step = opts.step || 0.035, xs = [];
     for (var x = x0; x < x1 - 1e-6; x += step) xs.push(x);
     xs.push(x1);
-    var pos = [], idx = [], o = { y: 0, z: 0 }, ring = closed ? K : K + 1;
+    var pos = [], col = [], idx = [], o = { y: 0, z: 0 }, ring = closed ? K : K + 1;
     xs.forEach(function (xx) {
       for (var k = 0; k < ring; k++) {
         secPoint(d, xx, phiA + ((phiB - phiA) * k) / K, o);
         pos.push(xx, o.y + lift, o.z * grow);
+        if (opts.color) { var cc = opts.color(xx, o.y, o.z); col.push(cc.r, cc.g, cc.b); }
       }
     });
     for (var i = 0; i < xs.length - 1; i++) {
@@ -336,6 +312,7 @@
         cy /= ring;
         var ci = pos.length / 3;
         pos.push(cx, cy, 0);
+        if (opts.color) { var c0 = opts.color(cx, cy, 0); col.push(c0.r, c0.g, c0.b); }
         for (var k3 = 0; k3 < ring; k3++) {
           var p = base + k3, q2 = base + ((k3 + 1) % ring);
           if (end) idx.push(ci, p, q2); else idx.push(ci, q2, p);
@@ -344,6 +321,7 @@
     }
     var g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    if (opts.color) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
     var m = new THREE.Mesh(g, material);
@@ -550,6 +528,72 @@
     rim.rotation.y = Math.PI / 2; rim.position.set(len / 2 + 0.025, h / 2, 0);
     g.add(rim);
     return g;
+  }
+
+  // Toyota Sprinter Trueno 3-door (AE86), lofted like the others: wedge
+  // nose, flat bonnet, upright glasshouse with a long hatch, painted in
+  // the classic two-tone (white over black, split at the door-handle line,
+  // silver pinstripe). Open square pop-ups, black grille and bumpers,
+  // amber indicators, yellow fog lamps, black 8-spoke wheels.
+  function buildAE86(spec) {
+    var car = new THREE.Group();
+    var wf = spec.wb / 2 + spec.wbShift, wr = -spec.wb / 2 + spec.wbShift;
+    var d = {
+      x0: -2.1, x1: 2.11, nLo: 8, tuck: 0.05, bulgeAt: 0.85,
+      W: curve([[-2.1, 0.7], [-2.05, 0.785], [-1.85, 0.81], [1.75, 0.81], [1.98, 0.795], [2.07, 0.76], [2.11, 0.66]]),
+      T: curve([[-2.1, 0.62], [-2.08, 0.9], [-2.0, 0.965], [-1.9, 0.97], [-1.5, 0.92], [-0.5, 0.89], [0.5, 0.875], [1.0, 0.855], [1.6, 0.79], [1.95, 0.745], [2.07, 0.72], [2.11, 0.62]]),
+      B: arches([wf, wr], spec.tyre, 0.37, 0.29),
+      mid: curve([[-2.1, 0.62], [0, 0.7], [2.11, 0.62]]),
+      nUp: curve([[-2.1, 3.0], [-1.8, 4.2], [1.7, 4.4], [2.11, 3.0]]),
+      bulge: curve([[-1.6, 0], [-1.25, 0.02], [-0.9, 0], [0.9, 0], [1.2, 0.02], [1.6, 0]]),
+    };
+    var white = new THREE.Color(spec.color), blk = new THREE.Color(0x121315), silver = new THREE.Color(0xcfd2d6);
+    var two = paint(0xffffff);
+    two.vertexColors = true;
+    two.reflectivity = 0.1;
+    car.add(loft(d, two, { K: 64, color: function (x, y) {
+      if (y < 0.72) return y > 0.615 && y < 0.64 && Math.abs(x) < 2.0 ? silver : blk;
+      return white;
+    } }));
+    var gh = {
+      x0: -1.94, x1: 1.0, nLo: 6, tuck: 0.14, nUp: function () { return 4.2; },
+      W: curve([[-1.94, 0.74], [-1.4, 0.68], [-0.6, 0.66], [0.3, 0.67], [1.0, 0.74]]),
+      T: curve([[-1.94, 0.98], [-1.6, 1.08], [-1.2, 1.2], [-0.88, 1.32], [-0.3, 1.335], [0.18, 1.31], [0.6, 1.08], [1.0, 0.86]]),
+      B: function () { return 0.8; },
+      mid: function () { return 0.86; },
+    };
+    car.add(loft(gh, glassMat(), { cap: true }));
+    var body = paint(spec.color);
+    car.add(loft(gh, body, { from: -0.9, to: 0.17, phiA: 0.55, phiB: Math.PI - 0.55, grow: 1.012, lift: 0.006, K: 20 }));
+    [[0.1, 0.5], [Math.PI - 0.5, Math.PI - 0.1]].forEach(function (r) {
+      car.add(loft(gh, black(), { from: -1.9, to: 0.97, phiA: r[0], phiB: r[1], grow: 1.008, lift: 0.004, K: 4 }));
+    });
+    [-1, 1].forEach(function (s) {
+      car.add(box(0.1, 0.38, 0.03, black(), -0.36, 1.08, s * 0.665)); // B-pillar
+      car.add(box(0.13, 0.025, 0.02, black(), -0.12, 0.8, s * 0.822)); // door handle
+    });
+    mirror(car, 0.8, 0.98, 0.72, black());
+    // Nose: open square pop-ups, black grille band with the badge and
+    // indicators, bumper with fog lamps.
+    [-1, 1].forEach(function (s) {
+      var px = 1.8, pz = s * 0.55;
+      popup(car, px, topY(d, px, pz) - 0.03, pz, 0.34, 0.19, false);
+      var ix = endX(d, 0.66, s * 0.6, 1);
+      car.add(box(0.03, 0.06, 0.3, amber(), ix + 0.005, 0.66, s * 0.6));
+      car.add(box(0.03, 0.065, 0.12, fog(), endX(d, 0.66, 0, 1) - 0.02, 0.45, s * 0.52));
+    });
+    var gx = endX(d, 0.66, 0, 1);
+    car.add(box(0.03, 0.075, 0.82, mat('grille', function () { return phong(0x1d1f22, 10); }), gx + 0.004, 0.66, 0));
+    car.add(box(0.03, 0.03, 0.24, chrome(), gx + 0.012, 0.66, 0));
+    // Hatch spoiler, tail panel and lamps.
+    car.add(box(0.28, 0.035, spec.wid - 0.14, body, -1.92, 1.0, 0));
+    var tx = endX(d, 0.8, 0, -1);
+    car.add(box(0.03, 0.15, spec.wid - 0.3, black(), tx - 0.005, 0.8, 0));
+    var tail = new THREE.MeshPhongMaterial({ color: 0x5a0a0a, emissive: 0x220000, shininess: 90 });
+    [-1, 1].forEach(function (s) { car.add(box(0.035, 0.12, 0.32, tail, tx - 0.015, 0.8, s * 0.56)); });
+    car.userData.tail = tail;
+    addWheels(car, spec, 0x232427, 8, 0.2);
+    return car;
   }
 
   var BUILD = { ae86: buildAE86, rx7: buildRX7, miata: buildMiata };
