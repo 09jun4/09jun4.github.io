@@ -33,15 +33,26 @@
   // Local save (always) — merged with the account save on sign-in.
   var KEY = 'f1-champion.drift';
   function blank() { return { best: {}, battle: { wins: 0, losses: 0 } }; }
-  function load() { try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.best) return s; } catch (e) { /* none */ } return blank(); }
+  // save.best is {course: {car: {time, at}}}; early saves kept the times
+  // per car directly (the first course, Haruna).
+  function upgrade(s) {
+    if (!s || !s.best) return s;
+    var b = s.best, flat = Object.keys(b).some(function (k) { return b[k] && typeof b[k].time === 'number'; });
+    if (flat) s.best = { haruna: b };
+    return s;
+  }
+  function load() { try { var s = upgrade(JSON.parse(localStorage.getItem(KEY))); if (s && s.best) return s; } catch (e) { /* none */ } return blank(); }
   Cloud.save = load();
   function merge(a, b) {
     var out = blank();
     [a, b].forEach(function (s) {
       if (!s) return;
-      Object.keys(s.best || {}).forEach(function (car) {
-        var r = s.best[car];
-        if (r && r.time > 0 && (!out.best[car] || r.time < out.best[car].time)) out.best[car] = r;
+      Object.keys(s.best || {}).forEach(function (course) {
+        var cb = s.best[course] || {}, ob = out.best[course] = out.best[course] || {};
+        Object.keys(cb).forEach(function (car) {
+          var r = cb[car];
+          if (r && r.time > 0 && (!ob[car] || r.time < ob[car].time)) ob[car] = r;
+        });
       });
       if (s.battle) { out.battle.wins += s.battle.wins || 0; out.battle.losses += s.battle.losses || 0; }
     });
@@ -53,10 +64,11 @@
     if (remote) remote(Cloud.save);
   }
   // Records a finished time attack; returns true for a new personal best.
+  Cloud.best = function (course, car) { var c = Cloud.save.best[course || DR.Course.SLUG]; return c ? c[car] : null; };
   Cloud.recordTime = function (car, time) {
-    var b = Cloud.save.best[car];
+    var slug = DR.Course.SLUG, cb = Cloud.save.best[slug] = Cloud.save.best[slug] || {}, b = cb[car];
     if (b && b.time <= time) return false;
-    Cloud.save.best[car] = { time: Math.round(time * 1000) / 1000, at: Date.now() };
+    cb[car] = { time: Math.round(time * 1000) / 1000, at: Date.now() };
     store();
     pushTime();
     return true;
@@ -67,7 +79,8 @@
   };
   Cloud.bestOverall = function () {
     var best = null;
-    Object.keys(Cloud.save.best).forEach(function (car) { var r = Cloud.save.best[car]; if (!best || r.time < best.time) best = { time: r.time, car: car }; });
+    var cb = Cloud.save.best[DR.Course.SLUG] || {};
+    Object.keys(cb).forEach(function (car) { var r = cb[car]; if (!best || r.time < best.time) best = { time: r.time, car: car }; });
     return best;
   };
 
@@ -117,7 +130,7 @@
       var ud = r[0] && r[0].exists() ? r[0].data() : null;
       Cloud.nickname = ud && typeof ud.nickname === 'string' ? ud.nickname : '';
       var acc = null;
-      if (r[1] && r[1].exists()) { try { acc = JSON.parse(r[1].data().save); } catch (e) { acc = null; } }
+      if (r[1] && r[1].exists()) { try { acc = upgrade(JSON.parse(r[1].data().save)); } catch (e) { acc = null; } }
       // First sign-in on this browser moves the guest records into the account.
       var guest = load();
       Cloud.save = merge(acc, guest);

@@ -85,7 +85,7 @@ service cloud.firestore {
       allow read: if true;
       allow delete: if signedIn(uid);
       allow create, update: if signedIn(uid)
-        && course in ['haruna']
+        && course in ['haruna', 'akagi', 'irohazaka', 'usui']
         && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at'])
         && request.resource.data.device in ['mobile', 'pc']
         && request.resource.data.uid == uid

@@ -29,6 +29,10 @@
   .mode small { color: var(--dim); }
   .mode.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
   .cars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .courses { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .course { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: left; display: flex; flex-direction: column; gap: 3px; }
+  .course.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
+  .course b { font-size: 14px; } .course .tag { color: #ffc58f; font-size: 12px; font-weight: 700; } .course small { color: var(--dim); font-size: 11px; }
   .car { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: left; display: flex; flex-direction: column; gap: 3px; }
   .car.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
   .car b { font-size: 16px; }
@@ -105,6 +109,7 @@
   .tc-top button { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.55); font-size: 12px; font-weight: 700; }
   body.touch #hud-meter { bottom: calc(118px + env(safe-area-inset-bottom)); }
   @media (max-width: 720px) {
+    .courses { grid-template-columns: 1fr 1fr; }
     .cars { grid-template-columns: 1fr; }
     .row2 { grid-template-columns: 1fr; }
     h1 { font-size: 24px; }
@@ -152,11 +157,13 @@
       <button type="button" class="mode" data-mode="ta"><b>다운힐 타임어택</b><small>혼자 정상에서 결승까지, 가장 빠른 기록에 도전</small></button>
       <button type="button" class="mode" data-mode="battle"><b>AI 배틀</b><small>AI 차 한 대와 동시에 출발, 먼저 도착하면 승리 · <span id="battle-rec"></span></small></button>
     </div>
+    <h2>코스</h2>
+    <div id="courses" class="courses"></div>
     <h2>자동차</h2>
     <div id="cars" class="cars"></div>
     <div class="row2">
       <div>
-        <h2>타임어택 랭킹 <button type="button" id="rank-refresh" class="small-btn">새로고침</button></h2>
+        <h2>타임어택 랭킹 · <span id="rank-course"></span> <button type="button" id="rank-refresh" class="small-btn">새로고침</button></h2>
         <ol id="ranking"></ol>
       </div>
       <div>

@@ -6,6 +6,23 @@
   var DR = window.DR = window.DR || {};
   var C = DR.Course;
   var World = {};
+  // Looks per course (course.js `theme`).
+  var THEMES = {
+    summer: { sky: 0xa9c7de, fog: [250, 1500], hemi: [0xdcecff, 0x4a5a3a, 0.75], sun: [0xfff1dc, 0.85, -60, 120, 40],
+      grass: [0x3f6b2c, 0x2b4a22], tree: function (r, c) { c.setHSL(0.3 + r() * 0.06, 0.45, 0.1 + r() * 0.07); }, treeH: 1, lake: 0x4a7a96 },
+    sunset: { sky: 0xe9a66f, fog: [220, 1300], hemi: [0xffd1a0, 0x3d3226, 0.7], sun: [0xffb06a, 1.0, -120, 55, -40],
+      grass: [0x5d6a2e, 0x3e4a22], tree: function (r, c) { c.setHSL(0.25 + r() * 0.08, 0.35, 0.13 + r() * 0.08); }, treeH: 1, lake: 0x8a6a6a },
+    autumn: { sky: 0xbfd4e6, fog: [230, 1400], hemi: [0xf1e8dc, 0x5a4a30, 0.78], sun: [0xffe4c0, 0.85, -40, 110, 60],
+      grass: [0x77703a, 0x5a5228], tree: function (r, c) {
+        var k = r();
+        if (k < 0.18) c.setHSL(0.28, 0.35, 0.12 + r() * 0.05); // a few evergreens
+        else c.setHSL(0.0 + r() * 0.12, 0.65 + r() * 0.2, 0.27 + r() * 0.1); // red, orange, gold
+      }, treeH: 0.9, lake: 0x5a7f96 },
+    fog: { sky: 0xc5cbd0, fog: [50, 430], hemi: [0xdfe5ea, 0x3a443a, 0.85], sun: [0xf2f4f6, 0.45, -60, 120, 40],
+      grass: [0x3c5a34, 0x2a4128], tree: function (r, c) { c.setHSL(0.33 + r() * 0.04, 0.3, 0.12 + r() * 0.06); }, treeH: 1.5, lake: 0x7a8a90 },
+  };
+  var TH = THEMES[C.def.theme] || THEMES.summer;
+  World.theme = TH;
 
   function canvasTex(w, h, draw) {
     var c = document.createElement('canvas');
@@ -57,11 +74,12 @@
   }
 
   function buildTerrain(scene) {
-    var T = C.TERRAIN, size = 3600, seg = 300, cx = 0, cy = -700;
+    var minRoad = Math.min.apply(null, C.samples.map(function (q) { return q.h; }));
+    var T = C.TERRAIN, size = Math.min(T.size, 5200), seg = Math.round(size / 12), cx = T.cx, cy = T.cy;
     var geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     var pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-    var c1 = new THREE.Color(0x3f6b2c), c2 = new THREE.Color(0x2b4a22), c3 = new THREE.Color(0x7c7a6a), c4 = new THREE.Color(0x8a8576), tmp = new THREE.Color();
+    var c1 = new THREE.Color(TH.grass[0]), c2 = new THREE.Color(TH.grass[1]), c3 = new THREE.Color(0x7c7a6a), c4 = new THREE.Color(0x8a8576), tmp = new THREE.Color();
     for (var i = 0; i < pos.count; i++) {
       var x = pos.getX(i) + cx, z = pos.getZ(i), y = -z + cy;
       pos.setX(i, x); pos.setZ(i, -y);
@@ -79,9 +97,10 @@
     m.receiveShadow = true;
     scene.add(m);
     // Lake at the foot of the mountain and far hills under the fog.
-    var lake = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshPhongMaterial({ color: 0x4a7a96, shininess: 90, specular: 0x88aacc }));
+    var lake = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshPhongMaterial({ color: TH.lake, shininess: 90, specular: 0x88aacc }));
     lake.rotation.x = -Math.PI / 2;
-    lake.position.set(0, 70, 700);
+    World.lakeH = Math.min(70, minRoad - 60);
+    lake.position.set(cx, World.lakeH, -cy);
     scene.add(lake);
   }
 
@@ -153,7 +172,7 @@
   function buildTrees(scene) {
     var N = 6500, cone = new THREE.ConeGeometry(2.4, 9, 7), trunk = new THREE.CylinderGeometry(0.3, 0.4, 2.5, 5);
     cone.translate(0, 6.5, 0); trunk.translate(0, 1.25, 0);
-    var a = new THREE.InstancedMesh(cone, new THREE.MeshLambertMaterial({ color: 0x24452a }), N);
+    var a = new THREE.InstancedMesh(cone, new THREE.MeshLambertMaterial({ color: 0xffffff }), N);
     var b = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: 0x4b3a2a }), N);
     var M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
     var seed = 11;
@@ -169,12 +188,12 @@
       var h = C.ground(x, y);
       // Keep the valley side open near the road so the view drops away.
       if (nr.d < 70 && h < nr.h - 4) continue;
-      if (h < 72) continue;
+      if (h < World.lakeH + 2) continue;
       var sz = 0.7 + rnd() * 0.8;
-      p.set(x, h - 0.2, -y); s.set(sz, sz * (0.85 + rnd() * 0.4), sz);
+      p.set(x, h - 0.2, -y); s.set(sz, sz * (0.85 + rnd() * 0.4) * TH.treeH, sz);
       M.compose(p, q, s);
       a.setMatrixAt(k, M); b.setMatrixAt(k, M);
-      col.setHSL(0.3 + rnd() * 0.06, 0.4, 0.17 + rnd() * 0.1);
+      TH.tree(rnd, col);
       a.setColorAt(k, col);
       k++;
     }
@@ -247,10 +266,10 @@
   };
 
   World.build = function (scene, renderer) {
-    scene.background = new THREE.Color(0xa9c7de);
-    scene.fog = new THREE.Fog(0xa9c7de, 250, 1500);
-    scene.add(new THREE.HemisphereLight(0xdcecff, 0x4a5a3a, 0.75));
-    var sun = new THREE.DirectionalLight(0xfff1dc, 0.85);
+    scene.background = new THREE.Color(TH.sky);
+    scene.fog = new THREE.Fog(TH.sky, TH.fog[0], TH.fog[1]);
+    scene.add(new THREE.HemisphereLight(TH.hemi[0], TH.hemi[1], TH.hemi[2]));
+    var sun = new THREE.DirectionalLight(TH.sun[0], TH.sun[1]);
     sun.position.set(-60, 120, 40);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -270,7 +289,7 @@
 
   // Keeps the shadow camera around the player.
   World.follow = function (x, h, z) {
-    World.sun.position.set(x - 60, h + 120, z + 40);
+    World.sun.position.set(x + TH.sun[2], h + TH.sun[3], z + TH.sun[4]);
     World.sun.target.position.set(x, h, z);
   };
 

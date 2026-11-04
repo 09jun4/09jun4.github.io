@@ -21,7 +21,7 @@
     if (pref.mode === 'battle') G.mode = 'battle';
     if (pref.view === 'hood') G.view = 'hood';
   } catch (e) { /* defaults */ }
-  function savePref() { try { localStorage.setItem('f1-champion.drift-ui', JSON.stringify({ car: G.carId, mode: G.mode, view: G.view })); } catch (e) { /* ignore */ } }
+  function savePref(course) { try { localStorage.setItem('f1-champion.drift-ui', JSON.stringify({ car: G.carId, mode: G.mode, view: G.view, course: course || C.SLUG })); } catch (e) { /* ignore */ } }
 
   // --- three.js setup --------------------------------------------------------
   var canvas = $('game');
@@ -200,7 +200,7 @@
     var p = G.player, res = { time: p.finishTime, car: p.spec.id };
     if (G.mode === 'ta') {
       res.pb = DR.Cloud.recordTime(p.spec.id, p.finishTime);
-      res.best = DR.Cloud.save.best[p.spec.id];
+      res.best = DR.Cloud.best(null, p.spec.id);
     } else {
       res.won = !G.rival.finished || G.rival.finishTime > p.finishTime;
       res.gap = G.rival.finished ? G.rival.finishTime - p.finishTime : null;
@@ -342,7 +342,7 @@
     $('hud-rpm-fill').style.width = Math.max(0, Math.min(100, rf * 100)) + '%';
     $('hud-rpm-fill').classList.toggle('red', rf > 0.9);
     $('hud-time').textContent = fmt(G.time);
-    var best = G.mode === 'ta' ? DR.Cloud.save.best[c.spec.id] : null;
+    var best = G.mode === 'ta' ? DR.Cloud.best(null, c.spec.id) : null;
     $('hud-best').textContent = best ? '베스트 ' + fmt(best.time) : '';
     var total = C.samples[C.finishIndex].dist - C.samples[C.startIndex].dist;
     var done = Math.max(0, Math.min(1, (c.prog - C.samples[C.startIndex].dist) / total));
@@ -375,7 +375,7 @@
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'car' + (s.id === G.carId ? ' on' : '');
-      var best = DR.Cloud.save.best[s.id];
+      var best = DR.Cloud.best(null, s.id);
       b.innerHTML = '<b>' + s.name + '</b><small>' + s.tagline + '</small>' +
         '<span class="spec">' + s.engine + ' · ' + s.weight + '</span><span class="spec tune">튜닝: ' + s.tune + '</span>' +
         '<span class="stat">파워 ' + bar(s.stats.power) + '</span><span class="stat">그립 ' + bar(s.stats.grip) + '</span><span class="stat">드리프트 ' + bar(s.stats.drift) + '</span>' +
@@ -386,9 +386,28 @@
     Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
       b.classList.toggle('on', b.getAttribute('data-mode') === G.mode);
     });
+    // Courses: picking another one reloads the page with that mountain.
+    var cl = $('courses');
+    cl.innerHTML = '';
+    C.LIST.forEach(function (d) {
+      var b = document.createElement('button'), len = 0;
+      d.program.forEach(function (c) { len += c[0] === 'S' ? c[1] : c[1] * c[2] * Math.PI / 180; });
+      var cb = DR.Cloud.save.best[d.slug] || {}, best = null;
+      Object.keys(cb).forEach(function (k) { if (!best || cb[k].time < best) best = cb[k].time; });
+      b.type = 'button';
+      b.className = 'course' + (d.slug === C.SLUG ? ' on' : '');
+      b.innerHTML = '<b>' + d.name + '</b><span class="tag">' + d.tag + ' · 약 ' + (len / 1000).toFixed(1) + 'km</span><small>' + d.desc + '</small><span class="pb">내 기록 ' + (best ? fmt(best) : '없음') + '</span>';
+      b.addEventListener('click', function () {
+        if (d.slug === C.SLUG) return;
+        savePref(d.slug);
+        location.search = '?course=' + d.slug;
+      });
+      cl.appendChild(b);
+    });
     var bt = DR.Cloud.save.battle;
     $('battle-rec').textContent = 'AI 배틀 전적 ' + bt.wins + '승 ' + bt.losses + '패';
-    $('course-info').textContent = C.NAME + ' · 길이 ' + (C.raceLength / 1000).toFixed(2) + 'km · 고도차 ' + Math.round(C.drop) + 'm · 헤어핀 5연속';
+    $('course-info').textContent = C.NAME + ' · 길이 ' + (C.raceLength / 1000).toFixed(2) + 'km · 고도차 ' + Math.round(C.drop) + 'm · ' + C.def.tag;
+    $('rank-course').textContent = C.NAME.replace(' 다운힐', '');
     renderAccount();
     renderRanking(false);
   }
