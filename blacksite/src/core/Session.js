@@ -14,6 +14,7 @@ import { NavGraph } from '../ai/NavGraph.js';
 import { Guard } from '../ai/EnemyAI.js';
 import { createPlayerBodyModel } from '../characters/PlayerBodyModel.js';
 import { pickTakedown } from '../animations/assassination/index.js';
+import { MissionManager } from '../missions/MissionManager.js';
 
 // 적 종류 레지스트리 (맵 JSON의 enemies[].type → 클래스, 설정 키)
 export const ENEMY_TYPES = { guard: { cls: Guard, cfg: 'guard' } };
@@ -114,6 +115,9 @@ export class Session {
     this.fovBase = this.cfg.player.camera.fov;
     this.fovAim = this.cfg.player.camera.aimFov;
     this.aimT = 0;
+    // 미션
+    this.mission = new MissionManager(this, this.cfg.mission, this.cfg.logs);
+    this.mission.start();
     this.applySettings(game.save.settings);
     this.disposers.push(bus.on('resize', () => this.onResize()));
     this.disposers.push(bus.on('zone:changed', (z) => {
@@ -227,6 +231,7 @@ export class Session {
     p.update(dt, input);
     this.facility.update(dt);
     if (this.cinematic) this.updateCinematic(dt);
+    this.mission.update(dt);
 
     // 적
     let combat = 0;
@@ -315,6 +320,7 @@ export class Session {
 
   dispose() {
     for (const off of this.disposers) off();
+    this.mission.dispose();
     for (const e of this.enemies) e.dispose();
     this.body.dispose();
     this.rig.dispose();
