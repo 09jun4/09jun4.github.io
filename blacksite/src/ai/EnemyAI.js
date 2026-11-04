@@ -244,6 +244,9 @@ export class Guard {
     this.wantSpeed = 0;
     if (this.alive && !this.inCinematic) this.state.update(this, dt);
     this.speed = this.wantSpeed || 0;
+    // 발소리 (플레이어가 경비원 위치를 소리로 알 수 있게)
+    this.stepAcc = (this.stepAcc || 0) + this.speed * dt;
+    if (this.stepAcc > (this.speed > 2.5 ? 1.5 : 1.0)) { this.stepAcc = 0; this.emit('guard:footstep', { run: this.speed > 2.5 }); }
     this.anim.update(dt, this.alive ? this.speed : 0);
     this.syncTransform();
     const pl = this.session.player;

@@ -115,6 +115,7 @@ export class Session {
     this.fovBase = this.cfg.player.camera.fov;
     this.fovAim = this.cfg.player.camera.aimFov;
     this.aimT = 0;
+    if (game.audio) game.audio.footsteps.zoneAt = this.facility.zoneAt;
     // 미션
     this.mission = new MissionManager(this, this.cfg.mission, this.cfg.logs);
     this.mission.start();
@@ -265,6 +266,7 @@ export class Session {
     if (cand && input.wasPressed('interact')) this.interaction.trigger();
 
     this.updateHud(dt);
+    if (this.game.audio) this.game.audio.setListener(p.x, p.z, p.yaw);
   }
 
   // 탄 판정: 즉시 레이캐스트 + 시각용 섬광·궤적
