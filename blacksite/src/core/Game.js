@@ -123,9 +123,18 @@ export class Game {
     bus.emit('resize', { w, h });
   }
 
+  // 관리자 계정이면 디버그 패널(FPS·AI 상태·웨이포인트, 무적) 사용 가능
+  setAdmin(on) {
+    this.isAdmin = on;
+    if (on) this.enableAdminTools();
+    else if (!this.debug) this.debugPanel?.setAvailable(false);
+  }
+
   enableAdminTools() {
+    if (this.debugPanel) { this.debugPanel.setAvailable(true); return; }
     if (this._adminLoaded) return;
     this._adminLoaded = true;
+    // 관리자 기능은 필요할 때만 불러온다
     import('../admin/DebugPanel.js').then(({ DebugPanel }) => { this.debugPanel = new DebugPanel(this); })
       .catch((e) => console.warn('[Game] debug panel', e));
   }

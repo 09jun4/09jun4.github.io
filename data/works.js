@@ -6,4 +6,6 @@ window.WORKS = [
     desc: '먼작귀 친구 5명이 함께 싸우는 서바이벌 게임' },
   { title: 'F1 Champion', url: '/f1-champion/', thumb: 'assets/thumbs/f1-champion.jpg', date: '2026-10-30',
     desc: '실제 F1 서킷 3D 레이싱 · 튜닝 · AI 대전' },
+  { title: 'BLACKSITE', url: '/blacksite/', thumb: 'assets/thumbs/blacksite.jpg', date: '2026-11-04',
+    desc: '비밀 연구시설 잠입 1인칭 FPS · 암살 · 데이터 탈취' },
 ];

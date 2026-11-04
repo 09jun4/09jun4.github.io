@@ -303,3 +303,12 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 /* 안내 (앱 안 브라우저 등) */
 .notice { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); background: #2a1d07; border: 1px solid #ffb347; color: #ffe2b0; padding: 12px 40px 12px 16px; font-size: 14px; line-height: 1.6; z-index: 60; }
 .notice-x { position: absolute; right: 8px; top: 8px; background: none; border: 0; color: #ffe2b0; cursor: pointer; font-size: 14px; }
+
+/* ---------------- 관리자 디버그 ---------------- */
+.dbg-btn { position: fixed; right: 10px; bottom: 10px; z-index: 70; font: 11px 'Share Tech Mono'; letter-spacing: .1em; background: rgba(10,14,18,.8); border: 1px solid #ffc24a; color: #ffc24a; padding: 3px 7px; cursor: pointer; opacity: .6; }
+.dbg-btn:hover { opacity: 1; }
+.dbg { position: fixed; right: 10px; top: 40px; width: 260px; z-index: 70; background: rgba(8,10,12,.92); border: 1px solid #ffc24a; padding: 10px 12px; font: 12px 'Share Tech Mono', monospace; color: #e6d7b0; display: flex; flex-direction: column; gap: 6px; }
+.dbg-h { display: flex; justify-content: space-between; color: #ffc24a; letter-spacing: .15em; } .dbg-h span { color: #8a7a55; }
+.dbg label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.dbg-ai div { padding: 2px 0; border-bottom: 1px dashed #2a2a20; }
+.dbg .st-patrol { color: #8fd18f; } .dbg .st-suspicious, .dbg .st-search { color: #ffd23a; } .dbg .st-alert, .dbg .st-combat { color: #ff5b4b; } .dbg .st-down { color: #666; }
