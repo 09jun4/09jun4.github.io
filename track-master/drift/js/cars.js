@@ -54,7 +54,7 @@
         // B6 with a bolt-on turbo kit and blow-off valve, cat-back exhaust.
         tune: 'B6 · 볼트온 터보 키트 · 블로오프 밸브 · 캣백 머플러',
         sound: { pulses: 2, harm: [1, 0.5, 0.36, 0.22, 0.15, 0.1, 0.06], sub: 0.45, drive: 1.8, res: 2.5, cut: 3000, level: 1.0,
-          rasp: 0.45, raspF: 1300, raspQ: 1.6, intake: 0.3, turbo: 0.85, turboPitch: 1.1, spool: 2.6, spoolAt: 0.28, bov: 'pssh', pops: 0.6 },
+          rasp: 0.45, raspF: 1300, raspQ: 1.6, intake: 0.3, turbo: 0.85, turboPitch: 1.1, spool: 2.6, spoolAt: 0.28, bov: 'pssh', pops: 0 },
         physics: { FINAL_DRIVE: 4.8, TORQUE_SCALE: 0.76, CAR_MASS: 840, DRAG_COEF: 0.38, TIRE_GRIP_TARMAC: 1.32,
           MAX_STEER_ANGLE: 0.6, STEER_RESPONSE_RATE: 7.2, DRIFT_TURN_ACCEL: 2.15, DRIFT_SPEED_COST: 0.36,
           CAR_HALF_WIDTH: 0.84, CAR_HALF_LENGTH: 1.98, REDLINE_RPM: 7200 },

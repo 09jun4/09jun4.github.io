@@ -169,9 +169,9 @@
         if (thr < 0.5) v.boost *= 0.4;
       }
       // Overrun pops after lifting at high revs; blip on downshift.
-      if (v.lastThrottle > 0.5 && thr < 0.5 && rf > 0.5) v.popUntil = t + 0.6 + S.pops * 0.8;
-      if (c.gear < v.lastGear) { v.blipUntil = t + 0.14; v.popUntil = Math.max(v.popUntil, t + 0.35); }
-      if (thr < 0.5 && t < v.popUntil && t > v.nextPop && rf > 0.25) {
+      if (S.pops > 0 && v.lastThrottle > 0.5 && thr < 0.5 && rf > 0.5) v.popUntil = t + 0.6 + S.pops * 0.8;
+      if (c.gear < v.lastGear) { v.blipUntil = t + 0.14; if (S.pops > 0) v.popUntil = Math.max(v.popUntil, t + 0.35); }
+      if (S.pops > 0 && thr < 0.5 && t < v.popUntil && t > v.nextPop && rf > 0.25) {
         pop(v, t, 0.12 * S.pops * (0.6 + Math.random() * 0.6));
         v.nextPop = t + 0.04 + Math.random() * 0.16;
       }
