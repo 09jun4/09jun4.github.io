@@ -15,11 +15,11 @@ export class PlayState {
     this.fade = g.cfg.game.fadeInTime;
     g.ui.show('hud');
     g.ui.fadeFromBlack(this.fade);
-    g.input.requestLock();
+    if (!g.autoplay) g.input.requestLock();
     this.offs.push(bus.on('input:escape', () => this.togglePause()));
-    this.offs.push(bus.on('input:unlocked', () => { if (!g.session.paused && !g.ui.modalOpen) this.pause(); }));
+    this.offs.push(bus.on('input:unlocked', () => { if (!g.autoplay && !g.session.paused && !g.ui.modalOpen) this.pause(); }));
     // 브라우저가 포인터 락을 거부하면(ESC 직후 재요청 등) 일시정지 패널로 돌아가 다시 누르게 한다
-    this.offs.push(bus.on('input:lockerror', () => { if (g.session && !g.session.paused && !g.ui.modalOpen && !g.session.ended && this.fade <= 0) this.pause(); }));
+    this.offs.push(bus.on('input:lockerror', () => { if (!g.autoplay && g.session && !g.session.paused && !g.ui.modalOpen && !g.session.ended && this.fade <= 0) this.pause(); }));
     this.offs.push(bus.on('mission:failed', (info) => {
       g.ui.fadeToBlack?.(0.9);
       setTimeout(() => { if (g.fsm.current === this) g.fsm.change('failure', { ...info, difficulty: this.difficulty }); }, 1100);
@@ -28,7 +28,7 @@ export class PlayState {
       g.ui.fadeToBlack?.(0.8);
       setTimeout(() => { if (g.fsm.current === this) g.fsm.change('results', result); }, 900);
     }));
-    this.game.canvas.onclick = () => { if (!g.session.paused && !g.ui.modalOpen) g.input.requestLock(); };
+    this.game.canvas.onclick = () => { if (!g.autoplay && !g.session.paused && !g.ui.modalOpen) g.input.requestLock(); };
   }
 
   exit() {
@@ -58,7 +58,7 @@ export class PlayState {
     s.paused = false;
     this.game.ui.hidePause();
     this.game.audio?.suspendGame(false);
-    this.game.input.requestLock();
+    if (!this.game.autoplay) this.game.input.requestLock();
   }
   togglePause() {
     const s = this.game.session;
@@ -75,7 +75,9 @@ export class PlayState {
       this.fade -= dt;
       if (this.fade <= 0) s.controlsEnabled = true;
     }
-    s.update(dt);
+    // 배속(자동 플레이 관전): 같은 dt로 여러 번 갱신
+    const n = Math.max(1, Math.round(this.game.timeScale || 1));
+    for (let i = 0; i < n; i++) { s.update(dt); if (this.game.fsm.current !== this) return; }
     s.render(this.game.renderer);
   }
 }

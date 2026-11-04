@@ -312,3 +312,29 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px;
 .dbg label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
 .dbg-ai div { padding: 2px 0; border-bottom: 1px dashed #2a2a20; }
 .dbg .st-patrol { color: #8fd18f; } .dbg .st-suspicious, .dbg .st-search { color: #ffd23a; } .dbg .st-alert, .dbg .st-combat { color: #ff5b4b; } .dbg .st-down { color: #666; }
+
+/* ---------------- 자동 플레이 관전 ---------------- */
+.spec { position: fixed; right: 16px; top: 16px; width: min(380px, calc(100vw - 32px)); z-index: 40; background: rgba(6,9,12,.86); border: 1px solid #22303c; border-top: 2px solid var(--blue); padding: 10px 12px 12px; font: 12px 'Share Tech Mono', monospace; color: var(--text); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
+.spec-head { display: flex; justify-content: space-between; letter-spacing: .12em; }
+.spec-live { color: #ff5b4b; animation: blink 1.4s steps(2) infinite; }
+.spec-run { color: var(--dim); }
+.spec-map { width: 100%; height: auto; display: block; border: 1px solid #1a2836; }
+.spec-bot { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.spec-bot .lbl { font: 600 11px Rajdhani; letter-spacing: .3em; color: var(--blue2); }
+.spec-bot b { font: 600 17px 'Noto Sans KR', sans-serif; color: #fff; }
+.spec-obj { color: var(--dim); font-family: 'Noto Sans KR', sans-serif; font-size: 12px; }
+.spec-guards { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; font-family: 'Noto Sans KR', sans-serif; }
+.spec-guards span { display: flex; align-items: center; gap: 6px; }
+.spec-guards i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+.spec-guards em { margin-left: auto; font-style: normal; color: var(--c); }
+.spec-feed { display: flex; flex-direction: column; gap: 2px; min-height: 60px; font-family: 'Noto Sans KR', sans-serif; border-top: 1px dashed #1d2833; padding-top: 6px; }
+.spec-feed div { color: #b8c4ce; } .spec-feed i { font-style: normal; color: #55636f; margin-right: 8px; font-family: 'Share Tech Mono', monospace; }
+.spec-feed .good { color: #6ff0a8; } .spec-feed .bad { color: #ff7b6b; }
+.spec-ctrl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.spec-ctrl .btn.small { padding: 5px 12px; font-size: 13px; }
+.spec-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--dim); }
+.spec-stats b { color: #e7eef4; font-weight: normal; }
+.spec-stats .hist { display: inline-flex; gap: 3px; margin-left: auto; align-items: center; }
+.spec-stats .hist i { width: 9px; height: 9px; } .spec-stats .hist .ok { background: #3dff8a; } .spec-stats .hist .no { background: #ff5b4b; }
+body.autoplay .hud-objective { top: 16px; }
+@media (max-width: 720px) { .spec { top: auto; bottom: 12px; right: 12px; width: calc(100vw - 24px); } .spec-feed, .spec-guards { display: none; } }

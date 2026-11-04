@@ -94,7 +94,7 @@ export class UI {
     this.difficulty = difficulty;
     this.fadeToBlack(0.5);
     // 포인터 락은 사용자 입력 안에서 요청해야 해서 클릭 시점에 미리 요청
-    this.game.input.requestLock();
+    if (!this.game.autoplay) this.game.input.requestLock();
     setTimeout(() => this.game.fsm.change('playing', { difficulty }), 520);
   }
 
@@ -171,7 +171,7 @@ export class UI {
       s.paused = false;
       g.audio?.suspendGame(false);
       if (via === 'esc' || via === 'silent') { if (via === 'esc') g.fsm.current.pause?.(); return; }
-      g.input.requestLock();
+      if (!g.autoplay) g.input.requestLock();
     } });
   }
 

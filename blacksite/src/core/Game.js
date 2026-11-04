@@ -35,6 +35,9 @@ export class Game {
     this.save = new SaveManager();
     this.isAdmin = false;
     this.debug = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]debug\b/.test(location.search);
+    // AI 자동 플레이(관전) 모드: ?autoplay 또는 window.BLACKSITE_AUTOPLAY
+    this.autoplay = !!window.BLACKSITE_AUTOPLAY || /[?&]autoplay\b/.test(location.search);
+    this.timeScale = 1;
   }
 
   async init() {
@@ -78,6 +81,12 @@ export class Game {
       this.auth.init();
     } catch (e) { console.warn('[Game] auth unavailable', e); }
 
+    if (this.autoplay) {
+      document.body.classList.add('autoplay');
+      const { Director } = await import('../autoplay/Director.js');
+      const m = /[?&]difficulty=(easy|normal|hard)/.exec(location.search);
+      this.director = new Director(this, { difficulty: m ? m[1] : 'normal' });
+    }
     this.loop = new Loop((dt, t) => this.frame(dt, t));
     await this.fsm.change('menu');
     this.loop.start();
@@ -89,6 +98,7 @@ export class Game {
   frame(dt, t) {
     this.M.update(t);
     this.fsm.update(dt, t);
+    this.director?.update(dt);
     this.ui.update(dt);
     this.input.endFrame();
   }

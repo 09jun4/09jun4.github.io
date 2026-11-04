@@ -217,6 +217,7 @@ export class Session {
   update(dt) {
     if (this.paused) return;
     const input = this.game.input;
+    if (this.autopilot) this.autopilot.update(dt); // 자동 플레이: 봇이 입력을 넣는다
     this.time += dt;
     const p = this.player;
     const w = this.weapon;

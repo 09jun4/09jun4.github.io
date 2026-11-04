@@ -4,6 +4,9 @@ const cache = new Map();
 
 export async function loadConfig(path) {
   if (cache.has(path)) return cache.get(path);
+  // 단일 파일 빌드(아티팩트)에서는 설정을 페이지에 내장한다
+  const inline = window.__BLACKSITE_CONFIGS__;
+  if (inline && inline[path]) return structuredClone(inline[path]);
   const p = fetch(new URL(path, BASE), { cache: 'no-cache' }).then((r) => {
     if (!r.ok) throw new Error(`config ${path}: HTTP ${r.status}`);
     return r.json();
