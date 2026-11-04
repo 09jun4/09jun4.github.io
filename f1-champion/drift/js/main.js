@@ -317,7 +317,7 @@
     m.position.set(s.x, s.h, -s.y);
     m.rotation.y = s.heading;
     m.userData.body.rotation.set(0, 0, Math.atan(s.grade));
-    var a = window.__a != null ? window.__a : menuT * 0.25, r = 9.5;
+    var a = window.__a != null ? window.__a : menuT * 0.25, r = window.__r || 9.5;
     camera.position.set(s.x + Math.cos(a) * r, s.h + 2.2, -(s.y + Math.sin(a) * r));
     camera.lookAt(s.x, s.h + 0.7, -s.y);
     // Wide screens: the menu sits on the left, so frame the car on the right.
