@@ -6,7 +6,7 @@ import { clamp, damp, lerp, smooth } from '../../utils/math.js';
 const LOW_READY = {
   rShoulder: [-0.35, 0, -0.12], rElbow: [-1.0, 0.25, 0],
   lShoulder: [-0.7, 0, 0.3], lElbow: [-1.1, -0.2, 0],
-  weapon: [0.6, -0.45, 0.2], chest: [0.04, 0, 0], head: [0.05, 0, 0],
+  weapon: [0.6, -0.45, 0.2], chest: [0, 0, 0], head: [0.05, 0, 0],
 };
 const AIM = {
   rShoulder: [-1.25, 0, -0.32], rElbow: [-0.75, 0.3, 0],
@@ -70,19 +70,21 @@ export class JointAnimator {
     J.rKnee.rotation.x = R.rKnee.rot.x + Math.max(0, -Math.sin(ph + 1.3)) * 0.85 * Math.min(k, 1.3) + 0.05;
     J.hips.position.y = R.hips.pos.y + Math.abs(Math.cos(ph)) * 0.025 * Math.min(k, 1) - 0.02 * Math.min(k, 1);
     J.hips.rotation.y = Math.sin(ph) * 0.08 * Math.min(k, 1);
-    J.spine.rotation.y = -Math.sin(ph) * 0.06 * Math.min(k, 1);
-    J.spine.rotation.x = 0.06 * Math.max(0, k - 1); // 달릴 때 앞으로 숙임
+    // 상체는 기울이지 않는다 (앞으로 숙이기·옆으로 기울이기 없음, 걸을 때 아주 약한 비틀림만)
+    J.spine.rotation.set(0, -Math.sin(ph) * 0.06 * Math.min(k, 1), 0);
     // 숨쉬기
-    J.chest.rotation.x += Math.sin(this.time * 1.6) * 0.012;
+    // 숨쉬기: 기울이지 않고 가슴이 아주 살짝 오르내림
+    J.chest.position.y = R.chest.pos.y + Math.sin(this.time * 1.6) * 0.004;
     // 고개
     J.head.rotation.y = this.headYaw;
     J.neck.rotation.y = this.headYaw * 0.3;
     // 피격 움찔
     if (this.flinch > 0) {
       const f = smooth(this.flinch);
-      J.chest.rotation.x -= 0.25 * f;
-      J.head.rotation.x -= 0.2 * f;
-      J.spine.rotation.z += 0.12 * f;
+      // 피격 움찔: 상체는 그대로, 고개와 팔만 반응
+      J.head.rotation.x -= 0.25 * f;
+      J.rShoulder.rotation.x += 0.2 * f;
+      J.lShoulder.rotation.x += 0.2 * f;
     }
     // 사격 반동
     if (this.fireKick > 0) {

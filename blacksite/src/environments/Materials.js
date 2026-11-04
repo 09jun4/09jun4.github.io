@@ -98,7 +98,9 @@ export function createMaterials() {
     ledGreen: S({ color: 0x000000, emissive: 0x3dff8a, emissiveIntensity: 2.0 }),
     ledRed: S({ color: 0x000000, emissive: 0xff2a2a, emissiveIntensity: 2.2 }),
     ledAmber: S({ color: 0x000000, emissive: 0xffa020, emissiveIntensity: 2.0 }),
-    liquid: new THREE.MeshStandardMaterial({ color: 0x0c4a4a, emissive: 0x1fb5a8, emissiveIntensity: 0.3, roughness: 0.2, transparent: true, opacity: 0.75, depthWrite: false }),
+    // 전원이 꺼진 화면 (검은 유리)
+    screenOff: S({ color: 0x07090b, roughness: 0.15, metalness: 0.4 }),
+    liquid: new THREE.MeshStandardMaterial({ color: 0x082a2a, emissive: 0x1fb5a8, emissiveIntensity: 0.02, roughness: 0.2, transparent: true, opacity: 0.75, depthWrite: false }),
     beacon: S({ color: 0x220000, emissive: 0xff3a10, emissiveIntensity: 2.0 }),
   };
   for (const k of ['ledBlue', 'ledGreen', 'ledRed', 'ledAmber', 'lightPanel', 'beacon', 'screenBlue', 'screenGreen', 'screenAmber', 'screenTeal']) {

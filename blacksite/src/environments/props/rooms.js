@@ -50,7 +50,7 @@ export function labTable(def, M) {
     const l = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), M.liquid, x, 0.96, z); l.userData.noMerge = true; g.add(l);
   });
   g.add(mesh(roundedBox(0.5, 0.25, 0.4, 0.02), M.plasticGrey, 0.8, 1.05, -0.1));
-  const sc = mesh(new THREE.PlaneGeometry(0.2, 0.1), M.screenTeal, 0.8, 1.08, 0.105); sc.castShadow = false; g.add(sc);
+  const sc = mesh(new THREE.PlaneGeometry(0.2, 0.1), M.screenOff, 0.8, 1.08, 0.105); sc.castShadow = false; g.add(sc);
   return { object: g };
 }
 
@@ -68,7 +68,7 @@ export function specimenTank(def, M) {
   blob.scale.set(1, 1.8, 0.9);
   g.add(blob);
   for (const a of [0, 2.1, 4.2]) g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 6), M.metal, Math.cos(a) * 0.47, 1.22, Math.sin(a) * 0.47));
-  const ring = mesh(new THREE.TorusGeometry(0.47, 0.025, 6, 20), M.ledBlue, 0, 0.36, 0, Math.PI / 2, 0, 0);
+  const ring = mesh(new THREE.TorusGeometry(0.47, 0.025, 6, 20), M.metalDark, 0, 0.36, 0, Math.PI / 2, 0, 0); // 조명 링 꺼짐
   ring.castShadow = false;
   g.add(ring);
   return { object: g };
