@@ -1,6 +1,7 @@
 // UI 관리자 (M1 임시판 — M6에서 메뉴·설정 화면으로 확장)
 import { bus } from '../core/EventBus.js';
 import { el } from '../utils/dom.js';
+import { HUD } from './HUD.js';
 
 export class UI {
   constructor(game) {
@@ -11,8 +12,8 @@ export class UI {
     this.root.appendChild(this.fade);
     this.screen = el('div', 'screen');
     this.root.appendChild(this.screen);
-    this.hud = el('div', 'hud hidden', '<div class="hud-debug"></div><div class="crosshair"></div>');
-    this.root.appendChild(this.hud);
+    this.hud = new HUD(this.root);
+    this.dbg = el('div', 'hud-debug'); this.root.appendChild(this.dbg);
     this.pauseEl = el('div', 'overlay hidden', '<div class="panel"><h2>PAUSED</h2><button data-a="resume">RESUME</button><button data-a="menu">MAIN MENU</button></div>');
     this.root.appendChild(this.pauseEl);
     this.pauseEl.addEventListener('click', (e) => {
@@ -23,7 +24,7 @@ export class UI {
     this._t = 0;
   }
   show(name) {
-    this.hud.classList.toggle('hidden', name !== 'hud');
+    this.hud.show(name === 'hud');
     this.hidePause();
     if (name === 'menu') {
       this.screen.innerHTML = '<div class="menu"><h1>BLACKSITE</h1><button data-a="start">GAME START</button></div>';
@@ -39,12 +40,13 @@ export class UI {
     requestAnimationFrame(() => { this.fade.style.transition = `opacity ${t}s ease`; this.fade.style.opacity = 0; });
   }
   update(dt) {
+    this.hud.update(dt);
     this._t += dt;
     const s = this.game.session;
     if (s && this._t > 0.25) {
       this._t = 0;
       const p = s.player;
-      this.hud.querySelector('.hud-debug').textContent =
+      this.dbg.textContent =
         `FPS ${this.game.loop.fps.toFixed(0)} · ${s.zone ? s.zone.nameEn : '-'} · ${p.x.toFixed(1)}, ${p.z.toFixed(1)} · ${p.stance.name}`;
     }
   }

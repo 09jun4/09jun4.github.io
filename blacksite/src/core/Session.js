@@ -5,6 +5,12 @@ import { bus } from './EventBus.js';
 import { CollisionWorld } from '../physics/Collision.js';
 import { build as buildFacility } from '../environments/FacilityBuilder.js';
 import { PlayerController } from '../player/PlayerController.js';
+import { FirstPersonRig } from '../player/FirstPersonRig.js';
+import { Interaction } from '../player/Interaction.js';
+import { Pistol } from '../weapons/Pistol.js';
+import { WorldEffects } from '../weapons/Effects.js';
+import { getEnvironment } from '../environments/EnvMap.js';
+import { clamp, DEG } from '../utils/math.js';
 
 export function hfovToV(hfovDeg, aspect) {
   return (2 * Math.atan(Math.tan((hfovDeg * Math.PI) / 360) / aspect) * 180) / Math.PI;
@@ -25,6 +31,8 @@ export class Session {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x050607);
     this.scene.fog = new THREE.Fog(0x050607, 28, 70);
+    this.scene.environment = getEnvironment(game.renderer);
+    this.scene.environmentIntensity = 0.35;
     this.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, this.cfg.player.camera.near, this.cfg.player.camera.far);
     this.scene.add(this.camera);
     this.collision = new CollisionWorld();
@@ -36,11 +44,41 @@ export class Session {
 
     this.player = new PlayerController(this.cfg.player, this.collision, this.camera);
     this.player.spawn(this.cfg.map.spawn.pos, this.cfg.map.spawn.yawDeg);
+
+    // 무기 + 1인칭 리그
+    this.weapon = new Pistol(this.cfg.pistol);
+    this.rig = new FirstPersonRig(this.weapon, this.cfg.player);
+    this.rig.scene.environment = this.scene.environment;
+    this.rig.scene.environmentIntensity = 0.55;
+    this.effects = new WorldEffects(this.scene);
+    this.targets = []; // 사격 대상: { rayTest(o, d, max) → {t, part}, onHit(dmg, info) }
+    this.hud = game.ui.hud;
+    this.hud.reset();
+
+    // 상호작용
+    this.interaction = new Interaction(this);
+    this.interaction.add({
+      find: (it) => {
+        let best = null, bestD = this.cfg.game.interact.distance;
+        for (const d of this.facility.doors) {
+          const t = it.aimDistance(d.interactBox, bestD);
+          if (t !== null && t < bestD) { bestD = t; best = d; }
+        }
+        if (!best) return null;
+        return { priority: 40, label: best.locked ? 'LOCKED' : best.label, action: () => {
+          if (best.toggle(this.allChars())) bus.emit('door:toggled', { door: best });
+        } };
+      },
+    });
     this.fovBase = this.cfg.player.camera.fov;
     this.fovAim = this.cfg.player.camera.aimFov;
     this.aimT = 0;
     this.applySettings(game.save.settings);
     this.disposers.push(bus.on('resize', () => this.onResize()));
+    this.disposers.push(bus.on('zone:changed', (z) => {
+      const L = z.lights && z.lights[0];
+      if (L) this.rig.setTint(L.color);
+    }));
     this.onResize();
     this.zone = null;
   }
@@ -58,6 +96,7 @@ export class Session {
   onResize() {
     this.camera.aspect = innerWidth / innerHeight;
     this.updateFov();
+    this.rig?.onResize();
   }
   updateFov() {
     const h = this.fovBase + (this.fovAim - this.fovBase) * this.aimT;
@@ -65,47 +104,103 @@ export class Session {
     this.camera.updateProjectionMatrix();
   }
 
-  get playerChars() { return [{ x: this.player.x, z: this.player.z }]; }
+  // 문 닫힘 판정 등에 쓰는 캐릭터 위치 목록 (적은 M3에서 추가)
+  allChars() { return [{ x: this.player.x, z: this.player.z }]; }
 
   update(dt) {
     if (this.paused) return;
     const input = this.game.input;
     this.time += dt;
     const p = this.player;
-    p.frozen = !this.controlsEnabled;
+    const w = this.weapon;
+    p.frozen = !this.controlsEnabled || this.cinematic;
+
+    // 조준(ADS)
+    const aiming = !p.frozen && input.isDown('aim') && !w.reloading && !p.sprinting;
+    p.aiming = aiming;
+    const at = this.cfg.player.camera.aimTransition;
+    this.aimT = clamp(this.aimT + (aiming ? dt : -dt) / at, 0, 1);
+    this.updateFov();
+
     p.update(dt, input);
     this.facility.update(dt);
+
+    // 사격·재장전
+    w.update(dt);
+    if (!p.frozen) {
+      if (input.wasPressed('reload')) w.startReload();
+      if (w.wantsFire(input) && !p.sprinting) w.tryFire(this);
+    }
+    this.rig.update(dt, p, this.aimT);
+    this.effects.update(dt);
+
     // 구역 변경
     const z = this.facility.zoneAt(p.x, p.z);
     if (z && z !== this.zone) { this.zone = z; bus.emit('zone:changed', z); }
-    // 문 (M1: 정면 문 F로 열기)
-    if (this.controlsEnabled && input.wasPressed('interact')) this.tryInteract();
+
+    // 상호작용
+    const cand = p.frozen ? null : this.interaction.update();
+    this.hud.setPrompt(cand ? cand.label : null);
+    if (cand && input.wasPressed('interact')) this.interaction.trigger();
+
+    this.updateHud(dt);
   }
 
-  tryInteract() {
-    const p = this.player;
-    const dir = p.getForward(new THREE.Vector3());
-    let best = null, bestD = this.cfg.game.interact.distance;
-    for (const d of this.facility.doors) {
-      const b = d.interactBox;
-      const hit = rayBoxDist(p.eye, dir, b, bestD);
-      if (hit !== null && hit < bestD) { bestD = hit; best = d; }
+  // 탄 판정: 즉시 레이캐스트 + 시각용 섬광·궤적
+  shoot(weapon) {
+    const c = weapon.cfg, p = this.player;
+    const spreadDeg = (this.aimT > 0.8 ? c.aimSpreadDeg : c.spreadDeg) + c.moveSpreadDeg * p.speedNorm * (1 - this.aimT * 0.7) + (p.onGround ? 0 : 1.5);
+    const dir = this.camera.getWorldDirection(new THREE.Vector3());
+    if (spreadDeg > 0) {
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spreadDeg * DEG;
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      dir.addScaledVector(up, Math.sin(a) * r).addScaledVector(right, Math.cos(a) * r).normalize();
     }
-    if (best) best.toggle(this.playerChars);
+    const o = p.eye;
+    const range = c.range;
+    const wall = this.collision.raycast(o.x, o.y, o.z, dir.x, dir.y, dir.z, range, 'bullet');
+    let best = null, bestT = wall ? wall.dist : range;
+    for (const tg of this.targets) {
+      const h = tg.rayTest(o, dir, bestT);
+      if (h && h.t < bestT) { bestT = h.t; best = { target: tg, ...h }; }
+    }
+    const end = new THREE.Vector3().copy(o).addScaledVector(dir, bestT);
+    const muzzle = this.rig.muzzleWorld(this.camera);
+    this.effects.tracer(muzzle, end, c.tracer.speed, c.tracer.length);
+    this.effects.muzzleFlash(muzzle, c.muzzleFlash.lightIntensity);
+    this.rig.fire(weapon.ammo === 0);
+    p.addRecoil(c.recoil.pitchDeg * DEG * (1 - this.aimT * 0.35), (Math.random() - 0.5) * 2 * c.recoil.yawDeg * DEG);
+    if (best) {
+      const dmg = c.damage * (best.part === 'head' ? c.headshotMultiplier : 1);
+      const res = best.target.onHit(dmg, { part: best.part, point: end, dir, from: o });
+      this.effects.impact(end, null, { decal: false, spark: true });
+      this.hud.hitMarker(res && res.killed);
+      bus.emit('shot:hit', { target: best.target, killed: res && res.killed, part: best.part });
+    } else if (wall) {
+      this.effects.impact(end, new THREE.Vector3(wall.nx, wall.ny, wall.nz));
+      bus.emit('shot:impact', { point: end, material: wall.box ? wall.box.material : 'concrete' });
+    }
+  }
+
+  updateHud() {
+    const p = this.player, w = this.weapon, h = this.hud;
+    h.setHealth(p.health.hp, p.health.max);
+    h.setAmmo(w.ammo, w.reserve, w.magSize, w.reloading);
+    const spread = 6 + p.speedNorm * 14 + (p.onGround ? 0 : 10) + (w.lastShotT < 0.12 ? 6 : 0);
+    h.setCrosshair(spread, this.aimT > 0.6, p.sprinting || w.reloading || !!this.cinematic);
+    h.setFps(this.game.loop.fps, this.game.save.settings.graphics.showFps);
   }
 
   render(renderer) {
     renderer.render(this.scene, this.camera);
+    if (!this.cinematic) this.rig.render(renderer);
   }
 
   dispose() {
     for (const off of this.disposers) off();
+    this.rig.dispose();
+    this.effects.dispose();
     this.facility.dispose();
   }
-}
-
-import { rayAABB } from '../physics/Raycast.js';
-function rayBoxDist(o, d, b, max) {
-  const h = rayAABB(o.x, o.y, o.z, d.x, d.y, d.z, b, max);
-  return h ? h.t : null;
 }

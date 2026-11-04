@@ -57,8 +57,8 @@ export class Door {
     // 상호작용 영역: 문 개구부
     const hw = w / 2 + 0.1, ht = t / 2 + 0.25;
     this.interactBox = this.axis === 'x'
-      ? makeBox(this.cx - hw, 0, this.cz - ht, this.cx + hw, h, this.cz + ht, { type: 'interact' })
-      : makeBox(this.cx - ht, 0, this.cz - hw, this.cx + ht, h, this.cz + hw, { type: 'interact' });
+      ? makeBox(this.cx - hw, 0, this.cz - ht, this.cx + hw, h, this.cz + ht, { type: 'interact', ref: this })
+      : makeBox(this.cx - ht, 0, this.cz - hw, this.cx + ht, h, this.cz + hw, { type: 'interact', ref: this });
 
     // 문 양쪽의 길찾기 지점
     const off = t / 2 + 0.7;
