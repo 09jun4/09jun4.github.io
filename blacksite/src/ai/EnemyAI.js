@@ -204,7 +204,7 @@ export class Guard {
     if (!this.alive) return { killed: false };
     this.health -= dmg;
     this.anim.hit();
-    this.emit('guard:hit', { part: info.part });
+    if (this.health > 0) this.emit('guard:hit', { part: info.part });
     if (this.health <= 0) {
       // 앞에서 맞으면 뒤로, 뒤에서 맞으면 앞으로 쓰러진다
       const fromFront = Math.abs(wrapAngle(yawTo(info.from.x - this.pos.x, info.from.z - this.pos.z) - this.yaw)) < Math.PI / 2;

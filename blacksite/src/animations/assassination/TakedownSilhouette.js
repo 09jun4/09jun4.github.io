@@ -10,6 +10,12 @@ const seg = (t, a, b) => smooth(clamp((t - a) / (b - a), 0, 1));
 export default {
   id: 'silhouette',
   duration: 2.6,
+  // 소리 신호: 붙잡기 → (컷 B로 넘어가는 순간) 칼로 찌르기 → 낮은 '윽'
+  cues: [
+    { t: 0.32, sound: 'grab' },
+    { t: 1.3, sound: 'stab' },
+    { t: 1.39, sound: 'grunt' },
+  ],
 
   start(ctx) {
     const g = ctx.guard, body = ctx.body;

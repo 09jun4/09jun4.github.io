@@ -191,6 +191,10 @@ export class Session {
     const c = this.cinematic;
     c.t += dt;
     c.seq.update(c.ctx, Math.min(c.t, c.seq.duration), dt);
+    // 연출 시간표의 소리 신호
+    for (const cue of c.seq.cues || []) {
+      if (!c.fired?.has(cue) && c.t >= cue.t) { (c.fired ||= new Set()).add(cue); bus.emit('takedown:cue', { ...cue, guard: c.ctx.guard }); }
+    }
     if (c.t < c.seq.duration) return;
     c.seq.end(c.ctx);
     const g = c.ctx.guard;

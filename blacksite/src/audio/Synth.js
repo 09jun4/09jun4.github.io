@@ -64,6 +64,20 @@ export const SOUNDS = {
   alert: (ctx) => make(ctx, 0.45, 1, (d, n) => { for (let i = 0; i < n; i++) { const t = i / SR; const f = t < 0.12 ? 740 : 988; d[i] = Math.sign(Math.sin(2 * Math.PI * f * t)) * 0.12 * env(t % 0.15, 0.003, 0.08) * (t < 0.3); } }),
   suspicious: (ctx) => make(ctx, 0.3, 1, (d, n) => { for (let i = 0; i < n; i++) { const t = i / SR; d[i] = Math.sin(2 * Math.PI * (520 + t * 300) * t) * env(t, 0.01, 0.1) * 0.25; } }),
   takedown: (ctx) => make(ctx, 1.2, 1, (d, n) => { const f = lp(0.04), g = lp(0.02); for (let i = 0; i < n; i++) { const t = i / SR; const whoosh = f(rnd()) * Math.exp(-((t - 0.25) ** 2) / 0.01) * 2.5; const thud = (Math.sin(2 * Math.PI * 55 * t) + g(rnd()) * 3) * (t > 0.9 ? env(t - 0.9, 0.004, 0.1) : 0); d[i] = (whoosh + thud) * 0.7; } }),
+  // 뒤에서 붙잡을 때 옷·장비가 스치는 소리
+  grab: (ctx) => make(ctx, 0.35, 1, (d, n) => { const f = lp(0.18), h = hp(0.6); for (let i = 0; i < n; i++) { const t = i / SR; const rustle = h(f(rnd())) * 3 * Math.sin(Math.PI * Math.min(1, t / 0.3)) * (0.6 + 0.4 * Math.sin(t * 90)); const tug = Math.sin(2 * Math.PI * 85 * t) * env(Math.max(0, t - 0.05), 0.003, 0.05) * 0.5 * (t > 0.05); d[i] = (rustle + tug) * 0.6; } }),
+  // 칼로 찌르는 소리: 짧은 칼날 스침 → 둔탁하게 박히는 소리 → 짧은 마찰
+  stab: (ctx) => make(ctx, 0.45, 1, (d, n) => {
+    const h = hp(0.75), f = lp(0.08), g = lp(0.03);
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      const swish = h(rnd()) * Math.exp(-((t - 0.03) ** 2) / 0.0004) * 0.7;
+      const ring = Math.sin(2 * Math.PI * 3100 * t) * env(Math.max(0, t - 0.055), 0.001, 0.02) * 0.12 * (t > 0.055);
+      const hit = (f(rnd()) * 3.2 + Math.sin(2 * Math.PI * (95 - t * 120) * t) * 1.1) * (t > 0.06 ? env(t - 0.06, 0.002, 0.045) : 0);
+      const drag = g(rnd()) * 2.4 * (t > 0.1 ? env(t - 0.1, 0.02, 0.07) : 0) * (0.6 + 0.4 * Math.sin(t * 160));
+      d[i] = Math.tanh((swish + ring + hit + drag) * 1.3) * 0.85;
+    }
+  }),
   impact: (ctx) => make(ctx, 0.12, 1, (d, n) => { const f = hp(0.5); for (let i = 0; i < n; i++) { const t = i / SR; d[i] = f(rnd()) * env(t, 0.0005, 0.02) * 0.8; } }),
   whiz: (ctx) => make(ctx, 0.25, 1, (d, n) => { const f = hp(0.85); for (let i = 0; i < n; i++) { const t = i / SR; d[i] = f(rnd()) * Math.exp(-((t - 0.08) ** 2) / 0.002) * 0.6; } }),
   log: (ctx) => make(ctx, 0.3, 1, (d, n) => { for (let i = 0; i < n; i++) { const t = i / SR; d[i] = (Math.sin(2 * Math.PI * 660 * t) * (t < 0.1) + Math.sin(2 * Math.PI * 990 * t) * (t > 0.12 && t < 0.24)) * 0.25 * env(t % 0.12, 0.003, 0.06); } }),

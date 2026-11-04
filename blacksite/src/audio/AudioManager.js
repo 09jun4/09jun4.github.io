@@ -3,6 +3,13 @@
 import { bus } from '../core/EventBus.js';
 import { assetUrl } from '../core/ConfigLoader.js';
 import { SOUNDS, AMBIENCE, MUSIC } from './Synth.js';
+import { voiceBuffer, PAIN, DEATH, TAKEDOWN_GRUNT } from './Voice.js';
+
+// 음성 효과음 등록: pain0~5, death0~2, grunt0~1
+PAIN.forEach((o, i) => { SOUNDS['pain' + i] = (ctx) => voiceBuffer(ctx, o); });
+DEATH.forEach((o, i) => { SOUNDS['death' + i] = (ctx) => voiceBuffer(ctx, o); });
+TAKEDOWN_GRUNT.forEach((o, i) => { SOUNDS['grunt' + i] = (ctx) => voiceBuffer(ctx, o); });
+const VARIANTS = { pain: PAIN.length, death: DEATH.length, grunt: TAKEDOWN_GRUNT.length };
 import { Footsteps } from './Footsteps.js';
 import { Ambience } from './Ambience.js';
 import { Music } from './Music.js';
@@ -94,7 +101,7 @@ export class AudioManager {
     src.buffer = buf;
     src.playbackRate.value = (opts.rate || 1) * (opts.vary ? 1 + (Math.random() - 0.5) * opts.vary : 1);
     const g = c.createGain();
-    let vol = this.vol0('sfx', name) * (opts.volume ?? 1);
+    let vol = this.vol0('sfx', opts.volumeKey || name) * (opts.volume ?? 1);
     let node = g;
     if (opts.at) {
       const dx = opts.at.x - this.listener.x, dz = opts.at.z - this.listener.z;
@@ -117,6 +124,16 @@ export class AudioManager {
     node.connect(opts.ui ? this.ui : this.sfx);
     src.start(c.currentTime + (opts.delay || 0));
     return src;
+  }
+
+  // 여러 변형 중 하나를 무작위로 (같은 소리가 연달아 나오지 않게)
+  playVariant(base, opts = {}) {
+    const n = VARIANTS[base] || 1;
+    this._last = this._last || {};
+    let k = Math.floor(Math.random() * n);
+    if (n > 1 && k === this._last[base]) k = (k + 1 + Math.floor(Math.random() * (n - 1))) % n;
+    this._last[base] = k;
+    return this.play(base + k, { vary: 0.08, ...opts, volumeKey: base });
   }
 
   setListener(x, z, yaw) { this.listener.x = x; this.listener.z = z; this.listener.yaw = yaw; }
@@ -148,7 +165,23 @@ export class AudioManager {
     bus.on('guard:miss', ({ x, z }) => { const l = L(); if (Math.hypot(x - l.x, z - l.z) < 3) this.play('whiz', { vary: 0.2 }); });
     bus.on('guard:alert', ({ x, z }) => this.play('alert', { at: { x, z }, range: 30 }));
     bus.on('guard:suspicious', ({ x, z }) => this.play('suspicious', { at: { x, z }, range: 22 }));
-    bus.on('takedown:start', () => this.play('takedown'));
+    // 암살: 연출 시간표의 신호(cue)에 맞춰 잡기 → 찌르기 → '윽'
+    bus.on('takedown:cue', ({ sound }) => {
+      if (sound === 'grunt') this.playVariant('grunt', { vary: 0.04 });
+      else this.play(sound, { vary: 0.05 });
+    });
+    // 총에 맞은 적의 신음 (적마다 짧은 간격 제한), 치명상이면 길게 사그라드는 신음
+    bus.on('guard:hit', ({ guard, x, z }) => {
+      const now = performance.now();
+      if (!guard.alive) return;
+      if (now - (guard._painAt || 0) < 280) return;
+      guard._painAt = now;
+      this.playVariant('pain', { at: { x, z }, range: 30, delay: 0.03 });
+    });
+    bus.on('guard:down', ({ guard, kind }) => {
+      if (kind !== 'kill') return;
+      this.playVariant('death', { at: { x: guard.x, z: guard.z }, range: 30, delay: 0.05 });
+    });
     bus.on('log:open', () => this.play('log', { ui: true }));
     bus.on('ui:click', () => this.play('uiClick', { ui: true }));
     bus.on('ui:hover', () => this.play('uiHover', { ui: true }));
