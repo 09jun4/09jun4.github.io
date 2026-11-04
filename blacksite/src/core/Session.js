@@ -40,7 +40,7 @@ export class Session {
     this.scene.background = new THREE.Color(0x050607);
     this.scene.fog = new THREE.Fog(0x050607, 28, 70);
     this.scene.environment = getEnvironment(game.renderer);
-    this.scene.environmentIntensity = 0.35;
+    this.scene.environmentIntensity = 0.1;
     this.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, this.cfg.player.camera.near, this.cfg.player.camera.far);
     this.scene.add(this.camera);
     this.collision = new CollisionWorld();
@@ -57,7 +57,7 @@ export class Session {
     this.weapon = new Pistol(this.cfg.pistol);
     this.rig = new FirstPersonRig(this.weapon, this.cfg.player);
     this.rig.scene.environment = this.scene.environment;
-    this.rig.scene.environmentIntensity = 0.55;
+    this.rig.scene.environmentIntensity = 0.18;
     this.effects = new WorldEffects(this.scene);
     this.targets = []; // 사격 대상: { rayTest(o, d, max) → {t, part}, onHit(dmg, info) }
     this.hud = game.ui.hud;
@@ -136,6 +136,7 @@ export class Session {
     p.invertY = s.controls.invertY;
     p.shake = s.display.shake;
     this.fovBase = s.display.fov;
+    for (const e of this.enemies || []) e.setShadows?.(!!s.graphics.shadows);
     this.fovAim = Math.min(this.fovBase, this.cfg.player.camera.aimFov + (s.display.fov - 90) * 0.5);
   }
 
@@ -292,7 +293,7 @@ export class Session {
     const end = new THREE.Vector3().copy(o).addScaledVector(dir, bestT);
     const muzzle = this.rig.muzzleWorld(this.camera);
     this.effects.tracer(muzzle, end, c.tracer.speed, c.tracer.length);
-    this.effects.muzzleFlash(muzzle, c.muzzleFlash.lightIntensity);
+    this.effects.muzzleFlash(muzzle, c.muzzleFlash.lightIntensity, c.muzzleFlash.lightDistance, c.muzzleFlash.duration);
     this.rig.fire(weapon.ammo === 0);
     p.addRecoil(c.recoil.pitchDeg * DEG * (1 - this.aimT * 0.35), (Math.random() - 0.5) * 2 * c.recoil.yawDeg * DEG);
     if (best) {

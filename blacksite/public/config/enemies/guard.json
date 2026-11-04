@@ -29,7 +29,8 @@
     "lostSightToSearch": 2.5,
     "firstShotDelayMul": 1.0,
     "damage": 12,
-    "missOffset": 0.9
+    "missOffset": 0.9,
+    "muzzleFlashIntensity": 55
   },
   "search": {
     "lookAroundTime": 2.5,
@@ -57,5 +58,15 @@
     "visor": "#0d1114",
     "weapon": "#1b1e21",
     "patch": "#c79a2a"
+  },
+  "flashlight": {
+    "color": "#fff1d6",
+    "intensity": 45,
+    "distance": 20,
+    "angleDeg": 17,
+    "penumbra": 0.55,
+    "beamLength": 5.5,
+    "beamOpacity": 0.07,
+    "downIntensityMul": 0.6
   }
 }

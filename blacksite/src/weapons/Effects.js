@@ -37,7 +37,7 @@ export class WorldEffects {
     this.sparkMat = new THREE.SpriteMaterial({ map: this.glowTex, color: 0xffd28a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     this.sparks = [];
     // 총구 섬광 조명 (항상 장면에 두고 세기만 바꿔 셰이더 재컴파일을 피한다)
-    this.flashLight = new THREE.PointLight(0xffc27a, 0, 6, 2);
+    this.flashLight = new THREE.PointLight(0xffb866, 0, 12, 1.6);
     scene.add(this.flashLight);
     this.flashT = 0;
     this._v = new THREE.Vector3();
@@ -84,10 +84,14 @@ export class WorldEffects {
     }
   }
 
-  muzzleFlash(pos, intensity = 6) {
+  // 총구 화염 조명: 주변을 순간적으로 밝히고 빠르게 사그라든다
+  muzzleFlash(pos, intensity = 60, distance = 12, duration = 0.07) {
     this.flashLight.position.copy(pos);
-    this.flashLight.intensity = intensity;
-    this.flashT = 0.05;
+    this.flashLight.distance = distance;
+    this.flashBase = intensity * (0.85 + Math.random() * 0.3);
+    this.flashLight.intensity = this.flashBase;
+    this.flashDur = duration;
+    this.flashT = duration;
   }
 
   update(dt) {
@@ -111,7 +115,8 @@ export class WorldEffects {
     }
     if (this.flashT > 0) {
       this.flashT -= dt;
-      if (this.flashT <= 0) this.flashLight.intensity = 0;
+      const k = Math.max(0, this.flashT / this.flashDur);
+      this.flashLight.intensity = this.flashT <= 0 ? 0 : this.flashBase * k * k;
     }
   }
 

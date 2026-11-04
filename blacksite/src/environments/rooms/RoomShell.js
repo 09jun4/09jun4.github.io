@@ -15,8 +15,9 @@ export function buildFloorsAndCeilings(group, map, M) {
     ceil.castShadow = false;
     group.add(ceil);
     // 천장 조명 패널
-    const panelMat = z.panelColor ? M.lightPanel.clone() : M.lightPanel;
-    if (z.panelColor) { panelMat.emissive.set(z.panelColor); panelMat.userData.baseEmissive = panelMat.emissiveIntensity; }
+    const off = map.power === 'off';
+    const panelMat = off ? M.lightPanelOff : z.panelColor ? M.lightPanel.clone() : M.lightPanel;
+    if (!off && z.panelColor) { panelMat.emissive.set(z.panelColor); panelMat.userData.baseEmissive = panelMat.emissiveIntensity; }
     for (const [px, pz] of z.panels || []) {
       const alongX = w >= d;
       const pw = alongX ? 1.4 : 0.5, pd = alongX ? 0.5 : 1.4;

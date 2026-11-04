@@ -45,6 +45,7 @@ export class Guard {
     this.group.add(this.model.root);
     this.anim = new JointAnimator(this.model);
     this.icon = new AlertIcon(this.group);
+    this.buildFlashlight(cfg.flashlight || {});
     session.scene.add(this.group);
     this._v = new THREE.Vector3();
 
@@ -180,7 +181,7 @@ export class Guard {
       if (w) s.effects.impact(end, new THREE.Vector3(w.nx, w.ny, w.nz));
       bus.emit('guard:miss', { x: end.x, y: end.y, z: end.z, near: true });
     }
-    s.effects.muzzleFlash(from, 4);
+    s.effects.muzzleFlash(from, c.muzzleFlashIntensity || 55, 12, 0.06);
     this.emit('guard:fire');
   }
 
@@ -234,6 +235,49 @@ export class Guard {
     return ang >= Math.PI - tk.behindAngleDeg * DEG;
   }
 
+  // 무기에 단 손전등: 스포트라이트 + 공기 중에 보이는 빛줄기(가산 혼합 원뿔) + 렌즈 글로우
+  buildFlashlight(f) {
+    const mount = this.model.lightMount;
+    const angle = (f.angleDeg ?? 17) * DEG, len = f.beamLength ?? 5.5;
+    const spot = new THREE.SpotLight(f.color || '#fff1d6', f.intensity ?? 45, f.distance ?? 20, angle, f.penumbra ?? 0.55, 1.4);
+    spot.position.set(0, 0, 0);
+    spot.target.position.set(0, 0, 10);
+    spot.shadow.mapSize.set(512, 512);
+    spot.shadow.camera.near = 0.2; // 자기 총·손은 그림자에서 제외
+    spot.shadow.camera.far = f.distance ?? 20;
+    spot.shadow.bias = -0.0015;
+    spot.shadow.normalBias = 0.03;
+    mount.add(spot, spot.target);
+    this.flash = spot;
+    this.flashBase = spot.intensity;
+    if (!Guard.beamTex) {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+      const ctx = c.getContext('2d'), g = ctx.createLinearGradient(0, 0, 0, 128);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#737373'); g.addColorStop(1, '#000000');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 128);
+      Guard.beamTex = new THREE.CanvasTexture(c);
+    }
+    const geo = new THREE.ConeGeometry(Math.tan(angle) * len * 0.85, len, 18, 1, true);
+    geo.translate(0, -len / 2, 0); // 꼭짓점을 렌즈에
+    geo.rotateX(-Math.PI / 2); // +z(총구 방향)로
+    // 원뿔 UV는 v=1이 꼭짓점 쪽 → 렌즈에서 멀어질수록 흐려지게 텍스처를 뒤집는다
+    const tex = Guard.beamTex;
+    this.beamMat = new THREE.MeshBasicMaterial({ color: f.color || '#fff1d6', alphaMap: tex, transparent: true, opacity: f.beamOpacity ?? 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    this.beamMat.alphaMap.flipY = true;
+    this.beam = new THREE.Mesh(geo, this.beamMat);
+    this.beam.castShadow = false; this.beam.receiveShadow = false;
+    this.beam.renderOrder = 2;
+    mount.add(this.beam);
+    this.glowMat = new THREE.SpriteMaterial({ color: f.color || '#fff1d6', map: Guard.glowTex || (Guard.glowTex = glowTexture()), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.glow = new THREE.Sprite(this.glowMat);
+    this.glow.scale.set(0.22, 0.22, 1);
+    this.glow.position.set(0, 0, 0.01);
+    mount.add(this.glow);
+    this.setShadows(!!this.session.game.save.settings.graphics.shadows);
+  }
+
+  setShadows(on) { if (this.flash) this.flash.castShadow = on; }
+
   syncTransform() {
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw + Math.PI; // 모델 앞면은 +z
@@ -248,14 +292,30 @@ export class Guard {
     this.stepAcc = (this.stepAcc || 0) + this.speed * dt;
     if (this.stepAcc > (this.speed > 2.5 ? 1.5 : 1.0)) { this.stepAcc = 0; this.emit('guard:footstep', { run: this.speed > 2.5 }); }
     this.anim.update(dt, this.alive ? this.speed : 0);
+    // 쓰러지면 손전등은 바닥에 떨어진 채로 약하게 남는다
+    if (!this.alive && this.flash) {
+      const m = this.cfg.flashlight?.downIntensityMul ?? 0.6;
+      this.flash.intensity = this.flashBase * m;
+      this.beamMat.opacity = (this.cfg.flashlight?.beamOpacity ?? 0.07) * m;
+    }
     this.syncTransform();
     const pl = this.session.player;
     this.icon.update(dt, Math.hypot(pl.x - this.pos.x, pl.z - this.pos.z));
   }
 
   dispose() {
+    this.flash.dispose?.();
+    this.beam.geometry.dispose(); this.beamMat.dispose(); this.glowMat.dispose();
     this.icon.dispose();
     this.session.scene.remove(this.group);
     this.model.dispose();
   }
+}
+
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d'), g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.2, 'rgba(255,240,210,.6)'); g.addColorStop(1, 'rgba(255,220,180,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
 }

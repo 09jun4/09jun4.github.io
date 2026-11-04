@@ -13,15 +13,48 @@
   "moveSpreadDeg": 0.9,
   "reloadTime": 1.7,
   "emptyReloadTime": 2.0,
-  "recoil": { "pitchDeg": 1.6, "yawDeg": 0.5, "kickBack": 0.055, "kickUp": 0.03, "rotUpDeg": 7, "recover": 13 },
+  "recoil": {
+    "pitchDeg": 1.6,
+    "yawDeg": 0.5,
+    "kickBack": 0.055,
+    "kickUp": 0.03,
+    "rotUpDeg": 7,
+    "recover": 13
+  },
   "viewmodel": {
-    "hip": [0.11, -0.118, -0.3],
-    "aim": [0, -0.05, -0.33],
+    "hip": [
+      0.11,
+      -0.118,
+      -0.3
+    ],
+    "aim": [
+      0,
+      -0.05,
+      -0.33
+    ],
     "fovDeg": 52,
     "aimFovDeg": 44,
-    "sprintRotDeg": [-18, 28, 8],
-    "sprintOffset": [0.02, -0.06, 0.02]
+    "sprintRotDeg": [
+      -18,
+      28,
+      8
+    ],
+    "sprintOffset": [
+      0.02,
+      -0.06,
+      0.02
+    ]
   },
-  "tracer": { "speed": 120, "length": 1.6, "chance": 1.0 },
-  "muzzleFlash": { "duration": 0.05, "lightIntensity": 6, "lightDistance": 6 }
+  "tracer": {
+    "speed": 120,
+    "length": 1.6,
+    "chance": 1.0
+  },
+  "muzzleFlash": {
+    "duration": 0.07,
+    "lightIntensity": 70,
+    "lightDistance": 13
+  },
+  "slideTravel": 0.045,
+  "slideTime": 0.12
 }

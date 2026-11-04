@@ -50,9 +50,10 @@ export class WeaponAnimator {
       this[p] += this[v] * dt;
     }
     // 슬라이드: 0.07초 안에 후퇴 후 복귀 (탄창이 비면 뒤에 고정)
-    this.slideT = Math.min(1, this.slideT + dt / 0.07);
+    this.slideT = Math.min(1, this.slideT + dt / (this.cfg.slideTime || 0.12));
     this.triggerT = Math.min(1, this.triggerT + dt / 0.1);
-    let slideOff = this.slideT < 0.4 ? this.slideT / 0.4 : this.slideLocked ? 1 : 1 - (this.slideT - 0.4) / 0.6;
+    // 격발: 0~30% 구간에 빠르게 후퇴, 이후 스프링으로 복귀 (탄창이 비면 뒤에 고정)
+    let slideOff = this.slideT < 0.3 ? smooth(this.slideT / 0.3) : this.slideLocked ? 1 : 1 - smooth((this.slideT - 0.3) / 0.7);
 
     // 재장전
     const m = this.model, L = this.arms.left;
@@ -80,7 +81,7 @@ export class WeaponAnimator {
         if (u > 0.78) this.slideLocked = false;
       }
     }
-    m.slide.position.z = slideOff * 0.034;
+    m.slide.position.z = slideOff * (this.cfg.slideTravel || 0.045);
     m.trigger.rotation.x = -0.25 + (1 - this.triggerT) * 0.35;
     // 탄창은 그립 축을 따라 이동 (그립 기울기 -0.3)
     m.magazine.position.set(m.magHome.x, m.magHome.y - Math.cos(0.3) * magDrop, m.magHome.z + Math.sin(0.3) * magDrop);

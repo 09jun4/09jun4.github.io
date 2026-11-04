@@ -12,8 +12,12 @@ export class FirstPersonRig {
     this.playerCfg = playerCfg;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(vc.fovDeg, innerWidth / innerHeight, 0.005, 5);
-    this.hemi = new THREE.HemisphereLight(0xdfe8f0, 0x202326, 1.6);
-    this.key = new THREE.DirectionalLight(0xffffff, 1.6);
+    this.hemi = new THREE.HemisphereLight(0xdfe8f0, 0x202326, 0.35);
+    this.key = new THREE.DirectionalLight(0xffffff, 0.3);
+    this.flashLight = new THREE.PointLight(0xffb866, 0, 2, 1.5); // 총구 화염이 손·총을 비춤
+    this.flashLight.position.set(0.1, -0.05, -0.55);
+    this.scene.add(this.flashLight);
+    this.flashK = 0;
     this.key.position.set(-0.5, 1, 0.4);
     this.scene.add(this.hemi, this.key, this.camera);
 
@@ -49,6 +53,7 @@ export class FirstPersonRig {
   fire(empty) {
     this.anim.fire(empty);
     this.effects.muzzleFlash();
+    this.flashK = 1;
     // 탄피 배출 (뷰모델 공간)
     const p = this.vm.ejectPort.getWorldPosition(new THREE.Vector3());
     this.effects.ejectCasing(p, new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1));
@@ -105,6 +110,10 @@ export class FirstPersonRig {
     const fov = lerp(this.vc.fovDeg, this.vc.aimFovDeg, a);
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     this.effects.update(dt);
+    // 총구 화염 조명 감쇠
+    this.flashK = Math.max(0, this.flashK - dt / 0.08);
+    this.flashLight.intensity = this.flashK * this.flashK * 6;
+    this.flashLight.position.set(h.position.x - 0.02, h.position.y + 0.05, h.position.z - 0.25);
   }
 
   render(renderer) {

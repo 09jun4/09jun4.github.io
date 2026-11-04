@@ -112,7 +112,7 @@ function textTexture(text, sub, w = 512, h = 160, color = '#e9eef2', bg = '#1d23
 export function sign(def, M) {
   const g = new THREE.Group();
   const tex = textTexture(def.text || 'SIGN', def.sub || '');
-  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 });
+  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.05 });
   g.add(mesh(new THREE.PlaneGeometry(1.3, 0.4), mat, 0, 0, 0.012));
   g.add(mesh(boxGeo(1.36, 0.46, 0.02, 0), M.trim, 0, 0, 0));
   g.userData.dispose = () => { tex.dispose(); mat.dispose(); };

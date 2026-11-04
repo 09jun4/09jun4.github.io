@@ -96,6 +96,13 @@ export function createGuardModel(ap = {}, opts = {}) {
   weapon.add(place(new THREE.Mesh(roundedBox(0.04, 0.07, 0.18, 0.01), mat.weapon), 0, -0.015, -0.26)); // 개머리판
   weapon.add(place(new THREE.Mesh(roundedBox(0.03, 0.04, 0.08, 0.008), mat.visor), 0, 0.065, 0.02)); // 조준경
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.012, 0.38); weapon.add(muzzle);
+  // 총열 아래 전술 손전등 (본체 + 렌즈) — 실제 빛은 EnemyAI가 lightMount에 단다
+  weapon.add(place(new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.015, 0.11, 10), mat.weapon), 0, -0.032, 0.24, Math.PI / 2, 0, 0));
+  weapon.add(place(new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.02, 0.05), mat.weapon), 0, -0.016, 0.23));
+  const lens = place(new THREE.Mesh(new THREE.CircleGeometry(0.015, 12), new THREE.MeshBasicMaterial({ color: 0xfff4dc })), 0, -0.032, 0.296);
+  lens.userData.keep = true; lens.castShadow = false;
+  weapon.add(lens);
+  const lightMount = new THREE.Object3D(); lightMount.position.set(0, -0.032, 0.3); weapon.add(lightMount);
   J.weapon = weapon;
   if (opts.noRifle) weapon.visible = false;
   if (opts.balaclava) {
@@ -110,10 +117,11 @@ export function createGuardModel(ap = {}, opts = {}) {
   const rest = {};
   for (const [k, j] of Object.entries(J)) rest[k] = { rot: j.rotation.clone(), pos: j.position.clone() };
   return {
-    root, joints: J, rest, muzzle, weapon,
+    root, joints: J, rest, muzzle, weapon, lightMount, lens,
     dispose() {
       root.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
       Object.values(mat).forEach((m) => m.dispose());
+      lens.material.dispose();
     },
   };
 }

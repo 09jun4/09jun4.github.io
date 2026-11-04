@@ -83,7 +83,7 @@ export function fumeHood(def, M) {
   g.add(mesh(boxGeo(1.8, 0.35, 0.85, 0), M.metalLight, 0, 2.32, 0));
   const sash = mesh(boxGeo(1.7, 0.7, 0.02, 0), M.glass, 0, 1.75, 0.4); sash.userData.noMerge = true; g.add(sash);
   g.add(mesh(boxGeo(1.7, 0.04, 0.05, 0), M.metal, 0, 1.4, 0.42));
-  const lamp = mesh(boxGeo(1.5, 0.03, 0.12, 0), M.lightPanel, 0, 2.13, -0.1); lamp.castShadow = false; g.add(lamp);
+  const lamp = mesh(boxGeo(1.5, 0.03, 0.12, 0), M.lightPanelOff, 0, 2.13, -0.1); lamp.castShadow = false; g.add(lamp);
   return { object: g };
 }
 

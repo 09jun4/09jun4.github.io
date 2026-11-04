@@ -21,7 +21,7 @@ export function dataTerminal(def, M) {
   }
   g.add(mesh(roundedBox(0.95, 0.65, 0.08, 0.02), M.plasticDark, 0, 1.6, -0.28, -0.12, 0, 0));
   const scr = screenCanvas(256, 160);
-  const screenMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 1.2, roughness: 0.3 });
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 0.75, roughness: 0.3 });
   const screen = mesh(new THREE.PlaneGeometry(0.84, 0.54), screenMat, 0, 1.6, -0.235, -0.12, 0, 0);
   screen.castShadow = false;
   screen.userData.noMerge = true;
@@ -96,7 +96,7 @@ export function extractionHatch(def, M) {
   ctx.fillStyle = '#3dff8a'; ctx.font = '700 64px Rajdhani, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('EXIT', 128, 52);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const signMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.9 });
+  const signMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.7 });
   const sign = mesh(new THREE.PlaneGeometry(0.5, 0.19), signMat, 0, 2.85, 0.1);
   sign.castShadow = false; sign.userData.noMerge = true;
   g.add(sign);
