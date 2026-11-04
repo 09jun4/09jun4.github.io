@@ -264,12 +264,22 @@
 
   // Section point at station x, angle phi (0 = right side, pi/2 = top).
   function secPoint(d, x, phi, out) {
-    var W = d.W(x), T = d.T(x), B = d.B(x);
+    var W = d.W(x), T = d.T(x), B = d.B0 ? d.B0(x) : d.B(x);
     var c = Math.cos(phi), s = Math.sin(phi), up = s > 0;
     var n = up ? d.nUp(x) : d.nLo;
     var yc = (T + B) / 2, ry = (T - B) / 2;
     if (d.mid) { yc = d.mid(x); ry = up ? T - yc : yc - B; }
     var z = W * pw(c, 2 / n), y = yc + ry * pw(s, 2 / n);
+    // Wheel arches only cut into the outer edges of the body (the wheel
+    // wells); the floor between the wheels stays down, so there's no hole.
+    if (!up && d.B0) {
+      var ab = d.B(x);
+      if (ab > B) {
+        var q0 = Math.abs(z) / W, t0 = Math.max(0, Math.min(1, (q0 - 0.6) / 0.2));
+        t0 = t0 * t0 * (3 - 2 * t0);
+        y = Math.max(y, B + (ab - B) * t0);
+      }
+    }
     if (up) {
       z *= 1 - (d.tuck || 0) * s * s;
       if (d.bulge) {
@@ -315,7 +325,7 @@
         if (opts.color) { var c0 = opts.color(cx, cy, 0); col.push(c0.r, c0.g, c0.b); }
         for (var k3 = 0; k3 < ring; k3++) {
           var p = base + k3, q2 = base + ((k3 + 1) % ring);
-          if (end) idx.push(ci, p, q2); else idx.push(ci, q2, p);
+          idx.push(ci, p, q2, ci, q2, p); // both windings: the cap is closed from any side
         }
       });
     }
@@ -400,7 +410,7 @@
       x0: -2.14, x1: 2.15, nLo: 4.5, tuck: 0.1, bulgeAt: 0.76,
       W: curve([[-2.14, 0.6], [-2.08, 0.76], [-1.9, 0.85], [-1.4, 0.88], [0.4, 0.875], [1.3, 0.875], [1.75, 0.85], [1.98, 0.76], [2.09, 0.6], [2.15, 0.36]]),
       T: curve([[-2.14, 0.6], [-2.09, 0.84], [-1.96, 0.95], [-1.6, 0.97], [-0.8, 0.93], [0.3, 0.9], [0.7, 0.85], [1.2, 0.76], [1.65, 0.68], [1.95, 0.6], [2.1, 0.5], [2.15, 0.4]]),
-      B: arches([wf, wr], spec.tyre, 0.38, 0.27),
+      B: arches([wf, wr], spec.tyre, 0.38, 0.27), B0: function () { return 0.27; },
       mid: curve([[-2.14, 0.52], [0, 0.56], [1.8, 0.48], [2.15, 0.38]]),
       nUp: curve([[-2.14, 2.2], [-1.6, 2.8], [0.5, 3.2], [1.6, 2.4], [2.15, 2.0]]),
       bulge: curve([[-2.0, 0.0], [-1.7, 0.05], [-1.3, 0.07], [-0.9, 0.03], [-0.3, 0], [0.5, 0], [0.9, 0.05], [1.3, 0.1], [1.7, 0.08], [2.0, 0.02], [2.12, 0]]),
@@ -462,7 +472,7 @@
       x0: -1.985, x1: 1.99, nLo: 4, tuck: 0.06, bulgeAt: 0.8,
       W: curve([[-1.985, 0.56], [-1.93, 0.72], [-1.75, 0.81], [-1.3, 0.835], [0.6, 0.835], [1.35, 0.82], [1.7, 0.75], [1.9, 0.6], [1.97, 0.45], [1.99, 0.3]]),
       T: curve([[-1.985, 0.56], [-1.94, 0.76], [-1.8, 0.85], [-1.3, 0.87], [0.0, 0.86], [0.45, 0.84], [1.0, 0.79], [1.5, 0.72], [1.82, 0.64], [1.95, 0.55], [1.99, 0.45]]),
-      B: arches([wf, wr], spec.tyre, 0.36, 0.26),
+      B: arches([wf, wr], spec.tyre, 0.36, 0.26), B0: function () { return 0.26; },
       mid: curve([[-1.985, 0.5], [0, 0.55], [1.7, 0.5], [1.99, 0.42]]),
       nUp: curve([[-1.985, 2.0], [-1.5, 2.4], [0.3, 2.8], [1.4, 2.3], [1.99, 1.8]]),
       bulge: curve([[-1.7, 0], [-1.35, 0.035], [-0.9, 0.0], [0.6, 0], [1.0, 0.035], [1.4, 0.04], [1.8, 0.0]]),
@@ -542,7 +552,7 @@
       x0: -2.1, x1: 2.11, nLo: 8, tuck: 0.05, bulgeAt: 0.85,
       W: curve([[-2.1, 0.7], [-2.05, 0.785], [-1.85, 0.81], [1.75, 0.81], [1.98, 0.795], [2.07, 0.76], [2.11, 0.66]]),
       T: curve([[-2.1, 0.62], [-2.08, 0.9], [-2.0, 0.965], [-1.9, 0.97], [-1.5, 0.92], [-0.5, 0.89], [0.5, 0.875], [1.0, 0.855], [1.6, 0.79], [1.95, 0.745], [2.07, 0.72], [2.11, 0.62]]),
-      B: arches([wf, wr], spec.tyre, 0.37, 0.29),
+      B: arches([wf, wr], spec.tyre, 0.37, 0.29), B0: function () { return 0.29; },
       mid: curve([[-2.1, 0.62], [0, 0.7], [2.11, 0.62]]),
       nUp: curve([[-2.1, 3.0], [-1.8, 4.2], [1.7, 4.4], [2.11, 3.0]]),
       bulge: curve([[-1.6, 0], [-1.25, 0.02], [-0.9, 0], [0.9, 0], [1.2, 0.02], [1.6, 0]]),

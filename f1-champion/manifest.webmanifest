@@ -1,18 +1,13 @@
 {
-  "name": "F1 Champion",
-  "short_name": "F1 Champion",
-  "description": "실제 F1 서킷에서 펼치는 브라우저 3D 레이싱",
-  "start_url": "./",
-  "scope": "./",
+  "name": "Track Master",
+  "short_name": "Track Master",
+  "start_url": "/track-master/",
+  "scope": "/",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
-  "orientation": "any",
-  "background_color": "#0e1116",
-  "theme_color": "#0e1116",
-  "lang": "ko",
+  "background_color": "#0b0d11",
+  "theme_color": "#0b0d11",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/track-master/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/track-master/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

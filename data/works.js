@@ -4,8 +4,8 @@ window.WORKS = [
     desc: '웹 복셀 샌드박스 게임' },
   { title: '치이카와 토벌 대작전', url: '/chiikawa-tobatsu/', thumb: 'assets/thumbs/chiikawa-tobatsu.jpg', date: '2026-10-29',
     desc: '먼작귀 친구 5명이 함께 싸우는 서바이벌 게임' },
-  { title: 'F1 Champion', url: '/f1-champion/', thumb: 'assets/thumbs/f1-champion.jpg', date: '2026-10-30',
-    desc: '실제 F1 서킷 3D 레이싱 · 튜닝 · AI 대전' },
+  { title: 'Track Master', url: '/track-master/', thumb: 'assets/thumbs/track-master.jpg', date: '2026-11-05',
+    desc: '서킷 레이스 · 드리프트 레이스를 고르는 레이싱 게임' },
   { title: 'BLACKSITE', url: '/blacksite/', thumb: 'assets/thumbs/blacksite.jpg', date: '2026-11-04',
     desc: '비밀 연구시설 잠입 1인칭 FPS · 암살 · 데이터 탈취' },
 ];

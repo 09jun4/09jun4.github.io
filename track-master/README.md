@@ -1,6 +1,6 @@
-# F1 Champion
+# Track Master (구 F1 Champion)
 
-https://09jun4.github.io/f1-champion/
+https://09jun4.github.io/track-master/ (서킷 레이스: circuit/, 드리프트 레이스: drift/)
 
 ## 온라인 기능 (구글 로그인 · 계정 저장 · 랭킹)
 

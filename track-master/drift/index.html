@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>드리프트 레이스 · F1 Champion</title>
+<meta name="description" content="F1 Champion 드리프트 레이스 — AE86, RX-7, 미아타로 구불구불한 산길을 드리프트하며 내려가는 다운힐 타임어택과 AI 배틀" />
+<link rel="icon" href="../icon-192.png" />
+<style>
+  :root { --fg: #f3f3f3; --dim: #9aa0a8; --panel: rgba(14, 16, 20, 0.86); --line: rgba(255, 255, 255, 0.12); --acc: #ff9b3d; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f12; color: var(--fg); font: 14px/1.4 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; touch-action: pan-y; }
+  @media (min-width: 1100px) { #menu { justify-content: flex-start; padding-left: 32px; } #menu .card { width: 720px; } }
+  .card { width: min(980px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; backdrop-filter: blur(6px); }
+  h1 { margin: 0; font: 900 30px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; }
+  h1 span { color: var(--acc); }
+  h2 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); font-weight: 700; letter-spacing: 0.5px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .back { color: var(--dim); text-decoration: none; font-weight: 700; }
+  .back:hover { color: var(--fg); }
+  .sub { margin: 6px 0 0; color: var(--dim); }
+  .modes { display: flex; gap: 8px; }
+  .mode { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: left; }
+  .mode b { display: block; font-size: 16px; }
+  .mode small { color: var(--dim); }
+  .mode.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
+  .cars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .courses { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .course { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: left; display: flex; flex-direction: column; gap: 3px; }
+  .course.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
+  .course b { font-size: 14px; } .course .tag { color: #ffc58f; font-size: 12px; font-weight: 700; } .course small { color: var(--dim); font-size: 11px; }
+  .car { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: left; display: flex; flex-direction: column; gap: 3px; }
+  .car.on { border-color: var(--acc); background: rgba(255, 155, 61, 0.12); }
+  .car b { font-size: 16px; }
+  .car small, .car .spec { color: var(--dim); font-size: 12px; }
+  .car .tune { color: #ffc58f; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  .bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--acc); }
+  .pb { margin-top: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .row2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+  #ranking { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  #ranking li { display: grid; grid-template-columns: 28px 1fr auto 82px; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  #ranking li.me { background: rgba(255, 155, 61, 0.14); }
+  #ranking li.dim { display: block; }
+  #ranking .rk { color: var(--dim); font-weight: 700; }
+  #ranking .cr { color: var(--dim); font-size: 12px; }
+  #ranking .tm { text-align: right; font-weight: 700; }
+  .dim { color: var(--dim); }
+  .warn { color: #ffb4a8; margin: 6px 0 0; font-size: 12px; }
+  .login { padding: 8px 14px; border-radius: 10px; border: 0; background: #fff; color: #222; font-weight: 800; }
+  .link { background: none; border: 0; color: var(--acc); text-decoration: underline; padding: 0; }
+  #account { margin-top: 6px; font-size: 13px; }
+  .play { position: sticky; bottom: 0; width: 100%; margin-top: 16px; padding: 15px; border: 0; border-radius: 12px; background: var(--acc); color: #1a0f04; font-size: 18px; font-weight: 900; }
+  .keys { color: var(--dim); font-size: 12px; margin: 10px 0 0; }
+  kbd { padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); font: 700 11px/1.4 inherit; }
+  .small-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,0.05); font-size: 12px; }
+  .center { text-align: center; }
+  .pause-card { width: min(360px, 100%); display: flex; flex-direction: column; gap: 8px; }
+  .pause-card button, .res-btns button { padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); font-weight: 800; }
+  .pause-card button.primary, .res-btns button.primary { background: var(--acc); color: #1a0f04; border: 0; }
+  .res-btns { display: flex; gap: 8px; margin-top: 14px; }
+  .res-btns button { flex: 1; }
+  .big { font: 900 54px/1.1 'Segoe UI', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  .big.win { color: #5fe08f; } .big.lose { color: #ff6b6b; }
+  .pb-new { color: var(--acc); font-weight: 800; }
+  /* HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .hud-box { position: absolute; background: rgba(10, 12, 15, 0.62); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-variant-numeric: tabular-nums; }
+  #hud-timebox { top: 12px; right: 12px; text-align: right; min-width: 150px; }
+  #hud-time { font: 900 28px/1 'Segoe UI', system-ui, sans-serif; }
+  #hud-best { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  #hud-dist { font-size: 12px; color: var(--dim); }
+  #hud-meter { bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
+  #hud-speed { font: 900 40px/1 'Segoe UI', system-ui, sans-serif; min-width: 80px; text-align: right; }
+  .unit { font-size: 12px; color: var(--dim); }
+  #hud-gear { font: 900 34px/1 'Segoe UI', system-ui, sans-serif; color: var(--acc); }
+  #hud-gearmode { font-size: 10px; color: var(--dim); }
+  #hud-rpm { width: 150px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  #hud-rpm-fill { height: 100%; background: #6fd0ff; width: 0; }
+  #hud-rpm-fill.red { background: #ff4d4d; }
+  #hud-prog { top: 12px; left: 50%; transform: translateX(-50%); width: min(420px, 50vw); padding: 8px 12px; }
+  #hud-prog-track { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); }
+  #hud-prog-fill { height: 100%; border-radius: 3px; background: var(--acc); width: 0; }
+  #hud-prog-rival { position: absolute; top: -3px; width: 4px; height: 12px; margin-left: -2px; background: #ff5b5b; border-radius: 2px; }
+  #hud-rival { top: 64px; right: 12px; text-align: right; }
+  #hud-rival-pos { font: 900 22px/1 'Segoe UI', system-ui, sans-serif; color: #ff6b6b; }
+  #hud-rival.ahead #hud-rival-pos { color: #5fe08f; }
+  #minimap { position: absolute; top: 12px; left: 12px; width: clamp(130px, 16vw, 190px); height: clamp(130px, 16vw, 190px); border-radius: 14px; background: rgba(10, 12, 15, 0.55); border: 1px solid var(--line); }
+  body.touch #minimap { width: 118px; height: 118px; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); }
+  #hud-drift { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font: italic 900 26px/1 'Segoe UI', system-ui, sans-serif; color: var(--acc); opacity: 0; transition: opacity 0.15s; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  #hud-drift.on { opacity: 1; }
+  #hud-help { bottom: 14px; left: 12px; font-size: 11px; color: var(--dim); max-width: 300px; }
+  #countdown { position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%); font: 900 110px/1 'Segoe UI', system-ui, sans-serif; color: #fff; text-shadow: 0 6px 24px rgba(0,0,0,0.6); pointer-events: none; }
+  /* Touch controls */
+  #touch { display: none; }
+  body.touch #touch { display: block; }
+  body.touch #hud-help { display: none; }
+  body.in-menu #touch { display: none; }
+  .tc { position: fixed; z-index: 5; display: flex; align-items: flex-end; gap: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .tc-l { left: calc(12px + env(safe-area-inset-left)); }
+  .tc-r { right: calc(12px + env(safe-area-inset-right)); }
+  .tc-col { display: flex; flex-direction: column; gap: 12px; }
+  .tc button { width: 96px; height: 96px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.28); background: rgba(20, 22, 26, 0.45); font-weight: 800; font-size: 15px; line-height: 1.15; touch-action: none; }
+  .tc button.on { background: rgba(255, 155, 61, 0.55); }
+  .tc .gas { height: 150px; }
+  .tc .drift { height: 82px; }
+  .tc .brake { height: 110px; }
+  .tc-top { position: fixed; top: calc(138px + env(safe-area-inset-top)); left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  .tc-top button { padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.55); font-size: 13px; font-weight: 700; }
+  /* Touch play: the whole HUD sits along the top so the car stays clear. */
+  body.touch #hud-meter { top: calc(8px + env(safe-area-inset-top)); bottom: auto; padding: 6px 12px; gap: 10px; }
+  body.touch #hud-prog { top: calc(66px + env(safe-area-inset-top)); bottom: auto; width: min(300px, 40vw); padding: 6px 10px; }
+  body.touch #hud-timebox { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+  body.touch #hud-rival { top: calc(78px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+  body.touch #hud-drift { top: 24%; }
+  * { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  input { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+  @media (max-width: 720px) {
+    .courses { grid-template-columns: 1fr 1fr; }
+    .cars { grid-template-columns: 1fr; }
+    .row2 { grid-template-columns: 1fr; }
+    h1 { font-size: 24px; }
+    #hud-speed { font-size: 30px; min-width: 60px; } #hud-gear { font-size: 26px; } #hud-rpm { width: 90px; }
+    #hud-time { font-size: 22px; } #hud-timebox { min-width: 120px; }
+    body:not(.touch) #hud-prog { top: auto; bottom: calc(200px + env(safe-area-inset-bottom)); }
+  }
+  /* Phones held upright: bigger pedals, compact top HUD. */
+  @media (orientation: portrait) and (max-width: 720px) {
+    .tc { gap: 8px; }
+    .tc-col { gap: 8px; }
+    .tc-l button { width: 21vw; height: 128px; font-size: 26px; }
+    .tc-r .brake { width: 21vw; height: 124px; }
+    .tc-r .gas, .tc-r .drift { width: 24vw; }
+    .tc .gas { height: 170px; } .tc .drift { height: 88px; }
+    .tc button { font-size: 16px; }
+    body.touch #hud-meter { left: 50%; gap: 8px; padding: 5px 10px; }
+    body.touch #hud-meter #hud-speed { font-size: 26px; min-width: 46px; }
+    body.touch #hud-meter #hud-gear { font-size: 22px; }
+    body.touch #hud-meter > div:last-child { display: none; } /* rpm bar: no room upright */
+    body.touch #hud-meter .unit { font-size: 10px; }
+    body.touch #hud-timebox { min-width: 0; padding: 6px 8px; } body.touch #hud-time { font-size: 18px; }
+    body.touch #hud-prog { top: calc(62px + env(safe-area-inset-top)); width: 34vw; }
+    body.touch #hud-rival { top: calc(70px + env(safe-area-inset-top)); padding: 6px 8px; } body.touch #hud-rival-pos { font-size: 16px; }
+  }
+</style>
+</head>
+<body class="in-menu">
+<canvas id="game"></canvas>
+
+<div id="hud" hidden>
+  <canvas id="minimap" aria-label="미니맵"></canvas>
+  <div id="hud-prog" class="hud-box"><div id="hud-prog-track"><div id="hud-prog-fill"></div><div id="hud-prog-rival" hidden></div></div></div>
+  <div id="hud-timebox" class="hud-box"><div id="hud-time">0:00.000</div><div id="hud-best"></div><div id="hud-dist"></div></div>
+  <div id="hud-rival" class="hud-box" hidden><div id="hud-rival-pos">1위</div><div><span id="hud-rival-gap"></span> · <span id="hud-rival-name"></span></div></div>
+  <div id="hud-meter" class="hud-box">
+    <div><span id="hud-speed">0</span> <span class="unit">km/h</span></div>
+    <div class="center"><div id="hud-gear">1</div><div id="hud-gearmode">AUTO</div></div>
+    <div><div id="hud-rpm"><div id="hud-rpm-fill"></div></div><div class="unit">각도 <span id="hud-angle">0°</span></div></div>
+  </div>
+  <div id="hud-drift">DRIFT</div>
+  <div id="hud-help" class="hud-box"><kbd>W</kbd><kbd>S</kbd> 가속·브레이크 · <kbd>A</kbd><kbd>D</kbd> 조향 · <kbd>Space</kbd>+조향 드리프트<br /><kbd>C</kbd> 시점 · <kbd>R</kbd> 리셋 · <kbd>Q</kbd><kbd>E</kbd> 수동 변속 · <kbd>T</kbd> 자동/수동 · <kbd>Esc</kbd> 일시정지 · <kbd>M</kbd> 소리</div>
+</div>
+<div id="countdown" hidden>3</div>
+
+<div id="touch">
+  <div class="tc tc-l"><button type="button" data-hold="left" aria-label="왼쪽">◀</button><button type="button" data-hold="right" aria-label="오른쪽">▶</button></div>
+  <div class="tc tc-r"><button type="button" class="brake" data-hold="brake">브레이크</button><div class="tc-col"><button type="button" class="drift" data-hold="drift">사이드<br>브레이크</button><button type="button" class="gas" data-hold="gas">가속</button></div></div>
+  <div class="tc-top"><button type="button" id="tc-pause">일시정지</button><button type="button" id="tc-reset">리셋</button><button type="button" id="tc-view">보닛 시점</button></div>
+</div>
+
+<section id="menu" class="screen" hidden>
+  <div class="card">
+    <div class="top">
+      <div>
+        <h1>DRIFT <span>RACE</span></h1>
+        <p class="sub" id="course-info"></p>
+      </div>
+      <a class="back" href="../">← Track Master</a>
+    </div>
+    <h2>모드</h2>
+    <div class="modes">
+      <button type="button" class="mode" data-mode="ta"><b>다운힐 타임어택</b><small>혼자 정상에서 결승까지, 가장 빠른 기록에 도전</small></button>
+      <button type="button" class="mode" data-mode="battle"><b>AI 배틀</b><small>AI 차 한 대와 동시에 출발, 먼저 도착하면 승리 · <span id="battle-rec"></span></small></button>
+    </div>
+    <h2>그래픽</h2>
+    <div class="modes">
+      <button type="button" class="mode gfx" data-gfx="high"><b>높음</b><small>그림자 · 계단 현상 제거 · 울창한 숲 · 먼 시야</small></button>
+      <button type="button" class="mode gfx" data-gfx="low"><b>낮음</b><small>내장 그래픽·휴대폰용 — 그림자 끔, 해상도 자동 조절, 숲·시야 축소</small></button>
+    </div>
+    <h2>코스</h2>
+    <div id="courses" class="courses"></div>
+    <h2>자동차</h2>
+    <div id="cars" class="cars"></div>
+    <div class="row2">
+      <div>
+        <h2>타임어택 랭킹 · <span id="rank-course"></span> <button type="button" id="rank-refresh" class="small-btn">새로고침</button></h2>
+        <ol id="ranking"></ol>
+      </div>
+      <div>
+        <h2>계정</h2>
+        <div id="account"></div>
+        <p class="keys"><kbd>Space</kbd>를 누른 채 조향하면 드리프트, 산길은 내리막이라 가만히 있어도 빨라져요. 도로 양옆은 가드레일이라 부딪히면 튕기며 속도를 잃어요.</p>
+      </div>
+    </div>
+    <button type="button" id="play" class="play">출발 ▶</button>
+  </div>
+</section>
+
+<section id="pause" class="screen" hidden>
+  <div class="card pause-card">
+    <h1 class="center">일시정지</h1>
+    <button type="button" id="pause-resume" class="primary">계속하기</button>
+    <button type="button" id="pause-restart">처음부터 다시</button>
+    <button type="button" id="pause-menu">메뉴로</button>
+  </div>
+</section>
+
+<section id="result" class="screen" hidden>
+  <div class="card pause-card center">
+    <div id="result-body"></div>
+    <div class="res-btns"><button type="button" id="result-retry" class="primary">다시 달리기</button><button type="button" id="result-menu">메뉴</button></div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/vendor/firebase.js"></script>
+<script src="../js/firebase-config.js"></script>
+<script src="js/course.js"></script>
+<script src="js/cars.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/world.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/touchguard.js"></script>
+<script src="js/minimap.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

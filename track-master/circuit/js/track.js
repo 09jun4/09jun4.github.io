@@ -342,6 +342,8 @@
       }
     }
 
+    var rawL = new Float64Array(n), rawR = new Float64Array(n), limL = new Float64Array(n), limR = new Float64Array(n);
+    var foldL = new Float64Array(n), foldR = new Float64Array(n);
     for (var s = 0; s < n; s++) {
       var a = samples[s];
       var left = Math.max(cfg.RUNOFF_MIN, outL[s], outR[s] * cfg.RUNOFF_INSIDE_FRACTION);
@@ -365,12 +367,39 @@
         var room = (dist - 2 * half - 4) / 2 - 1; // share the gap, 4m between walls
         if (dx * nx + dy * ny > 0) { if (room < limitL) limitL = room; } else if (room < limitR) limitR = room;
       }
-      // Inside of a tight corner: the wall can't pass the corner centre.
-      if (a.curvature > 0) limitL = Math.min(limitL, 1 / a.curvature - half - 2);
-      if (a.curvature < 0) limitR = Math.min(limitR, -1 / a.curvature - half - 2);
 
-      a.wallLeft = half + Math.max(0.5, Math.min(left, limitL));
-      a.wallRight = half + Math.max(0.5, Math.min(right, limitR));
+      rawL[s] = left; rawR[s] = right; limL[s] = limitL; limR[s] = limitR;
+      // Hard limit on the inside of a tight corner (the wall would fold).
+      foldL[s] = a.curvature > 0 ? 1 / a.curvature - half - 1 : Infinity;
+      foldR[s] = a.curvature < 0 ? -1 / a.curvature - half - 1 : Infinity;
+    }
+    // Walls at least WALL_MIN_GAP from the track edge, and smooth along the
+    // lap: a few passes of a [1 2 1] filter, then a slope limit, so the
+    // walls flow through corners instead of stepping sample to sample.
+    // The limits (other parts of the lap, inside of tight corners) win.
+    var minGap = cfg.WALL_MIN_GAP;
+    function side(raw, lim, fold) {
+      var o = new Float64Array(n), tmp = new Float64Array(n);
+      function clampAt(i, v) {
+        var ceil = Math.max(0.5, Math.min(lim[i], fold[i])), floor = Math.min(minGap, ceil);
+        return v < floor ? floor : v > ceil ? ceil : v;
+      }
+      for (var i = 0; i < n; i++) o[i] = clampAt(i, raw[i]);
+      for (var pass = 0; pass < 6; pass++) {
+        for (var j = 0; j < n; j++) tmp[j] = (o[(j - 1 + n) % n] + 2 * o[j] + o[(j + 1) % n]) / 4;
+        for (var k2 = 0; k2 < n; k2++) o[k2] = clampAt(k2, Math.max(tmp[k2], pass < 3 ? raw[k2] * 0.9 : 0));
+      }
+      var slope = cfg.WALL_SLOPE * cfg.TRACK_SAMPLE_SPACING;
+      for (var rep = 0; rep < 2; rep++) {
+        for (var f = 1; f < 2 * n; f++) { var q = f % n, pq = (f - 1) % n; if (o[q] > o[pq] + slope) o[q] = o[pq] + slope; }
+        for (var b = 2 * n - 2; b >= 0; b--) { var q2 = b % n, nq = (b + 1) % n; if (o[q2] > o[nq] + slope) o[q2] = o[nq] + slope; }
+      }
+      return o;
+    }
+    var oL = side(rawL, limL, foldL), oR = side(rawR, limR, foldR);
+    for (var w = 0; w < n; w++) {
+      samples[w].wallLeft = half + oL[w];
+      samples[w].wallRight = half + oR[w];
     }
   }
 

@@ -16,7 +16,7 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
 
 ## 구글 로그인 · 계정 저장 (새 게임·프로그램 기본 포함)
 새 웹 게임이나 프로그램을 만들면 **처음부터** 구글 계정 로그인과 계정 저장을 함께 만들어요.
-참고 구현: `f1-champion/` (`js/cloud.js`, `js/firebase-config.js`, `firestore.rules`, `js/vendor/firebase.js`, `README.md`).
+참고 구현: `track-master/` (`circuit/js/cloud.js`, `js/firebase-config.js`, `firestore.rules`, `js/vendor/firebase.js`, `README.md`). F1 Champion은 Track Master(`/track-master/`, 서킷 `circuit/`·드리프트 `drift/`)로 바뀌었고 옛 주소 `/f1-champion/`은 자동 이동 페이지예요.
 
 - 방식: Firebase Authentication(구글 로그인) + Firestore. 설정값은 `js/firebase-config.js`로 분리하고, 보안 규칙은 `firestore.rules` 파일로 함께 만들어요.
 - 설정값이 비어 있어도 브라우저 저장(localStorage)으로 정상 작동해야 해요.
@@ -33,7 +33,7 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
   사용자에게 그 프로젝트의 Authentication > 로그인 방법 > Google > 웹 SDK 구성 > "외부 프로젝트의 클라이언트 ID 허용"에
   사이트 프로젝트(chiikawa-tobatsu)의 웹 클라이언트 ID를 넣어 달라고 안내해요.
 - 관리자: 사이트 주인의 구글 계정에 관리자 권한을 줘요. 이 저장소는 공개라서 **이메일 주소를 파일에 쓰지 않고**, 소문자 이메일의 SHA-256 해시만 넣어요:
-  `c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991` (판별 방법은 `f1-champion/js/cloud.js`의 `checkAdmin` 참고, 이메일 인증된 계정만 인정)
+  `c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991` (판별 방법은 `track-master/circuit/js/cloud.js`의 `checkAdmin` 참고, 이메일 인증된 계정만 인정)
 
 ## 사이트 구조 (디자인: 검정 바탕 모노, 이모지 없이 단순하게)
 - `index.html` — 작품 카드 목록 (방문자에게는 이것만 보임)

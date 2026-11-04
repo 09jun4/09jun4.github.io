@@ -249,63 +249,81 @@
     return list;
   }
 
-  var crowdPattern = null, CROWD_PX_M = 16, CROWD_TILE_M = 10, CROWD_ROW_M = 0.95, CROWD_ROWS = 2;
-  function makeCrowd(ctx) {
-    var W = CROWD_PX_M * CROWD_TILE_M, rowPx = Math.round(CROWD_PX_M * CROWD_ROW_M), H = rowPx * CROWD_ROWS;
-    var cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    var g = cv.getContext('2d');
-    var shirts = ['#d63a3a', '#f2f2f2', '#2b5fd9', '#ffd23f', '#1e9a52', '#ff8a1f', '#14171c', '#c8102e', '#7a4bd1', '#0fa3a3', '#e8e8e8', '#e86aa6'];
-    var skin = ['#f1c9a5', '#d9a77f', '#a8714f', '#6e452b', '#f5d7bd'];
-    var seed = 7;
-    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
-    for (var r = 0; r < CROWD_ROWS; r++) {
-      var y0 = r * rowPx;
-      g.fillStyle = '#3d4654'; // seat row / step
-      g.fillRect(0, y0, W, rowPx);
-      g.fillStyle = '#2b323d';
-      g.fillRect(0, y0 + rowPx - 3, W, 3);
-      for (var x = 1; x < W - 4; x += 7 + Math.floor(rnd() * 3)) {
-        if (rnd() < 0.08) continue; // an empty seat
-        var stand = rnd() < 0.12, top = y0 + (stand ? 1 : 4);
-        g.fillStyle = shirts[Math.floor(rnd() * shirts.length)];
-        g.fillRect(x, top + 5, 6, rowPx - (top - y0) - 7);
-        g.fillStyle = skin[Math.floor(rnd() * skin.length)];
-        g.beginPath();
-        g.arc(x + 3, top + 3, 2.6, 0, Math.PI * 2);
-        g.fill();
-        if (rnd() < 0.05) { // a waved flag
-          g.fillStyle = shirts[Math.floor(rnd() * shirts.length)];
-          g.fillRect(x + 4, top - 1, 6, 4);
-        }
+  // Spectators: per stand, one entry per seat (built once, deterministic),
+  // x, y, height of the feet in world metres + a shirt colour index.
+  var CROWD_NEAR = 170; // m: closer stands draw individual people
+  var SHIRTS = ['#d63a3a', '#f2f2f2', '#2b5fd9', '#ffd23f', '#1e9a52', '#ff8a1f', '#14171c', '#c8102e', '#7a4bd1', '#0fa3a3', '#e86aa6', '#9aa3ad'];
+  var SKIN = '#e0b28c';
+  function crowdFor(samples, st, D) {
+    if (st.crowd) return st.crowd;
+    var n = samples.length, sp = CR.Config.TRACK_SAMPLE_SPACING, len = st.len * sp;
+    var rows = Math.max(2, Math.floor((D.depth - 0.5) / 0.95)), seed = (st.i0 * 31 + 7) | 0;
+    function rnd() { seed = (seed * 16807) % 2147483647; if (seed <= 0) seed += 2147483646; return seed / 2147483647; }
+    var xs = [], ys = [], hs = [], cs = [], rowStart = [];
+    for (var r = rows - 1; r >= 0; r--) { // back rows first (drawn behind)
+      rowStart.push(xs.length);
+      var d = 0.5 + (r + 0.5) * ((D.depth - 0.5) / rows);
+      var h = D.parapet + (D.rise - D.parapet) * ((d - 0.5) / (D.depth - 0.5));
+      for (var t = 0.4; t < len - 0.3; t += 0.62) {
+        if (rnd() < 0.1) continue; // an empty seat
+        var k = t / sp, i = Math.floor(k), f = k - i;
+        var a = samples[(st.i0 + i) % n], b = samples[(st.i0 + i + 1) % n];
+        var dd = d + (rnd() - 0.5) * 0.15;
+        var ax = a.x + a.nx * st.side * (st.off + dd), ay = a.y + a.ny * st.side * (st.off + dd);
+        var bx = b.x + b.nx * st.side * (st.off + dd), by = b.y + b.ny * st.side * (st.off + dd);
+        xs.push(ax + (bx - ax) * f); ys.push(ay + (by - ay) * f); hs.push(h + (rnd() < 0.12 ? 0.25 : 0)); cs.push((rnd() * SHIRTS.length) | 0);
       }
     }
-    crowdPattern = ctx.createPattern(cv, 'repeat');
+    rowStart.push(xs.length);
+    st.crowd = { x: new Float32Array(xs), y: new Float32Array(ys), h: new Float32Array(hs), c: new Uint8Array(cs), rows: rowStart };
+    return st.crowd;
+  }
+  var cx0 = new Float32Array(4096), cy0 = new Float32Array(4096), cw0 = new Float32Array(4096);
+  function drawCrowd(ctx, cr, dist) {
+    var f = Cam.focal, stride = dist > 110 ? 2 : 1;
+    for (var r = 0; r < cr.rows.length - 1; r++) {
+      var from = cr.rows[r], to = cr.rows[r + 1], m = 0;
+      // project this row once
+      for (var i = from; i < to && m < 4096; i += stride) {
+        if (!Cam.project(cr.x[i], cr.y[i], cr.h[i])) { cw0[m++] = -1; continue; }
+        var px = 0.5 * f / Cam.out.depth;
+        cx0[m] = Cam.out.x; cy0[m] = Cam.out.y; cw0[m] = px; m++;
+      }
+      // bodies by shirt colour, then all the heads
+      for (var c = 0; c < SHIRTS.length; c++) {
+        ctx.fillStyle = SHIRTS[c];
+        ctx.beginPath();
+        var any = false;
+        for (var j = 0, i2 = from; j < m; j++, i2 += stride) {
+          if (cw0[j] < 0.35 || cr.c[i2] !== c) continue;
+          var w = cw0[j];
+          ctx.rect(cx0[j] - w * 0.45, cy0[j] - w * 1.25, w * 0.9, w * 1.05);
+          any = true;
+        }
+        if (any) ctx.fill();
+      }
+      ctx.fillStyle = SKIN;
+      ctx.beginPath();
+      for (var k = 0; k < m; k++) {
+        var w2 = cw0[k];
+        if (w2 < 0.35) continue;
+        ctx.rect(cx0[k] - w2 * 0.25, cy0[k] - w2 * 1.75, w2 * 0.5, w2 * 0.5);
+      }
+      ctx.fill();
+    }
   }
 
   function standPoint(s, side, off, d) {
     return [s.x + s.nx * side * (off + d), s.y + s.ny * side * (off + d)];
   }
 
-  function drawStand(ctx, samples, st, near) {
+  function drawStand(ctx, samples, st, near, dist) {
     var n = samples.length, step = near ? 3 : 6;
-    var D = st.ga ? GA : STAND, slopeLen = Math.hypot(D.depth, D.rise - D.parapet);
-    var layers = { back: [], seat: [], parapet: [], roof: [], fascia: [] };
-    var u = 0;
+    var D = st.ga ? GA : STAND;
+    var layers = { back: [] };
     for (var j = 0; j < st.len; j += step) {
       var a = samples[(st.i0 + j) % n], b = samples[(st.i0 + Math.min(st.len, j + step)) % n];
       layers.back.push([a, b]);
-      var segLen = Math.hypot(b.x - a.x, b.y - a.y);
-      // seating: affine crowd texture from three projected corners
-      var aLow = standPoint(a, st.side, st.off, 0.5), aHigh = standPoint(a, st.side, st.off, D.depth), bHigh = standPoint(b, st.side, st.off, D.depth);
-      var ok = Cam.project(aHigh[0], aHigh[1], D.rise);
-      var tl = ok && { x: Cam.out.x, y: Cam.out.y };
-      ok = ok && Cam.project(bHigh[0], bHigh[1], D.rise);
-      var tr = ok && { x: Cam.out.x, y: Cam.out.y };
-      ok = ok && Cam.project(aLow[0], aLow[1], D.parapet);
-      var bl = ok && { x: Cam.out.x, y: Cam.out.y };
-      layers.seat.push([a, b, ok ? [tl, tr, bl] : null, u, segLen]);
-      u += segLen;
     }
     function quad(a, b, d0, z0, d1, z1) {
       var p0 = standPoint(a, st.side, st.off, d0), p1 = standPoint(b, st.side, st.off, d0);
@@ -320,22 +338,15 @@
     ctx.beginPath();
     layers.back.forEach(function (q) { quad(q[0], q[1], D.back, 0, D.back, D.roof); });
     ctx.fill();
-    // seating with the crowd
-    var tile = CROWD_PX_M * CROWD_TILE_M, rows = CROWD_PX_M * CROWD_ROW_M * CROWD_ROWS / (CROWD_ROW_M * CROWD_ROWS);
-    layers.seat.forEach(function (q) {
-      ctx.beginPath();
-      if (!quad(q[0], q[1], 0.5, D.parapet, D.depth, D.rise)) return;
-      var c = q[2];
-      if (c && crowdPattern && crowdPattern.setTransform) {
-        var sx = CROWD_PX_M * q[4], sy = rows * slopeLen;
-        var A = (c[1].x - c[0].x) / sx, B = (c[1].y - c[0].y) / sx;
-        var Cc = (c[2].x - c[0].x) / sy, Dd = (c[2].y - c[0].y) / sy;
-        var u0 = (q[3] * CROWD_PX_M) % tile;
-        crowdPattern.setTransform(new DOMMatrix([A, B, Cc, Dd, c[0].x - A * u0, c[0].y - B * u0]));
-        ctx.fillStyle = crowdPattern;
-      } else ctx.fillStyle = '#5a6272';
-      ctx.fill();
-    });
+    // Seating, then the spectators: each one is fixed to a seat in the
+    // world (crowdFor) and projected every frame, so people stay in place
+    // and shrink with distance. Far stands show the seating as a mottled
+    // crowd colour instead.
+    ctx.fillStyle = dist < CROWD_NEAR ? '#3d4654' : '#5f6573';
+    ctx.beginPath();
+    layers.back.forEach(function (q) { quad(q[0], q[1], 0.5, D.parapet, D.depth, D.rise); });
+    ctx.fill();
+    if (dist < CROWD_NEAR) drawCrowd(ctx, crowdFor(samples, st, D), dist);
     // front parapet and its sponsor stripe
     ctx.fillStyle = '#2b313b';
     ctx.beginPath();
@@ -372,7 +383,6 @@
   function drawStands(ctx, samples, lite) {
     if (lite) return;
     if (standsFor !== samples) { stands = buildStands(samples); standsFor = samples; }
-    if (!crowdPattern) makeCrowd(ctx);
     var n = samples.length, fov = Cam.halfFov(), cfg = CR.Config, vis = [];
     for (var k = 0; k < stands.length; k++) {
       var st = stands[k], mid = samples[(st.i0 + (st.len >> 1)) % n];
@@ -383,7 +393,7 @@
       vis.push({ st: st, f: f });
     }
     vis.sort(function (a, b) { return b.f - a.f; });
-    for (var v = 0; v < vis.length; v++) drawStand(ctx, samples, vis[v].st, vis[v].f < LOD_FAR);
+    for (var v = 0; v < vis.length; v++) drawStand(ctx, samples, vis[v].st, vis[v].f < LOD_FAR, vis[v].f);
   }
 
   // --- Car ---------------------------------------------------------------------

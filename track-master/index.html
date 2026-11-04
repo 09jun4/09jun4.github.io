@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Track Master">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Track Master</title>
+<meta name="description" content="Track Master — 실제 F1 서킷의 서킷 레이스와 일본 산길 다운힐 드리프트 레이스를 고르는 브라우저 레이싱 게임">
+<meta property="og:title" content="Track Master">
+<meta property="og:description" content="서킷 레이스 · 드리프트 레이스 · 계정 저장 · 온라인 랭킹">
+<meta name="theme-color" content="#0b0d11">
+<style>
+  :root { --bg: #0b0d11; --panel: #151920; --panel2: #1c222b; --line: rgba(255,255,255,0.1); --fg: #f2f3f5; --dim: #8e96a3; --acc: #ff7a1a; --acc2: #e8202f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font: 15px/1.45 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', sans-serif; }
+  body { background: radial-gradient(1200px 600px at 80% -10%, rgba(255,122,26,0.16), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(232,32,47,0.12), transparent 60%), var(--bg); background-attachment: fixed; }
+  [hidden] { display: none !important; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: inherit; }
+  .wrap { width: min(1080px, 100%); margin: 0 auto; padding: calc(14px + env(safe-area-inset-top)) 16px 40px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .site { color: var(--dim); text-decoration: none; font-size: 13px; font-weight: 700; }
+  .site:hover { color: var(--fg); }
+  #account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; font-size: 14px; }
+  .btn { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-weight: 800; }
+  .btn:hover { border-color: rgba(255,255,255,0.25); }
+  .btn.white { background: #fff; color: #1b1b1b; border: 0; }
+  .btn.acc { background: var(--acc); color: #1a0d02; border: 0; }
+  .btn.small { padding: 6px 10px; font-size: 13px; }
+  .who b { color: #ffd7b4; }
+  .warn { color: #ffb4a8; font-size: 13px; margin: 6px 0 0; }
+  .dim { color: var(--dim); }
+  .logo { text-align: center; margin: clamp(26px, 7vh, 70px) 0 clamp(20px, 5vh, 46px); }
+  .logo h1 { margin: 0; font: italic 900 clamp(42px, 9vw, 92px)/0.95 'Segoe UI', system-ui, sans-serif; letter-spacing: -1px; }
+  .logo h1 span { color: var(--acc); }
+  .logo .stripe { width: min(320px, 60%); height: 5px; margin: 14px auto 0; background: linear-gradient(90deg, var(--acc2), var(--acc)); border-radius: 3px; transform: skewX(-25deg); }
+  .logo p { margin: 12px 0 0; color: var(--dim); }
+  .main-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 760px; margin: 0 auto; }
+  .big { position: relative; overflow: hidden; padding: 26px 22px; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(135deg, var(--panel2), var(--panel)); text-align: left; min-height: 150px; }
+  .big::after { content: ''; position: absolute; right: -30px; top: 0; bottom: 0; width: 110px; background: linear-gradient(90deg, transparent, rgba(255,122,26,0.15)); transform: skewX(-20deg); }
+  .big:hover { border-color: var(--acc); }
+  .big b { display: block; font: italic 900 30px/1 'Segoe UI', system-ui, sans-serif; }
+  .big small { display: block; margin-top: 10px; color: var(--dim); font-size: 14px; }
+  .back { margin: 22px 0 12px; }
+  h2 { margin: 0 0 14px; font: italic 900 30px/1.1 'Segoe UI', system-ui, sans-serif; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .mode { display: block; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); text-decoration: none; }
+  .mode:hover { border-color: var(--acc); transform: translateY(-2px); }
+  .mode { transition: transform 0.15s, border-color 0.15s; }
+  .mode img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #222; }
+  .mode .txt { padding: 14px 16px 16px; }
+  .mode b { font: italic 900 24px/1 'Segoe UI', system-ui, sans-serif; }
+  .mode b span { color: var(--acc); }
+  .mode p { margin: 8px 0 0; color: var(--dim); font-size: 14px; }
+  .soon { margin-top: 12px; padding: 12px 16px; border-radius: 14px; border: 1px dashed var(--line); color: var(--dim); font-size: 13px; text-align: center; }
+  .tabs { display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 14px; }
+  .tab { flex: 1; padding: 10px; border: 0; border-radius: 9px; background: none; color: var(--dim); font-weight: 800; }
+  .tab.on { background: var(--panel2); color: var(--fg); box-shadow: inset 0 -3px 0 var(--acc); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
+  .card h3 { margin: 0 0 10px; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--dim); font-weight: 700; font-size: 12px; }
+  td.r, th.r { text-align: right; }
+  tr.me td { color: #ffd7b4; font-weight: 800; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; font-size: 13px; font-weight: 700; color: var(--dim); }
+  .chip.on { color: var(--fg); border-color: var(--acc); background: rgba(255,122,26,0.12); }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center; }
+  .stats div { padding: 8px 4px; border-radius: 10px; background: var(--panel2); }
+  .stats b { display: block; font-size: 20px; }
+  .stats small { color: var(--dim); font-size: 11px; }
+  .nick { display: flex; gap: 6px; margin-top: 8px; }
+  .nick input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); }
+  @media (max-width: 720px) {
+    .main-menu, .modes, .grid2 { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .big { min-height: 110px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="site" href="/">← 09jun4</a>
+    <div id="account"></div>
+  </header>
+
+  <section id="home">
+    <div class="logo">
+      <h1>TRACK <span>MASTER</span></h1>
+      <div class="stripe"></div>
+      <p>어떤 레이스를 달릴지 고르세요</p>
+    </div>
+    <div class="main-menu">
+      <button type="button" class="big" data-go="modes"><b>Game Mode</b><small>서킷 레이스 · 드리프트 레이스</small></button>
+      <button type="button" class="big" data-go="records"><b>Records</b><small>모드별 내 기록과 온라인 랭킹</small></button>
+    </div>
+  </section>
+
+  <section id="modes" hidden>
+    <button type="button" class="btn small back" data-go="home">← 메인</button>
+    <h2>Game Mode</h2>
+    <div class="modes">
+      <a class="mode" href="circuit/">
+        <img src="img/circuit.jpg" alt="서킷 레이스 장면">
+        <div class="txt"><b>CIRCUIT <span>RACE</span></b><p>실제 F1 서킷 6곳 · F4부터 F1까지 업그레이드 · 튜닝 · AI 5대와 시즌 챔피언십 · 1인칭 콕핏 시점</p></div>
+      </a>
+      <a class="mode" href="drift/">
+        <img src="img/drift.jpg" alt="드리프트 레이스 장면">
+        <div class="txt"><b>DRIFT <span>RACE</span></b><p>일본 산길 다운힐 4코스 · AE86 · RX-7 · 미아타 · 타임어택과 AI 1:1 배틀</p></div>
+      </a>
+    </div>
+    <div class="soon">다른 레이스 모드도 곧 추가될 예정이에요.</div>
+  </section>
+
+  <section id="records" hidden>
+    <button type="button" class="btn small back" data-go="home">← 메인</button>
+    <h2>Records</h2>
+    <div class="tabs"><button type="button" class="tab on" data-rec="circuit">서킷 레이스</button><button type="button" class="tab" data-rec="drift">드리프트 레이스</button></div>
+    <div id="rec-body"></div>
+  </section>
+</div>
+<script src="js/vendor/firebase.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/home.js"></script>
+</body>
+</html>

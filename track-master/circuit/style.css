@@ -871,8 +871,8 @@ body.touch .race-tower li { padding: 2px 4px; }
 /* ---------- Menu tabs ---------- */
 .menu-tabs { display: flex; gap: 6px; width: 100%; margin: 14px 0 16px; padding: 4px; box-sizing: border-box; border-radius: 14px; background: var(--menu-panel); border: 1px solid var(--menu-border); }
 .menu-tab { flex: 1; padding: 11px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--menu-dim); font: 800 15px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif; cursor: pointer; }
-.menu-tab-link { flex: 1; padding: 11px 8px; border-radius: 10px; color: #ff9b3d; font: 800 15px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif; text-align: center; text-decoration: none; }
-.menu-tab-link:hover { background: var(--menu-panel-hi); }
+.menu-back { display: inline-block; margin-bottom: 10px; color: var(--menu-dim); font: 700 14px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif; text-decoration: none; }
+.menu-back:hover { color: var(--menu-fg); }
 .menu-tab.is-active { background: var(--menu-panel-hi); color: var(--menu-fg); box-shadow: inset 0 -3px 0 var(--menu-accent); }
 .menu-tab:focus-visible { outline: 3px solid var(--menu-accent); outline-offset: 2px; }
 .tab-lock { font-size: 12px; }

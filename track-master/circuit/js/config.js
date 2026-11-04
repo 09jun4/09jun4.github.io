@@ -100,7 +100,11 @@
     // are covered too. The inside of a corner gets RUNOFF_INSIDE_FRACTION of
     // that. Never wide enough to reach another part of the lap.
     // A car fully past a white line gets a lap-time penalty (laps.js).
-    RUNOFF_MIN: 1.0,
+    RUNOFF_MIN: 2.5,
+    // Walls stay at least this far from the white line (where the lap leaves
+    // room), and their offset changes by at most WALL_SLOPE m per metre.
+    WALL_MIN_GAP: 2.5,
+    WALL_SLOPE: 0.12,
     RUNOFF_MAX: 11,
     RUNOFF_CORNER_K: 420, // m^2: radius 40m -> 10.5m, radius 100m -> 4.2m
     RUNOFF_SPREAD: 18, // m; fades with the square of the distance, so it widens late

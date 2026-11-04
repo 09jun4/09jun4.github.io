@@ -17,5 +17,5 @@ export const SITE_FIREBASE = {
 // 그 작품의 Firebase 콘솔 > Authentication > 로그인 방법 > Google > 웹 SDK 구성 >
 // "외부 프로젝트의 클라이언트 ID 허용" 목록에 위 사이트 프로젝트의 웹 클라이언트 ID를 넣어야 연결돼요.
 export const LINKED_WORKS = [
-  { id: 'f1-champion', title: 'F1 Champion', configScript: 'f1-champion/js/firebase-config.js', configGlobal: 'F1C_FIREBASE_CONFIG' },
+  { id: 'f1-champion', title: 'Track Master', configScript: 'track-master/js/firebase-config.js', configGlobal: 'F1C_FIREBASE_CONFIG' },
 ];

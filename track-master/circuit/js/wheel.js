@@ -233,7 +233,7 @@
       }
       text(g, r[4], cx, cy + R + 19, '800 11px ' + LBL, '#e8ebef');
     });
-    text(g, 'F1 CHAMPION', 500, 560, '700 10px ' + LBL, '#6f7680');
+    text(g, 'TRACK MASTER', 500, 560, '700 10px ' + LBL, '#6f7680');
     return c;
   }
 
