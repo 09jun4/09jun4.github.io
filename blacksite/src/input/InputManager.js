@@ -27,6 +27,7 @@ export class InputManager {
     });
     addEventListener('contextmenu', (e) => { if (this.enabled || this.locked) e.preventDefault(); });
     addEventListener('blur', () => this.clear());
+    document.addEventListener('pointerlockerror', () => bus.emit('input:lockerror'));
     document.addEventListener('pointerlockchange', () => {
       const was = this.locked;
       this.locked = document.pointerLockElement === this.target;

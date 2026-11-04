@@ -4,16 +4,16 @@ import { clamp, damp, lerp, smooth } from '../../utils/math.js';
 
 // 자세 정의: 관절 → [rx, ry, rz]
 const LOW_READY = {
-  rShoulder: [-0.55, 0, -0.18], rElbow: [-1.15, 0.2, 0],
-  lShoulder: [-0.95, 0, 0.55], lElbow: [-0.85, -0.3, 0],
-  weapon: [0.55, 0.12, 0], chest: [0.04, 0, 0], head: [0.05, 0, 0],
+  rShoulder: [-0.35, 0, -0.12], rElbow: [-1.0, 0.25, 0],
+  lShoulder: [-0.7, 0, 0.3], lElbow: [-1.1, -0.2, 0],
+  weapon: [0.6, -0.45, 0.2], chest: [0.04, 0, 0], head: [0.05, 0, 0],
 };
 const AIM = {
   rShoulder: [-1.25, 0, -0.32], rElbow: [-0.75, 0.3, 0],
   lShoulder: [-1.45, 0, 0.62], lElbow: [-0.35, -0.4, 0],
   weapon: [0.0, 0, 0], chest: [0.0, 0, 0], head: [0.0, 0, 0],
 };
-const WEAPON_POS_LOW = [0.07, 0.02, 0.27];
+const WEAPON_POS_LOW = [0.1, -0.12, 0.22];
 const WEAPON_POS_AIM = [0.09, 0.2, 0.3];
 
 export class JointAnimator {

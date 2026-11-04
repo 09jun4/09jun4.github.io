@@ -6,7 +6,7 @@
   "wallThickness": 0.2,
   "doorHeight": 2.25,
   "spawn": { "pos": [-5.6, 0, 0], "yawDeg": -90 },
-  "hemisphere": { "sky": "#8ea0b4", "ground": "#2a2622", "intensity": 0.75 },
+  "hemisphere": { "sky": "#8ea0b4", "ground": "#5a554e", "intensity": 0.8 },
   "zones": [
     {
       "id": "entry", "name": "진입 구역", "nameEn": "ENTRY POINT", "rect": [-8, -4, 0, 4],

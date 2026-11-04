@@ -65,6 +65,7 @@ export class MenuBackdrop {
     this.dust.position.y = Math.sin(t * 0.2) * 0.1;
     this.dust.rotation.y = t * 0.01;
     if (this.camera.aspect !== innerWidth / innerHeight) { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
+    renderer.shadowMap.autoUpdate = true;
     renderer.render(this.scene, this.camera);
   }
   dispose() {

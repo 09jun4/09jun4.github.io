@@ -316,6 +316,10 @@ export class Session {
   }
 
   render(renderer) {
+    // 그림자 맵은 2프레임에 한 번만 갱신 (주요 조명 1~2개뿐이라 차이가 거의 없고 비용은 절반)
+    renderer.shadowMap.autoUpdate = false;
+    this._frame = (this._frame || 0) + 1;
+    if (this._frame % 2 === 1) renderer.shadowMap.needsUpdate = true;
     renderer.render(this.scene, this.cinematic ? this.cineCamera : this.camera);
     if (!this.cinematic) this.rig.render(renderer);
   }

@@ -67,7 +67,7 @@ export function createMaterials() {
     floorConcrete: S({ color: 0x7a7c7d, roughness: 0.82, metalness: 0, map: floorTex }),
     floorTile: S({ color: 0x9aa2a6, roughness: 0.55, metalness: 0, map: tileTex }),
     floorMetal: S({ color: 0x6c737a, roughness: 0.5, metalness: 0.6, map: grateTex }),
-    ceiling: S({ color: 0x55585a, roughness: 0.95, metalness: 0 }),
+    ceiling: S({ color: 0x8a8e91, roughness: 0.9, metalness: 0, map: concreteTex }),
     trim: S({ color: 0x3f454b, roughness: 0.45, metalness: 0.7 }),
     // 금속·플라스틱
     metal: S({ color: 0x7d858c, roughness: 0.38, metalness: 0.8 }),
