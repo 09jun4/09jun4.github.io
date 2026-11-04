@@ -20,17 +20,38 @@
     if (Cars.byId[pref.car]) G.carId = pref.car;
     if (pref.mode === 'battle') G.mode = 'battle';
     if (pref.view === 'hood') G.view = 'hood';
+    if (pref.gfx === 'low' || pref.gfx === 'high') G.gfx = pref.gfx;
   } catch (e) { /* defaults */ }
-  function savePref(course) { try { localStorage.setItem('f1-champion.drift-ui', JSON.stringify({ car: G.carId, mode: G.mode, view: G.view, course: course || C.SLUG })); } catch (e) { /* ignore */ } }
+  // Graphics: 'high' (shadows, antialiasing, dense forest) or 'low' (no
+  // shadows, lower resolution, a lighter forest and shorter view, plus an
+  // automatic resolution drop if the frame rate still falls). Phones and
+  // tablets start on low.
+  var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  if (!G.gfx) G.gfx = coarse ? 'low' : 'high';
+  DR.GFX = G.gfx;
+  var LOW = G.gfx === 'low';
+  function savePref(course) { try { localStorage.setItem('f1-champion.drift-ui', JSON.stringify({ car: G.carId, mode: G.mode, view: G.view, course: course || C.SLUG, gfx: G.gfx })); } catch (e) { /* ignore */ } }
 
   // --- three.js setup --------------------------------------------------------
   var canvas = $('game');
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
-  renderer.shadowMap.enabled = true;
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !LOW, powerPreference: 'high-performance' });
+  var dpr = window.devicePixelRatio || 1;
+  var pixelScale = LOW ? Math.min(1, dpr) * 0.8 : Math.min(dpr, 1.6);
+  renderer.setPixelRatio(pixelScale);
+  renderer.shadowMap.enabled = !LOW;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   var scene = new THREE.Scene();
-  var camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
+  var camera = new THREE.PerspectiveCamera(62, 1, 0.1, LOW ? 1100 : 3000);
+  // Low: if frames still take too long, render at a lower resolution.
+  var perf = { t: 0, frames: 0 };
+  function adapt(dt) {
+    if (!LOW) return;
+    perf.t += dt; perf.frames++;
+    if (perf.t < 2) return;
+    var fps = perf.frames / perf.t;
+    perf.t = 0; perf.frames = 0;
+    if (fps < 45 && pixelScale > 0.5) { pixelScale = Math.max(0.5, pixelScale - 0.1); renderer.setPixelRatio(pixelScale); resize(); }
+  }
   DR.World.build(scene, renderer);
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
@@ -259,6 +280,8 @@
     } else if (G.state === 'menu') {
       menuCamera(dt);
     }
+    adapt(dt);
+    if (G.state !== 'menu' && G.state !== 'paused') DR.Minimap.draw(G);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
@@ -383,7 +406,7 @@
       b.addEventListener('click', function () { G.carId = s.id; savePref(); renderMenu(); });
       grid.appendChild(b);
     });
-    Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
+    Array.prototype.forEach.call(document.querySelectorAll('.mode[data-mode]'), function (b) {
       b.classList.toggle('on', b.getAttribute('data-mode') === G.mode);
     });
     // Courses: picking another one reloads the page with that mountain.
@@ -404,6 +427,7 @@
       });
       cl.appendChild(b);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('.gfx'), function (b) { b.classList.toggle('on', b.getAttribute('data-gfx') === G.gfx); });
     var bt = DR.Cloud.save.battle;
     $('battle-rec').textContent = 'AI 배틀 전적 ' + bt.wins + '승 ' + bt.losses + '패';
     $('course-info').textContent = C.NAME + ' · 길이 ' + (C.raceLength / 1000).toFixed(2) + 'km · 고도차 ' + Math.round(C.drop) + 'm · ' + C.def.tag;
@@ -411,8 +435,16 @@
     renderAccount();
     renderRanking(false);
   }
-  Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
+  Array.prototype.forEach.call(document.querySelectorAll('.mode[data-mode]'), function (b) {
     b.addEventListener('click', function () { G.mode = b.getAttribute('data-mode'); savePref(); renderMenu(); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.gfx'), function (b) {
+    b.addEventListener('click', function () {
+      var g = b.getAttribute('data-gfx');
+      if (g === G.gfx) return;
+      G.gfx = g; savePref();
+      location.reload(); // the renderer and the world are rebuilt for it
+    });
   });
 
   function renderAccount() {

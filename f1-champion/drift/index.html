@@ -90,6 +90,8 @@
   #hud-rival { top: 64px; right: 12px; text-align: right; }
   #hud-rival-pos { font: 900 22px/1 'Segoe UI', system-ui, sans-serif; color: #ff6b6b; }
   #hud-rival.ahead #hud-rival-pos { color: #5fe08f; }
+  #minimap { position: absolute; top: 12px; left: 12px; width: clamp(130px, 16vw, 190px); height: clamp(130px, 16vw, 190px); border-radius: 14px; background: rgba(10, 12, 15, 0.55); border: 1px solid var(--line); }
+  body.touch #minimap { width: 118px; height: 118px; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); }
   #hud-drift { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font: italic 900 26px/1 'Segoe UI', system-ui, sans-serif; color: var(--acc); opacity: 0; transition: opacity 0.15s; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
   #hud-drift.on { opacity: 1; }
   #hud-help { bottom: 14px; left: 12px; font-size: 11px; color: var(--dim); max-width: 300px; }
@@ -105,7 +107,7 @@
   .tc button { width: 76px; height: 76px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.45); font-weight: 800; font-size: 14px; touch-action: none; }
   .tc button.on { background: rgba(255, 155, 61, 0.55); }
   .tc .gas { height: 110px; }
-  .tc-top { position: fixed; top: calc(70px + env(safe-area-inset-top)); left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  .tc-top { position: fixed; top: calc(138px + env(safe-area-inset-top)); left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
   .tc-top button { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.55); font-size: 12px; font-weight: 700; }
   body.touch #hud-meter { bottom: calc(118px + env(safe-area-inset-bottom)); }
   @media (max-width: 720px) {
@@ -124,6 +126,7 @@
 <canvas id="game"></canvas>
 
 <div id="hud" hidden>
+  <canvas id="minimap" aria-label="미니맵"></canvas>
   <div id="hud-prog" class="hud-box"><div id="hud-prog-track"><div id="hud-prog-fill"></div><div id="hud-prog-rival" hidden></div></div></div>
   <div id="hud-timebox" class="hud-box"><div id="hud-time">0:00.000</div><div id="hud-best"></div><div id="hud-dist"></div></div>
   <div id="hud-rival" class="hud-box" hidden><div id="hud-rival-pos">1위</div><div><span id="hud-rival-gap"></span> · <span id="hud-rival-name"></span></div></div>
@@ -156,6 +159,11 @@
     <div class="modes">
       <button type="button" class="mode" data-mode="ta"><b>다운힐 타임어택</b><small>혼자 정상에서 결승까지, 가장 빠른 기록에 도전</small></button>
       <button type="button" class="mode" data-mode="battle"><b>AI 배틀</b><small>AI 차 한 대와 동시에 출발, 먼저 도착하면 승리 · <span id="battle-rec"></span></small></button>
+    </div>
+    <h2>그래픽</h2>
+    <div class="modes">
+      <button type="button" class="mode gfx" data-gfx="high"><b>높음</b><small>그림자 · 계단 현상 제거 · 울창한 숲 · 먼 시야</small></button>
+      <button type="button" class="mode gfx" data-gfx="low"><b>낮음</b><small>내장 그래픽·휴대폰용 — 그림자 끔, 해상도 자동 조절, 숲·시야 축소</small></button>
     </div>
     <h2>코스</h2>
     <div id="courses" class="courses"></div>
@@ -201,6 +209,7 @@
 <script src="js/world.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/cloud.js"></script>
+<script src="js/minimap.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

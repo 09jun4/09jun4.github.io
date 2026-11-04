@@ -22,6 +22,7 @@
       grass: [0x3c5a34, 0x2a4128], tree: function (r, c) { c.setHSL(0.33 + r() * 0.04, 0.3, 0.12 + r() * 0.06); }, treeH: 1.5, lake: 0x7a8a90 },
   };
   var TH = THEMES[C.def.theme] || THEMES.summer;
+  var LOW = DR.GFX === 'low';
   World.theme = TH;
 
   function canvasTex(w, h, draw) {
@@ -75,7 +76,7 @@
 
   function buildTerrain(scene) {
     var minRoad = Math.min.apply(null, C.samples.map(function (q) { return q.h; }));
-    var T = C.TERRAIN, size = Math.min(T.size, 5200), seg = Math.round(size / 12), cx = T.cx, cy = T.cy;
+    var T = C.TERRAIN, size = Math.min(T.size, 5200), seg = Math.round(size / (LOW ? 22 : 12)), cx = T.cx, cy = T.cy;
     var geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     var pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
@@ -170,7 +171,7 @@
   }
 
   function buildTrees(scene) {
-    var N = 6500, cone = new THREE.ConeGeometry(2.4, 9, 7), trunk = new THREE.CylinderGeometry(0.3, 0.4, 2.5, 5);
+    var N = LOW ? 2200 : 6500, cone = new THREE.ConeGeometry(2.4, 9, LOW ? 5 : 7), trunk = new THREE.CylinderGeometry(0.3, 0.4, 2.5, 5);
     cone.translate(0, 6.5, 0); trunk.translate(0, 1.25, 0);
     var a = new THREE.InstancedMesh(cone, new THREE.MeshLambertMaterial({ color: 0xffffff }), N);
     var b = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: 0x4b3a2a }), N);
@@ -181,7 +182,7 @@
     while (k < N && tries < N * 8) {
       tries++;
       // Most trees within a few hundred metres of the road.
-      var S = C.samples[(rnd() * C.samples.length) | 0], side = rnd() < 0.5 ? -1 : 1, dist = C.HALF + 8 + Math.pow(rnd(), 1.6) * 420;
+      var S = C.samples[(rnd() * C.samples.length) | 0], side = rnd() < 0.5 ? -1 : 1, dist = C.HALF + 8 + Math.pow(rnd(), 1.6) * (LOW ? 260 : 420);
       var x = S.x + S.nx * side * dist + (rnd() - 0.5) * 30, y = S.y + S.ny * side * dist + (rnd() - 0.5) * 30;
       var nr = C.roadNear(x, y);
       if (nr.d < C.HALF + 7) continue;
@@ -267,11 +268,11 @@
 
   World.build = function (scene, renderer) {
     scene.background = new THREE.Color(TH.sky);
-    scene.fog = new THREE.Fog(TH.sky, TH.fog[0], TH.fog[1]);
+    scene.fog = new THREE.Fog(TH.sky, LOW ? Math.min(TH.fog[0], 180) : TH.fog[0], LOW ? Math.min(TH.fog[1], 950) : TH.fog[1]);
     scene.add(new THREE.HemisphereLight(TH.hemi[0], TH.hemi[1], TH.hemi[2]));
     var sun = new THREE.DirectionalLight(TH.sun[0], TH.sun[1]);
     sun.position.set(-60, 120, 40);
-    sun.castShadow = true;
+    sun.castShadow = !LOW;
     sun.shadow.mapSize.set(1024, 1024);
     var sc = sun.shadow.camera; sc.left = sc.bottom = -28; sc.right = sc.top = 28; sc.near = 1; sc.far = 300;
     scene.add(sun, sun.target);
