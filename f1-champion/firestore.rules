@@ -71,5 +71,29 @@ service cloud.firestore {
         && count(request.resource.data.titles, request.resource.data.races)
         && request.resource.data.at == request.time;
     }
+
+    // 드리프트 레이스 개인 저장: 본인만 읽고 쓸 수 있어요.
+    match /drift_users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string && request.resource.data.save.size() < 100000;
+    }
+
+    // 드리프트 레이스 타임어택 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요.
+    match /drift/{course}/times/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && course in ['haruna']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at'])
+        && request.resource.data.device in ['mobile', 'pc']
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && request.resource.data.time is number
+        && request.resource.data.time > 40 && request.resource.data.time < 3600
+        && request.resource.data.car in ['ae86', 'rx7', 'miata']
+        && request.resource.data.at == request.time;
+    }
   }
 }

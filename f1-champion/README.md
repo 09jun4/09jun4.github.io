@@ -20,6 +20,8 @@ Firebase(Auth + Firestore)를 씁니다. `js/firebase-config.js`가 비어 있�
 | `users/{uid}` | 저장 데이터(JSON 문자열), 닉네임 | 본인만 |
 | `tracks/{서킷}/laps/{uid}` | 서킷별 연습 베스트 랩, 3인칭 (기기: mobile/pc) | 읽기 공개, 쓰기 본인 |
 | `tracks/{서킷}/laps_cockpit/{uid}` | 서킷별 연습 베스트 랩, 1인칭 | 읽기 공개, 쓰기 본인 |
+| `drift_users/{uid}` | 드리프트 레이스 개인 기록 | 본인만 |
+| `drift/haruna/times/{uid}` | 드리프트 레이스 타임어택 랭킹 | 읽기 공개, 쓰기 본인 |
 | `career/{uid}` | AI 대전 포인트·우승·챔피언 | 읽기 공개, 쓰기 본인 |
 
 `js/vendor/firebase.js`는 Firebase JS SDK 10.14.1(app, auth, firestore)을 esbuild로 묶은 파일입니다.
