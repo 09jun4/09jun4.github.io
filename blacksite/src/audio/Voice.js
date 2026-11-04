@@ -34,7 +34,7 @@ export function voiceBuffer(ctx, o) {
   const F0 = V0.map(([f, bw]) => bandpass(f, bw)), F1 = V1.map(([f, bw]) => bandpass(f, bw));
   const B0 = V0.map(([f, bw]) => bandpass(f, bw * 1.6)), B1 = V1.map(([f, bw]) => bandpass(f, bw * 1.6));
   const kBurst = bandpass(2200, 900), hBreath = bandpass(1200, 1400);
-  const tone = lowpass(o.bright ? 5200 : 4200);
+  const tone = lowpass(o.soft ? 3200 : o.bright ? 5200 : 4200);
   let phase = 0, prev = 0, jit = 1, amp = 1, cyc = 0;
   const rough = o.rough ?? 0;
   for (let i = 0; i < n; i++) {
@@ -46,14 +46,17 @@ export function voiceBuffer(ctx, o) {
       else s = hBreath(rnd()) * 0.9 * Math.sin((Math.PI * t) / onset);
     } else {
       const u = (t - onset) / o.dur; // 0~1
-      const f0 = (o.f0 + (o.f0End - o.f0) * u) * (1 + Math.sin(t * 2 * Math.PI * 5.5) * 0.012);
+      const base = o.f0Peak
+        ? (u < 0.25 ? o.f0 + (o.f0Peak - o.f0) * Math.sin((u / 0.25) * Math.PI / 2) : o.f0Peak + (o.f0End - o.f0Peak) * ((u - 0.25) / 0.75))
+        : o.f0 + (o.f0End - o.f0) * u;
+      const f0 = base * (1 + Math.sin(t * 2 * Math.PI * 5.5) * 0.008);
       // 끝으로 갈수록 성대가 갈라지는(보컬 프라이) 불규칙한 떨림
       const fry = o.fry && u > 1 - o.fry ? (u - (1 - o.fry)) / o.fry : 0;
       phase += (f0 * (1 - fry * 0.55)) / SR * jit;
       if (phase >= 1) {
         phase -= 1; cyc++;
         jit = 1 + rnd() * (0.03 + rough * 0.09 + fry * 0.25);
-        amp = (1 - rough * 0.35 * Math.abs(rnd())) * (cyc % 2 ? 1 : 1 - rough * 0.45);
+        amp = (1 - rough * 0.35 * Math.abs(rnd())) * (cyc % 2 || rough < 0.3 ? 1 : 1 - rough * 0.45); // 그르렁은 거친 소리에만
       }
       const p = phase;
       const glot = p < 0.55 ? Math.sin((Math.PI * p) / 0.55) ** 2 : 0;
@@ -69,7 +72,7 @@ export function voiceBuffer(ctx, o) {
       s = a * (1 - mix) + b * mix;
       // 엔벨로프: 빠른 시작, 끝은 성문 폐쇄로 뚝(윽) 또는 서서히(으어…)
       const att = Math.min(1, (t - onset) / (o.attack || 0.015));
-      const rel = o.cut ? (u > 0.92 ? Math.max(0, 1 - (u - 0.92) / 0.08) : 1) : Math.max(0, 1 - Math.max(0, u - 0.55) / 0.45);
+      const rel = o.cut ? (u > 0.85 ? Math.max(0, 1 - (u - 0.85) / 0.15) : 1) : Math.max(0, 1 - Math.max(0, u - 0.55) / 0.45);
       s *= att * rel * (1 - fry * 0.35);
     }
     d[i] = tone(s);
@@ -83,23 +86,23 @@ export function voiceBuffer(ctx, o) {
   return buf;
 }
 
-// 피격 신음 (짧게, 여러 가지) — 높고 거칠게
+// 피격: 짧고 부드러운 외마디 비명 (살짝 올라갔다 떨어짐)
 export const PAIN = [
-  { dur: 0.2, f0: 158, f0End: 128, vowel: 'eu', cut: true, breath: 0.3, rough: 0.75 }, // 윽
-  { dur: 0.24, f0: 148, f0End: 118, vowel: 'eo', cut: true, breath: 0.35, rough: 0.8 }, // 억
-  { dur: 0.22, f0: 165, f0End: 132, vowel: 'eu', cut: true, onset: 'k', onsetDur: 0.05, breath: 0.3, rough: 0.7 }, // 크윽
-  { dur: 0.26, f0: 140, f0End: 112, vowel: 'u', vowelEnd: 'eu', cut: true, breath: 0.4, rough: 0.85 }, // 우읏
-  { dur: 0.22, f0: 152, f0End: 122, vowel: 'eu', cut: true, onset: 'h', onsetDur: 0.09, breath: 0.45, rough: 0.75 }, // 흐윽
-  { dur: 0.18, f0: 178, f0End: 142, vowel: 'eo', cut: true, breath: 0.25, rough: 0.65, bright: true }, // 억! (짧고 높게)
+  { dur: 0.17, f0: 170, f0Peak: 205, f0End: 160, vowel: 'a', cut: true, breath: 0.12, rough: 0.08, attack: 0.02, soft: true }, // 아!
+  { dur: 0.15, f0: 165, f0Peak: 195, f0End: 150, vowel: 'eu', cut: true, breath: 0.12, rough: 0.08, attack: 0.02, soft: true }, // 윽
+  { dur: 0.16, f0: 160, f0Peak: 190, f0End: 145, vowel: 'eo', cut: true, breath: 0.14, rough: 0.1, attack: 0.02, soft: true }, // 억
+  { dur: 0.19, f0: 175, f0Peak: 215, f0End: 165, vowel: 'a', vowelEnd: 'eo', cut: true, breath: 0.12, rough: 0.08, attack: 0.02, soft: true }, // 아억
+  { dur: 0.16, f0: 158, f0Peak: 185, f0End: 140, vowel: 'u', vowelEnd: 'eu', cut: true, breath: 0.14, rough: 0.1, attack: 0.025, soft: true }, // 읏
+  { dur: 0.14, f0: 180, f0Peak: 220, f0End: 170, vowel: 'eo', cut: true, breath: 0.1, rough: 0.06, attack: 0.015, soft: true }, // 엇!
 ];
-// 사망 신음 (길게, 끝이 갈라지며 사그라듦)
+// 사망: 조금 길게, 힘이 빠지며 떨어지는 외마디
 export const DEATH = [
-  { dur: 0.75, f0: 150, f0End: 92, vowel: 'eu', vowelEnd: 'eo', fry: 0.45, breath: 0.4, rough: 0.8 }, // 으어어…
-  { dur: 0.6, f0: 140, f0End: 86, vowel: 'eo', vowelEnd: 'u', fry: 0.5, breath: 0.45, rough: 0.85, onset: 'k', onsetDur: 0.05 }, // 커어…
-  { dur: 0.7, f0: 158, f0End: 96, vowel: 'u', vowelEnd: 'eo', fry: 0.4, breath: 0.4, rough: 0.8, onset: 'h', onsetDur: 0.08 }, // 흐어…
+  { dur: 0.42, f0: 175, f0Peak: 200, f0End: 115, vowel: 'a', vowelEnd: 'eo', breath: 0.18, rough: 0.12, fry: 0.2, soft: true }, // 아아…
+  { dur: 0.38, f0: 165, f0Peak: 190, f0End: 110, vowel: 'eo', vowelEnd: 'u', breath: 0.2, rough: 0.12, fry: 0.2, soft: true }, // 어어…
+  { dur: 0.4, f0: 170, f0Peak: 195, f0End: 112, vowel: 'eu', vowelEnd: 'eo', breath: 0.18, rough: 0.1, fry: 0.2, soft: true }, // 으어…
 ];
-// 암살 시 막히는 '윽'
+// 암살: 막히는 짧은 '윽'
 export const TAKEDOWN_GRUNT = [
-  { dur: 0.3, f0: 138, f0End: 104, vowel: 'eu', cut: true, breath: 0.45, attack: 0.008, rough: 0.8 },
-  { dur: 0.34, f0: 130, f0End: 98, vowel: 'eu', vowelEnd: 'u', cut: true, breath: 0.5, rough: 0.85, onset: 'h', onsetDur: 0.05 },
+  { dur: 0.2, f0: 150, f0Peak: 175, f0End: 125, vowel: 'eu', cut: true, breath: 0.15, rough: 0.1, attack: 0.012, soft: true },
+  { dur: 0.22, f0: 145, f0Peak: 168, f0End: 120, vowel: 'eu', vowelEnd: 'u', cut: true, breath: 0.18, rough: 0.12, attack: 0.012, soft: true },
 ];
