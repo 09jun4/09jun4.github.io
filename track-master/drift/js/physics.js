@@ -23,6 +23,7 @@
     TORQUE_CURVE: [{ rpm: 900, torque: 145 }, { rpm: 2000, torque: 265 }, { rpm: 4500, torque: 385 }, { rpm: 6000, torque: 360 }, { rpm: 7000, torque: 275 }, { rpm: 7500, torque: 145 }, { rpm: 8200, torque: 120 }],
     CAR_HALF_WIDTH: 0.95, CAR_HALF_LENGTH: 2.1,
     MAX_STEER_ANGLE: 0.5, STEER_GRIP_TARGET: 1.0, STEER_RESPONSE_RATE: 5.0, STEER_RETURN_RATE: 14.0,
+    DRIFT_STEER_START: 0.3, DRIFT_STEER_RATE: 1.4, DRIFT_STEER_RETURN: 2.2,
     STEER_RESPONSE_BOOST: 1.6, GRIP_BOOST: 1.3,
     TIRE_GRIP_TARMAC: 1.15, LATERAL_GRIP: 1.0,
     DRIFT_MIN_SPEED: 8, DRIFT_TURN_ACCEL: 1.8, DRIFT_MAX_TURN_RATE: 2.0, DRIFT_SPEED_COST: 0.45,
@@ -100,7 +101,14 @@
     var vf = c.vx * fx + c.vy * fy, vl = c.vx * lx + c.vy * ly;
     var s = S[c.idx];
 
-    c.drifting = input.drift > 0 && input.steer !== 0 && c.speed > p.DRIFT_MIN_SPEED;
+    var wasDrifting = c.drifting;
+    // Releasing the steer key does not end the drift at once: the lock eases
+    // back at DRIFT_STEER_RETURN, so tapping the key trims the angle.
+    c.drifting = input.drift > 0 && (input.steer !== 0 || (wasDrifting && Math.abs(c.steer) > 0.05)) && c.speed > p.DRIFT_MIN_SPEED;
+    // Entering a drift: the lock starts small and then grows with how long
+    // the drift is held (below), instead of snapping to full lock.
+    if (c.drifting && !wasDrifting) c.steer = clamp(c.steer, -p.DRIFT_STEER_START, p.DRIFT_STEER_START);
+    c.driftTime = c.drifting ? (c.driftTime || 0) + dt : 0;
 
     var a = longAccel(p, vf, c.gear, input.throttle, input.brake, tmp);
     // Gravity along the body: the road's grade in the direction the nose points.
@@ -115,7 +123,12 @@
 
     var target = input.steer, d = target - c.steer;
     var rate = Math.abs(target) < Math.abs(c.steer) ? p.STEER_RETURN_RATE : p.STEER_RESPONSE_RATE;
-    c.steer += clamp(d, -1, 1) * rate * dt;
+    if (c.drifting) {
+      // While drifting the lock changes at a fixed, gentle rate: holding the
+      // key for twice as long gives twice the angle.
+      rate = Math.abs(target) > Math.abs(c.steer) && target * c.steer >= 0 ? p.DRIFT_STEER_RATE : p.DRIFT_STEER_RETURN;
+      c.steer += (Math.abs(d) <= rate * dt ? d : (d > 0 ? 1 : -1) * rate * dt);
+    } else c.steer += clamp(d, -1, 1) * rate * dt;
     c.steer = clamp(c.steer, -1, 1);
 
     var slip = c.speed > 0.5 ? Math.atan2(-vl, Math.max(vf, 0.01)) : 0;
@@ -161,6 +174,11 @@
     var s2 = S[c.idx];
     c.prog = s2.dist + (c.x - s2.x) * Math.cos(s2.heading) + (c.y - s2.y) * Math.sin(s2.heading);
     c.wheelSpin += (c.vf / c.spec.tyre) * dt;
+    // Drift score time: seconds of a real slide (slip angle above ~9 degrees,
+    // full value from ~20 degrees), so holding the handbrake on a straight
+    // earns nothing.
+    var dw = c.drifting && c.speed > 12 ? clamp((Math.abs(c.slip) - 0.15) / 0.2, 0, 1) : 0;
+    c.driftSec = (c.driftSec || 0) + dw * dt;
   };
 
   // Guardrails along both edges, plus the closed ends of the road.
@@ -247,6 +265,26 @@
     for (var b = n - 2; b >= 0; b--) {
       var dec = p.MAX_BRAKE_DECEL * 0.8 * skill + g * S[b].grade; // grade < 0 downhill
       dec = Math.max(2, dec);
+      v[b] = Math.min(v[b], Math.sqrt(v[b + 1] * v[b + 1] + 2 * dec * DR.Course.SPACING));
+    }
+    return v;
+  };
+
+  // Corner-limited speed for the drift AI at full aggression (frac 1): in a
+  // sustained drift the path curves at steer x DRIFT_TURN_ACCEL x mu x g / v^2,
+  // so a corner of curvature k can be held at v = sqrt(A / k). A backward
+  // braking pass keeps it reachable. The AI scales this by sqrt(pace).
+  Physics.driftPlan = function (c) {
+    var p = c.p, S = DR.Course.samples, n = S.length, g = p.GRAVITY, A = p.DRIFT_TURN_ACCEL * p.TIRE_GRIP_TARMAC * g;
+    var v = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var k = 0;
+      for (var j = -4; j <= 4; j++) k = Math.max(k, Math.abs(S[Math.max(0, Math.min(n - 1, i + j))].curvature));
+      v[i] = k > 1e-5 ? Math.min(75, Math.sqrt(A / k)) : 75;
+    }
+    v[n - 1] = 0;
+    for (var b = n - 2; b >= 0; b--) {
+      var dec = Math.max(3, p.MAX_BRAKE_DECEL * 0.7 + g * S[b].grade);
       v[b] = Math.min(v[b], Math.sqrt(v[b + 1] * v[b + 1] + 2 * dec * DR.Course.SPACING));
     }
     return v;

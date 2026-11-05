@@ -80,19 +80,21 @@ service cloud.firestore {
         && request.resource.data.save is string && request.resource.data.save.size() < 100000;
     }
 
-    // 드리프트 레이스 타임어택 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요.
+    // 드리프트 레이스 점수 랭킹(점수 = 시간 점수 + 드리프트 점수): 누구나 보고, 본인 기록만 쓸 수 있어요.
     match /drift/{course}/times/{uid} {
       allow read: if true;
       allow delete: if signedIn(uid);
       allow create, update: if signedIn(uid)
         && course in ['haruna', 'akagi', 'irohazaka', 'usui']
-        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'time', 'car', 'device', 'at', 'score', 'drift'])
         && request.resource.data.device in ['mobile', 'pc']
         && request.resource.data.uid == uid
         && validName(request.resource.data.name)
         && request.resource.data.time is number
-        && request.resource.data.time > 40 && request.resource.data.time < 3600
+        && request.resource.data.time > 25 && request.resource.data.time < 3600
         && request.resource.data.car in ['ae86', 'rx7', 'miata']
+        && (!('score' in request.resource.data) || (request.resource.data.score is number && request.resource.data.score >= 0 && request.resource.data.score < 200000))
+        && (!('drift' in request.resource.data) || (request.resource.data.drift is number && request.resource.data.drift >= 0 && request.resource.data.drift < 3600))
         && request.resource.data.at == request.time;
     }
   }

@@ -75,6 +75,7 @@
   #hud-time { font: 900 28px/1 'Segoe UI', system-ui, sans-serif; }
   #hud-best { color: var(--dim); font-size: 12px; margin-top: 3px; }
   #hud-dist { font-size: 12px; color: var(--dim); }
+  #hud-score { font-size: 13px; font-weight: 800; color: var(--acc); margin-top: 3px; }
   #hud-meter { bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; }
   #hud-speed { font: 900 40px/1 'Segoe UI', system-ui, sans-serif; min-width: 80px; text-align: right; }
   .unit { font-size: 12px; color: var(--dim); }
@@ -155,7 +156,7 @@
 <div id="hud" hidden>
   <canvas id="minimap" aria-label="미니맵"></canvas>
   <div id="hud-prog" class="hud-box"><div id="hud-prog-track"><div id="hud-prog-fill"></div><div id="hud-prog-rival" hidden></div></div></div>
-  <div id="hud-timebox" class="hud-box"><div id="hud-time">0:00.000</div><div id="hud-best"></div><div id="hud-dist"></div></div>
+  <div id="hud-timebox" class="hud-box"><div id="hud-time">0:00.000</div><div id="hud-best"></div><div id="hud-dist"></div><div id="hud-score"></div></div>
   <div id="hud-rival" class="hud-box" hidden><div id="hud-rival-pos">1위</div><div><span id="hud-rival-gap"></span> · <span id="hud-rival-name"></span></div></div>
   <div id="hud-meter" class="hud-box">
     <div><span id="hud-speed">0</span> <span class="unit">km/h</span></div>
@@ -163,7 +164,7 @@
     <div><div id="hud-rpm"><div id="hud-rpm-fill"></div></div><div class="unit">각도 <span id="hud-angle">0°</span></div></div>
   </div>
   <div id="hud-drift">DRIFT</div>
-  <div id="hud-help" class="hud-box"><kbd>W</kbd><kbd>S</kbd> 가속·브레이크 · <kbd>A</kbd><kbd>D</kbd> 조향 · <kbd>Space</kbd>+조향 드리프트<br /><kbd>C</kbd> 시점 · <kbd>R</kbd> 리셋 · <kbd>Q</kbd><kbd>E</kbd> 수동 변속 · <kbd>T</kbd> 자동/수동 · <kbd>Esc</kbd> 일시정지 · <kbd>M</kbd> 소리</div>
+  <div id="hud-help" class="hud-box"><kbd>W</kbd><kbd>S</kbd> 가속·브레이크 · <kbd>A</kbd><kbd>D</kbd> 조향 · <kbd>Space</kbd>+조향 드리프트(오래 누를수록 조향각 증가)<br /><kbd>C</kbd> 시점 · <kbd>R</kbd> 리셋 · <kbd>Q</kbd><kbd>E</kbd> 수동 변속 · <kbd>T</kbd> 자동/수동 · <kbd>Esc</kbd> 일시정지 · <kbd>M</kbd> 소리</div>
 </div>
 <div id="countdown" hidden>3</div>
 
@@ -198,7 +199,7 @@
     <div id="cars" class="cars"></div>
     <div class="row2">
       <div>
-        <h2>타임어택 랭킹 · <span id="rank-course"></span> <button type="button" id="rank-refresh" class="small-btn">새로고침</button></h2>
+        <h2>점수 랭킹 · <span id="rank-course"></span> <button type="button" id="rank-refresh" class="small-btn">새로고침</button></h2>
         <ol id="ranking"></ol>
       </div>
       <div>
@@ -233,7 +234,9 @@
 <script src="js/course.js"></script>
 <script src="js/cars.js"></script>
 <script src="js/physics.js"></script>
+<script src="js/ai.js"></script>
 <script src="js/world.js"></script>
+<script src="js/engine.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/cloud.js"></script>
 <script src="js/touchguard.js"></script>

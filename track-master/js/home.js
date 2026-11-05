@@ -176,6 +176,8 @@
     return st;
   }
 
+  function num(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
   // --- Rankings -----------------------------------------------------------------
   var cache = {};
   function query(key, path, order, dir, n) {
@@ -242,16 +244,20 @@
       var head = '<tr><th>코스</th>' + Object.keys(DRIFT_CARS).map(function (k) { return '<th class="r">' + DRIFT_CARS[k] + '</th>'; }).join('') + '</tr>';
       var body = COURSES.map(function (c) {
         var cb = best[c.slug] || {};
-        return '<tr><td>' + c.name + '</td>' + Object.keys(DRIFT_CARS).map(function (k) { return '<td class="r">' + (cb[k] ? fmt(cb[k].time) : '-') + '</td>'; }).join('') + '</tr>';
+        return '<tr><td>' + c.name + '</td>' + Object.keys(DRIFT_CARS).map(function (k) { return '<td class="r">' + (cb[k] ? (cb[k].score != null ? num(cb[k].score) + '점<br><span class="dim">' + fmt(cb[k].time) + '</span>' : fmt(cb[k].time)) : '-') + '</td>'; }).join('') + '</tr>';
       }).join('');
       var c = COURSES[state.course];
       el.innerHTML = login +
-        '<div class="grid2"><div class="card"><h3>내 다운힐 타임어택 기록</h3><table>' + head + body + '</table></div>' +
+        '<div class="grid2"><div class="card"><h3>내 다운힐 기록 (점수 · 시간)</h3><table>' + head + body + '</table></div>' +
         '<div class="card"><h3>내 AI 배틀 전적</h3><div class="stats" style="grid-template-columns:repeat(3,1fr)"><div><b>' + bt.wins + '</b><small>승</small></div><div><b>' + bt.losses + '</b><small>패</small></div><div><b>' + (bt.wins + bt.losses ? Math.round(bt.wins * 100 / (bt.wins + bt.losses)) + '%' : '-') + '</b><small>승률</small></div></div></div></div>' +
-        '<div class="card" style="margin-top:14px"><h3>타임어택 랭킹</h3>' + chips(COURSES.map(function (x) { return x.name; }), state.course, 'crs') + '<div id="rk-drift"><p class="dim">불러오는 중…</p></div></div>';
+        '<div class="card" style="margin-top:14px"><h3>점수 랭킹 (시간 짧게 + 드리프트 길게)</h3>' + chips(COURSES.map(function (x) { return x.name; }), state.course, 'crs') + '<div id="rk-drift"><p class="dim">불러오는 중…</p></div></div>';
       bindChips('crs', function (i) { state.course = i; });
-      fill('rk-drift', query('drift:' + c.slug, ['drift', c.slug, 'times'], 'time'), [
-        { h: '차', f: function (r) { return DRIFT_CARS[r.car] || ''; } }, { h: '기록', r: true, f: function (r) { return fmt(r.time); } }]);
+      fill('rk-drift', query('drift:' + c.slug, ['drift', c.slug, 'times'], 'score', 'desc').then(function (rows) {
+        return rows.length ? rows : query('drift-t:' + c.slug, ['drift', c.slug, 'times'], 'time');
+      }), [
+        { h: '차', f: function (r) { return DRIFT_CARS[r.car] || ''; } },
+        { h: '점수', r: true, f: function (r) { return r.score != null ? num(r.score) + '점' : '-'; } },
+        { h: '기록', r: true, f: function (r) { return fmt(r.time); } }]);
     }
   }
 

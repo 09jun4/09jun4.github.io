@@ -3,7 +3,7 @@
 // Same Firebase project as F1 Champion (../js/firebase-config.js), so a
 // player signed in there is signed in here too. Firestore (../firestore.rules):
 //   drift_users/{uid}            { save: JSON string, updatedAt }   — private
-//   drift/{course}/times/{uid}   { uid, name, time, car, device, at } — public read
+//   drift/{course}/times/{uid}   { uid, name, time, car, device, at, score, drift } — public read
 // The nickname is the one picked in F1 Champion (users/{uid}.nickname).
 // Without a config everything is browser-only.
 (function () {
@@ -11,6 +11,19 @@
   var DR = window.DR = window.DR || {};
   var SDK = window.FirebaseSDK, cfg = window.F1C_FIREBASE_CONFIG || {};
   var Cloud = { enabled: !!(SDK && cfg.apiKey && cfg.projectId), state: 'out', user: null, nickname: '', error: '', rulesMissing: false };
+  // Score = time points + drift points. Faster is worth more and so is every
+  // second of real sliding, so neither "never drift" nor "drift forever"
+  // wins. ref is a 27 m/s (about 97 km/h) average over the course.
+  var Score = DR.Score = {
+    REF_SPEED: 27, TIME_PTS: 6000, DRIFT_PTS: 100,
+    calc: function (time, drift, raceLength) {
+      var len = raceLength || (DR.Course && DR.Course.raceLength) || 2500;
+      var tp = Math.round(Score.TIME_PTS * (len / Score.REF_SPEED) / Math.max(1, time));
+      var dp = Math.round(Score.DRIFT_PTS * Math.max(0, drift || 0));
+      return { time: tp, drift: dp, total: tp + dp };
+    },
+    fmt: function (n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); },
+  };
   var listeners = [];
   Cloud.onChange = function (fn) { listeners.push(fn); };
   function changed() { listeners.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } }); }
@@ -43,6 +56,11 @@
   }
   function load() { try { var s = upgrade(JSON.parse(localStorage.getItem(KEY))); if (s && s.best) return s; } catch (e) { /* none */ } return blank(); }
   Cloud.save = load();
+  // Higher score wins; a record without a score (old format) loses to one with.
+  function better(r, o) {
+    var rs = r.score == null ? -1 : r.score, os = o.score == null ? -1 : o.score;
+    return rs !== os ? rs > os : r.time < o.time;
+  }
   function merge(a, b) {
     var out = blank();
     [a, b].forEach(function (s) {
@@ -51,7 +69,7 @@
         var cb = s.best[course] || {}, ob = out.best[course] = out.best[course] || {};
         Object.keys(cb).forEach(function (car) {
           var r = cb[car];
-          if (r && r.time > 0 && (!ob[car] || r.time < ob[car].time)) ob[car] = r;
+          if (r && r.time > 0 && (!ob[car] || better(r, ob[car]))) ob[car] = r;
         });
       });
       if (s.battle) { out.battle.wins += s.battle.wins || 0; out.battle.losses += s.battle.losses || 0; }
@@ -63,12 +81,14 @@
     try { localStorage.setItem(KEY, JSON.stringify(Cloud.save)); } catch (e) { /* full */ }
     if (remote) remote(Cloud.save);
   }
-  // Records a finished time attack; returns true for a new personal best.
+  // Records a finished time attack (best = highest score); returns true for
+  // a new personal best. Early records have a time only (no score).
   Cloud.best = function (course, car) { var c = Cloud.save.best[course || DR.Course.SLUG]; return c ? c[car] : null; };
-  Cloud.recordTime = function (car, time) {
+  Cloud.recordRun = function (car, time, drift) {
     var slug = DR.Course.SLUG, cb = Cloud.save.best[slug] = Cloud.save.best[slug] || {}, b = cb[car];
-    if (b && b.time <= time) return false;
-    cb[car] = { time: Math.round(time * 1000) / 1000, at: Date.now() };
+    var sc = Score.calc(time, drift);
+    if (b && b.score != null && b.score >= sc.total) return false;
+    cb[car] = { time: Math.round(time * 1000) / 1000, drift: Math.round(drift * 10) / 10, score: sc.total, at: Date.now() };
     store();
     pushTime();
     return true;
@@ -80,7 +100,7 @@
   Cloud.bestOverall = function () {
     var best = null;
     var cb = Cloud.save.best[DR.Course.SLUG] || {};
-    Object.keys(cb).forEach(function (car) { var r = cb[car]; if (!best || r.time < best.time) best = { time: r.time, car: car }; });
+    Object.keys(cb).forEach(function (car) { var r = cb[car]; if (!best || better(r, best.rec)) best = { time: r.time, drift: r.drift || 0, score: r.score, car: car, rec: r }; });
     return best;
   };
 
@@ -156,8 +176,13 @@
     return SDK.getDoc(ref).then(function (snap) {
       var cur = snap.exists() ? snap.data() : null;
       var name = Cloud.displayName();
-      if (cur && cur.time <= best.time && cur.name === name) return;
-      return SDK.setDoc(ref, { uid: uid, name: name, time: best.time, car: best.car, device: Cloud.device(), at: SDK.serverTimestamp() });
+      if (cur && cur.name === name && (best.score == null ? cur.time <= best.time : cur.score != null && cur.score >= best.score)) return;
+      var doc = { uid: uid, name: name, time: best.time, car: best.car, device: Cloud.device(), at: SDK.serverTimestamp() };
+      if (best.score == null) return SDK.setDoc(ref, doc);
+      var full = { uid: uid, name: name, time: best.time, car: best.car, device: Cloud.device(), at: SDK.serverTimestamp(), score: best.score, drift: best.drift };
+      // Until the new Firestore rules are published the score fields are
+      // refused; fall back to the time-only document.
+      return SDK.setDoc(ref, full).catch(function (e) { if (denied(e)) return SDK.setDoc(ref, doc); throw e; });
     }).then(function () { cache = null; }, function (e) {
       if (denied(e)) { Cloud.rulesMissing = true; changed(); }
       console.warn('[drift] ranking write failed', e);
@@ -167,9 +192,11 @@
   var cache = null;
   Cloud.ranking = function (force) {
     if (cache && !force && Date.now() - cache.at < 30000) return Promise.resolve(cache.data);
-    return SDK.getDocs(SDK.query(timesCol(), SDK.orderBy('time'), SDK.limit(30))).then(function (snap) {
-      var rows = [];
-      snap.forEach(function (d) { rows.push(d.data()); });
+    function read(q) { return SDK.getDocs(q).then(function (snap) { var rows = []; snap.forEach(function (d) { rows.push(d.data()); }); return rows; }); }
+    // By score (high first); if nobody has a score yet, by time.
+    return read(SDK.query(timesCol(), SDK.orderBy('score', 'desc'), SDK.limit(30))).then(function (rows) {
+      return rows.length ? rows : read(SDK.query(timesCol(), SDK.orderBy('time'), SDK.limit(30)));
+    }).then(function (rows) {
       cache = { at: Date.now(), data: rows };
       return rows;
     }, function (e) {
