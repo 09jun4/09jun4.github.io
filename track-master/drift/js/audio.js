@@ -53,10 +53,10 @@
     var specs = [
       { f: [200, 280], q: 1.0, lvl: 0.1, curve: 1.2, wf: 6.5, wd: 0.25 },
       { f: [520, 680], q: 2.2, lvl: 0.12, curve: 1.0, wf: 9.3, wd: 0.45 },
-      { f: [1100, 1500], q: 2.0, lvl: 0.35, curve: 0.9, wf: 14.1, wd: 0.4 },
-      { f: [2200, 3000], q: 1.8, lvl: 1.1, curve: 0.8, wf: 18, wd: 0.4 },
-      { f: [3800, 5200], q: 1.4, lvl: 1.0, curve: 0.9, wf: 23, wd: 0.5 },
-      { f: [6000, 8000], q: 1.2, lvl: 0.7, curve: 1.0, wf: 29, wd: 0.5 },
+      { f: [1400, 1900], q: 2.0, lvl: 0.25, curve: 0.9, wf: 14.1, wd: 0.4 },
+      { f: [3000, 4000], q: 1.8, lvl: 1.3, curve: 0.8, wf: 18, wd: 0.4 },
+      { f: [5000, 7000], q: 1.4, lvl: 1.4, curve: 0.9, wf: 23, wd: 0.5 },
+      { f: [8000, 11000], q: 1.2, lvl: 1.0, curve: 1.0, wf: 29, wd: 0.5 },
     ];
     specs.forEach(function (L) {
       var src = noiseSrc(), bp = filt('bandpass', L.f[0], L.q), wob = gain(1), lg = gain(0), lfo = ac.createOscillator(), ld = gain(L.wd), lfo2 = ac.createOscillator(), ld2 = gain(L.wd * 0.6);
@@ -67,27 +67,27 @@
       L.bp = bp; L.g = lg; bands.push(L);
     });
     // stick-slip voices: saw -> high-pass (harmonics only) -> peak -> chop -> out
-    [{ f: [1250, 1900], hp: 2300, lvl: 1.0, chop: 37, ratio: 1 }, { f: [1250, 1900], hp: 3200, lvl: 0.7, chop: 53, ratio: 1.47 }].forEach(function (V) {
+    [{ f: [2100, 3000], hp: 3400, lvl: 1.0, chop: 41, ratio: 1 }, { f: [2100, 3000], hp: 4600, lvl: 0.9, chop: 67, ratio: 1.41 }, { f: [3200, 4300], hp: 5200, lvl: 0.6, chop: 83, ratio: 1.18 }].forEach(function (V) {
       var o = ac.createOscillator(); o.setPeriodicWave(getSaw()); o.frequency.value = V.f[0] * V.ratio;
       // random pitch wander: noise -> low-pass -> depth in Hz
       var wn = noiseSrc(), wl = filt('lowpass', 22), wd = gain(V.f[0] * V.ratio * 0.9); // lowpassed noise is tiny, so the gain is large
       wn.connect(wl); wl.connect(wd); wd.connect(o.frequency);
-      var hp = filt('highpass', V.hp, 0.7), pk = filt('peaking', 3500, 0.8), chop = gain(1), cl = ac.createOscillator(), cd = gain(0.45), vg = gain(0);
-      pk.gain.value = 6; cl.frequency.value = V.chop; cl.connect(cd); cd.connect(chop.gain); cl.start();
-      o.connect(hp); hp.connect(pk); pk.connect(chop); chop.connect(vg); vg.connect(out); o.start();
+      var hp = filt('highpass', V.hp, 0.7), pk = filt('peaking', 5500, 0.8), chop = gain(1), cl = ac.createOscillator(), cd = gain(0.65), vg = gain(0);
+      pk.gain.value = 8; cl.frequency.value = V.chop; cl.connect(cd); cd.connect(chop.gain); cl.start();
+      var rough = ac.createWaveShaper(); rough.curve = softClip(6); o.connect(hp); hp.connect(pk); pk.connect(rough); rough.connect(chop); chop.connect(vg); vg.connect(out); o.start();
       voices.push({ o: o, g: vg, f: V.f, ratio: V.ratio, lvl: V.lvl });
     });
     return { out: out, layers: bands, voices: voices };
   }
   function setSqueal(s, slide, speed, t) {
     s.layers.forEach(function (L) {
-      var lv = Math.pow(slide, L.curve) * L.lvl * 0.17;
+      var lv = Math.pow(slide, L.curve) * L.lvl * 0.12;
       L.g.gain.setTargetAtTime(lv, t, 0.06);
       L.bp.frequency.setTargetAtTime(L.f[0] + (L.f[1] - L.f[0]) * slide + speed * 1.5, t, 0.1);
     });
     s.voices.forEach(function (V) {
       var on = Math.max(0, (slide - 0.08) / 0.92);
-      V.g.gain.setTargetAtTime(Math.pow(on, 0.8) * V.lvl * 0.13, t, 0.05);
+      V.g.gain.setTargetAtTime(Math.pow(on, 0.8) * V.lvl * 0.11, t, 0.05);
       V.o.frequency.setTargetAtTime((V.f[0] + (V.f[1] - V.f[0]) * slide + speed * 4) * V.ratio, t, 0.12);
     });
   }
