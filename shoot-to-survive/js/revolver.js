@@ -6,7 +6,7 @@ import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 // 좌표(m): 총구 = -z, 위 = +y, 오른쪽 = +x. 전체 길이 약 0.42m.
 // 윤곽은 둥근 다각형/스플라인을 베벨 압출, 원통부는 Lathe·Cylinder, 질감은 캔버스로 생성.
 // ─────────────────────────────────────────────────────────────
-const R_CYL = 0.039, CYL_LEN = 0.1, CHAMBER_R = 0.0255, BARREL_R = 0.0185, BORE_Y = CHAMBER_R;
+const R_CYL = 0.039, CYL_LEN = 0.1, CHAMBER_R = 0.0255, BARREL_R = 0.0165, BORE_Y = CHAMBER_R;
 const TAU = Math.PI * 2;
 
 // ── 지오메트리 도구 ──
@@ -129,61 +129,60 @@ export function createRevolver() {
 
   // ── 프레임 ──
   const frameMat = steel;
-  M(ext(rounded([[0.012, 0.049], [0.060, 0.049], [0.071, 0.043], [0.087, 0.036], [0.093, 0.022], [0.089, -0.008], [0.080, -0.030], [0.056, -0.051], [0.014, -0.051], [0.012, -0.02]], 0.007), 0.052, { bevel: 0.0035 }), frameMat);   // 뒤쪽 브리치(리코일 실드·탱)
-  M(ext(rounded([[-0.097, 0.040], [-0.097, 0.050], [0.018, 0.050], [0.018, 0.040]], 0.0035), 0.044, { bevel: 0.003 }), frameMat);               // 실린더 위 상단 스트랩
-  M(ext(rounded([[-0.101, -0.046], [-0.101, 0.050], [-0.079, 0.050], [-0.079, -0.046]], 0.006), 0.05, { bevel: 0.003 }), frameMat);            // 요크(실린더 앞 프레임)
-  M(ext(rounded([[-0.082, -0.064], [-0.082, -0.037], [0.034, -0.037], [0.034, -0.064]], 0.007), 0.044, { bevel: 0.003 }), frameMat);          // 실린더 아래 프레임
+  M(ext(rounded([[0.012, 0.045], [0.058, 0.045], [0.069, 0.040], [0.085, 0.034], [0.091, 0.021], [0.087, -0.008], [0.079, -0.030], [0.058, -0.047], [0.016, -0.047], [0.012, -0.02]], 0.007), 0.038, { bevel: 0.003 }), frameMat);   // 뒤쪽 브리치(리코일 실드·탱)
+  M(ext(rounded([[-0.095, 0.0405], [-0.095, 0.0475], [0.018, 0.0475], [0.018, 0.0405]], 0.003), 0.028, { bevel: 0.0025 }), frameMat);               // 실린더 위 상단 스트랩
+  M(ext(rounded([[-0.094, -0.040], [-0.094, 0.0475], [-0.079, 0.0475], [-0.079, -0.040]], 0.005), 0.032, { bevel: 0.0025 }), frameMat);            // 요크(실린더 앞 프레임)
+  M(ext(rounded([[-0.082, -0.054], [-0.082, -0.0405], [0.034, -0.0405], [0.034, -0.054]], 0.0045), 0.028, { bevel: 0.0025 }), frameMat);          // 실린더 아래 프레임
   // 나사 (좌·우 사이드 플레이트)
-  for (const [z, y] of [[0.026, 0.034], [0.082, 0.012], [0.052, -0.036]]) { screw(-0.0305, y, z, -1); screw(0.0305, y, z, 1); }
+  for (const [z, y] of [[0.026, 0.034], [0.082, 0.012], [0.052, -0.036]]) { screw(-0.0215, y, z, -1); screw(0.0215, y, z, 1); }
   // 실린더 래치(좌측 체커 엄지 조각) — 재장전 시 앞으로 눌림
-  const latch = new THREE.Group(); latch.position.set(-0.0325, 0.014, 0.034); root.add(latch);
+  const latch = new THREE.Group(); latch.position.set(-0.0235, 0.014, 0.034); root.add(latch);
   M(ext(rounded([[-0.011, -0.008], [-0.011, 0.0085], [0.011, 0.0085], [0.013, -0.008]], 0.0035), 0.0055, { bevel: 0.0015, uv: 260 }), checkerSteel, latch);
   const latchRest = 0.034;
-  decal(medallionTex(), 0.017, 0.017, -0.0300, -0.014, 0.052, -1);
-  decal(textTex('500', 192, 80, 66), 0.034, 0.0142, 0.0300, -0.006, 0.038, 1);
-  decal(textTex('MODEL 500', 256, 40, 28, '#4d5158', 'normal'), 0.03, 0.0046, 0.0300, 0.0245, 0.04, 1);
+  decal(medallionTex(), 0.017, 0.017, -0.0212, -0.014, 0.052, -1);
+  decal(textTex('500', 192, 80, 66), 0.034, 0.0142, 0.0212, -0.006, 0.038, 1);
+  decal(textTex('MODEL 500', 256, 40, 28, '#4d5158', 'normal'), 0.03, 0.0046, 0.0212, 0.0215, 0.04, 1);
 
   // ── 배럴 ──
-  M(cylZ(BARREL_R, -0.246, -0.075, { seg: 80, uv: [12, 6] }), steel, root, 0, BORE_Y, 0);
-  M(cylZ(BARREL_R + 0.0016, -0.116, -0.102, { seg: 80 }), steel, root, 0, BORE_Y, 0);                    // 배럴 너트 링
-  M(cylZ(0.0205, -0.0765, -0.075, { seg: 80, r1: 0.0205 }), steel, root, 0, BORE_Y, 0);
-  { // 가는 상단 리브(평면 플랫)
-    const r = new THREE.BoxGeometry(0.0065, 0.0014, 0.2); uvScale(r, 6, 6); M(r, steelSoft, root, 0, BORE_Y + BARREL_R - 0.0003, -0.17);
+  M(cylZ(BARREL_R, -0.276, -0.075, { seg: 80, uv: [12, 6] }), steel, root, 0, BORE_Y, 0);
+  M(cylZ(BARREL_R, -0.122, -0.076, { seg: 80, r1: 0.0215 }), steel, root, 0, BORE_Y, 0);                    // 프레임→총열 테이퍼 칼라
+    { // 가는 상단 리브(평면 플랫)
+    const r = new THREE.BoxGeometry(0.0055, 0.0014, 0.23); uvScale(r, 6, 6); M(r, steelSoft, root, 0, BORE_Y + BARREL_R - 0.0003, -0.19);
   }
   // 풀 언더러그 (끝이 비스듬히 마무리)
-  M(ext(rounded([[-0.078, 0.010], [-0.078, -0.029], [-0.168, -0.0245], [-0.215, 0.001], [-0.215, 0.016], [-0.078, 0.016]], [0.004, 0.007, 0.01, 0.009, 0.003, 0.003]), 0.03, { bevel: 0.0035, seg: 4 }), steel);
+  M(ext(rounded([[-0.078, 0.008], [-0.078, -0.025], [-0.195, -0.0205], [-0.248, 0.002], [-0.248, 0.012], [-0.078, 0.012]], [0.004, 0.007, 0.01, 0.009, 0.003, 0.003]), 0.022, { bevel: 0.0035, seg: 4 }), steel);
   // 제동구: 앞뒤 솔리드 링 + 사이 3개 측면 포트(위·아래 아치만 남김)
-  const brakeZ = [-0.2985, -0.246], portC = [-0.2625, -0.2765, -0.2905], pw = 0.0078;
+  const brakeZ = [-0.3285, -0.276], portC = [-0.2925, -0.3065, -0.3205], pw = 0.0078;
   const bz = brakeZ[1];
-  M(cylZ(0.0178, brakeZ[0], brakeZ[1], { seg: 40 }), abyss, root, 0, BORE_Y, 0);                       // 포트 안쪽 어둠
-  M(cylZ(0.0178, brakeZ[0], brakeZ[1], { seg: 40 }), blackOx, root, 0, BORE_Y, 0);
+  M(cylZ(0.0155, brakeZ[0], brakeZ[1], { seg: 40 }), abyss, root, 0, BORE_Y, 0);                       // 포트 안쪽 어둠
+  M(cylZ(0.0155, brakeZ[0], brakeZ[1], { seg: 40 }), blackOx, root, 0, BORE_Y, 0);
   const edges = [brakeZ[1], ...portC.flatMap((c) => [c + pw / 2, c - pw / 2]), brakeZ[0]]; // 뒤→앞
   for (let i = 0; i < edges.length - 1; i += 2) { // 솔리드 구간(i: 닫힘)
-    M(cylZ(0.0205, edges[i + 1], edges[i], { seg: 64 }), steel, root, 0, BORE_Y, 0);
+    M(cylZ(0.0188, edges[i + 1], edges[i], { seg: 64 }), steel, root, 0, BORE_Y, 0);
   }
   for (const c of portC) for (const st of [Math.PI - 1.05, -1.05]) { // 포트 구간: 위/아래 아치
-    const g = cylZ(0.0205, c - pw / 2, c + pw / 2, { seg: 20, open: true, start: st, len: 2.1 });
+    const g = cylZ(0.0188, c - pw / 2, c + pw / 2, { seg: 20, open: true, start: st, len: 2.1 });
     M(g, new THREE.MeshStandardMaterial({ color: 0xd9dde2, metalness: 1, roughness: 0.5, side: THREE.DoubleSide, roughnessMap: brushed, envMapIntensity: 1.2 }), root, 0, BORE_Y, 0);
   }
   { // 총구 크라운
-    const pts = [[0.0095, -0.3], [0.0165, -0.3], [0.0195, -0.2992], [0.0205, -0.2975]].map(([r, z]) => new THREE.Vector2(r, z));
+    const pts = [[0.0085, -0.33], [0.0150, -0.33], [0.0178, -0.3292], [0.0188, -0.3275]].map(([r, z]) => new THREE.Vector2(r, z));
     const g = new THREE.LatheGeometry(pts.reverse(), 64); g.rotateX(Math.PI / 2); M(g, steel, root, 0, BORE_Y, 0);
-    const bore = new THREE.CylinderGeometry(0.0095, 0.0095, 0.012, 32, 1, true); bore.rotateX(Math.PI / 2); M(bore, abyss, root, 0, BORE_Y, -0.294);
+    const bore = new THREE.CylinderGeometry(0.0085, 0.0085, 0.012, 32, 1, true); bore.rotateX(Math.PI / 2); M(bore, abyss, root, 0, BORE_Y, -0.324);
   }
   // 앞 가늠자(램프 + 붉은 파이버)
-  M(ext(rounded([[-0.298, 0.0], [-0.298, 0.0075], [-0.292, 0.0105], [-0.272, 0.0], ], 0.002), 0.008, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, BORE_Y + 0.0192, 0);
-  { const f = cylZ(0.0024, -0.2985, -0.2895, { seg: 16 }); M(f, fiber, root, 0, BORE_Y + 0.0195 + 0.0105, 0.0); }
+  M(ext(rounded([[-0.328, 0.0], [-0.328, 0.0075], [-0.322, 0.0105], [-0.302, 0.0], ], 0.002), 0.007, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, BORE_Y + 0.0178, 0);
+  { const f = cylZ(0.0022, -0.3285, -0.3195, { seg: 16 }); M(f, fiber, root, 0, BORE_Y + 0.018 + 0.0105, 0.0); }
   // 배럴 각인
-  decal(textTex('SMITH & WESSON', 512, 40, 30), 0.064, 0.005, BARREL_R + 0.0004, BORE_Y, -0.158, 1);
-  decal(textTex('.500 S&W MAGNUM', 512, 40, 30), 0.064, 0.005, -BARREL_R - 0.0004, BORE_Y, -0.158, -1);
+  decal(textTex('SMITH & WESSON', 512, 40, 30), 0.07, 0.005, BARREL_R + 0.0004, BORE_Y, -0.175, 1);
+  decal(textTex('.500 S&W MAGNUM', 512, 40, 30), 0.07, 0.005, -BARREL_R - 0.0004, BORE_Y, -0.175, -1);
 
   // ── 뒤 가늠자 (검정 조절식) ──
   { const s = new THREE.Shape(); // x-y 윤곽 (노치 포함)
     s.moveTo(-0.0115, 0); s.lineTo(0.0115, 0); s.lineTo(0.0115, 0.0135); s.lineTo(0.0042, 0.0135); s.lineTo(0.0, 0.0075); s.lineTo(-0.0042, 0.0135); s.lineTo(-0.0115, 0.0135); s.closePath();
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0008, bevelSegments: 2 });
-    M(toCreasedNormals(g, 0.8), blackOx, root, 0, 0.0505, 0.052);
-    M(ext(rounded([[0.0, 0.0], [0.0, 0.0065], [0.03, 0.0065], [0.034, 0.0], ], 0.002), 0.024, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, 0.0475, 0.032);
-    const sc = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0035, 20); sc.rotateZ(Math.PI / 2); M(sc, steelSoft, root, 0.0125, 0.0555, 0.055);
+    M(toCreasedNormals(g, 0.8), blackOx, root, 0, 0.0465, 0.052);
+    M(ext(rounded([[0.0, 0.0], [0.0, 0.0065], [0.03, 0.0065], [0.034, 0.0], ], 0.002), 0.024, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, 0.0435, 0.032);
+    const sc = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0035, 20); sc.rotateZ(Math.PI / 2); M(sc, steelSoft, root, 0.0125, 0.0515, 0.055);
   }
 
   // ── 스윙아웃 실린더 ──
@@ -239,7 +238,7 @@ export function createRevolver() {
   const trigger = new THREE.Group(); trigger.position.set(0, -0.042, 0.024); root.add(trigger);
   M(ext(polyShape(spline([[0.005, 0], [0.013, -0.002], [0.0145, -0.014], [0.009, -0.027], [-0.004, -0.036], [-0.019, -0.0385], [-0.0225, -0.033], [-0.0125, -0.0295], [-0.003, -0.021], [-0.0015, -0.008], [0.005, 0]], 80)), 0.0115, { bevel: 0.0016, seg: 3, curve: 40 }), steel, trigger);
   { const outer = polyShape(ellipsePts(0.0, -0.066, 0.045, 0.0275, 96)); outer.holes.push(new THREE.Path(ellipsePts(0.0, -0.066, 0.0315, 0.0143, 96).map(([x, y]) => new THREE.Vector2(x, y))));
-    M(ext(outer, 0.014, { bevel: 0.0022, seg: 3, curve: 96 }), steel); }
+    M(ext(outer, 0.011, { bevel: 0.002, seg: 3, curve: 96 }), steel); }
 
   // ── 호그 고무 그립 ──
   { const back = spline([[0.09, -0.018], [0.108, -0.058], [0.126, -0.108], [0.1365, -0.15], [0.133, -0.178], [0.113, -0.193]], 40);
@@ -250,6 +249,6 @@ export function createRevolver() {
     M(ext(polyShape(outline), 0.046, { bevel: 0.0055, seg: 5, curve: 8, crease: 0.9, uv: 130 }), rubber);
     decal(medallionTex(), 0.014, 0.014, -0.0292, -0.046, 0.062, -1); decal(medallionTex(), 0.014, 0.014, 0.0292, -0.046, 0.062, 1); }
 
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, BORE_Y, -0.308); root.add(muzzle);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, BORE_Y, -0.338); root.add(muzzle);
   return { root, swing, cylPivot, hammer, trigger, latch, latchRest, bullet, loadPoint, muzzle };
 }
