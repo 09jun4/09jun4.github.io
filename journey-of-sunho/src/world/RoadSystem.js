@@ -72,6 +72,7 @@ export class RoadSystem {
       const samples = sampleCenterline(r.points);
       return {
         id: r.id, name: r.name || r.id, halfW: r.width / 2, sidewalk: r.sidewalk ?? 2.5, lanes: r.lanes ?? 2,
+        frontage: r.frontage || 'mixed', ginkgo: !!r.ginkgo,
         samples, length: samples[samples.length - 1].s, isects: [], crosswalks: [],
       };
     });
@@ -339,7 +340,7 @@ export class RoadSystem {
 
   // 지면(지형) 메시
   buildTerrain(bounds, material) {
-    const step = 4;
+    const step = 6;
     const nx = Math.ceil((bounds.maxX - bounds.minX) / step), nz = Math.ceil((bounds.maxZ - bounds.minZ) / step);
     const geo = new THREE.PlaneGeometry(nx * step, nz * step, nx, nz);
     geo.rotateX(-Math.PI / 2);

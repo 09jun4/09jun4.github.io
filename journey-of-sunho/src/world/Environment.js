@@ -88,6 +88,7 @@ export class Environment {
     this.walls = new BoxBatch();
     this.plain = new BoxBatch();
     this._landmarks();
+    this._zones(rng);
     this._buildings(rng);
     this._streetFurniture(rng);
     this._parkTrees(rng);
@@ -96,6 +97,7 @@ export class Environment {
     this._signs();
     this._instancedTrees();
     this._instancedLamps();
+    this._bakeSigns();
     return this.group;
   }
 
@@ -163,13 +165,15 @@ export class Environment {
         this._bikeRack(b);
         this.landmarks.bikeRack = { x: b.x, z: b.z, y: b.y + 0.16, rot: b.rot, road, s, side, tx: b.tx, tz: b.tz };
       } else if (lm.type === 'home') {
-        const hx = 6, hz = 7;
+        const tower = lm.style === 'apartment';
+        const hx = tower ? 9 : 6, hz = tower ? 16 : 7;
         const b = this._beside(road, s, side, edge + (lm.setback || 4) + hx);
         const fp = { x: b.x, z: b.z, hx, hz, rot: b.rot };
         this.footprints.push(fp);
         const y0 = this._groundAt(fp) - 1.5;
-        this._house(b, y0, hx, hz, side, lm.name);
-        this.collision.addBox(b.x, b.z, hx, hz, b.rot, { tag: 'building', y: y0, h: 9 });
+        if (tower) this._homeTower(b, y0, hx, hz, side, lm);
+        else this._house(b, y0, hx, hz, side, lm.name);
+        this.collision.addBox(b.x, b.z, hx, hz, b.rot, { tag: 'building', y: y0, h: tower ? 80 : 9 });
         const goal = this._beside(road, s, 0, 0);
         this.landmarks.home = { x: goal.x, z: goal.z, y: goal.y, s, road, side, name: lm.name, house: b };
         this._goalMarker(goal, road);
@@ -273,6 +277,295 @@ export class Environment {
     this.goalBeam = beam;
   }
 
+  // ---------------------------------------------------------------- 실제 동네 구역 (아파트 단지·학교·큰 건물)
+  _zoneLocal(z, lx, lz) {
+    const r = (z.rot || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+    return { x: z.center[0] + lx * c + lz * s, z: z.center[1] - lx * s + lz * c, rot: r };
+  }
+
+  // 많은 간판(상가·동 번호)은 글자 아틀라스 하나에 모아 한 번에 그려요 (텍스처·그리기 호출 절약)
+  _sign(text, w, h, bg, fg) {
+    const o = new THREE.Object3D();
+    o.userData.sign = { text, w, h, bg, fg };
+    (this.signProxies ||= []).push(o);
+    return o;
+  }
+
+  _bakeSigns() {
+    const list = this.signProxies || [];
+    if (!list.length) return;
+    const CW = 256, CH = 48, COLS = 4, ROWS = 42;
+    const atlases = [];
+    const keyMap = new Map();
+    const newAtlas = () => {
+      const c = document.createElement('canvas');
+      c.width = CW * COLS; c.height = CH * ROWS;
+      const a = { c, g: c.getContext('2d'), n: 0, pos: [], uv: [], nrm: [] };
+      atlases.push(a);
+      return a;
+    };
+    let cur = newAtlas();
+    for (const o of list) {
+      const { text, w, h, bg, fg } = o.userData.sign;
+      const k = (w / h) / (CW / CH); // 늘어나는 비율만큼 미리 좁혀 그림
+      const key = `${text}|${bg}|${fg}|${k.toFixed(2)}`;
+      let cell = keyMap.get(key);
+      if (!cell) {
+        if (cur.n >= COLS * ROWS) cur = newAtlas();
+        const i = cur.n++, cx = (i % COLS) * CW, cy = Math.floor(i / COLS) * CH;
+        const g = cur.g;
+        g.fillStyle = bg; g.fillRect(cx, cy, CW, CH);
+        g.save();
+        g.translate(cx + CW / 2, cy + CH / 2 + 2);
+        g.scale(1 / k, 1);
+        g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = `bold ${Math.round(CH * 0.62)}px "Noto Sans KR", sans-serif`;
+        g.fillText(text, 0, 0, CW * k * 0.9);
+        g.restore();
+        cell = { a: cur, u0: cx / (CW * COLS), u1: (cx + CW) / (CW * COLS), v1: 1 - cy / (CH * ROWS), v0: 1 - (cy + CH) / (CH * ROWS) };
+        keyMap.set(key, cell);
+      }
+      const a = cell.a, ry = o.rotation.y, P = o.position;
+      const ax = Math.cos(ry), az = -Math.sin(ry), nx = Math.sin(ry), nz = Math.cos(ry);
+      const corner = (sx, sy) => [P.x + ax * sx * w / 2, P.y + sy * h / 2, P.z + az * sx * w / 2];
+      const v = [corner(-1, -1), corner(1, -1), corner(-1, 1), corner(1, 1)];
+      const t = [[cell.u0, cell.v0], [cell.u1, cell.v0], [cell.u0, cell.v1], [cell.u1, cell.v1]];
+      for (const i of [0, 1, 2, 1, 3, 2]) { a.pos.push(...v[i]); a.uv.push(...t[i]); a.nrm.push(nx, 0, nz); }
+      o.parent?.remove(o);
+    }
+    for (const a of atlases) {
+      const tex = new THREE.CanvasTexture(a.c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(a.pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(a.uv, 2));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(a.nrm, 3));
+      geo.computeBoundingSphere();
+      const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.15, roughness: 0.7 });
+      this.nightMaterials.push({ mat: m, color: new THREE.Color(0xffffff), max: 0.6, min: 0.15 });
+      this.group.add(new THREE.Mesh(geo, m));
+    }
+    this.signProxies = [];
+  }
+
+  _textPlane(text, w, h, bg, fg, font) {
+    const tex = textTexture(text, { w: 512, h: Math.round(512 * h / w), bg, fg, font: font || `bold ${Math.round(512 * h / w * 0.55)}px sans-serif` });
+    const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.15 });
+    this.nightMaterials.push({ mat: m, color: new THREE.Color(0xffffff), max: 0.6, min: 0.15 });
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+  }
+
+  // 단지 입구 표지석: 구역 가장자리 중 도로에 가장 가까운 곳
+  _zoneSign(z, text) {
+    const q = {};
+    let best = null;
+    const hw = z.size[0] / 2, hd = z.size[1] / 2;
+    for (const [lx, lz, nx, nz] of [[0, -hd, 0, -1], [0, hd, 0, 1], [-hw, 0, -1, 0], [hw, 0, 1, 0]]) {
+      const p = this._zoneLocal(z, lx, lz);
+      this.roads.query(p.x, p.z, q);
+      const d = q.road ? q.dist - q.road.halfW - q.road.sidewalk : 999;
+      if (!best || d < best.d) best = { d, p, nx, nz };
+    }
+    if (!best || best.d > 40) return;
+    const r = best.p.rot;
+    const wx = best.nx * Math.cos(r) + best.nz * Math.sin(r), wz = -best.nx * Math.sin(r) + best.nz * Math.cos(r);
+    // 도로 쪽으로 붙이되 인도는 침범하지 않게
+    let x = best.p.x, zz = best.p.z;
+    for (let i = 0; i < 40; i++) {
+      this.roads.query(x + wx, zz + wz, q);
+      if (q.road && q.dist < q.road.halfW + q.road.sidewalk + 1.2) break;
+      x += wx; zz += wz;
+    }
+    const y = this.roads.terrainHeight(x, zz);
+    const g = new THREE.Group();
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(6.4, 1.6, 0.8), new THREE.MeshStandardMaterial({ color: 0x6b6b70, roughness: 0.9 }));
+    stone.position.y = 0.8;
+    const label = this._textPlane(text, 6, 1.1, '#2b2b30', '#f8f9fa');
+    label.position.set(0, 0.85, 0.41);
+    g.add(stone, label);
+    g.position.set(x, y, zz);
+    g.rotation.y = Math.atan2(wx, wz);
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.group.add(g);
+    this.collision.addCircle(x, zz, 1.2, { tag: 'pole' });
+  }
+
+  _zones(rng) {
+    for (const z of this.map.zones || []) {
+      if (z.type === 'apartments') this._apartmentZone(z, rng);
+      else if (z.type === 'school') this._schoolZone(z, rng);
+      else if (z.type === 'building') this._bigBuilding(z);
+      else if (z.type === 'commercial') this._commercialBlock(z, rng);
+    }
+  }
+
+  _apartmentZone(z, rng) {
+    const slab = z.style !== 'tower';
+    const L = slab ? 46 : 24, D = slab ? 14 : 24;
+    const sx = slab ? L + 16 : 46, sz = slab ? 42 : 46;
+    const hw = z.size[0] / 2, hd = z.size[1] / 2;
+    const col = new THREE.Color(z.color || '#f1ede4'), accent = new THREE.Color(z.accent || '#2b5d8a');
+    let dong = (z.firstDong || 101);
+    let count = 0;
+    for (let lz = -hd + D / 2 + 4; lz <= hd - D / 2 - 4; lz += sz) {
+      for (let lx = -hw + L / 2 + 4; lx <= hw - L / 2 - 4; lx += sx) {
+        const jx = lx + rng.range(-3, 3), jz = lz + rng.range(-3, 3);
+        const p = this._zoneLocal(z, jx, jz);
+        const fp = { x: p.x, z: p.z, hx: L / 2, hz: D / 2, rot: p.rot + Math.PI / 2 };
+        if (!this._place(fp)) continue;
+        const floors = rng.int(z.floors[0], z.floors[1]);
+        const h = floors * 2.9;
+        const y0 = this._groundAt(fp) - 1;
+        const c = col.clone().multiplyScalar(rng.range(0.95, 1.03));
+        this.walls.add(fp.x, y0, fp.z, fp.hx, h + 1, fp.hz, fp.rot, c);
+        // 옥상 띠(브랜드 색)
+        this.plain.add(fp.x, y0 + h + 1, fp.z, fp.hx + 0.3, 2.2, fp.hz + 0.3, fp.rot, accent);
+        this.collision.addBox(fp.x, fp.z, fp.hx, fp.hz, fp.rot, { tag: 'building', y: y0, h: h + 3 });
+        // 측벽의 동 번호
+        const num = this._sign(String(dong++), D * 0.7, D * 0.45, z.color || '#f1ede4', z.accent || '#2b5d8a');
+        const cr = Math.cos(fp.rot), sr = Math.sin(fp.rot);
+        num.position.set(fp.x + (fp.hx + 0.06) * cr, y0 + h - 2.5, fp.z - (fp.hx + 0.06) * sr);
+        num.rotation.y = fp.rot + Math.PI / 2;
+        this.group.add(num);
+        count++;
+      }
+    }
+    if (count) this._zoneSign(z, z.name);
+    // 단지 안 보도블록(지면보다 살짝 위)
+    const pave = new THREE.Mesh(new THREE.PlaneGeometry(z.size[0], z.size[1]), new THREE.MeshStandardMaterial({ color: 0x9e9a8f, roughness: 1, transparent: true, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false }));
+    pave.rotation.x = -Math.PI / 2;
+    pave.rotation.z = (z.rot || 0) * Math.PI / 180;
+    pave.position.set(z.center[0], this.roads.terrainHeight(z.center[0], z.center[1]) + 0.02, z.center[1]);
+    pave.receiveShadow = true;
+    this.group.add(pave);
+  }
+
+  // 상가 블록: 4~10층 근린상가 건물을 골목을 두고 촘촘히
+  _commercialBlock(z, rng) {
+    const shops = this.map.shops || ['가게'];
+    const hw = z.size[0] / 2, hd = z.size[1] / 2;
+    const palette = ['#d9d4cb', '#c9c3b8', '#b8c1c9', '#e2d5c3', '#a9b2ad', '#d6c7b0', '#cfd6dd', '#bfb4a6'];
+    const signCols = ['#c92a2a', '#1864ab', '#2b8a3e', '#7048e8', '#e8590c', '#0b7285', '#5c940d', '#a61e4d'];
+    for (let lz = -hd + 12; lz < hd - 10; lz += rng.range(24, 30)) {
+      for (let lx = -hw + 11; lx < hw - 9; lx += rng.range(24, 30)) {
+        const w = rng.range(16, 22), dd = rng.range(14, 20);
+        const p = this._zoneLocal(z, lx, lz);
+        const fp = { x: p.x, z: p.z, hx: w / 2, hz: dd / 2, rot: p.rot };
+        if (!this._place(fp)) continue;
+        const floors = rng.int(z.floors[0], z.floors[1]);
+        const h = floors * 3.3;
+        const y0 = this._groundAt(fp) - 1;
+        this.walls.add(fp.x, y0, fp.z, fp.hx, h + 1, fp.hz, fp.rot, new THREE.Color(rng.pick(palette)));
+        this.plain.add(fp.x, y0 + h + 1, fp.z, fp.hx + 0.2, 0.5, fp.hz + 0.2, fp.rot, new THREE.Color('#5c5f66'));
+        this.collision.addBox(fp.x, fp.z, fp.hx, fp.hz, fp.rot, { tag: 'building', y: y0, h: h + 1 });
+        // 도로에 가까운 면에 간판 1~2개(층별)
+        const q = {};
+        const cr = Math.cos(fp.rot), sr = Math.sin(fp.rot);
+        let best = null;
+        for (const [nx, nz, half, wid] of [[1, 0, fp.hx, fp.hz], [-1, 0, fp.hx, fp.hz], [0, 1, fp.hz, fp.hx], [0, -1, fp.hz, fp.hx]]) {
+          const wx = nx * cr + nz * sr, wz = -nx * sr + nz * cr;
+          this.roads.query(fp.x + wx * (half + 6), fp.z + wz * (half + 6), q);
+          const dist = q.road ? q.dist - q.road.halfW : 99;
+          if (!best || dist < best.dist) best = { dist, wx, wz, half, wid };
+        }
+        const n = Math.min(floors - 1, rng.int(1, 3));
+        for (let k = 0; k < n; k++) {
+          const sg = this._sign(rng.pick(shops), Math.min(best.wid * 2 - 2, 12), 1.3, rng.pick(signCols), '#ffffff');
+          sg.position.set(fp.x + best.wx * (best.half + 0.07), y0 + 1 + 3.2 + k * 3.3, fp.z + best.wz * (best.half + 0.07));
+          sg.rotation.y = Math.atan2(best.wx, best.wz);
+          this.group.add(sg);
+        }
+      }
+    }
+  }
+
+  _schoolZone(z) {
+    const hw = z.size[0] / 2, hd = z.size[1] / 2;
+    // 교사동(4층, 북쪽) + 운동장(남쪽)
+    const p = this._zoneLocal(z, 0, -hd + 16);
+    const fp = { x: p.x, z: p.z, hx: Math.min(36, hw - 6), hz: 8, rot: p.rot };
+    if (this._place(fp)) {
+      const y0 = this._groundAt(fp) - 1;
+      this.walls.add(fp.x, y0, fp.z, fp.hx, 4 * 3.4 + 1, fp.hz, fp.rot, new THREE.Color('#e9d8c4'));
+      this.plain.add(fp.x, y0 + 4 * 3.4 + 1, fp.z, fp.hx + 0.3, 0.8, fp.hz + 0.3, fp.rot, new THREE.Color('#a5502d'));
+      this.collision.addBox(fp.x, fp.z, fp.hx, fp.hz, fp.rot, { tag: 'building', y: y0, h: 16 });
+      const sign = this._textPlane(z.name, 16, 2, '#ffffff', '#1c3f6e');
+      const cr = Math.cos(fp.rot), sr = Math.sin(fp.rot);
+      sign.position.set(fp.x + (fp.hz + 0.06) * sr, y0 + 12, fp.z + (fp.hz + 0.06) * cr);
+      sign.rotation.y = fp.rot;
+      this.group.add(sign);
+    }
+    const f = this._zoneLocal(z, 0, 22);
+    const field = new THREE.Mesh(new THREE.PlaneGeometry(z.size[0] - 30, z.size[1] - 70), new THREE.MeshStandardMaterial({ color: 0xc9a77c, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    field.rotation.x = -Math.PI / 2;
+    field.rotation.z = f.rot;
+    field.position.set(f.x, this.roads.terrainHeight(f.x, f.z) + 0.04, f.z);
+    field.receiveShadow = true;
+    this.group.add(field);
+    this.footprints.push({ x: f.x, z: f.z, hx: (z.size[0] - 30) / 2, hz: (z.size[1] - 70) / 2, rot: f.rot });
+    // 축구 골대
+    for (const k of [-1, 1]) {
+      const gp = this._zoneLocal(z, 0, 22 + k * ((z.size[1] - 70) / 2 - 3));
+      const goal = new THREE.Mesh(new THREE.BoxGeometry(7, 2.4, 0.15), new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true }));
+      goal.position.set(gp.x, this.roads.terrainHeight(gp.x, gp.z) + 1.2, gp.z);
+      goal.rotation.y = gp.rot;
+      this.group.add(goal);
+    }
+    this._zoneSign(z, z.name);
+  }
+
+  _bigBuilding(z) {
+    const p = this._zoneLocal(z, 0, 0);
+    const fp = { x: p.x, z: p.z, hx: z.size[0] / 2, hz: z.size[1] / 2, rot: p.rot };
+    this.footprints.push(fp);
+    const h = (z.floors || 5) * 3.6;
+    const y0 = this._groundAt(fp) - 1;
+    this.walls.add(fp.x, y0, fp.z, fp.hx, h + 1, fp.hz, fp.rot, new THREE.Color(z.color || '#cccccc'));
+    this.collision.addBox(fp.x, fp.z, fp.hx, fp.hz, fp.rot, { tag: 'building', y: y0, h: h + 1 });
+    // 가장 가까운 도로 쪽 면에 큰 간판
+    const q = {};
+    let best = null;
+    const cr = Math.cos(fp.rot), sr = Math.sin(fp.rot);
+    for (const [nx, nz, half] of [[1, 0, fp.hx], [-1, 0, fp.hx], [0, 1, fp.hz], [0, -1, fp.hz]]) {
+      const wx = nx * cr + nz * sr, wz = -nx * sr + nz * cr;
+      const x = fp.x + wx * half, zz = fp.z + wz * half;
+      this.roads.query(x + wx * 6, zz + wz * 6, q);
+      const d = q.road ? q.dist : 999;
+      if (!best || d < best.d) best = { d, wx, wz, x, zz, w: (nx ? fp.hz : fp.hx) * 2 };
+    }
+    const sign = this._textPlane(z.name, Math.min(best.w * 0.8, 30), 5, z.signBg || '#333', z.signFg || '#fff');
+    sign.position.set(best.x + best.wx * 0.08, y0 + h - 2.5, best.zz + best.wz * 0.08);
+    sign.rotation.y = Math.atan2(best.wx, best.wz);
+    this.group.add(sign);
+  }
+
+  // 선호네 집: 에코메트로5단지 아파트 동 (도착 지점)
+  _homeTower(b, y0, hx, hz, side, lm) {
+    const floors = 27, h = floors * 2.9;
+    this.walls.add(b.x, y0, b.z, hx, h + 1.5, hz, b.rot, new THREE.Color('#f4f1ea'));
+    this.plain.add(b.x, y0 + h + 1.5, b.z, hx + 0.3, 2.4, hz + 0.3, b.rot, new THREE.Color('#e8590c'));
+    const toRoad = side > 0 ? -1 : 1;
+    const g = new THREE.Group();
+    g.position.set(b.x, 0, b.z);
+    g.rotation.y = b.rot;
+    const y = this.roads.terrainHeight(b.x, b.z);
+    const sign = this._textPlane(lm.name, 12, 1.4, '#e8590c', '#ffffff');
+    sign.position.set(toRoad * (hx + 0.08), y + 4.2, 0);
+    sign.rotation.y = toRoad * Math.PI / 2;
+    const sub = this._textPlane(`${lm.sub || '선호네 집'} · 503동`, 7, 1.2, '#2d6a4f', '#ffffff');
+    sub.position.set(toRoad * (hx + 0.1), y + 2.6, 0);
+    sub.rotation.y = toRoad * Math.PI / 2;
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.4), new THREE.MeshStandardMaterial({ color: 0x8fb8d8, emissive: 0x334455, roughness: 0.2 }));
+    door.position.set(toRoad * (hx + 0.06), y + 1.2, 0);
+    door.rotation.y = toRoad * Math.PI / 2;
+    const num = this._textPlane('503', 6, 3, '#f4f1ea', '#e8590c');
+    num.position.set(toRoad * (hx + 0.08), y + h - 3, 0);
+    num.rotation.y = toRoad * Math.PI / 2;
+    g.add(sign, sub, door, num);
+    this.group.add(g);
+  }
+
   _buildings(rng) {
     const shops = this.map.shops || ['가게'];
     this.shopAtlas = signAtlas(shops);
@@ -284,12 +577,14 @@ export class Environment {
     for (const road of this.roads.roads) {
       for (const side of [-1, 1]) {
         let s = 4 + rng() * 6;
+        if (road.frontage === 'none') continue;
+        const commercial = road.frontage === 'commercial';
         while (s < road.length - 4) {
           const r = rng();
-          const kind = r < 0.45 ? 'shop' : r < 0.75 ? 'apt' : 'house';
+          const kind = commercial ? 'shop' : r < 0.45 ? 'shop' : r < 0.75 ? 'apt' : 'house';
           const front = kind === 'apt' ? rng.range(14, 22) : kind === 'shop' ? rng.range(8, 13) : rng.range(8, 11);
           const depth = kind === 'apt' ? rng.range(12, 18) : rng.range(8, 13);
-          const height = kind === 'apt' ? rng.int(5, 12) * 3 : kind === 'shop' ? rng.int(2, 4) * 3 : rng.int(2, 3) * 3;
+          const height = kind === 'apt' ? rng.int(5, 12) * 3 : kind === 'shop' ? (commercial ? rng.int(3, 8) : rng.int(2, 4)) * 3 : rng.int(2, 3) * 3;
           const setback = kind === 'house' ? rng.range(2, 4) : rng.range(0.6, 1.6);
           const sc = s + front / 2;
           const b = this._beside(road, sc, side, road.halfW + road.sidewalk + setback + depth / 2);
@@ -356,7 +651,7 @@ export class Environment {
     const nearLandmark = (x, z) => (ac && Math.hypot(x - ac.x, z - ac.z) < 7) || (rack && Math.hypot(x - rack.x, z - rack.z) < 4);
     for (const road of this.roads.roads) {
       const blocked = (s, pad) => road.isects.some((it) => Math.abs(s - it.s) < it.radius + pad) || road.crosswalks.some((c) => s > c.s0 - 2 && s < c.s1 + 2);
-      const ginkgo = /은행/.test(road.name);
+      const ginkgo = road.ginkgo || /은행/.test(road.name);
       for (const side of [-1, 1]) {
         for (let s = 5 + rng() * 4; s < road.length - 3; s += treeStep * rng.range(0.85, 1.15)) {
           if (blocked(s, 3)) continue;
@@ -381,7 +676,7 @@ export class Environment {
   _parkTrees(rng) {
     const b = this.map.bounds;
     const q = {};
-    for (let n = 0; n < 420; n++) {
+    for (let n = 0; n < (this.map.decor?.parkTrees ?? 420); n++) {
       const x = rng.range(b.minX + 6, b.maxX - 6), z = rng.range(b.minZ + 6, b.maxZ - 6);
       this.roads.query(x, z, q);
       if (q.road && q.dist < q.road.halfW + q.road.sidewalk + 2.5) continue;
@@ -395,7 +690,7 @@ export class Environment {
   _instancedTrees() {
     const n = this.trees.length;
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.18, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0x5b4636, roughness: 1 }), n);
-    const crownGeo = new THREE.IcosahedronGeometry(1.5, 1);
+    const crownGeo = new THREE.IcosahedronGeometry(1.5, 0);
     const crown = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), n);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
     const c = new THREE.Color();

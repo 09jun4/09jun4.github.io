@@ -36,7 +36,7 @@ journey-of-sunho/
   js/firebase-config.js   Firebase 웹 설정 (비어 있으면 브라우저 저장만 사용)
   js/vendor/firebase.js   Firebase SDK 번들 (Auth + Firestore)
   firestore.rules         Firestore 보안 규칙
-  assets/maps/            맵 데이터 (test-map.json = 임시 테스트 동네)
+  assets/maps/            맵 데이터 (nonhyeon.json = 인천 논현동 실제 귀갓길, test-map.json = 예전 테스트 동네)
   assets/models|textures|audio/   최종 에셋 자리 (현재 임시 에셋은 코드로 생성)
   src/
     main.js
@@ -67,6 +67,8 @@ journey-of-sunho/
   물리 값은 `balance.json`의 `bike`에서 따로 조정.
 
 ## 지도 교체 (실제 지도 이미지)
+현재 맵 `assets/maps/nonhyeon.json`의 `zones`로 아파트 단지(동 번호·단지 표지석), 초등학교(교사동·운동장), 상가 블록, 메가박스 같은 큰 건물을 배치해요.
+
 게임은 지도 이미지가 아니라 **맵 데이터**(도로 중심선)로 3D 도로·건물·가로수·교차로·횡단보도를 만들어요.
 1. 지도 이미지를 `assets/maps/`에 넣고, 이미지 위에서 도로 중심선을 미터 단위 좌표 `[x, z, 높이]`로 옮겨 `roads[]`에 적어요 (폭 `width`, 인도 폭 `sidewalk`).
 2. `image`와 `imageBounds`(이미지가 덮는 월드 범위 `{minX,maxX,minZ,maxZ}`)를 채우면 미니맵 배경으로 깔려요.
@@ -90,6 +92,6 @@ journey-of-sunho/
 
 ## 현재 한계 (MVP)
 - 캐릭터·자전거·소품은 기본 도형으로 만든 임시 에셋이에요. 사운드는 아직 없어요.
-- 맵은 임시 테스트 동네(약 0.8~1.1 km 코스 3개)예요. 실제 지도 데이터가 오면 교체해요.
+- 맵은 사용자가 보내준 지도 캡처(903 수학학원 → 에코메트로5단지, 994m)를 1px≈1m로 따라 그린 논현동이에요. 도로·단지 위치는 지도를 따랐지만, 건물 모양·층수·간판은 실제와 다르게 단순화했어요(로드뷰는 참고하지 못함).
 - 자동차는 이벤트로만 등장해요(상시 교통 흐름 없음). 신호등은 없어요.
 - PC 키보드 전용이에요(모바일 터치 조작 없음).
