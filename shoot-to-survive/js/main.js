@@ -5,8 +5,10 @@ import { Player } from './player.js';
 import { Weapons } from './weapons.js';
 import { Ghost, createGhostAssets, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
 import { Bot } from './auto.js';
+import { setupTouch } from './touch.js';
 
-const AUTO = !!window.__AUTO || new URLSearchParams(location.search).has('auto');
+let auto = !!window.__AUTO || new URLSearchParams(location.search).has('auto'); // AI 자동 플레이
+const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); // 터치 기기
 const GHOSTS = 10;
 const $ = (id) => document.getElementById(id);
 
@@ -59,8 +61,9 @@ const weapons = new Weapons(viewScene, {
   meleeHit: meleeHit,
   lunge: () => player.lunge(),
 });
-const game = { paused: false, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
-const bot = AUTO ? new Bot(game) : null; game.bot = bot;
+const game = { paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
+const bot = new Bot(game); game.bot = bot;
+setupTouch(game, $('stage'));
 window.__game = game;
 
 // ── 판정 ─────────────────────────────────────────────
@@ -102,7 +105,7 @@ function finish(kind) {
   $('endTitle').textContent = kind === 'clear' ? '클리어!' : '게임 오버';
   $('endText').textContent = kind === 'clear' ? '유령 10마리를 모두 처리했어요' : '유령에게 5번 맞았어요';
   $('end').classList.remove('hide');
-  $('restart').classList.toggle('hide', AUTO);
+  $('restart').classList.toggle('hide', auto);
   endTimer = 3;
 }
 
@@ -128,7 +131,7 @@ function newGame(seed) {
   state = 'playing';
   $('end').classList.add('hide'); $('paused').classList.add('hide'); $('title').classList.add('hide');
   $('hud').style.display = 'block';
-  $('badge').style.display = AUTO ? 'block' : 'none';
+  $('badge').style.display = auto ? 'block' : 'none';
   hudHearts(true);
 }
 game.newGame = newGame;
@@ -154,16 +157,27 @@ function hud() {
 
 // ── 입력 ─────────────────────────────────────────────
 const locked = () => document.pointerLockElement === canvas;
-function lock() { if (!AUTO) canvas.requestPointerLock?.(); }
+const playable = () => auto || COARSE || locked();
+function lock() { if (!auto && !COARSE) canvas.requestPointerLock?.(); }
+function startTouch() { newGame(); try { (document.documentElement.requestFullscreen?.() || Promise.resolve()).catch(() => {}); screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch (e) {} }
+// AI ↔ 직접 플레이 전환 (아티팩트 버튼용)
+function setAuto(v) {
+  auto = !!v; keys.clear(); game.joy.x = game.joy.y = 0; game.fireHeld = false;
+  $('badge').style.display = auto ? 'block' : 'none'; $('restart').classList.toggle('hide', auto);
+  $('touch').classList.toggle('hide', auto || !COARSE); document.body.classList.toggle('touch-ui', COARSE && !auto);
+  if (auto) { $('paused').classList.add('hide'); endTimer = Math.max(endTimer, 1); }
+  else if (!COARSE && state === 'playing' && !locked()) $('paused').classList.remove('hide');
+}
 document.addEventListener('pointerlockchange', () => {
   if (locked()) {
     if (state === 'title') newGame();
     $('paused').classList.add('hide'); $('title').classList.add('hide');
   } else if (state === 'playing') $('paused').classList.remove('hide');
 });
-$('title').addEventListener('click', () => AUTO ? newGame() : lock());
+$('title').addEventListener('click', () => auto ? newGame() : COARSE ? startTouch() : lock());
 $('paused').addEventListener('click', lock);
 $('restart').addEventListener('click', () => { newGame(); lock(); });
+$('touch').classList.toggle('hide', auto || !COARSE); document.body.classList.toggle('touch-ui', COARSE && !auto);
 document.addEventListener('mousemove', (e) => {
   if (!locked() || state !== 'playing') return;
   player.yaw -= e.movementX * 0.0022;
@@ -173,8 +187,8 @@ document.addEventListener('mousedown', (e) => { if (locked() && state === 'playi
 document.addEventListener('wheel', (e) => { if (locked() && state === 'playing') weapons.cycle(); }, { passive: true });
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  if (!AUTO) keys.add(e.code);
-  if (state !== 'playing' || !locked()) return;
+  if (!auto) keys.add(e.code);
+  if (state !== 'playing' || !playable() || auto) return;
   if (e.code === 'Digit1') weapons.equip('pistol');
   else if (e.code === 'Digit2') weapons.equip('flash');
   else if (e.code === 'KeyR') weapons.tryReload();
@@ -200,9 +214,10 @@ const fwd = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (state === 'playing' && !game.paused && (locked() || AUTO)) {
-    if (bot) bot.update(dt);
-    player.update(dt, keys, grid);
+  if (state === 'playing' && !game.paused && playable()) {
+    if (auto) bot.update(dt);
+    else if (game.fireHeld) weapons.tryFire(); // 발사 버튼 누르고 있으면 연사(발사 간격 제한 유지)
+    player.update(dt, keys, grid, game.joy);
     weapons.update(dt);
     { // 근접 펀치: 화면 확대(FOV) + 아래로 숙임 + 흔들림
       const pu = weapons.punch, base = camera.userData.baseFov || camera.fov;
@@ -218,7 +233,7 @@ function frame(now) {
     }
     world.update(player.pos);
     hud();
-  } else if (AUTO && (state === 'clear' || state === 'over')) {
+  } else if (auto && (state === 'clear' || state === 'over')) {
     endTimer -= dt; if (endTimer <= 0) newGame();
   } else if (state === 'clear' || state === 'over') {
     for (const g of ghosts) g.sync();
@@ -237,5 +252,6 @@ function frame(now) {
   renderer.clearDepth();
   renderer.render(viewScene, viewCam);
 }
-if (AUTO) { $('title').querySelector('p').textContent = 'AI 자동 플레이 · 탭하여 시작'; newGame(); }
+if (COARSE) { $('title').querySelector('p').textContent = '탭하여 시작'; $('title').querySelector('small').innerHTML = '왼쪽 화면: 이동 조이스틱 · 오른쪽 화면: 드래그로 시점<br>오른쪽 아래 버튼: 발사 · 재장전 · 근접 · 전환 · 기울이기<br>가로 화면을 권장해요'; }
+if (auto) { $('title').querySelector('p').textContent = 'AI 자동 플레이 · 탭하여 시작'; newGame(); }
 requestAnimationFrame(frame);

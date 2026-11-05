@@ -21,13 +21,13 @@ export class Player {
   get lean() { return Math.sign(this.leanRaw) * smooth(Math.abs(this.leanRaw)); }
 
   // keys: Set of KeyboardEvent.code
-  update(dt, keys, grid) {
-    const f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
-    const r = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  update(dt, keys, grid, joy) { // joy: 모바일 조이스틱 {x,y} (-1~1)
+    const f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0) + (joy ? joy.y : 0);
+    const r = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + (joy ? joy.x : 0);
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     let vx = -sy * f + cy * r, vz = -cy * f - sy * r;
     const l = Math.hypot(vx, vz);
-    if (l > 0) { vx /= l; vz /= l; this.pos.x += vx * SPEED * dt; this.pos.z += vz * SPEED * dt; pushOut(grid, this.pos, RADIUS); }
+    if (l > 0.05) { if (l > 1) { vx /= l; vz /= l; } this.pos.x += vx * SPEED * dt; this.pos.z += vz * SPEED * dt; pushOut(grid, this.pos, RADIUS); }
     // 기울이기: 누르는 동안 유지, 떼면 복귀 (0.7초 보간)
     const target = (keys.has('KeyE') ? 1 : 0) - (keys.has('KeyQ') ? 1 : 0);
     const step = dt / LEAN_TIME;
