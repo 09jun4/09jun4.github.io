@@ -19,7 +19,7 @@ export class PlayerController {
     if (Math.abs(tUp - this.throttle) < rate * dt) this.throttle = tUp;
     const b = a.brake ? 1 : a.down ? this.cfg.softBrake : 0;
     this.brake += (b - this.brake) * Math.min(1, dt * 12);
-    this.steer = (a.right ? 1 : 0) - (a.left ? 1 : 0);
+    this.steer = Math.max(-1, Math.min(1, (a.right || 0) - (a.left || 0))); // 키보드는 0/1, 조이스틱은 기울인 만큼
   }
   reset() { this.throttle = 0; this.brake = 0; this.steer = 0; }
 }
