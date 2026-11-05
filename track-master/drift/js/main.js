@@ -93,7 +93,7 @@
   }
 
   // --- Input -----------------------------------------------------------------
-  var keys = {}, touch = { left: 0, right: 0, gas: 0, brake: 0, drift: 0 };
+  var keys = {}, touch = { left: 0, right: 0, gas: 0, drift: 0 };
   window.addEventListener('keydown', function (e) {
     if (e.target && e.target.tagName === 'INPUT') return;
     keys[e.code] = true;
@@ -126,7 +126,7 @@
     var l = keys.KeyA || keys.ArrowLeft || touch.left, r = keys.KeyD || keys.ArrowRight || touch.right;
     return {
       throttle: keys.KeyW || keys.ArrowUp || touch.gas ? 1 : 0,
-      brake: keys.KeyS || keys.ArrowDown || touch.brake ? 1 : 0,
+      brake: 0, // the player has no foot brake (side brake only)
       drift: keys.Space || touch.drift ? 1 : 0,
       steer: (l ? 1 : 0) - (r ? 1 : 0),
     };
@@ -391,8 +391,7 @@
       var best = DR.Cloud.best(null, s.id);
       b.innerHTML = '<b>' + s.name + '</b><small>' + s.tagline + '</small>' +
         '<span class="spec">' + s.engine + ' · ' + s.weight + '</span><span class="spec tune">튜닝: ' + s.tune + '</span>' +
-        '<span class="stat">파워 ' + bar(s.stats.power) + '</span><span class="stat">그립 ' + bar(s.stats.grip) + '</span><span class="stat">드리프트 ' + bar(s.stats.drift) + '</span>' +
-        '<span class="pb">내 기록 ' + (best ? recText(best) : '없음') + '</span>';
+                '<span class="pb">내 기록 ' + (best ? recText(best) : '없음') + '</span>';
       b.addEventListener('click', function () { G.carId = s.id; savePref(); renderMenu(); });
       grid.appendChild(b);
     });

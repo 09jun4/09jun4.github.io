@@ -110,7 +110,6 @@
   .tc button.on { background: rgba(255, 155, 61, 0.55); }
   .tc .gas { height: 150px; }
   .tc .drift { height: 82px; }
-  .tc .brake { height: 110px; }
   .tc-top { position: fixed; top: calc(138px + env(safe-area-inset-top)); left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
   .tc-top button { padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.55); font-size: 13px; font-weight: 700; }
   /* Touch play: the whole HUD sits along the top so the car stays clear. */
@@ -130,12 +129,22 @@
     #hud-time { font-size: 22px; } #hud-timebox { min-width: 120px; }
     body:not(.touch) #hud-prog { top: auto; bottom: calc(200px + env(safe-area-inset-bottom)); }
   }
+  /* Tablets (big touch screens): much bigger pedals, raised off the bottom edge. */
+  @media (pointer: coarse) and (min-width: 721px) and (min-height: 600px) {
+    .tc { bottom: calc(9vh + env(safe-area-inset-bottom)); gap: 2.4vw; }
+    .tc-l { left: calc(3vw + env(safe-area-inset-left)); }
+    .tc-r { right: calc(3vw + env(safe-area-inset-right)); }
+    .tc-col { gap: 2vh; }
+    .tc button { border-radius: 30px; font-size: 34px; line-height: 1.2; border-width: 2px; }
+    .tc-l button { width: 17vw; height: min(26vh, 20vw); font-size: 52px; }
+    .tc .gas { width: 20vw; height: min(30vh, 26vw); font-size: 40px; }
+    .tc .drift { width: 20vw; height: min(20vh, 17vw); font-size: 32px; }
+  }
   /* Phones held upright: bigger pedals, compact top HUD. */
   @media (orientation: portrait) and (max-width: 720px) {
     .tc { gap: 8px; }
     .tc-col { gap: 8px; }
     .tc-l button { width: 21vw; height: 128px; font-size: 26px; }
-    .tc-r .brake { width: 21vw; height: 124px; }
     .tc-r .gas, .tc-r .drift { width: 24vw; }
     .tc .gas { height: 170px; } .tc .drift { height: 88px; }
     .tc button { font-size: 16px; }
@@ -164,13 +173,13 @@
     <div><div id="hud-rpm"><div id="hud-rpm-fill"></div></div><div class="unit">각도 <span id="hud-angle">0°</span></div></div>
   </div>
   <div id="hud-drift">DRIFT</div>
-  <div id="hud-help" class="hud-box"><kbd>W</kbd><kbd>S</kbd> 가속·브레이크 · <kbd>A</kbd><kbd>D</kbd> 조향 · <kbd>Space</kbd>+조향 드리프트(오래 누를수록 조향각 증가)<br /><kbd>C</kbd> 시점 · <kbd>R</kbd> 리셋 · <kbd>Q</kbd><kbd>E</kbd> 수동 변속 · <kbd>T</kbd> 자동/수동 · <kbd>Esc</kbd> 일시정지 · <kbd>M</kbd> 소리</div>
+  <div id="hud-help" class="hud-box"><kbd>W</kbd> 가속 · <kbd>A</kbd><kbd>D</kbd> 조향 · <kbd>Space</kbd>+조향 사이드브레이크 드리프트(오래 누를수록 조향각 증가)<br /><kbd>C</kbd> 시점 · <kbd>R</kbd> 리셋 · <kbd>Q</kbd><kbd>E</kbd> 수동 변속 · <kbd>T</kbd> 자동/수동 · <kbd>Esc</kbd> 일시정지 · <kbd>M</kbd> 소리</div>
 </div>
 <div id="countdown" hidden>3</div>
 
 <div id="touch">
   <div class="tc tc-l"><button type="button" data-hold="left" aria-label="왼쪽">◀</button><button type="button" data-hold="right" aria-label="오른쪽">▶</button></div>
-  <div class="tc tc-r"><button type="button" class="brake" data-hold="brake">브레이크</button><div class="tc-col"><button type="button" class="drift" data-hold="drift">사이드<br>브레이크</button><button type="button" class="gas" data-hold="gas">가속</button></div></div>
+  <div class="tc tc-r"><div class="tc-col"><button type="button" class="drift" data-hold="drift">사이드<br>브레이크</button><button type="button" class="gas" data-hold="gas">가속</button></div></div>
   <div class="tc-top"><button type="button" id="tc-pause">일시정지</button><button type="button" id="tc-reset">리셋</button><button type="button" id="tc-view">보닛 시점</button></div>
 </div>
 
