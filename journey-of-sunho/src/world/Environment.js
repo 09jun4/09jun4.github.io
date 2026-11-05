@@ -184,17 +184,23 @@ export class Environment {
     const y = this.roads.terrainHeight(front.x, front.z);
     // 큰 간판
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.6), new THREE.MeshStandardMaterial({
-      map: textTexture('최강수학학원', { w: 1024, h: 192, bg: '#14213d', fg: '#ffd166', font: 'bold 120px sans-serif', border: '#ffd166' }),
+      map: textTexture('903 수학학원', { w: 1024, h: 192, bg: '#14213d', fg: '#ffd166', font: 'bold 120px sans-serif', border: '#ffd166' }),
       emissive: 0xffffff, emissiveIntensity: 0.25, emissiveMap: null,
     }));
     sign.material.emissiveMap = sign.material.map;
     sign.position.set(0, y + 9.5, 0.06);
     g.add(sign);
-    const banner = new THREE.Mesh(new THREE.PlaneGeometry(5, 8), new THREE.MeshStandardMaterial({
-      map: textTexture('의대반 모집', { w: 256, h: 512, bg: '#e63946', fg: '#fff', font: 'bold 54px sans-serif' }),
-    }));
-    banner.position.set(5.5, y + 5, 0.07);
-    g.add(banner);
+    // 학원 로고 현수막 (assets/textures/903-logo.jpg — 다른 로고로 바꾸려면 이 파일만 교체)
+    const logoTex = new THREE.TextureLoader().load(new URL('assets/textures/903-logo.jpg', document.baseURI).href);
+    logoTex.colorSpace = THREE.SRGBColorSpace;
+    logoTex.anisotropy = 8;
+    const frame = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 3.5), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }));
+    frame.position.set(0, y + 6.1, 0.07);
+    const logo = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.875), new THREE.MeshStandardMaterial({ map: logoTex, roughness: 0.85, emissive: 0xffffff, emissiveMap: logoTex, emissiveIntensity: 0.12 }));
+    logo.position.set(0, y + 6.1, 0.1);
+    g.add(frame, logo);
+    this.nightMaterials.push({ mat: logo.material, color: new THREE.Color(0xffffff), max: 0.45, min: 0.12 });
+    this.nightMaterials.push({ mat: frame.material, color: new THREE.Color(0xffffff), max: 0.35, min: 0 });
     // 유리문
     const door = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 0.12), new THREE.MeshStandardMaterial({ color: 0x8fb8d8, roughness: 0.15, metalness: 0.3, emissive: 0x334455 }));
     door.position.set(0, y + 1.3, 0.02);

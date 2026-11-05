@@ -40,7 +40,7 @@
     ]
   },
   "landmarks": [
-    { "type": "academy", "name": "최강수학학원", "road": "A", "at": [24, 0], "side": "left", "setback": 6 },
+    { "type": "academy", "name": "903 수학학원", "road": "A", "at": [24, 0], "side": "left", "setback": 6 },
     { "type": "bikeRack", "road": "A", "at": [30, 0], "side": "left" },
     { "type": "home", "name": "선호네 집", "road": "D", "at": [419, 566], "side": "right", "setback": 5 }
   ],

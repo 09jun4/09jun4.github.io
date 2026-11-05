@@ -9,7 +9,7 @@
       "route": "short", "timeOfDay": "sunset", "baseTemp": 11,
       "weatherBias": {}, "eventBias": {}, "eventRate": [0.8, 1.1],
       "intro": [
-        { "who": "", "text": "오후 6시 10분. 최강수학학원 수업이 끝났다." },
+        { "who": "", "text": "오후 6시 10분. 903 수학학원 수업이 끝났다." },
         { "who": "엄마 (문자)", "text": "선호야~ 오늘 저녁 치킨이야. 식기 전에 와!" },
         { "who": "선호", "text": "치킨…! 바로 갑니다!!" }
       ],

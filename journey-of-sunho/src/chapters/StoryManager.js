@@ -141,6 +141,7 @@ export class StoryManager {
     if (!this.active) return;
     this.active = false;
     this.departing = false;
+    g.player.character.root.visible = true; // 연출을 일찍 건너뛰어도 선호가 보이게
     Object.assign(g.input.virtual, { up: 0, down: 0, left: 0, right: 0, brake: 0 });
     g.input.enabled = true;
     g.player.cutscene = null;
