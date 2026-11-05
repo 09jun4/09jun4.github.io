@@ -1,4 +1,4 @@
-// audio.js — engine voices (engine.js), tyre squeal, wind, hits, beeps.
+// audio.js — engine voices (engine.js), tyre squeal (layered noise), wind, hits, beeps.
 // engine.js builds each car's voice: a pulse-train note with wander and warm
 // saturation, exhaust rasp, combustion noise, intake howl, an air-noise turbo
 // whistle, blow-off hiss / compressor flutter, overrun pops, and shift
@@ -31,6 +31,39 @@
   function filt(type, f, q) { var b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q != null) b.Q.value = q; return b; }
   function gain(v) { var g = ac.createGain(); g.gain.value = v; return g; }
 
+  // Tyre squeal built from four noise layers (no pure tone, so it never
+  // sounds like a voice): a low rubber scrub, a gritty chatter, a mid
+  // squeal band and a thin high hiss. Each layer's loudness and pitch follow
+  // the slide amount and each has its own irregular stick-slip wobble.
+  function makeSqueal() {
+    var layers = [
+      // freq: [at slide 0, at slide 1], q, base level, how late it fades in, wobble Hz / depth
+      { f: [190, 260], q: 1.0, lvl: 0.28, curve: 1.2, wf: 6.5, wd: 0.25, type: 'bandpass' },   // low body
+      { f: [480, 620], q: 2.4, lvl: 0.4, curve: 1.0, wf: 9.3, wd: 0.45, type: 'bandpass' },    // lower-mid grit
+      { f: [1000, 1350], q: 2.2, lvl: 0.75, curve: 0.9, wf: 14.1, wd: 0.4, type: 'bandpass' }, // mid squeal
+      { f: [2000, 2700], q: 2.0, lvl: 1.25, curve: 0.8, wf: 18, wd: 0.4, type: 'bandpass' },   // main screech
+      { f: [3600, 4800], q: 1.2, lvl: 0.85, curve: 1.0, wf: 23, wd: 0.5, type: 'bandpass' },   // high hiss
+    ];
+    var out = gain(1);
+    out.connect(master);
+    layers.forEach(function (L) {
+      var src = noiseSrc(), bp = filt(L.type, L.f[0], L.q), wob = gain(1), lg = gain(0), lfo = ac.createOscillator(), ld = gain(L.wd), lfo2 = ac.createOscillator(), ld2 = gain(L.wd * 0.6);
+      lfo.frequency.value = L.wf; lfo2.frequency.value = L.wf * 0.37 + Math.random();
+      lfo.connect(ld); ld.connect(wob.gain); lfo2.connect(ld2); ld2.connect(wob.gain);
+      lfo.start(); lfo2.start();
+      src.connect(bp); bp.connect(wob); wob.connect(lg); lg.connect(out);
+      L.bp = bp; L.g = lg;
+    });
+    return { out: out, layers: layers };
+  }
+  function setSqueal(s, slide, speed, t) {
+    s.layers.forEach(function (L) {
+      var lv = Math.pow(slide, L.curve) * L.lvl * 0.17;
+      L.g.gain.setTargetAtTime(lv, t, 0.06);
+      L.bp.frequency.setTargetAtTime(L.f[0] + (L.f[1] - L.f[0]) * slide + speed * 1.5, t, 0.1);
+    });
+  }
+
   A.unlock = function () {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     var Ctx = window.AudioContext || window.webkitAudioContext;
@@ -41,10 +74,7 @@
     comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp); comp.connect(ac.destination);
     A.setMuted(A.muted);
-    var sq = noiseSrc(), bp = filt('bandpass', 1500, 7), tone = ac.createOscillator(), tg = gain(0.25), sg = gain(0);
-    tone.type = 'triangle'; tone.frequency.value = 1150; tone.start();
-    sq.connect(bp); bp.connect(sg); tone.connect(tg); tg.connect(sg); sg.connect(master);
-    squeal = { gain: sg, tone: tone };
+    squeal = makeSqueal();
     var wn = noiseSrc(), lp = filt('lowpass', 500), wg = gain(0);
     wn.connect(lp); lp.connect(wg); wg.connect(master);
     wind = { gain: wg, lp: lp };
@@ -100,8 +130,7 @@
     var pl = list[0].car;
     var slide = Math.min(1, Math.max(0, Math.abs(pl.slip) - 0.08) * 2.5) * Math.min(1, pl.speed / 15);
     if (pl.drifting) slide = Math.max(slide, 0.45 * Math.min(1, pl.speed / 15));
-    squeal.gain.gain.setTargetAtTime(slide * 0.15, t, 0.05);
-    squeal.tone.frequency.setTargetAtTime(1050 + 250 * slide + pl.speed * 2, t, 0.1);
+    setSqueal(squeal, slide, pl.speed, t);
     wind.gain.gain.setTargetAtTime(Math.min(0.12, pl.speed * pl.speed / 30000), t, 0.2);
     wind.lp.frequency.setTargetAtTime(300 + pl.speed * 18, t, 0.2);
   };
@@ -110,7 +139,7 @@
     if (!ac) return;
     var t = ac.currentTime;
     voices.forEach(function (v) { v.vg.gain.setTargetAtTime(0, t, 0.05); });
-    squeal.gain.gain.setTargetAtTime(0, t, 0.05);
+    setSqueal(squeal, 0, 0, t);
     wind.gain.gain.setTargetAtTime(0, t, 0.05);
   };
   A.reset = function () {
