@@ -10,12 +10,12 @@
 //   setFaceImage(url) : 얼굴 사진 적용 (임시 모델은 얼굴 판에 텍스처로 붙여요)
 //   setCleanliness(0~100), addStain(kind), clearStains()
 import * as THREE from '../lib/three.js';
-import { faceTexture } from '../core/Textures.js';
+import { faceTexture, plaidTexture } from '../core/Textures.js';
 
 export class CharacterModel {
   constructor(opts = {}) {
     const c = {
-      skin: 0xe9b98f, shirt: 0x4f6d8f, pants: 0x2f3542, shoes: 0xf1f1f1, hair: 0x1a1412, bag: 0x3c3c3c, ...opts.colors,
+      skin: 0xf0c8a4, shirt: 0xc4beb3, hoodie: 0xa8a9a8, pants: 0x1d2233, shoes: 0xf1f1f1, hair: 0x15110f, bag: 0x2a2a2a, ...opts.colors,
     };
     this.lengths = { upperArm: 0.3, foreArm: 0.28, thigh: 0.43, shin: 0.42 };
     this.mats = {
@@ -25,8 +25,12 @@ export class CharacterModel {
       shoes: new THREE.MeshStandardMaterial({ color: c.shoes, roughness: 0.6 }),
       hair: new THREE.MeshStandardMaterial({ color: c.hair, roughness: 0.9 }),
       bag: new THREE.MeshStandardMaterial({ color: c.bag, roughness: 0.8 }),
+      hoodie: new THREE.MeshStandardMaterial({ color: c.hoodie, roughness: 0.95 }),
+      plaid: new THREE.MeshStandardMaterial({ map: plaidTexture(), roughness: 0.8 }),
+      lanyard: new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.7 }),
+      card: new THREE.MeshStandardMaterial({ color: 0xe8442e, roughness: 0.5 }),
     };
-    this.baseColors = { shirt: this.mats.shirt.color.clone(), pants: this.mats.pants.color.clone() };
+    this.baseColors = { shirt: this.mats.shirt.color.clone(), pants: this.mats.pants.color.clone(), hoodie: this.mats.hoodie.color.clone() };
     const J = (name, parent, x, y, z) => { const g = new THREE.Group(); g.name = name; g.position.set(x, y, z); parent.add(g); this.joints[name] = g; return g; };
     const mesh = (geo, mat, parent, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => {
       const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m;
@@ -43,32 +47,46 @@ export class CharacterModel {
     const spine = J('spine', pelvis, 0, 0.07, 0);
     this.belly = mesh(sphere, this.mats.shirt, spine, 0, 0.17, 0.05, 0.26, 0.26, 0.25);
     const chest = J('chest', spine, 0, 0.3, 0);
-    mesh(sphere, this.mats.shirt, chest, 0, 0.03, 0, 0.25, 0.19, 0.19);
+    mesh(sphere, this.mats.hoodie, chest, 0, 0.03, 0, 0.25, 0.19, 0.19);
+    mesh(sphere, this.mats.shirt, chest, 0, 0.05, 0.03, 0.12, 0.15, 0.175);
+    // 교복 위에 걸친 회색 후드 집업: 몸통은 후드, 앞이 열려 교복(폴로셔츠)이 보임
+    this.belly.material = this.mats.hoodie;
+    this.shirtFront = mesh(sphere, this.mats.shirt, spine, 0, 0.18, 0.075, 0.13, 0.25, 0.235);
     // 학원 가방(백팩) — 새똥 표적
     this.bag = mesh(new THREE.BoxGeometry(0.32, 0.38, 0.13), this.mats.bag, chest, 0, -0.06, -0.23);
+    // 체크무늬 깃 + 목걸이 학생증
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.02, 6, 18), this.mats.plaid);
+    collar.rotation.x = Math.PI / 2 - 0.25; collar.position.set(0, 0.15, 0.02); chest.add(collar);
+    for (const sx of [-1, 1]) mesh(new THREE.BoxGeometry(0.008, 0.26, 0.008), this.mats.lanyard, chest, sx * 0.05, 0.0, 0.215).rotation.z = sx * 0.18;
+    mesh(new THREE.BoxGeometry(0.06, 0.09, 0.008), this.mats.card, chest, 0, -0.15, 0.3);
     const neck = J('neck', chest, 0, 0.16, 0);
     mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 10), this.mats.skin, neck, 0, 0.03, 0);
     const head = J('head', neck, 0, 0.09, 0.01);
-    this.headMesh = mesh(sphere, this.mats.skin, head, 0, 0.11, 0, 0.125, 0.135, 0.13);
+    this.headMesh = mesh(sphere, this.mats.skin, head, 0, 0.105, 0, 0.135, 0.135, 0.13); // 동그랗고 볼살 있는 얼굴
     // 얼굴 판 (사진으로 교체 가능)
     this.faceMat = new THREE.MeshStandardMaterial({ map: faceTexture(), roughness: 0.7 });
-    const face = new THREE.Mesh(new THREE.SphereGeometry(0.1305, 24, 16, Math.PI / 2 - 0.95, 1.9, 0.75, 1.35), this.faceMat);
-    face.position.set(0, 0.11, 0);
-    face.scale.set(0.96, 1.04, 1.0);
+    const face = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20, Math.PI / 2 - 1.0, 2.0, 0.55, 1.9), this.faceMat);
+    face.position.set(0, 0.105, 0.002);
+    face.scale.set(0.1365, 0.1365, 0.1315);
     head.add(face);
     this.face = face;
-    // 머리카락
-    mesh(new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), this.mats.hair, head, 0, 0.125, -0.005, 0.135, 0.13, 0.14);
-    mesh(new THREE.SphereGeometry(1, 16, 10, Math.PI, Math.PI, 0.3, 1.5), this.mats.hair, head, 0, 0.1, -0.01, 0.133, 0.12, 0.135);
+    // 바가지 머리: 둥근 정수리 + 눈썹까지 일자로 내려온 앞머리 + 귀를 덮는 옆머리
+    mesh(new THREE.SphereGeometry(1, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), this.mats.hair, head, 0, 0.165, -0.008, 0.15, 0.115, 0.15);
+    const fringe = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.148, 0.03, 22, 1, true, -Math.PI * 0.62, Math.PI * 1.24), this.mats.hair);
+    fringe.material = this.mats.hair; fringe.position.set(0, 0.155, -0.008); fringe.castShadow = true;
+    fringe.material.side = THREE.DoubleSide;
+    head.add(fringe);
+    const back = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.138, 0.1, 22, 1, true, Math.PI * 0.45, Math.PI * 0.9), this.mats.hair);
+    back.position.set(0, 0.12, -0.008); head.add(back);
     // 귀
     for (const sx of [-1, 1]) mesh(sphere, this.mats.skin, head, sx * 0.125, 0.1, 0, 0.02, 0.035, 0.025);
 
     for (const [side, sx] of [['L', 1], ['R', -1]]) {
       const sh = J('shoulder' + side, chest, sx * 0.25, 0.08, 0);
-      mesh(sphere, this.mats.shirt, sh, 0, 0, 0, 0.085, 0.085, 0.085);
-      mesh(limb(0.07, this.lengths.upperArm), this.mats.shirt, sh);
+      mesh(sphere, this.mats.hoodie, sh, 0, 0, 0, 0.09, 0.09, 0.09);
+      mesh(limb(0.075, this.lengths.upperArm), this.mats.hoodie, sh);
       const el = J('elbow' + side, sh, 0, -this.lengths.upperArm, 0);
-      mesh(limb(0.055, this.lengths.foreArm), this.mats.skin, el);
+      mesh(limb(0.062, this.lengths.foreArm), this.mats.hoodie, el); // 후드 긴소매
       const hand = J('hand' + side, el, 0, -this.lengths.foreArm, 0);
       mesh(sphere, this.mats.skin, hand, 0, -0.03, 0, 0.045, 0.055, 0.035);
 
@@ -97,6 +115,7 @@ export class CharacterModel {
     const mud = new THREE.Color(0x6b5236);
     this.mats.shirt.color.copy(this.baseColors.shirt).lerp(mud, t * 0.6);
     this.mats.pants.color.copy(this.baseColors.pants).lerp(mud, t * 0.45);
+    this.mats.hoodie.color.copy(this.baseColors.hoodie).lerp(mud, t * 0.6);
   }
 
   // 얼룩 붙이기: 'poop'(새똥), 'mud'(흙탕물), 'leaf'(낙엽)

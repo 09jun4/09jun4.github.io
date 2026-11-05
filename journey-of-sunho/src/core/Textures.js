@@ -113,29 +113,44 @@ export function textTexture(text, { w = 512, h = 128, bg = '#1d3557', fg = '#fff
   return tex(c, false);
 }
 
-// 임시 얼굴 (사진을 받으면 CharacterModel.setFaceImage(url)로 교체)
+// 선호 얼굴 (사진을 참고해 그린 스타일: 둥근 얼굴, 웃을 때 감기는 눈, 오른쪽 볼 점, 붉은 입술)
+// 실제 사진으로 바꾸려면 AssetManager의 config.character.faceImage 를 지정하세요.
 export function faceTexture() {
   const [c, g] = canvas(256, 256);
-  g.fillStyle = '#e9b98f'; g.fillRect(0, 0, 256, 256);
-  // 눈썹
-  g.fillStyle = '#2b1d14';
-  g.fillRect(58, 92, 50, 9); g.fillRect(148, 92, 50, 9);
-  // 안경
-  g.strokeStyle = '#1b1b1b'; g.lineWidth = 7;
-  g.strokeRect(52, 108, 64, 44); g.strokeRect(140, 108, 64, 44);
-  g.beginPath(); g.moveTo(116, 126); g.lineTo(140, 126); g.stroke();
-  // 눈
-  g.fillStyle = '#1b1b1b';
-  g.beginPath(); g.arc(84, 131, 7, 0, Math.PI * 2); g.arc(172, 131, 7, 0, Math.PI * 2); g.fill();
-  // 볼
-  g.fillStyle = 'rgba(230,120,110,0.35)';
-  g.beginPath(); g.arc(62, 178, 20, 0, Math.PI * 2); g.arc(194, 178, 20, 0, Math.PI * 2); g.fill();
-  // 코·입
-  g.strokeStyle = '#b07a55'; g.lineWidth = 5;
-  g.beginPath(); g.moveTo(128, 140); g.lineTo(122, 170); g.lineTo(134, 172); g.stroke();
-  g.strokeStyle = '#7a3b2e'; g.lineWidth = 6;
-  g.beginPath(); g.arc(128, 188, 22, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+  g.fillStyle = '#f0c8a4'; g.fillRect(0, 0, 256, 256);
+  // 볼 홍조
+  const blush = (x, y) => { const r = g.createRadialGradient(x, y, 2, x, y, 34); r.addColorStop(0, 'rgba(232,140,120,0.38)'); r.addColorStop(1, 'rgba(232,140,120,0)'); g.fillStyle = r; g.fillRect(x - 40, y - 40, 80, 80); };
+  blush(58, 160); blush(198, 160);
+  // 웃을 때 반달로 감기는 가는 눈
+  g.strokeStyle = '#2a1d16'; g.lineWidth = 6; g.lineCap = 'round';
+  for (const x of [86, 170]) { g.beginPath(); g.arc(x, 128, 19, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke(); }
+  g.lineWidth = 2.5;
+  for (const x of [86, 170]) { g.beginPath(); g.moveTo(x - 18, 124); g.lineTo(x - 24, 121); g.stroke(); }
+  // 둥근 코
+  g.fillStyle = 'rgba(196,130,98,0.45)';
+  g.beginPath(); g.ellipse(128, 168, 20, 12, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(120,70,50,0.6)';
+  g.beginPath(); g.ellipse(119, 172, 4, 3, 0, 0, Math.PI * 2); g.ellipse(137, 172, 4, 3, 0, 0, Math.PI * 2); g.fill();
+  // 옅은 콧수염
+  g.fillStyle = 'rgba(80,60,50,0.06)'; g.beginPath(); g.ellipse(128, 186, 26, 5, 0, 0, Math.PI * 2); g.fill();
+  // 꾹 다문 미소 + 붉은 입술
+  g.fillStyle = '#d9776a';
+  g.beginPath(); g.ellipse(128, 200, 22, 7, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#8a3f35'; g.lineWidth = 3.5;
+  g.beginPath(); g.moveTo(104, 197); g.quadraticCurveTo(128, 205, 152, 197); g.stroke();
+  // 점 (사진 기준 오른쪽 볼 = 화면 왼쪽)
+  g.fillStyle = '#5a3524'; g.beginPath(); g.arc(50, 186, 4, 0, Math.PI * 2); g.fill();
   return tex(c, false);
+}
+
+// 체크무늬 (교복 폴로셔츠 깃)
+export function plaidTexture() {
+  const [c, g] = canvas(64, 64);
+  g.fillStyle = '#f2f3f5'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = 'rgba(52,72,120,0.55)';
+  for (let i = 0; i < 64; i += 16) { g.fillRect(i, 0, 8, 64); g.fillRect(0, i, 64, 8); }
+  const t = tex(c); t.repeat.set(4, 1);
+  return t;
 }
 
 export function crosswalkTexture() {
