@@ -10,7 +10,7 @@ const SWING_OPEN = 1.2;
 const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 
 const BASE = {
-  pistol: { p: [0.085, -0.1, -0.36], r: [0.04, 0.16, 0] },
+  pistol: { p: [0.0, -0.066, -0.3], r: [-0.035, 0.0, 0] },
   flash: { p: [0.15, -0.12, -0.32], r: [0.04, 0.1, 0] },
 };
 
