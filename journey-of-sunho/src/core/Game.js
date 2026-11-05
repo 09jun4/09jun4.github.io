@@ -216,7 +216,8 @@ export class Game {
     const pr = this.route.project(P.x, P.z, this.progressS);
     const rp = this.route.pointAt(pr.s);
     const rx = -rp.tz, rz = rp.tx;
-    if (pr.dist > 5) { // 멀리 날아갔다면 도로 위로 돌아와 서기
+    const onGrass = this.world.roads.query(P.x, P.z, {}).surface === 'grass';
+    if (onGrass || pr.dist > 45) { // 길 밖/너무 멀리 날아갔다면 도로 위로 돌아와 서기
       const lane = this.laneOffset(pr.s);
       P.x = rp.x - rp.tz * lane; P.z = rp.z + rp.tx * lane;
       P.heading = Math.atan2(rp.tx, rp.tz);

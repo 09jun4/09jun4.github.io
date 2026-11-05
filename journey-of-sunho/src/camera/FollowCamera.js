@@ -51,7 +51,7 @@ export class FollowCamera {
     this.yaw = dampAngle(this.yaw, heading, lerp(5.0, 3.2, turnLag), dt);
     this.dist = damp(this.dist, lerp(4.2, 6.4, clamp(v / 16, 0, 1)), 2, dt);
     const height = lerp(1.95, 2.25, clamp(v / 16, 0, 1));
-    const head = new THREE.Vector3(P.x, player.bike.root.position.y + 1.45, P.z);
+    const head = new THREE.Vector3(P.x, (player.camY ?? player.bike.root.position.y) + 1.45, P.z);
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const want = new THREE.Vector3(head.x - fx * this.dist, head.y + height - 1.25, head.z - fz * this.dist);
     // 건물 관통 방지

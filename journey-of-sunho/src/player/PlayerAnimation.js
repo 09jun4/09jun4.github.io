@@ -175,6 +175,37 @@ export class PlayerAnimation {
     this.ch.root.updateMatrixWorld(true);
   }
 
+  // 공중에서 빙글빙글 (자전거와 따로 날아가는 선호)
+  poseTumble(ctx, b) {
+    const J = this.J, t = this.time * 9;
+    for (const n of this.order) J[n].rotation.set(0, 0, 0);
+    this.ch.root.position.set(b.x, b.y, b.z);
+    this.ch.root.quaternion.setFromEuler(new THREE.Euler(b.pitch, b.yaw, b.roll, 'YXZ'));
+    J.spine.rotation.set(0.3, 0, 0.15 * Math.sin(t));
+    J.neck.rotation.set(-0.2, 0, 0);
+    J.shoulderL.rotation.set(-2.7 + 0.5 * Math.sin(t), 0, 1.1); J.elbowL.rotation.set(-0.4, 0, 0);
+    J.shoulderR.rotation.set(-2.7 - 0.5 * Math.sin(t), 0, -1.1); J.elbowR.rotation.set(-0.4, 0, 0);
+    J.hipL.rotation.set(-0.9 + 0.6 * Math.sin(t), 0, 0.3); J.kneeL.rotation.set(1.1, 0, 0);
+    J.hipR.rotation.set(-0.5 - 0.6 * Math.sin(t), 0, -0.3); J.kneeR.rotation.set(0.8, 0, 0);
+    this.ch.root.updateMatrixWorld(true);
+  }
+
+  // 바닥에 누운 자세 (자전거와 따로): 하늘을 보고 큰 대(大)자로
+  poseLying(ctx, p) {
+    const J = this.J, s = p.side || 1;
+    for (const n of this.order) J[n].rotation.set(0, 0, 0);
+    this.ch.root.position.set(p.x, p.y + 0.25, p.z);
+    this.ch.root.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, p.heading, 0, 'YXZ'));
+    J.head.rotation.set(0, 0.5 * s, 0);
+    J.shoulderL.rotation.set(0, 0, 0.9); J.elbowL.rotation.set(-0.2, 0, 0);
+    J.shoulderR.rotation.set(0, 0, -0.9); J.elbowR.rotation.set(-0.2, 0, 0);
+    J.hipL.rotation.set(0, 0, 0.18);
+    J.hipR.rotation.set(-0.6, 0, -0.1); J.kneeR.rotation.set(1.0, 0, 0);
+    const breathe = Math.sin(this.time * 2.2) * 0.03;
+    J.chest.rotation.x += breathe;
+    this.ch.root.updateMatrixWorld(true);
+  }
+
   /**
    * ctx.mode: 'ride' | 'stopped' | 'walk' | 'stand' | 'falling' | 'lying' | 'getup' | 'mount'
    * ctx.t: 단계 진행도(0~1), ctx.stand: {x,y,z,heading}
@@ -185,6 +216,13 @@ export class PlayerAnimation {
     const m = ctx.mode;
     if (m === 'ride') this.poseRide(ctx, 0);
     else if (m === 'stopped') this.poseRide(ctx, smoothstep(0, 1, ctx.footDown ?? 1));
+    else if (m === 'tumble') this.poseTumble(ctx, ctx.body);
+    else if (m === 'lieL') this.poseLying(ctx, ctx.stand);
+    else if (m === 'getupL') {
+      this.poseLying(ctx, ctx.lie); this._capture(this.bufA);
+      this.poseStand(ctx, { ...ctx.stand, holdBike: false }); this._capture(this.bufB);
+      this._blend(this.bufA, this.bufB, smoothstep(0, 1, ctx.t || 0));
+    }
     else if (m === 'walk' || m === 'stand') this.poseStand(ctx, { ...ctx.stand, walk: m === 'walk' ? 1 : 0, phase: ctx.walkPhase || 0, holdBike: !!ctx.holdBike });
     else if (m === 'falling') {
       this.poseRide(ctx);
