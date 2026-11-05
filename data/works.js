@@ -6,4 +6,6 @@ window.WORKS = [
     desc: '먼작귀 친구 5명이 함께 싸우는 서바이벌 게임' },
   { title: 'Track Master', url: '/track-master/', thumb: 'assets/thumbs/track-master.jpg', date: '2026-11-05',
     desc: '서킷 레이스 · 드리프트 레이스를 고르는 레이싱 게임' },
+  { title: 'Shoot to Survive', url: '/shoot-to-survive/', thumb: 'assets/thumbs/shoot-to-survive.jpg', date: '2026-11-05',
+    desc: '무작위 미로에서 유령 10마리를 처리하는 로우폴리 공포 FPS' },
 ];

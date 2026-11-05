@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shoot to Survive</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font-family: ui-monospace, Menlo, Consolas, monospace; overflow: hidden; }
+  #stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: absolute; inset: 0; pointer-events: none; display: none; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; opacity: .85; }
+  #vignette { position: absolute; inset: 0; box-shadow: inset 0 0 140px 50px rgba(190,0,0,.95); opacity: 0; transition: opacity .8s ease-out; }
+  #vignette.hit { opacity: 1; transition: none; }
+  #left, #right { position: absolute; bottom: 18px; font-size: 18px; letter-spacing: 1px; text-shadow: 0 0 4px #000; }
+  #left { left: 22px; } #right { right: 22px; text-align: right; }
+  #hearts { color: #d33; font-size: 26px; letter-spacing: 3px; }
+  #hearts i { font-style: normal; } #hearts i.off { color: #3a2a2a; }
+  #count { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 20px; text-shadow: 0 0 4px #000; }
+  #cyl { margin-top: 6px; display: none; gap: 6px; justify-content: flex-end; }
+  #cyl b { width: 14px; height: 14px; border: 2px solid #aaa; border-radius: 50%; display: inline-block; }
+  #cyl b.on { background: #e8c25a; border-color: #e8c25a; }
+  #badge { position: absolute; top: 14px; right: 16px; font-size: 12px; letter-spacing: 2px; color: #7ad; display: none; }
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: rgba(0,0,0,.72); text-align: center; cursor: pointer; }
+  .screen h1 { margin: 0; font-size: 42px; letter-spacing: 4px; font-weight: 600; }
+  .screen p { margin: 0; font-size: 20px; opacity: .85; }
+  .screen small { opacity: .5; line-height: 1.7; }
+  .screen button { font: inherit; font-size: 20px; padding: 12px 28px; background: #000; color: #fff; border: 1px solid #aaa; cursor: pointer; }
+  .screen button:hover { background: #fff; color: #000; }
+  .hide { display: none !important; }
+  @media (max-width: 640px) {
+    .screen h1 { font-size: 26px; } .screen p { font-size: 16px; }
+    #left, #right { font-size: 13px; bottom: 10px; } #left { left: 12px; } #right { right: 12px; }
+    #hearts { font-size: 20px; } #count { font-size: 15px; top: 10px; } #badge { top: 10px; right: 10px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="cross"></div><div id="vignette"></div>
+  <div id="count"></div><div id="badge">AI AUTO PLAY</div>
+  <div id="left"><div id="hearts"></div></div>
+  <div id="right"><div id="equip"></div><div id="cyl"></div></div>
+</div>
+<div id="title" class="screen"><h1>SHOOT TO SURVIVE</h1><p>클릭하여 시작</p>
+  <small>WASD 이동 · 마우스 시점 · 좌클릭 발사 · R 재장전 · V 근접공격<br>1 권총 / 2 손전등 / 휠 전환 · Q E 기울이기</small></div>
+<div id="paused" class="screen hide"><h1>PAUSED</h1><p>클릭하여 계속</p></div>
+<div id="end" class="screen hide" style="cursor:default"><h1 id="endTitle"></h1><p id="endText"></p><button id="restart">다시 시작</button></div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
