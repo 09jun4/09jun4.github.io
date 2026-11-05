@@ -2,7 +2,7 @@
 // 각 이벤트: constructor(def, ctx, s) → update(dt) (false를 돌려주면 제거) → dispose()
 // ctx는 EventManager가 넘겨주는 게임 접근 도구예요(플레이어·상태·HUD·도로·경로 등).
 import * as THREE from '../lib/three.js';
-import { clamp, lerp, rand } from '../core/utils.js';
+import { clamp, lerp, rand, wrapAngle } from '../core/utils.js';
 import * as Props from './Props.js';
 
 const pick = (a) => a[Math.floor(rand() * a.length)];
@@ -178,6 +178,7 @@ class CarCross extends GameEvent {
     let sp = this.speed;
     if (ahead > 0 && ahead < 9 && side < 2.2) { sp = 0; if (!this.honked) { this.honked = true; this.ctx.say(pick(this.def.say)); this.ctx.toast('끼익—! 자동차 급정거', 'bad'); } }
     this.cur = this.cur === undefined ? sp : this.cur + clamp(sp - this.cur, -14 * dt, 6 * dt);
+    this.cx = tx; this.cz = tz;
     if (this.mode === 'cross') this.rs += this.dir * this.cur * dt; else this.rs -= this.cur * dt;
     this.car.position.set(x, y, z);
     this.car.rotation.y = h;
@@ -188,6 +189,7 @@ class CarCross extends GameEvent {
   onHit(player, c) {
     if ((this.cur || 0) + player.speed < 3 || (this.hitT && this.t - this.hitT < 2)) { this.ctx.solid(c, 99, 'car'); return; }
     this.hitT = this.t;
+    if ((this.cur || 0) > 6) { this.ctx.stats.launches = (this.ctx.stats.launches || 0) + 1; player.launch(this.cx * this.cur * 0.8, 8, this.cz * this.cur * 0.8); this.ctx.state.modify('balance', -100); this.ctx.say('으아아아악~!!'); return; }
     this.ctx.crash('car');
   }
 }
@@ -557,17 +559,109 @@ class Pickup extends GameEvent {
     if (this.got) return;
     this.got = true;
     const e = this.e, st = this.ctx.state;
+    if (e.boost) this.ctx.boost(e.boost);
     if (e.temp) st.modify('bodyTemp', e.temp);
     if (e.fatigue) st.modify('fatigue', e.fatigue);
     if (e.coldRisk) st.modify('coldRisk', e.coldRisk);
     if (e.clean) st.modify('cleanliness', -e.clean);
     this.ctx.stats.pickups++;
-    this.ctx.toast(`${this.def.name} 획득! ${e.temp ? '체온↑ ' : ''}${e.fatigue ? '피로↓' : ''}`, 'good');
+    this.ctx.toast(`${this.def.name} 획득! ${e.boost ? '속도 폭발! ' : ''}${e.temp ? '체온↑ ' : ''}${e.fatigue ? '피로↓' : ''}`, 'good');
     this.ctx.say(pick(this.def.say));
   }
 }
 
+// 교차로 번개 자동차: 옆길에서 엄청난 속도로 튀어나와요. 선호가 서두르면 정확히 같은 때에 도착해서
+// 치이고 하늘로 날아가요(코미디). 속도를 줄여 조심해서 건너면 아슬아슬하게 지나가요.
+class CarAmbush extends GameEvent {
+  constructor(def, ctx, s) {
+    super(def, ctx, s);
+    const R = ctx.route;
+    const turns = R.turns.filter((t) => t.s > ctx.playerS + 45 && t.s < ctx.playerS + 135);
+    if (!turns.length) { this.dead = true; return; }
+    const turn = pick(turns);
+    const before = R.pointAt(turn.s - 8).road;
+    const other = turn.isect.roads.find((r) => r !== before) || turn.isect.roads[0];
+    this.turn = turn; this.road = other;
+    this.cs0 = ctx.roads.projectOnRoad(other, turn.isect.x, turn.isect.z).s;
+    // 선호가 나가는 방향과 마주 보고 달려오게 (정면충돌 코미디). 직진이면 무작위.
+    const exit = R.pointAt(turn.s + 10), rt = ctx.roads.pointOnRoad(other, this.cs0);
+    const dot = exit.tx * rt.tx + exit.tz * rt.tz;
+    this.dir = Math.abs(dot) > 0.5 ? (dot > 0 ? -1 : 1) : (rand() < 0.5 ? 1 : -1);
+    let avail = this.dir > 0 ? this.cs0 - 2 : other.length - 2 - this.cs0;
+    if (avail < 30) { this.dir = -this.dir; avail = this.dir > 0 ? this.cs0 - 2 : other.length - 2 - this.cs0; }
+    if (avail < 30) { this.dead = true; return; }
+    const eta = Math.max(1.2, (turn.s - ctx.playerS) / Math.max(ctx.speed, 6));
+    this.speed = clamp(this.e.speed, 16, 34);
+    const dist = Math.min(avail, this.speed * eta);
+    this.rs = this.cs0 - this.dir * dist;
+    this.car = Props.makeCar(pick([0xe03131, 0xf59f00, 0x1c7ed6, 0xf8f9fa]));
+    this.group.add(this.car);
+    this.cs = [this.collider(1.0, { tag: 'car' }), this.collider(1.0, { tag: 'car' }), this.collider(1.0, { tag: 'car' })];
+    this.track = true;
+  }
+  update(dt) {
+    this.t += dt;
+    const c = this.ctx;
+    const remaining = (this.cs0 - this.rs) * this.dir;
+    // 출발 지점이 가까워서 너무 일찍 도착하게 되면, 때가 될 때까지 숨어서 기다려요
+    if (!this.go) {
+      const eta = Math.max(0.7, (this.turn.s - c.playerS) / Math.max(c.speed, 6));
+      if (remaining / 28 <= eta + 0.15) this.go = true;
+      this.car.visible = this.go;
+      for (const k of this.cs) k.active = this.go;
+      if (!this.go) return this.t < 25 && c.playerS < this.turn.s + 10;
+    }
+    // 멀리 있을 땐 선호가 서두르는 만큼 도착 시간을 맞춰요 (천천히 가면 먼저 지나가 버림)
+    if (this.track && remaining > 12) {
+      if (c.speed > 7) {
+        const dpl = Math.hypot(c.playerPos.x - this.turn.isect.x, c.playerPos.z - this.turn.isect.z);
+        const eta = Math.max(0.35, dpl / Math.max(c.speed, 4));
+        this.speed = clamp(remaining / eta, 14, 44);
+      }
+    } else this.track = false;
+    this.rs += this.dir * this.speed * dt;
+    const pt = c.roads.pointOnRoad(this.road, this.rs);
+    const tx = pt.tx * this.dir, tz = pt.tz * this.dir;
+    // 차선: 평소엔 자기 차선, 선호가 교차로 가까이 있으면 그쪽으로 핸들을 꺾어요(코미디 연출)
+    const hw = this.road.halfW, isx = this.turn.isect.x, isz = this.turn.isect.z;
+    let target = this.dir * hw * 0.42;
+    if (remaining < 45 && remaining > -6 && Math.hypot(c.playerPos.x - isx, c.playerPos.z - isz) < 22) {
+      target = clamp(c.roads.projectOnRoad(this.road, c.playerPos.x, c.playerPos.z).lateral, -(hw - 0.8), hw - 0.8);
+    }
+    this.L = this.L === undefined ? this.dir * hw * 0.42 : this.L + (target - this.L) * Math.min(1, dt * 7);
+    const x = pt.x - pt.tz * this.L, z = pt.z + pt.tx * this.L;
+    this.car.position.set(x, pt.y, z);
+    this.car.rotation.y = Math.atan2(tx, tz);
+    [-1.4, 0, 1.4].forEach((o, i) => { this.cs[i].x = x + tx * o; this.cs[i].z = z + tz * o; });
+    this.vx = tx; this.vz = tz;
+    if (!this.warned && remaining < 58 && remaining > 0) {
+      this.warned = true;
+      c.toast('빠앙—!! 옆길에서 차가 와요!', 'bad');
+      c.say(c.speed > 9 ? '어? 저 차 너무 빠른데?!' : '교차로는 조심조심…');
+    }
+    if (!this.hit && !this.passedSay && remaining < -10) {
+      this.passedSay = true;
+      if (Math.abs(c.playerS - this.turn.s) < 40) { c.toast('아슬아슬! 교차로는 조심해서!', 'good'); c.say('휴… 큰일 날 뻔했다'); }
+    }
+    return remaining > -90 && this.t < 30;
+  }
+  onHit(player) {
+    if (this.hit) return;
+    this.hit = true;
+    const c = this.ctx, s = this.speed;
+    c.stats.launches = (c.stats.launches || 0) + 1;
+    player.launch(this.vx * s * 0.85 + Math.sin(player.heading) * player.speed * 0.4, this.e.launch + rand() * 3, this.vz * s * 0.85 + Math.cos(player.heading) * player.speed * 0.4);
+    c.state.modify('balance', -100);
+    c.state.modify('cleanliness', -6);
+    c.cam.addShake(0.6);
+    c.say(pick(this.def.say));
+    c.toast('쾅!! 자동차에 치여 하늘을 날았어요!', 'bad');
+  }
+}
+
 export const EVENT_CLASSES = {
+  carAmbush: CarAmbush,
+  energyDrink: (d, c, s) => new Pickup(d, c, s, 'energyDrink'),
   pedestrianCross: PedestrianCross,
   pedestrianSudden: PedestrianSudden,
   carPass: CarPass,

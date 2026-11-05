@@ -1,36 +1,343 @@
 {
   "_note": "돌발 이벤트 정의. weight=기본 발생 가중치, weather=날씨별 가중치 배율(값×날씨비중을 더해요), ahead=플레이어 앞 몇 m에 생기는지, effect=효과 수치. good=true면 도움이 되는 이벤트.",
-  "pacing": { "spacing": [55, 110], "maxActive": 4, "startAfter": 45, "stopBefore": 35, "despawnBehind": 30 },
+  "pacing": {
+    "spacing": [
+      38,
+      75
+    ],
+    "maxActive": 5,
+    "startAfter": 35,
+    "stopBefore": 35,
+    "despawnBehind": 30
+  },
   "events": {
-    "pedestrianCross": { "name": "길을 건너는 보행자", "weight": 1.2, "ahead": [42, 58], "weather": { "snow": -0.4 },
-      "effect": { "slow": 0.45, "balancePerSpeed": 8, "fallSpeed": 4.5 }, "say": ["앗, 사람이다!", "천천히 건너세요~"] },
-    "pedestrianSudden": { "name": "갑자기 튀어나온 행인", "weight": 0.8, "ahead": [20, 26],
-      "effect": { "slow": 0.45, "balancePerSpeed": 9, "fallSpeed": 4.2 }, "say": ["폰 보면서 걷지 마세요!!", "으악 깜짝이야!"] },
-    "carPass": { "name": "뒤에서 추월하는 자동차", "weight": 0.9, "ahead": [-40, -30],
-      "effect": { "speed": 12.5, "windPush": 1.8, "balance": 6 }, "say": ["빵빵! 깜짝이야", "차 조심!"] },
-    "carCross": { "name": "교차로로 진입하는 자동차", "weight": 1.0, "ahead": [45, 70],
-      "effect": { "speed": 9, "fallSpeed": 0.5 }, "say": ["저 차 멈출 생각이 없어 보이는데?!", "교차로 조심!"] },
-    "parkedCar": { "name": "자전거 길을 막은 주차 차량", "weight": 1.0, "ahead": [45, 60],
-      "effect": { "crashSpeed": 3.8 }, "say": ["왜 여기에 주차를…", "피해서 가자"] },
-    "pothole": { "name": "포트홀", "weight": 1.3, "ahead": [35, 55],
-      "effect": { "balancePerSpeed": 7, "safeSpeed": 2.8, "shake": 0.5 }, "say": ["덜컹!", "엉덩이가…"] },
-    "puddle": { "name": "물웅덩이", "weight": 0.5, "ahead": [35, 55], "weather": { "rain": 3.5, "wetness": 2.5, "snow": 0.5 },
-      "effect": { "cleanPerSpeed": 2.4, "safeSpeed": 2.5, "wet": 0.18 }, "say": ["첨벙!!", "바지가 다 젖었어…"] },
-    "construction": { "name": "공사 구간", "weight": 0.7, "ahead": [55, 70],
-      "effect": { "length": 16, "coneBalance": 18, "crashSpeed": 3.5 }, "say": ["공사 중이네, 돌아가자", "여기 어제는 없었는데"] },
-    "leaves": { "name": "낙엽 더미", "weight": 0.9, "ahead": [35, 55], "weather": { "wind": 2.0, "rain": 0.5 },
-      "effect": { "length": 12, "steerBalance": 2.2 }, "say": ["낙엽이 미끄러워!", "바스락바스락"] },
-    "pigeons": { "name": "비둘기 떼", "weight": 1.0, "ahead": [30, 45], "weather": { "rain": -0.7, "snow": -0.6 },
-      "effect": { "count": [6, 10], "balance": 14, "poopChance": 0.35, "clean": 10 }, "say": ["구구구구…", "비둘기다! 피해!"] },
-    "birdPoop": { "name": "새똥 세례", "weight": 0.8, "ahead": [0, 0], "weather": { "rain": -0.6 },
-      "effect": { "clean": 16, "radius": 1.0, "dropTime": 2.2 }, "say": ["머리 위가 수상해…", "그림자?! 피해!"] },
-    "cat": { "name": "길고양이", "weight": 0.7, "ahead": [22, 32],
-      "effect": { "speed": 4.5, "balance": 18, "fallSpeed": 4.0 }, "say": ["야옹!", "고양이 조심!"] },
-    "dog": { "name": "쫓아오는 강아지", "weight": 0.5, "ahead": [-12, -8],
-      "effect": { "duration": 7, "powerBoost": 1.35, "fatigue": 6 }, "say": ["멍멍멍! 왜 쫓아와?!", "아드레날린 폭발!"] },
-    "hotDrink": { "name": "편의점 핫초코", "weight": 0.55, "ahead": [45, 60], "good": true, "weather": { "chill": 3.0, "snow": 1.0, "rain": 0.6 },
-      "effect": { "temp": 0.9, "fatigue": -14, "coldRisk": -20 }, "say": ["핫초코 최고!", "몸이 녹는다~"] },
-    "bungeoppang": { "name": "붕어빵", "weight": 0.45, "ahead": [45, 60], "good": true, "weather": { "fatigue": 2.0 },
-      "effect": { "temp": 0.4, "fatigue": -22, "clean": -2 }, "say": ["팥붕 슈붕 둘 다!", "든든하다!"] }
+    "pedestrianCross": {
+      "name": "길을 건너는 보행자",
+      "weight": 1.2,
+      "ahead": [
+        42,
+        58
+      ],
+      "weather": {
+        "snow": -0.4
+      },
+      "effect": {
+        "slow": 0.45,
+        "balancePerSpeed": 8,
+        "fallSpeed": 4.5
+      },
+      "say": [
+        "앗, 사람이다!",
+        "천천히 건너세요~"
+      ]
+    },
+    "pedestrianSudden": {
+      "name": "갑자기 튀어나온 행인",
+      "weight": 0.8,
+      "ahead": [
+        20,
+        26
+      ],
+      "effect": {
+        "slow": 0.45,
+        "balancePerSpeed": 9,
+        "fallSpeed": 4.2
+      },
+      "say": [
+        "폰 보면서 걷지 마세요!!",
+        "으악 깜짝이야!"
+      ]
+    },
+    "carPass": {
+      "name": "뒤에서 추월하는 자동차",
+      "weight": 0.9,
+      "ahead": [
+        -40,
+        -30
+      ],
+      "effect": {
+        "speed": 17,
+        "windPush": 1.8,
+        "balance": 6
+      },
+      "say": [
+        "빵빵! 깜짝이야",
+        "차 조심!"
+      ]
+    },
+    "carCross": {
+      "name": "교차로로 진입하는 자동차",
+      "weight": 1.0,
+      "ahead": [
+        45,
+        70
+      ],
+      "effect": {
+        "speed": 9,
+        "fallSpeed": 0.5
+      },
+      "say": [
+        "저 차 멈출 생각이 없어 보이는데?!",
+        "교차로 조심!"
+      ]
+    },
+    "parkedCar": {
+      "name": "자전거 길을 막은 주차 차량",
+      "weight": 1.0,
+      "ahead": [
+        45,
+        60
+      ],
+      "effect": {
+        "crashSpeed": 3.8
+      },
+      "say": [
+        "왜 여기에 주차를…",
+        "피해서 가자"
+      ]
+    },
+    "pothole": {
+      "name": "포트홀",
+      "weight": 1.3,
+      "ahead": [
+        35,
+        55
+      ],
+      "effect": {
+        "balancePerSpeed": 7,
+        "safeSpeed": 2.8,
+        "shake": 0.5
+      },
+      "say": [
+        "덜컹!",
+        "엉덩이가…"
+      ]
+    },
+    "puddle": {
+      "name": "물웅덩이",
+      "weight": 0.5,
+      "ahead": [
+        35,
+        55
+      ],
+      "weather": {
+        "rain": 3.5,
+        "wetness": 2.5,
+        "snow": 0.5
+      },
+      "effect": {
+        "cleanPerSpeed": 2.4,
+        "safeSpeed": 2.5,
+        "wet": 0.18
+      },
+      "say": [
+        "첨벙!!",
+        "바지가 다 젖었어…"
+      ]
+    },
+    "construction": {
+      "name": "공사 구간",
+      "weight": 0.7,
+      "ahead": [
+        55,
+        70
+      ],
+      "effect": {
+        "length": 16,
+        "coneBalance": 18,
+        "crashSpeed": 3.5
+      },
+      "say": [
+        "공사 중이네, 돌아가자",
+        "여기 어제는 없었는데"
+      ]
+    },
+    "leaves": {
+      "name": "낙엽 더미",
+      "weight": 0.9,
+      "ahead": [
+        35,
+        55
+      ],
+      "weather": {
+        "wind": 2.0,
+        "rain": 0.5
+      },
+      "effect": {
+        "length": 12,
+        "steerBalance": 2.2
+      },
+      "say": [
+        "낙엽이 미끄러워!",
+        "바스락바스락"
+      ]
+    },
+    "pigeons": {
+      "name": "비둘기 떼",
+      "weight": 1.0,
+      "ahead": [
+        30,
+        45
+      ],
+      "weather": {
+        "rain": -0.7,
+        "snow": -0.6
+      },
+      "effect": {
+        "count": [
+          6,
+          10
+        ],
+        "balance": 14,
+        "poopChance": 0.35,
+        "clean": 10
+      },
+      "say": [
+        "구구구구…",
+        "비둘기다! 피해!"
+      ]
+    },
+    "birdPoop": {
+      "name": "새똥 세례",
+      "weight": 0.8,
+      "ahead": [
+        0,
+        0
+      ],
+      "weather": {
+        "rain": -0.6
+      },
+      "effect": {
+        "clean": 16,
+        "radius": 1.0,
+        "dropTime": 2.2
+      },
+      "say": [
+        "머리 위가 수상해…",
+        "그림자?! 피해!"
+      ]
+    },
+    "cat": {
+      "name": "길고양이",
+      "weight": 0.7,
+      "ahead": [
+        22,
+        32
+      ],
+      "effect": {
+        "speed": 4.5,
+        "balance": 18,
+        "fallSpeed": 4.0
+      },
+      "say": [
+        "야옹!",
+        "고양이 조심!"
+      ]
+    },
+    "dog": {
+      "name": "쫓아오는 강아지",
+      "weight": 0.5,
+      "ahead": [
+        -12,
+        -8
+      ],
+      "effect": {
+        "duration": 7,
+        "powerBoost": 1.35,
+        "fatigue": 6
+      },
+      "say": [
+        "멍멍멍! 왜 쫓아와?!",
+        "아드레날린 폭발!"
+      ]
+    },
+    "hotDrink": {
+      "name": "편의점 핫초코",
+      "weight": 0.55,
+      "ahead": [
+        45,
+        60
+      ],
+      "good": true,
+      "weather": {
+        "chill": 3.0,
+        "snow": 1.0,
+        "rain": 0.6
+      },
+      "effect": {
+        "temp": 0.9,
+        "fatigue": -14,
+        "coldRisk": -20
+      },
+      "say": [
+        "핫초코 최고!",
+        "몸이 녹는다~"
+      ]
+    },
+    "bungeoppang": {
+      "name": "붕어빵",
+      "weight": 0.45,
+      "ahead": [
+        45,
+        60
+      ],
+      "good": true,
+      "weather": {
+        "fatigue": 2.0
+      },
+      "effect": {
+        "temp": 0.4,
+        "fatigue": -22,
+        "clean": -2
+      },
+      "say": [
+        "팥붕 슈붕 둘 다!",
+        "든든하다!"
+      ]
+    },
+    "carAmbush": {
+      "name": "교차로 번개 자동차",
+      "weight": 2.2,
+      "ahead": [
+        0,
+        0
+      ],
+      "weather": {
+        "fog": 0.6,
+        "rain": 0.3
+      },
+      "effect": {
+        "speed": 28,
+        "launch": 9.5
+      },
+      "say": [
+        "으아아아아악~!!",
+        "날아간다아아아!"
+      ]
+    },
+    "energyDrink": {
+      "name": "에너지 드링크",
+      "weight": 0.5,
+      "ahead": [
+        45,
+        60
+      ],
+      "good": true,
+      "weather": {
+        "fatigue": 1.5
+      },
+      "effect": {
+        "fatigue": -8,
+        "boost": {
+          "time": 5.5,
+          "mul": 1.8,
+          "kick": 3.5
+        }
+      },
+      "say": [
+        "부스터 ON!!",
+        "날개를 단 기분!"
+      ]
+    }
   }
 }

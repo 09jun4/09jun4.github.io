@@ -49,8 +49,8 @@ export class FollowCamera {
     // 급격한 회전일수록 카메라가 살짝 늦게 따라감
     const turnLag = clamp(Math.abs(P.yawRate) * 0.8, 0, 1);
     this.yaw = dampAngle(this.yaw, heading, lerp(5.0, 3.2, turnLag), dt);
-    this.dist = damp(this.dist, lerp(4.2, 5.8, clamp(v / 11, 0, 1)), 2, dt);
-    const height = lerp(1.95, 2.15, clamp(v / 11, 0, 1));
+    this.dist = damp(this.dist, lerp(4.2, 6.4, clamp(v / 16, 0, 1)), 2, dt);
+    const height = lerp(1.95, 2.25, clamp(v / 16, 0, 1));
     const head = new THREE.Vector3(P.x, player.bike.root.position.y + 1.45, P.z);
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const want = new THREE.Vector3(head.x - fx * this.dist, head.y + height - 1.25, head.z - fz * this.dist);
@@ -85,7 +85,7 @@ export class FollowCamera {
     cam.position.x += ox; cam.position.y += oy;
     this.look.lerpVectors(this._shotLook, lookAt, b);
     cam.lookAt(this.look);
-    this.fov = damp(this.fov, lerp(60, 71, clamp((v - 2) / 9, 0, 1)), 2.5, dt);
+    this.fov = damp(this.fov, lerp(60, 82, clamp((v - 2) / 14, 0, 1)), 2.5, dt);
     const f = lerp(this.shotFov || 55, this.fov, b);
     if (Math.abs(cam.fov - f) > 0.01) { cam.fov = f; cam.updateProjectionMatrix(); }
   }

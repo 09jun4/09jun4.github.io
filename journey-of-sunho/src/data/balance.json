@@ -5,25 +5,25 @@
     "bikeMass": 15,
     "wheelbase": 1.05,
     "wheelRadius": 0.34,
-    "maxPower": 380,
-    "maxForce": 170,
-    "throttleRise": 2.6,
+    "maxPower": 900,
+    "maxForce": 300,
+    "throttleRise": 3.4,
     "throttleFall": 4.0,
-    "cdA": 0.62,
+    "cdA": 0.45,
     "crr": {
       "road": 0.006,
       "sidewalk": 0.009,
       "grass": 0.035
     },
-    "maxSpeedKmh": 48,
-    "brakeDecel": 6.0,
+    "maxSpeedKmh": 62,
+    "brakeDecel": 8.0,
     "softBrake": 0.35,
     "steerMax": 0.55,
     "steerMaxHighSpeed": 0.035,
     "steerSpeedRef": 0.8,
     "steerRate": 0.75,
     "steerReturn": 1.6,
-    "slipLimit": 0.88,
+    "slipLimit": 1.0,
     "lateralDamping": 5.0,
     "curbBumpSpeed": 2.5
   },
@@ -43,7 +43,7 @@
     "maxBodyTemp": 38.5,
     "tempDanger": 35.4,
     "tempWarn": 35.9,
-    "fatigueRate": 0.0016,
+    "fatigueRate": 0.0007,
     "fatigueUphill": 3.2,
     "fatigueRecover": 1.2,
     "fatigueColdMult": 1.7,
@@ -78,7 +78,7 @@
   "score": {
     "base": 1000,
     "timeBonusMax": 600,
-    "parSpeedKmh": 17,
+    "parSpeedKmh": 26,
     "fallPenalty": 90,
     "coldPenalty": 150,
     "cleanWeight": 3.0,
@@ -109,6 +109,14 @@
     ]
   },
   "comments": [
+    {
+      "if": "launches>=1",
+      "text": "교차로에서 하늘을 날았어요. 오늘의 최고 비행 기록!"
+    },
+    {
+      "if": "launches>=2",
+      "text": "자동차랑 이렇게 자주 만나면 이제 친구예요."
+    },
     {
       "if": "falls>=5",
       "text": "넘어진 횟수가 학원 숙제 개수와 맞먹어요."

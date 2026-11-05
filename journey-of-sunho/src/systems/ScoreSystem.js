@@ -25,7 +25,7 @@ export class ScoreSystem {
     total += add(`난이도 보너스 (별 ${r.stars}개)`, c.difficultyBonus * (r.stars - 1));
     const score = Math.max(0, Math.round(total));
     const grade = (c.grades.find((g) => score >= g.min) || c.grades[c.grades.length - 1]).grade;
-    const vars = { falls: r.falls, poop: r.poop, clean: r.cleanliness, cold: r.sick, temp: r.bodyTemp, fatigue: r.fatigue, time: r.time, par, pickups: r.pickups, hits: r.hits };
+    const vars = { falls: r.falls, poop: r.poop, clean: r.cleanliness, cold: r.sick, temp: r.bodyTemp, fatigue: r.fatigue, time: r.time, par, pickups: r.pickups, hits: r.hits, launches: r.launches || 0 };
     const comments = this.comments.filter((cm) => this._test(cm.if, vars)).map((cm) => cm.text).slice(0, 3);
     return { score, grade, title: TITLES[grade], parts, par, comments };
   }

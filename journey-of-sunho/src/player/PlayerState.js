@@ -27,7 +27,7 @@ export class PlayerState {
     this.clothesWet = 0;
     this.wobble = 0;
     this.sneezeTimer = 10;
-    this.stats = { poop: 0, hits: 0, pickups: 0, splashes: 0, maxSpeed: 0, coldAt: null, minTemp: c.baseBodyTemp };
+    this.stats = { launches: 0, poop: 0, hits: 0, pickups: 0, splashes: 0, maxSpeed: 0, coldAt: null, minTemp: c.baseBodyTemp };
     this._t = 0;
     this._lastWindAcc = 0;
   }
@@ -85,7 +85,7 @@ export class PlayerState {
     const c = this.cfg;
     this._t += dt;
     const v = P.v;
-    const effort = clamp(P.power / 300, 0, 1.2);
+    const effort = clamp(P.power / 600, 0, 1.2);
     this._thermal(dt, effort, env, v);
     this.stats.maxSpeed = Math.max(this.stats.maxSpeed, v);
 
@@ -93,7 +93,7 @@ export class PlayerState {
     const uphill = Math.max(0, P.grade);
     let fInc = c.fatigueRate * P.power * (1 + uphill * c.fatigueUphill * 10);
     if (this.sick) fInc *= c.fatigueColdMult;
-    if (P.power < 40) {
+    if (P.power < 80) {
       let rec = c.fatigueRecover * (P.grade < -0.01 || v < 0.5 ? 1.3 : 1);
       if (this.sick) rec *= 0.5;
       rec *= 1 - 0.5 * this.chill;

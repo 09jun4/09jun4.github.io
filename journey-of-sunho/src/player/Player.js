@@ -60,10 +60,42 @@ export class Player {
     this.emit('fall', { reason, count: this.falls });
   }
 
+  // 자동차에 치여 날아가기 (v: 초기 속도). 두 번 튕기고 바닥에 누워요.
+  launch(vx, vy, vz) {
+    if (this.mode !== 'ride') return;
+    const P = this.physics;
+    this.mode = 'launched';
+    this.modeT = 0;
+    this.falls++;
+    this.controller.reset();
+    this.launchState = { x: P.x, y: P.y + 0.6, z: P.z, vx, vy, vz, pitch: 0, roll: 0, wp: -(6 + Math.random() * 5), wr: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 4), bounces: 0, side: Math.random() < 0.5 ? -1 : 1, tmp: {} };
+    P.v = 0; P.vlat = 0;
+    this.emit('fall', { reason: 'launch', count: this.falls });
+  }
+
+  _flight(dt, env) {
+    const L = this.launchState, P = this.physics;
+    L.vy -= 24 * dt;
+    L.x += L.vx * dt; L.y += L.vy * dt; L.z += L.vz * dt;
+    if (L.bounces === 0) { L.pitch += L.wp * dt; L.roll += L.wr * dt; }
+    else { const k = 1 - Math.exp(-8 * dt); L.pitch -= L.pitch * k; L.roll += (L.side * 1.35 - L.roll) * k; }
+    const h = this.world.collision.resolveStatic(L.x, L.z, 0.5, L.tmp);
+    if (h) { L.x = h.x; L.z = h.z; L.vx *= -0.15; L.vz *= -0.15; }
+    const gy = this.world.roads.query(L.x, L.z, L.tmp).height;
+    if (L.y <= gy && L.vy < 0) {
+      L.y = gy;
+      if (L.bounces < 1) { L.vy = -L.vy * 0.32; L.vx *= 0.55; L.vz *= 0.55; L.bounces++; this.emit('thud'); }
+      else { L.vy = 0; this.fallSide = L.side; P.x = L.x; P.z = L.z; P.y = gy; this.mode = 'lying'; this.modeT = 0; this.emit('thud'); return; }
+    }
+    P.x = L.x; P.z = L.z; P.y = L.y;
+    if (this.state) this.state.passive(dt, env);
+  }
+
   // 고정 간격 업데이트 (물리·상태)
   fixedUpdate(dt, env) {
     const P = this.physics, F = this.balanceCfg.fall;
     if (this.mode === 'cutscene') return;
+    if (this.mode === 'launched') { this._flight(dt, env); return; }
     if (this.mode === 'ride') {
       this.controller.update(dt);
       P.step(dt, this.controller, env);
@@ -113,6 +145,16 @@ export class Player {
       return;
     }
     this.bike.setKickstand(false);
+    if (this.mode === 'launched') {
+      const L = this.launchState;
+      B.position.set(L.x, L.y, L.z);
+      B.rotation.set(L.pitch, P.heading, L.roll);
+      this.bike.setSteer(0.5);
+      this.bike.setWheelSpin(this.bikePhys.wheelAngle += dt * 30);
+      this.anim.update(dt, { ...common, mode: 'falling', t: 1 });
+      this._updateLight(ctx);
+      return;
+    }
     // 자전거 자세
     let tilt = 0;
     if (this.mode === 'falling') tilt = this.fallSide * 1.35 * smoothstep(0, 1, this.modeT / F.tipTime) ** 1.5;

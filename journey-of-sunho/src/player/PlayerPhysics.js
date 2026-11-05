@@ -79,7 +79,7 @@ export class PlayerPhysics {
     let nv = v + a * dt;
     if (nv < 0) nv = 0;
     if (v <= 0.01 && pedalF < gravity && gravity > 0) nv = 0; // 오르막 정지: 발로 버팀
-    nv = Math.min(nv, c.maxSpeedKmh / 3.6);
+    nv = Math.min(nv, (c.maxSpeedKmh / 3.6) * (env.speedMul || 1));
     this.v = nv;
     this.power = pedalF * nv;
 

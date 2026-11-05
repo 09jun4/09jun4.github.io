@@ -197,3 +197,6 @@ html, body, #app { touch-action: none; -webkit-user-select: none; user-select: n
   .hud-stats { width: 200px; transform: scale(0.85); transform-origin: left top; }
   .is-touch .hud-weather { display: none; }
 }
+
+/* 속도감 효과: 빠를수록 가장자리에 집중선 */
+.hud-speedfx { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: repeating-conic-gradient(from 0deg at 50% 55%, rgba(255,255,255,0) 0 4deg, rgba(255,255,255,0.22) 4deg 4.7deg, rgba(255,255,255,0) 4.7deg 9deg); -webkit-mask-image: radial-gradient(circle at 50% 55%, transparent 42%, #000 85%); mask-image: radial-gradient(circle at 50% 55%, transparent 42%, #000 85%); }

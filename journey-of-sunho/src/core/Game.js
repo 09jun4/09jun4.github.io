@@ -85,7 +85,8 @@ export class Game {
     st.on('bump', (b) => this.cam.addShake(Math.min(0.5, b * 0.4)));
     st.on('hit', (h) => this.cam.addShake(Math.min(0.6, h.speed * 0.15)));
     this.player.on('fall', (e) => {
-      const msg = { balance: '균형을 잃고 넘어졌어요!', crash: '쾅! 부딪혀 넘어졌어요', car: '자동차와 부딪혔어요!', person: '행인과 부딪혀 넘어졌어요', animal: '동물을 피하다 넘어졌어요', barrier: '공사 바리케이드에 부딪혔어요' }[e.reason] || '넘어졌어요!';
+      const msg = { balance: '균형을 잃고 넘어졌어요!', crash: '쾅! 부딪혀 넘어졌어요', car: '자동차와 부딪혔어요!', person: '행인과 부딪혀 넘어졌어요', animal: '동물을 피하다 넘어졌어요', barrier: '공사 바리케이드에 부딪혔어요', launch: '자동차에 치여 하늘을 날았어요!!' }[e.reason] || '넘어졌어요!';
+      if (e.reason === 'launch') { this.loop.timeScale = 0.3; setTimeout(() => { this.loop.timeScale = 1; }, 650); }
       this.hud.toast(msg, 'bad');
       setTimeout(() => this.state === 'playing' && this.hud.say(['아야야…', '괜찮아, 다시 가자!', '오늘 왜 이래…'][Math.floor(Math.random() * 3)], 2.2), 1500);
     });
@@ -188,7 +189,7 @@ export class Game {
     const stats = {
       time: this.chapterTime, length: this.route.length, bodyTemp: st.bodyTemp, minTemp: st.stats.minTemp, fatigue: st.fatigue,
       sick: st.sick, falls: this.player.falls, cleanliness: st.cleanliness, poop: st.stats.poop, hits: st.stats.hits,
-      pickups: st.stats.pickups, distance: P.distance, stars: this.roll.stars,
+      pickups: st.stats.pickups, launches: st.stats.launches || 0, distance: P.distance, stars: this.roll.stars,
     };
     const res = this.score.evaluate(stats);
     const { newBest } = this.save.record(this.chapter, res, stats);
@@ -215,6 +216,11 @@ export class Game {
     const pr = this.route.project(P.x, P.z, this.progressS);
     const rp = this.route.pointAt(pr.s);
     const rx = -rp.tz, rz = rp.tx;
+    if (pr.dist > 5) { // 멀리 날아갔다면 도로 위로 돌아와 서기
+      const lane = this.laneOffset(pr.s);
+      P.x = rp.x - rp.tz * lane; P.z = rp.z + rp.tx * lane;
+      P.heading = Math.atan2(rp.tx, rp.tz);
+    }
     const blocked = () => this.world.collision.overlapDynamic(P.x, P.z, 0.9, []).some((c) => c.solid && c.active) || this.world.collision.resolveStatic(P.x, P.z, 0.5, {});
     for (let i = 0; i < 12 && blocked(); i++) { P.x -= rx * 0.5; P.z -= rz * 0.5; }
     const h = Math.atan2(rp.tx, rp.tz);
@@ -245,6 +251,7 @@ export class Game {
       this.events.update(dt);
     }
     this.env.powerMul = st.powerMul * this.events.mods.power;
+    this.env.speedMul = this.events.mods.speed;
     this.player.fixedUpdate(dt, this.env);
     if (this.player.mode !== 'cutscene') {
       const P = this.player.physics;
@@ -332,7 +339,7 @@ export class Game {
   // ?auto: 메뉴를 자동으로 넘기고 자동 주행 (전체 흐름 점검용)
   _autoplay() {
     this.autopilot.on = true;
-    this.autopilot.speedKmh = Number(params.get('speed') || 22);
+    this.autopilot.speedKmh = Number(params.get('speed') || 28);
     const tick = () => {
       if (this.state === 'title') this.startChapter(params.get('ch') || this.nextChapterId());
       else if (this.state === 'briefing') this.beginIntro();

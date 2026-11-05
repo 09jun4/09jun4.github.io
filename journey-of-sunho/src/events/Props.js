@@ -168,6 +168,13 @@ export function makePickup(kind) {
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.04, 14), mat(0x6b3e1f));
     lid.position.y = 0.17;
     g.add(cup, sleeve, lid);
+  } else if (kind === 'energyDrink') {
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.28, 14), mat(0x1c7ed6, { metalness: 0.7, roughness: 0.25 }));
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.08, 14), mat(0xffd43b, { metalness: 0.4, emissive: 0x665500 }));
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.03, 14), mat(0xced4da, { metalness: 0.9, roughness: 0.2 }));
+    top.position.y = 0.155;
+    g.add(can, stripe, top);
+    g.scale.setScalar(1.4);
   } else {
     const fish = new THREE.Mesh(sphere, mat(0xd9902a, { roughness: 0.6 })); fish.scale.set(0.09, 0.1, 0.2);
     const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 4), mat(0xd9902a)); tail.rotation.x = -Math.PI / 2; tail.position.z = -0.24;

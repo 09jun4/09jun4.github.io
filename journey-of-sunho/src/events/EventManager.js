@@ -12,7 +12,8 @@ export class EventManager {
     this.active = [];
     this.counts = {};
     this.lastType = null;
-    this.mods = { power: 1 };
+    this.mods = { power: 1, speed: 1 };
+    this.boostT = 0; this.boostMul = 1;
     this._overlap = [];
     this.enabled = false;
     const g = game;
@@ -69,6 +70,8 @@ export class EventManager {
         if (into > crashSpeed) { P.v *= 0.15; g.player.fall(tag); g.cam.addShake(0.6); }
         else if (into > 0.3) { P.v *= 0.3; g.player.state.modify('balance', -into * 10); g.cam.addShake(0.2); }
       },
+      launch: () => {},
+      boost: (b) => { this.boostT = b.time; this.boostMul = b.mul; g.player.physics.v += b.kick; g.cam.addShake(0.2); },
       windPush: (push, bal) => {
         g.player.physics.vlat += push;
         g.player.state.modify('balance', -bal);
@@ -92,6 +95,7 @@ export class EventManager {
     this.opts = opts;
     this.rate = opts.rate ?? 1;
     this.enabled = true;
+    this.boostT = 0;
     this.nextS = this.defs.pacing.startAfter + this._spacing() * 0.4;
     this.log = [];
   }
@@ -99,6 +103,7 @@ export class EventManager {
   _spacing() { const [a, b] = this.defs.pacing.spacing; return lerp(a, b, rand()) / Math.max(0.3, this.rate); }
 
   clear() {
+    this.boostT = 0;
     for (const e of this.active) e.dispose();
     this.active = [];
     this.counts = {};
@@ -123,6 +128,7 @@ export class EventManager {
     const C = EVENT_CLASSES[id];
     if (!C || !def) return null;
     const ev = C.prototype ? new C(def, this.ctx, s) : C(def, this.ctx, s);
+    if (ev.dead) { ev.dispose(); return null; }
     ev.id = id;
     this.active.push(ev);
     this.counts[id] = (this.counts[id] || 0) + 1;
@@ -150,7 +156,7 @@ export class EventManager {
       if (!pickd) return;
       const def = this.defs.events[pickd.id];
       const a = def.ahead || [40, 50];
-      const s = ps + lerp(a[0], a[1], rand());
+      const s = ps + lerp(a[0], a[1], rand()) + (a[0] > 0 ? Math.max(0, this.ctx.speed - 8) * 1.6 : 0);
       if (s > route.length - P.stopBefore || s < 8) continue;
       // 고정 장애물은 교차로·다른 이벤트와 겹치지 않게
       if (STATIC_EVENTS.has(pickd.id)) {
@@ -159,8 +165,7 @@ export class EventManager {
         if (nearTurn || nearOther) continue;
       }
       if (pickd.id === 'carCross' && !route.turns.some((t) => t.s > ps + 40 && t.s < ps + 95) && rand() < 0.5) continue;
-      this.spawn(pickd.id, s);
-      return;
+      if (this.spawn(pickd.id, s)) return;
     }
   }
 
@@ -176,7 +181,8 @@ export class EventManager {
     c.speed = P.v;
     c.playerPos.x = P.x; c.playerPos.y = P.y; c.playerPos.z = P.z;
     c.playerVel.x = Math.sin(P.heading) * P.v; c.playerVel.z = Math.cos(P.heading) * P.v;
-    this.mods.power = 1;
+    this.mods.power = 1; this.mods.speed = 1;
+    if (this.boostT > 0) { this.boostT -= dt; this.mods.power *= this.boostMul; this.mods.speed = 1.12; }
     this._tryScheduled();
     for (let i = this.active.length - 1; i >= 0; i--) {
       const e = this.active[i];

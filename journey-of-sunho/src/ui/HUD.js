@@ -21,7 +21,7 @@ export class HUD {
     this.root = document.createElement('div');
     this.root.className = 'hud hidden';
     this.root.innerHTML = `
-      <div class="hud-vignette"></div>
+      <div class="hud-vignette"></div><div class="hud-speedfx"></div>
       <div class="hud-stats panel">
         ${GAUGES.map((g) => `<div class="g" data-k="${g.key}"><span class="gl">${g.label}</span><div class="gb"><i></i></div><span class="gv">-</span></div>`).join('')}
         <div class="badges"><span class="badge cold">감기</span><span class="badge wet">옷 젖음</span><span class="badge risk">감기 기운</span></div>
@@ -94,9 +94,10 @@ export class HUD {
     if (physics) {
       const kmh = physics.v * KMH;
       this.$('.sv').textContent = Math.round(kmh);
+      this.$('.hud-speedfx').style.opacity = clamp((kmh - 32) / 22, 0, 0.75).toFixed(2);
       const f = this.$('.sarc .fill');
       f.style.strokeDasharray = `${this.arcLen}`;
-      f.style.strokeDashoffset = `${this.arcLen * (1 - clamp(kmh / 40, 0, 1))}`;
+      f.style.strokeDashoffset = `${this.arcLen * (1 - clamp(kmh / 60, 0, 1))}`;
     }
     if (chapterTime !== undefined) {
       const m = Math.floor(chapterTime / 60), s = Math.floor(chapterTime % 60);
