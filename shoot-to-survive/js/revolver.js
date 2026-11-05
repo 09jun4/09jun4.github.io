@@ -129,19 +129,19 @@ export function createRevolver() {
 
   // ── 프레임 ──
   const frameMat = steel;
-  M(ext(rounded([[0.012, 0.045], [0.058, 0.045], [0.069, 0.040], [0.085, 0.034], [0.091, 0.021], [0.087, -0.008], [0.079, -0.030], [0.058, -0.047], [0.016, -0.047], [0.012, -0.02]], 0.007), 0.038, { bevel: 0.003 }), frameMat);   // 뒤쪽 브리치(리코일 실드·탱)
-  M(ext(rounded([[-0.095, 0.0405], [-0.095, 0.0475], [0.018, 0.0475], [0.018, 0.0405]], 0.003), 0.028, { bevel: 0.0025 }), frameMat);               // 실린더 위 상단 스트랩
-  M(ext(rounded([[-0.094, -0.040], [-0.094, 0.0475], [-0.079, 0.0475], [-0.079, -0.040]], 0.005), 0.032, { bevel: 0.0025 }), frameMat);            // 요크(실린더 앞 프레임)
-  M(ext(rounded([[-0.082, -0.054], [-0.082, -0.0405], [0.034, -0.0405], [0.034, -0.054]], 0.0045), 0.028, { bevel: 0.0025 }), frameMat);          // 실린더 아래 프레임
+  M(ext(rounded([[0.012, 0.045], [0.058, 0.045], [0.069, 0.040], [0.085, 0.034], [0.091, 0.021], [0.087, -0.008], [0.079, -0.030], [0.058, -0.047], [0.016, -0.047], [0.012, -0.02]], 0.007), 0.028, { bevel: 0.0028 }), frameMat);   // 뒤쪽 브리치(리코일 실드·탱)
+  M(ext(rounded([[-0.095, 0.0405], [-0.095, 0.0475], [0.018, 0.0475], [0.018, 0.0405]], 0.003), 0.019, { bevel: 0.0022 }), frameMat);               // 실린더 위 상단 스트랩
+  M(ext(rounded([[-0.094, -0.040], [-0.094, 0.0475], [-0.079, 0.0475], [-0.079, -0.040]], 0.005), 0.022, { bevel: 0.0022 }), frameMat);            // 요크(실린더 앞 프레임)
+  M(ext(rounded([[-0.082, -0.054], [-0.082, -0.0405], [0.034, -0.0405], [0.034, -0.054]], 0.0045), 0.019, { bevel: 0.0022 }), frameMat);          // 실린더 아래 프레임
   // 나사 (좌·우 사이드 플레이트)
-  for (const [z, y] of [[0.026, 0.034], [0.082, 0.012], [0.052, -0.036]]) { screw(-0.0215, y, z, -1); screw(0.0215, y, z, 1); }
+  for (const [z, y] of [[0.026, 0.034], [0.082, 0.012], [0.052, -0.036]]) { screw(-0.0165, y, z, -1); screw(0.0165, y, z, 1); }
   // 실린더 래치(좌측 체커 엄지 조각) — 재장전 시 앞으로 눌림
-  const latch = new THREE.Group(); latch.position.set(-0.0222, 0.014, 0.034); root.add(latch);
+  const latch = new THREE.Group(); latch.position.set(-0.0182, 0.014, 0.034); root.add(latch);
   M(ext(rounded([[-0.008, -0.006], [-0.008, 0.0065], [0.008, 0.0065], [0.0095, -0.006]], 0.003), 0.0042, { bevel: 0.0015, uv: 260 }), checkerSteel, latch);
   const latchRest = 0.034;
-  decal(medallionTex(), 0.017, 0.017, -0.0212, -0.014, 0.052, -1);
-  decal(textTex('500', 192, 80, 66), 0.034, 0.0142, 0.0212, -0.006, 0.038, 1);
-  decal(textTex('MODEL 500', 256, 40, 28, '#4d5158', 'normal'), 0.03, 0.0046, 0.0212, 0.0215, 0.04, 1);
+  decal(medallionTex(), 0.017, 0.017, -0.0162, -0.014, 0.052, -1);
+  decal(textTex('500', 192, 80, 66), 0.034, 0.0142, 0.0162, -0.006, 0.038, 1);
+  decal(textTex('MODEL 500', 256, 40, 28, '#4d5158', 'normal'), 0.03, 0.0046, 0.0162, 0.0215, 0.04, 1);
 
   // ── 배럴 ──
   M(cylZ(BARREL_R, -0.296, -0.075, { seg: 80, uv: [12, 6] }), steel, root, 0, BORE_Y, 0);
@@ -231,16 +231,16 @@ export function createRevolver() {
 
   // ── 해머 (스테인리스 + 체커링 스퍼) ──
   const hammer = new THREE.Group(); hammer.position.set(0, 0.03, 0.062); root.add(hammer);
-  M(ext(polyShape(spline([[-0.006, -0.005], [0.006, -0.005], [0.011, 0.004], [0.019, 0.011], [0.029, 0.0145], [0.035, 0.0165], [0.0295, 0.0192], [0.016, 0.0178], [0.003, 0.0115], [-0.005, 0.004], [-0.006, -0.005]], 90)), 0.0095, { bevel: 0.0014, seg: 3, curve: 40 }), steel, hammer);
-  { const chk = new THREE.Mesh(new THREE.PlaneGeometry(0.0075, 0.012), new THREE.MeshStandardMaterial({ color: 0xaaaeb4, metalness: 1, roughness: 0.55, bumpMap: checker, bumpScale: 2 }));
+  M(ext(polyShape(spline([[-0.006, -0.005], [0.006, -0.005], [0.011, 0.004], [0.019, 0.011], [0.029, 0.0145], [0.035, 0.0165], [0.0295, 0.0192], [0.016, 0.0178], [0.003, 0.0115], [-0.005, 0.004], [-0.006, -0.005]], 90)), 0.0055, { bevel: 0.001, seg: 3, curve: 40 }), steel, hammer);
+  { const chk = new THREE.Mesh(new THREE.PlaneGeometry(0.0048, 0.012), new THREE.MeshStandardMaterial({ color: 0xaaaeb4, metalness: 1, roughness: 0.55, bumpMap: checker, bumpScale: 2 }));
     chk.material.bumpMap.repeat.set(2, 3); chk.position.set(0, 0.0182, 0.0285); chk.rotation.set(-Math.PI / 2 + 0.12, 0, 0); hammer.add(chk); }
-  M(cylZ(0.0035, -0.004, 0.004, { seg: 16 }), steelSoft, hammer, 0.0055, 0, 0).rotation.y = Math.PI / 2;
+  M(cylZ(0.0035, -0.004, 0.004, { seg: 16 }), steelSoft, hammer, 0.0034, 0, 0).rotation.y = Math.PI / 2;
 
   // ── 방아쇠 (매끈한 곡선형) + 대형 방아쇠울 ──
   const trigger = new THREE.Group(); trigger.position.set(0, -0.042, 0.024); root.add(trigger);
-  M(ext(polyShape(spline([[0.005, 0], [0.013, -0.002], [0.0145, -0.014], [0.009, -0.027], [-0.004, -0.036], [-0.019, -0.0385], [-0.0225, -0.033], [-0.0125, -0.0295], [-0.003, -0.021], [-0.0015, -0.008], [0.005, 0]], 80)), 0.0085, { bevel: 0.0014, seg: 3, curve: 40 }), steel, trigger);
+  M(ext(polyShape(spline([[0.005, 0], [0.013, -0.002], [0.0145, -0.014], [0.009, -0.027], [-0.004, -0.036], [-0.019, -0.0385], [-0.0225, -0.033], [-0.0125, -0.0295], [-0.003, -0.021], [-0.0015, -0.008], [0.005, 0]], 80)), 0.007, { bevel: 0.0012, seg: 3, curve: 40 }), steel, trigger);
   { const outer = polyShape(ellipsePts(0.0, -0.066, 0.045, 0.0275, 96)); outer.holes.push(new THREE.Path(ellipsePts(0.0, -0.066, 0.0315, 0.0143, 96).map(([x, y]) => new THREE.Vector2(x, y))));
-    M(ext(outer, 0.011, { bevel: 0.002, seg: 3, curve: 96 }), steel); }
+    M(ext(outer, 0.0085, { bevel: 0.0018, seg: 3, curve: 96 }), steel); }
 
   // ── 호그 고무 그립 ──
   { const back = spline([[0.09, -0.018], [0.108, -0.058], [0.126, -0.108], [0.1365, -0.15], [0.133, -0.178], [0.113, -0.193]], 40);
