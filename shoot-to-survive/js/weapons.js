@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createRevolver, createCasingGeometry } from './revolver.js';
+import { createRevolver } from './revolver.js';
 import { createFlashlight } from './flashlight.js';
 
 const SWITCH_T = 0.7, FIRE_T = 0.6, FIRE_SHOT_AT = 0.2;
@@ -39,8 +39,6 @@ export class Weapons {
     this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.sprite.scale.set(0.2, 0.2, 1); this.sprite.visible = false;
     this.rev.muzzle.add(this.sprite);
-    this.casingGeo = createCasingGeometry();
-    this.casingMat = new THREE.MeshStandardMaterial({ color: 0xd3a93f, metalness: 1, roughness: 0.28 });
     this.casings = [];
     this.time = 0;
     this.reset();
@@ -49,6 +47,7 @@ export class Weapons {
   reset() {
     this.current = 'pistol'; this.switching = null;
     this.ammo = 5; this.displayAmmo = 5;
+    this.slots = ['live', 'live', 'live', 'live', 'live']; this.applySlots();
     this.fire = null; this.reload = null; this.melee = null; this.meleeCd = 0;
     this.kick = 0; this.flashT = 0;
     this.cylBase = 0; this.cylExtra = 0; this.swingVis = 0; this.swingGoal = 0; this.rw1 = 0; this.rw2 = 0;
@@ -57,6 +56,9 @@ export class Weapons {
     this.casings = [];
     this.applyPose(0);
   }
+
+  applySlots() { this.slots.forEach((st, i) => this.rev.setRound(i, st)); }
+  get topIdx() { return ((Math.round(this.cylBase / STEP) % 5) + 5) % 5; } // 지금 맨 위(총열 쪽) 챔버
 
   get lightOn() { return this.current === 'flash'; }
   get reloading() { return !!this.reload; }
@@ -72,6 +74,7 @@ export class Weapons {
   cycle() { return this.equip(this.current === 'pistol' ? 'flash' : 'pistol'); }
 
   cancelReload() {
+    if (this.reload && this.reload.snap) { this.slots = this.reload.snap; this.applySlots(); } // 챔버 속 총알도 재장전 전 상태로
     this.reload = null; this.displayAmmo = this.ammo; // 탄약은 재장전 전 상태 유지
     this.rev.bullet.visible = false; this.rev.latch.position.z = this.rev.latchRest; this.cylExtra = 0; this.swingGoal = 0; // 실린더는 닫힌 상태로 복귀
   }
@@ -84,7 +87,7 @@ export class Weapons {
 
   tryReload() {
     if (this.current !== 'pistol' || this.switching || this.reload || this.fire || this.melee || this.ammo >= 5) return false;
-    this.reload = { t: 0, ejected: false, inserted: 0, lastK: 0, finalRot: false };
+    this.reload = { t: 0, snap: this.slots.slice(), ejected: false, inserted: 0, lastK: 0, finalRot: false };
     return true;
   }
 
@@ -137,6 +140,8 @@ export class Weapons {
       f.shot = true;
       if (f.live) {
         this.ammo--; this.displayAmmo = this.ammo; this.kick = 1; this.flashT = 0.05;
+        const ci = (this.topIdx + 1) % 5; // 코킹으로 새로 올라온 챔버가 발사됨 → 빈 탄피로
+        this.slots[ci] = 'spent'; this.rev.setRound(ci, 'spent');
         this.sprite.material.rotation = Math.random() * 6;
         this.cb.fire();
       } // 빈 총이면 빈 클릭 연출만
@@ -159,29 +164,34 @@ export class Weapons {
       const b = rv.bullet; b.visible = true;
       const ins = RELOAD.insert * 0.75, p = smooth(lt / ins);
       const L = rv.loadPoint; b.position.set(L.x - 0.06 * (1 - p), L.y + 0.03 * (1 - p), L.z + 0.012 + 0.13 * (1 - p) - 0.03 * p);
-      if (lt >= ins && r.inserted === k) { r.inserted++; this.displayAmmo = r.inserted; }
+      if (lt >= ins && r.inserted === k) { r.inserted++; this.displayAmmo = r.inserted; const ti = this.topIdx; this.slots[ti] = 'live'; this.rev.setRound(ti, 'live'); }
       this.cylExtra = lt >= ins ? STEP * smooth((lt - ins) / (RELOAD.insert - ins)) : 0;
     } else if (t >= insertEnd) {
       if (!r.finalRot) { r.finalRot = true; this.cylBase += STEP; this.cylExtra = 0; rv.bullet.visible = false; }
     }
     if (t >= insertEnd + RELOAD.close) {
       this.ammo = 5; this.displayAmmo = 5; this.reload = null; rv.latch.position.z = rv.latchRest;
+      this.slots = ['live', 'live', 'live', 'live', 'live']; this.applySlots();
     }
   }
 
-  spawnCasings() {
+  spawnCasings() { // 챔버 속 총알(실탄·빈 탄피 모두)이 그 자리에서 중력으로 떨어진다
     this.viewScene.updateMatrixWorld(true);
-    const o = new THREE.Vector3(); this.rev.cylPivot.getWorldPosition(o);
-    for (let i = 0; i < 5; i++) {
-      const mesh = new THREE.Mesh(this.casingGeo, this.casingMat);
-      mesh.position.copy(o).add(new THREE.Vector3((Math.random() - 0.5) * 0.03, (Math.random() - 0.5) * 0.03, 0.04));
+    const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
+    this.slots.forEach((st, i) => {
+      if (!st) return;
+      const holder = this.rev.rounds[i];
+      holder.getWorldPosition(wp); holder.getWorldQuaternion(wq);
+      const mesh = new THREE.Group(); for (const c of this.rev.makeRound(st).children) mesh.add(c);
+      mesh.position.copy(wp); mesh.quaternion.copy(wq);
       this.viewScene.add(mesh);
       this.casings.push({
         mesh, age: 0,
         v: new THREE.Vector3((Math.random() - 0.5) * 0.04, -0.02 - Math.random() * 0.03, 0.03 + Math.random() * 0.04),
         w: new THREE.Vector3(Math.random() * 5, Math.random() * 5, Math.random() * 5),
       });
-    }
+      this.slots[i] = null; this.rev.setRound(i, null); // 실린더에서 사라짐
+    });
   }
 
   updateCasings(dt) {

@@ -94,11 +94,11 @@ const medallionTex = () => tex(128, 128, (x) => {
 export function createCasingGeometry() {
   const pts = [[0, 0.016], [0.0072, 0.016], [0.0072, 0.0146], [0.0062, 0.0146], [0.0062, 0.0132], [0.0068, 0.0124], [0.0069, -0.012], [0.0064, -0.0128], [0, -0.0128]]
     .map(([r, z]) => new THREE.Vector2(r, z));
-  const g = new THREE.LatheGeometry(pts.reverse(), 24); g.rotateX(Math.PI / 2); return g;
+  const g = new THREE.LatheGeometry(pts.reverse(), 8); g.rotateX(Math.PI / 2); return g;
 }
 function createBulletTip() {
   const pts = [[0, -0.0124], [0.0064, -0.0124], [0.0064, -0.027], [0.0048, -0.0305], [0, -0.0305]].map(([r, z]) => new THREE.Vector2(r, z));
-  const g = new THREE.LatheGeometry(pts.reverse(), 24); g.rotateX(Math.PI / 2); return g;
+  const g = new THREE.LatheGeometry(pts.reverse(), 8); g.rotateX(Math.PI / 2); return g;
 }
 
 export function createRevolver() {
@@ -224,6 +224,23 @@ export function createRevolver() {
     M(cylZ(0.0045, -half - 0.003, half + 0.008, { seg: 20 }), steelSoft, cylPivot);
     M(cylZ(0.0058, -half - 0.003, -half - 0.0005, { seg: 20 }), steelSoft, cylPivot);
   }
+  // 챔버 속 총알 5개 (8각 원통 로우폴리) — 상태: 'live'(실탄) | 'spent'(빈 탄피) | null(비어 있음)
+  const roundGeo = createCasingGeometry(), tipGeo = createBulletTip();
+  const primerGeo = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0012, 8); primerGeo.rotateX(Math.PI / 2);
+  const primerLive = new THREE.MeshStandardMaterial({ color: 0xc2c6cb, metalness: 1, roughness: 0.35 });
+  const primerSpent = new THREE.MeshStandardMaterial({ color: 0x2c2c2e, metalness: 0.6, roughness: 0.6 });
+  const makeRound = (state) => {
+    const g = new THREE.Group();
+    M(roundGeo, brass, g);
+    if (state === 'live') M(tipGeo, lead, g);
+    M(primerGeo, state === 'live' ? primerLive : primerSpent, g, 0, 0, 0.0165);
+    return g;
+  };
+  const rounds = chamberPos.map(([x, y]) => { const holder = new THREE.Group(); holder.position.set(x, y, half - 0.0166); cylPivot.add(holder); holder.visible = false; return holder; });
+  const setRound = (i, state) => {
+    const h = rounds[i]; while (h.children.length) h.remove(h.children[0]);
+    h.visible = !!state; if (state) { const r = makeRound(state); while (r.children.length) h.add(r.children[0]); }
+  };
   // 재장전용 탄
   const bullet = new THREE.Group(); M(createCasingGeometry(), brass, bullet); M(createBulletTip(), lead, bullet);
   bullet.visible = false; swing.add(bullet);
@@ -252,5 +269,5 @@ export function createRevolver() {
     decal(medallionTex(), 0.014, 0.014, -0.0292, -0.046, 0.062, -1); decal(medallionTex(), 0.014, 0.014, 0.0292, -0.046, 0.062, 1); }
 
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, BORE_Y, -0.358); root.add(muzzle);
-  return { root, swing, cylPivot, hammer, trigger, latch, latchRest, bullet, loadPoint, muzzle };
+  return { root, swing, cylPivot, hammer, trigger, latch, latchRest, bullet, loadPoint, muzzle, rounds, setRound, makeRound };
 }
