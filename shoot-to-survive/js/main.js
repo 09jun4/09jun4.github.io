@@ -57,6 +57,7 @@ const keys = new Set();
 const weapons = new Weapons(viewScene, {
   fire: shoot,
   meleeHit: meleeHit,
+  lunge: () => player.lunge(),
 });
 const game = { paused: false, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
 const bot = AUTO ? new Bot(game) : null; game.bot = bot;
@@ -83,13 +84,15 @@ function shoot() {
 }
 
 function meleeHit() { // 전방 1.8m, 전방 약 60° 안 즉살
+  let kills = 0;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
   for (const g of ghosts.slice()) {
     const dx = g.x - player.pos.x, dz = g.z - player.pos.z, d = Math.hypot(dx, dz);
     if (d > 1.8) continue;
     if (d > 0.5 && (dx * fx + dz * fz) / d < Math.cos(30 * Math.PI / 180)) continue;
-    killGhost(g);
+    killGhost(g); kills++;
   }
+  if (kills) weapons.punch = 1.9; // 명중 시 더 큰 화면 충격
 }
 
 function finish(kind) {
@@ -184,7 +187,7 @@ function resize() {
   const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
   const a = w / h;
-  camera.aspect = a; camera.fov = a >= 1.2 ? 75 : Math.min(105, 75 + (1.2 - a) * 45); camera.updateProjectionMatrix();
+  camera.aspect = a; camera.fov = camera.userData.baseFov = a >= 1.2 ? 75 : Math.min(105, 75 + (1.2 - a) * 45); camera.updateProjectionMatrix();
   viewCam.aspect = a; viewCam.fov = camera.fov - 12; viewCam.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -201,6 +204,12 @@ function frame(now) {
     if (bot) bot.update(dt);
     player.update(dt, keys, grid);
     weapons.update(dt);
+    { // 근접 펀치: 화면 확대(FOV) + 아래로 숙임 + 흔들림
+      const pu = weapons.punch, base = camera.userData.baseFov || camera.fov;
+      const f = base + pu * 6;
+      if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); }
+      camera.rotation.x -= pu * 0.035; camera.rotation.z += Math.sin(performance.now() * 0.06) * pu * 0.012;
+    }
     for (const g of ghosts.slice()) {
       if (g.update(dt, player, grid) && player.hit()) {
         $('vignette').classList.add('hit'); requestAnimationFrame(() => requestAnimationFrame(() => $('vignette').classList.remove('hit')));

@@ -3,7 +3,7 @@ import { createRevolver } from './revolver.js';
 import { createFlashlight } from './flashlight.js';
 
 const SWITCH_T = 0.7, FIRE_T = 0.6, FIRE_SHOT_AT = 0.2;
-const MELEE_ANIM = 0.4, MELEE_CD = 0.8, MELEE_HIT_AT = 0.14;
+const MELEE_ANIM = 0.48, MELEE_CD = 0.8, MELEE_HIT_AT = 0.17, MELEE_WIND = 0.13, MELEE_STRIKE = 0.08; // 뒤로 빼기 → 내려치기 → 여운 → 복귀
 const RELOAD = { eject: 0.9, insert: 0.36, count: 5, close: 0.5 }; // 0.9 + 5*0.36 + 0.5 = 3.2초 (부드러운 동작을 위해 배출 구간을 길게)
 const STEP = Math.PI * 2 / 5;
 const SWING_OPEN = 1.2;
@@ -48,7 +48,7 @@ export class Weapons {
     this.current = 'pistol'; this.switching = null;
     this.ammo = 5; this.displayAmmo = 5;
     this.slots = ['live', 'live', 'live', 'live', 'live']; this.applySlots();
-    this.fire = null; this.reload = null; this.melee = null; this.meleeCd = 0;
+    this.fire = null; this.reload = null; this.melee = null; this.meleeCd = 0; this.punch = 0;
     this.kick = 0; this.flashT = 0;
     this.cylBase = 0; this.cylExtra = 0; this.swingVis = 0; this.swingGoal = 0; this.rw1 = 0; this.rw2 = 0;
     this.rev.bullet.visible = false;
@@ -93,7 +93,7 @@ export class Weapons {
 
   tryMelee() {
     if (this.switching || this.reload || this.fire || this.melee || this.meleeCd > 0) return false;
-    this.melee = { t: 0, hit: false }; this.meleeCd = MELEE_CD;
+    this.melee = { t: 0, hit: false, lunged: false }; this.meleeCd = MELEE_CD;
     return true;
   }
 
@@ -110,6 +110,7 @@ export class Weapons {
     if (this.reload) this.updateReload(dt);
     if (this.melee) {
       this.melee.t += dt;
+      if (!this.melee.lunged && this.melee.t >= MELEE_WIND - 0.01) { this.melee.lunged = true; this.punch = 1; this.cb.lunge?.(); } // 내려치는 순간 앞으로 돌진 + 화면 펀치
       if (!this.melee.hit && this.melee.t >= MELEE_HIT_AT) { this.melee.hit = true; this.cb.meleeHit(); }
       if (this.melee.t >= MELEE_ANIM) this.melee = null;
     }
@@ -121,7 +122,7 @@ export class Weapons {
       this.rw1 += (T1 - this.rw1) * Math.min(1, dt * 5);
       this.rw2 += (T2 - this.rw2) * Math.min(1, dt * 5);
     }
-    this.kick *= Math.exp(-dt * 9);
+    this.kick *= Math.exp(-dt * 9); this.punch *= Math.exp(-dt * 7);
     this.flashT = Math.max(0, this.flashT - dt);
     this.sprite.visible = this.flashT > 0;
     this.updateCasings(dt);
@@ -209,7 +210,11 @@ export class Weapons {
     let down = 0;
     if (sw) down = sw.t < SWITCH_T / 2 ? smooth(sw.t / (SWITCH_T / 2)) : 1 - smooth((sw.t - SWITCH_T / 2) / (SWITCH_T / 2));
     const breathe = Math.sin(this.time * 1.7) * 0.002;
-    const m = this.melee ? Math.sin(Math.min(1, this.melee.t / MELEE_ANIM) * Math.PI) : 0;
+    let A = 0, S = 0; // A: 뒤로 빼는 정도, S: 내려치는 정도
+    if (this.melee) {
+      const t = this.melee.t, wind = smooth(t / MELEE_WIND), strike = smooth((t - MELEE_WIND) / MELEE_STRIKE), rec = smooth((t - MELEE_WIND - MELEE_STRIKE - 0.05) / (MELEE_ANIM - MELEE_WIND - MELEE_STRIKE - 0.05));
+      A = wind * (1 - strike); S = strike * (1 - rec);
+    }
     for (const [name, holder] of [['pistol', this.pistolHolder], ['flash', this.flashHolder]]) {
       holder.visible = this.current === name;
       if (!holder.visible) continue;
@@ -221,9 +226,9 @@ export class Weapons {
         const a = this.rw1, b2 = this.rw2; // 오른손잡이: 총을 오른쪽으로 틀어 열린 실린더가 보이게
         rx += EJECT.rx * a + LOAD.rx * b2; ry += EJECT.ry * a + LOAD.ry * b2; rz += EJECT.rz * a + LOAD.rz * b2;
         px += EJECT.px * a + LOAD.px * b2; py += EJECT.py * a + LOAD.py * b2; pz += EJECT.pz * a + LOAD.pz * b2;
-        rx -= 1.0 * m; pz -= 0.1 * m; py -= 0.03 * m;
+        rx += 0.5 * A - 1.3 * S; pz += 0.04 * A - 0.24 * S; py += 0.03 * A - 0.06 * S; px += 0.05 * A - 0.1 * S; ry += -0.35 * A + 0.6 * S; rz += 0.35 * A - 0.3 * S;
       } else {
-        px -= 0.22 * m; pz -= 0.08 * m; ry += 1.3 * m; rz -= 0.5 * m;
+        px += 0.12 * A - 0.4 * S; pz += 0.05 * A - 0.14 * S; ry += -0.7 * A + 1.6 * S; rz += -0.6 * A + 0.45 * S; rx += 0.2 * A - 0.35 * S;
       }
       holder.position.set(px, py, pz); holder.rotation.set(rx, ry, rz);
     }

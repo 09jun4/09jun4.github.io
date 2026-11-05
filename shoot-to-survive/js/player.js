@@ -16,7 +16,7 @@ export class Player {
     this.pos.set(centerOf(tx), 0, centerOf(tz));
     this.yaw = yaw; this.pitch = 0;
     this.leanRaw = 0;      // -1(왼쪽) .. 1(오른쪽), 선형으로 0.7초에 걸쳐 이동
-    this.hp = 5; this.invul = 0;
+    this.hp = 5; this.invul = 0; this.lungeT = 0;
   }
   get lean() { return Math.sign(this.leanRaw) * smooth(Math.abs(this.leanRaw)); }
 
@@ -33,6 +33,10 @@ export class Player {
     const step = dt / LEAN_TIME;
     if (this.leanRaw < target) this.leanRaw = Math.min(target, this.leanRaw + step);
     else if (this.leanRaw > target) this.leanRaw = Math.max(target, this.leanRaw - step);
+    if (this.lungeT > 0) { // 근접공격 돌진: 짧게 앞으로 쏠린다 (벽 충돌 유지)
+      const k = this.lungeT / 0.16; this.lungeT = Math.max(0, this.lungeT - dt);
+      this.pos.x += -sy * 6.5 * k * dt; this.pos.z += -cy * 6.5 * k * dt; pushOut(grid, this.pos, RADIUS);
+    }
     this.invul = Math.max(0, this.invul - dt);
     this.applyCamera(grid);
   }
@@ -51,6 +55,8 @@ export class Player {
     this.camera.rotation.set(this.pitch, this.yaw, -this.lean * LEAN_ROLL);
     this.camera.updateMatrixWorld(true);
   }
+
+  lunge() { this.lungeT = 0.16; }
 
   hit() {
     if (this.invul > 0 || this.hp <= 0) return false;
