@@ -1,144 +1,255 @@
 import * as THREE from 'three';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
-// S&W 500 (8-3/8") — 첨부 사진 기준으로 프리미티브 + 옆모양 압출로 조립.
-// 좌표(m): 총구 방향 = -z, 위 = +y, 오른쪽 = +x. 실린더 중심 z = -0.0375, 약영 0.42m 길이.
-const R_CYL = 0.0345, CYL_LEN = 0.095, CHAMBER_R = 0.0225, BARREL_R = 0.0185, BORE_Y = CHAMBER_R;
+// ─────────────────────────────────────────────────────────────
+// Smith & Wesson Model 500 (8-3/8") — 하이폴리 외관 모델 (이 무기만 고해상도)
+// 좌표(m): 총구 = -z, 위 = +y, 오른쪽 = +x. 전체 길이 약 0.42m.
+// 윤곽은 둥근 다각형/스플라인을 베벨 압출, 원통부는 Lathe·Cylinder, 질감은 캔버스로 생성.
+// ─────────────────────────────────────────────────────────────
+const R_CYL = 0.039, CYL_LEN = 0.1, CHAMBER_R = 0.0255, BARREL_R = 0.0185, BORE_Y = CHAMBER_R;
+const TAU = Math.PI * 2;
 
-// (z,y) 윤곽을 x 방향으로 width 만큼 압출 (x 중심)
-function profile(pts, width, { bevel = 0, holes = null } = {}) {
-  const sh = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
-  if (holes) for (const h of holes) sh.holes.push(new THREE.Path(h.map(([z, y]) => new THREE.Vector2(z, y))));
-  const g = new THREE.ExtrudeGeometry(sh, { depth: width, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: 10 });
-  g.translate(0, 0, -width / 2);
-  g.rotateY(-Math.PI / 2);
+// ── 지오메트리 도구 ──
+function uvScale(g, su, sv, swap = false) {
+  const uv = g.attributes.uv; if (!uv) return g;
+  for (let i = 0; i < uv.count; i++) {
+    const u = uv.getX(i), v = uv.getY(i);
+    swap ? uv.setXY(i, v * su, u * sv) : uv.setXY(i, u * su, v * sv);
+  }
   return g;
 }
-const ellipse = (cz, cy, rz, ry, n = 20) => Array.from({ length: n }, (_, i) => [cz + Math.cos(i / n * 6.2832) * rz, cy + Math.sin(i / n * 6.2832) * ry]);
+// 모서리가 둥근 다각형 (z,y)
+function rounded(pts, r) {
+  const sh = new THREE.Shape(), n = pts.length;
+  const rad = (i) => (Array.isArray(r) ? r[i] : r);
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
+    const d1 = Math.hypot(p[0] - a[0], p[1] - a[1]), d2 = Math.hypot(p[0] - b[0], p[1] - b[1]);
+    const t1 = Math.min(rad(i) / d1, 0.5), t2 = Math.min(rad(i) / d2, 0.5);
+    const s = [p[0] + (a[0] - p[0]) * t1, p[1] + (a[1] - p[1]) * t1], e = [p[0] + (b[0] - p[0]) * t2, p[1] + (b[1] - p[1]) * t2];
+    i === 0 ? sh.moveTo(s[0], s[1]) : sh.lineTo(s[0], s[1]);
+    sh.quadraticCurveTo(p[0], p[1], e[0], e[1]);
+  }
+  sh.closePath();
+  return sh;
+}
+const spline = (pts, n = 40, closed = false) => new THREE.SplineCurve(pts.map(([x, y]) => new THREE.Vector2(x, y))).getPoints(n);
+const polyShape = (pts) => new THREE.Shape(pts.map((p) => (p.isVector2 ? p : new THREE.Vector2(p[0], p[1]))));
+function ellipsePts(cz, cy, rz, ry, n = 64) { return Array.from({ length: n }, (_, i) => [cz + Math.cos(i / n * TAU) * rz, cy + Math.sin(i / n * TAU) * ry]); }
 
-function canvasTex(w, h, draw, repeat) {
+// (z,y) 윤곽을 x 방향으로 압출 (x 중심, 베벨 + 부드러운 법선)
+function ext(shape, width, { bevel = 0.003, seg = 3, curve = 32, crease = 0.75, uv = 45 } = {}) {
+  let g = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: seg, curveSegments: curve });
+  g.translate(0, 0, -width / 2);
+  uvScale(g, uv, uv);
+  g.rotateY(-Math.PI / 2);
+  return toCreasedNormals(g, crease);
+}
+// z축 원기둥 (z0 → z1)
+function cylZ(r, z0, z1, { seg = 48, open = false, r1 = r, start = 0, len = TAU, uv = [10, 4] } = {}) {
+  const g = new THREE.CylinderGeometry(r1, r, Math.abs(z1 - z0), seg, 1, open, start, len);
+  g.rotateX(Math.PI / 2); g.translate(0, 0, (z0 + z1) / 2);
+  return uvScale(g, uv[0], uv[1], true);
+}
+
+// ── 캔버스 텍스처 ──
+function tex(w, h, draw, { repeat = true, srgb = false } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); }
+  const t = new THREE.CanvasTexture(c);
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
   return t;
 }
-const checkerTex = () => canvasTex(64, 64, (x, w, h) => { // 다이아몬드 체커링
-  x.fillStyle = '#9aa0a8'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3c4046'; x.lineWidth = 3;
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const brushedTex = () => tex(512, 512, (x, w, h) => { // 브러시드 메탈: 가로 결
+  x.fillStyle = '#9a9a9a'; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < 3600; i++) {
+    const g = 110 + rnd() * 120 | 0, y = rnd() * h, x0 = rnd() * w, l = 30 + rnd() * 220;
+    x.strokeStyle = `rgba(${g},${g},${g},${0.12 + rnd() * 0.25})`; x.lineWidth = 0.6 + rnd();
+    x.beginPath(); x.moveTo(x0, y); x.lineTo(x0 + l, y + (rnd() - 0.5) * 0.8); x.stroke();
+  }
+});
+const stippleTex = () => tex(256, 256, (x, w, h) => { // 고무 스티플
+  x.fillStyle = '#707070'; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < 5200; i++) { const g = rnd() < 0.5 ? 40 + rnd() * 50 : 150 + rnd() * 90; x.fillStyle = `rgb(${g | 0},${g | 0},${g | 0})`; x.beginPath(); x.arc(rnd() * w, rnd() * h, 1 + rnd() * 1.6, 0, TAU); x.fill(); }
+});
+const checkerTex = () => tex(64, 64, (x, w, h) => { // 다이아몬드 체커링 (범프용)
+  x.fillStyle = '#d0d0d0'; x.fillRect(0, 0, w, h); x.strokeStyle = '#202020'; x.lineWidth = 3;
   for (let i = -h; i < w + h; i += 8) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + h, h); x.stroke(); x.beginPath(); x.moveTo(i, h); x.lineTo(i + h, 0); x.stroke(); }
-}, 2);
-const textTex = (text, w, h, size, weight = 'bold') => canvasTex(w, h, (x) => {
-  x.clearRect(0, 0, w, h); x.fillStyle = '#4a4e55'; x.font = `${weight} ${size}px sans-serif`;
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, w / 2, h / 2);
 });
-const medallionTex = () => canvasTex(64, 64, (x) => {
-  x.clearRect(0, 0, 64, 64); x.strokeStyle = '#5b6068'; x.lineWidth = 4; x.beginPath(); x.arc(32, 32, 27, 0, 7); x.stroke();
-  x.lineWidth = 2; x.beginPath(); x.arc(32, 32, 20, 0, 7); x.stroke();
-  x.fillStyle = '#5b6068'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('S&W', 32, 33);
-});
+const textTex = (text, w, h, size, color = '#4d5158', weight = 'bold') => tex(w, h, (x) => {
+  x.clearRect(0, 0, w, h); x.fillStyle = color; x.font = `${weight} ${size}px "Arial Narrow", Arial, sans-serif`;
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, w / 2, h / 2 + 1);
+}, { repeat: false, srgb: true });
+const medallionTex = () => tex(128, 128, (x) => {
+  x.clearRect(0, 0, 128, 128); x.strokeStyle = '#5b6068'; x.fillStyle = '#5b6068';
+  x.lineWidth = 6; x.beginPath(); x.arc(64, 64, 56, 0, TAU); x.stroke();
+  x.lineWidth = 3; x.beginPath(); x.arc(64, 64, 44, 0, TAU); x.stroke();
+  x.font = 'bold 34px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('S&W', 64, 66);
+}, { repeat: false, srgb: true });
+
+// 탄(.500 S&W) — 재장전 연출·탄피 배출에 사용
+export function createCasingGeometry() {
+  const pts = [[0, 0.016], [0.0072, 0.016], [0.0072, 0.0146], [0.0062, 0.0146], [0.0062, 0.0132], [0.0068, 0.0124], [0.0069, -0.012], [0.0064, -0.0128], [0, -0.0128]]
+    .map(([r, z]) => new THREE.Vector2(r, z));
+  const g = new THREE.LatheGeometry(pts.reverse(), 24); g.rotateX(Math.PI / 2); return g;
+}
+function createBulletTip() {
+  const pts = [[0, -0.0124], [0.0064, -0.0124], [0.0064, -0.027], [0.0048, -0.0305], [0, -0.0305]].map(([r, z]) => new THREE.Vector2(r, z));
+  const g = new THREE.LatheGeometry(pts.reverse(), 24); g.rotateX(Math.PI / 2); return g;
+}
 
 export function createRevolver() {
   const root = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: 0xd2d6db, metalness: 0.85, roughness: 0.27 });
-  const steelDark = new THREE.MeshStandardMaterial({ color: 0x9a9fa6, metalness: 0.85, roughness: 0.34 });
-  const black = new THREE.MeshStandardMaterial({ color: 0x08090a, metalness: 0.3, roughness: 0.6 });
-  const rubber = new THREE.MeshStandardMaterial({ color: 0x17181a, metalness: 0, roughness: 0.92 });
-  const redFiber = new THREE.MeshBasicMaterial({ color: 0xff3a1c });
-  const brass = new THREE.MeshStandardMaterial({ color: 0xc8a040, metalness: 0.8, roughness: 0.3 });
-  const mesh = (geo, mat, x, y, z, parent = root) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
-  const box = (w, h, d, mat, x, y, z, parent = root) => mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z, parent);
-  const cyl = (r1, r2, len, seg, mat, x, y, z, parent = root) => { // z축 방향 원기둥
-    const m = mesh(new THREE.CylinderGeometry(r1, r2, len, seg), mat, x, y, z, parent); m.rotation.x = Math.PI / 2; return m;
-  };
-  const decal = (tex, w, h, x, y, z, side) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.5, metalness: 0.4, polygonOffsetFactor: -2, polygonOffset: true }));
+  const brushed = brushedTex(), stipple = stippleTex(), checker = checkerTex();
+  brushed.repeat.set(1, 1);
+  const steel = new THREE.MeshStandardMaterial({ color: 0xd9dde2, metalness: 1, roughness: 0.5, roughnessMap: brushed, bumpMap: brushed, bumpScale: 0.35, envMapIntensity: 1.25 });
+  const steelSoft = steel.clone(); steelSoft.roughness = 0.62; steelSoft.color.set(0xb9bdc3);
+  const checkerSteel = new THREE.MeshStandardMaterial({ color: 0xc4c8cd, metalness: 1, roughness: 0.55, bumpMap: checker, bumpScale: 1.3, envMapIntensity: 1.1 });
+  const blackOx = new THREE.MeshStandardMaterial({ color: 0x0b0c0e, metalness: 0.6, roughness: 0.55, envMapIntensity: 0.7 });
+  const abyss = new THREE.MeshBasicMaterial({ color: 0x020203, side: THREE.BackSide });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x08090a, metalness: 0, roughness: 0.95, bumpMap: stipple, bumpScale: 1.6, envMapIntensity: 0.25 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd3a93f, metalness: 1, roughness: 0.28, envMapIntensity: 1.3 });
+  const lead = new THREE.MeshStandardMaterial({ color: 0x8c8f94, metalness: 0.7, roughness: 0.4 });
+  const fiber = new THREE.MeshStandardMaterial({ color: 0xff3b1c, emissive: 0xff2a10, emissiveIntensity: 1.2, roughness: 0.3 });
+  const M = (geo, mat, parent = root, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
+  const decal = (map, w, h, x, y, z, side) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 0.5, metalness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
     m.position.set(x, y, z); m.rotation.y = side * Math.PI / 2; root.add(m); return m;
   };
+  const screw = (x, y, z, side, r = 0.0042, parent = root) => { // 슬롯 나사
+    const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+    const head = new THREE.CylinderGeometry(r, r * 1.05, 0.0022, 24); head.rotateZ(Math.PI / 2);
+    M(head, steelSoft, g); const slot = new THREE.BoxGeometry(0.0026, r * 1.7, 0.0008);
+    const s = M(slot, blackOx, g, side * 0.0012); s.rotation.x = rnd() * 3;
+    return g;
+  };
 
-  // ── 프레임 (뒤쪽 브리치 블록 + 상단 스트랩 + 요크) ──
-  mesh(profile([[0.012, 0.048], [0.062, 0.048], [0.072, 0.040], [0.088, 0.034], [0.090, 0.018], [0.085, -0.010], [0.076, -0.032], [0.05, -0.048], [0.012, -0.048], [-0.02, -0.044], [0.0, -0.02]], 0.056, { bevel: 0.002 }), steel, 0, 0, 0);
-  box(0.046, 0.015, 0.108, steel, 0, 0.0395, -0.043);          // 실린더 위 상단 스트랩
-  box(0.05, 0.078, 0.014, steel, 0, 0.002, -0.088);           // 요크(실린더 앞 프레임)
-  box(0.05, 0.026, 0.06, steel, 0, -0.038, -0.03);             // 프레임 하단 앞(방아쇠울 연결)
+  // ── 프레임 ──
+  const frameMat = steel;
+  M(ext(rounded([[0.012, 0.049], [0.060, 0.049], [0.071, 0.043], [0.087, 0.036], [0.093, 0.022], [0.089, -0.008], [0.080, -0.030], [0.056, -0.051], [0.014, -0.051], [0.012, -0.02]], 0.007), 0.052, { bevel: 0.0035 }), frameMat);   // 뒤쪽 브리치(리코일 실드·탱)
+  M(ext(rounded([[-0.097, 0.040], [-0.097, 0.050], [0.018, 0.050], [0.018, 0.040]], 0.0035), 0.044, { bevel: 0.003 }), frameMat);               // 실린더 위 상단 스트랩
+  M(ext(rounded([[-0.101, -0.046], [-0.101, 0.050], [-0.079, 0.050], [-0.079, -0.046]], 0.006), 0.05, { bevel: 0.003 }), frameMat);            // 요크(실린더 앞 프레임)
+  M(ext(rounded([[-0.082, -0.064], [-0.082, -0.037], [0.034, -0.037], [0.034, -0.064]], 0.007), 0.044, { bevel: 0.003 }), frameMat);          // 실린더 아래 프레임
+  // 나사 (좌·우 사이드 플레이트)
+  for (const [z, y] of [[0.026, 0.034], [0.082, 0.012], [0.052, -0.036]]) { screw(-0.0305, y, z, -1); screw(0.0305, y, z, 1); }
+  // 실린더 래치(좌측 체커 엄지 조각) — 재장전 시 앞으로 눌림
+  const latch = new THREE.Group(); latch.position.set(-0.0325, 0.014, 0.034); root.add(latch);
+  M(ext(rounded([[-0.011, -0.008], [-0.011, 0.0085], [0.011, 0.0085], [0.013, -0.008]], 0.0035), 0.0055, { bevel: 0.0015, uv: 260 }), checkerSteel, latch);
+  const latchRest = 0.034;
+  decal(medallionTex(), 0.017, 0.017, -0.0300, -0.014, 0.052, -1);
+  decal(textTex('500', 192, 80, 66), 0.034, 0.0142, 0.0300, -0.006, 0.038, 1);
+  decal(textTex('MODEL 500', 256, 40, 28, '#4d5158', 'normal'), 0.03, 0.0046, 0.0300, 0.0245, 0.04, 1);
 
-  // ── 배럴 · 풀 언더러그 · 제동구 ──
-  cyl(BARREL_R, BARREL_R, 0.225, 14, steel, 0, BORE_Y, -0.1875);
-  box(0.006, 0.0016, 0.22, steelDark, 0, BORE_Y + BARREL_R + 0.0003, -0.19);  // 얇은 리브
-  mesh(profile([[-0.075, 0.012], [-0.075, -0.027], [-0.168, -0.0225], [-0.213, 0.004], [-0.213, 0.014]], 0.028), steel, 0, 0, 0); // 언더러그 (끝이 비스듬히 끝남)
-  cyl(0.0205, 0.0205, 0.056, 14, steel, 0, BORE_Y, -0.272);   // 제동구 몸체
-  for (let i = 0; i < 3; i++) box(0.017, 0.05, 0.0078, black, 0, BORE_Y, -0.262 - i * 0.0145); // 슬롯 3개
-  cyl(0.0095, 0.0095, 0.004, 10, black, 0, BORE_Y, -0.3);     // 총구
-  box(0.007, 0.012, 0.026, black, 0, BORE_Y + 0.0205 + 0.004, -0.285); // 앞 가늠자 받침
-  box(0.0045, 0.0045, 0.012, redFiber, 0, BORE_Y + 0.0205 + 0.011, -0.289); // 붉은 파이버 포인트
-  // 각인
-  decal(textTex('SMITH & WESSON', 256, 24, 17), 0.062, 0.0058, BARREL_R + 0.0004, BORE_Y, -0.15, 1);
-  decal(textTex('.500 S&W MAGNUM', 256, 24, 17), 0.062, 0.0058, -BARREL_R - 0.0004, BORE_Y, -0.15, -1);
+  // ── 배럴 ──
+  M(cylZ(BARREL_R, -0.246, -0.075, { seg: 80, uv: [12, 6] }), steel, root, 0, BORE_Y, 0);
+  M(cylZ(BARREL_R + 0.0016, -0.116, -0.102, { seg: 80 }), steel, root, 0, BORE_Y, 0);                    // 배럴 너트 링
+  M(cylZ(0.0205, -0.0765, -0.075, { seg: 80, r1: 0.0205 }), steel, root, 0, BORE_Y, 0);
+  { // 가는 상단 리브(평면 플랫)
+    const r = new THREE.BoxGeometry(0.0065, 0.0014, 0.2); uvScale(r, 6, 6); M(r, steelSoft, root, 0, BORE_Y + BARREL_R - 0.0003, -0.17);
+  }
+  // 풀 언더러그 (끝이 비스듬히 마무리)
+  M(ext(rounded([[-0.078, 0.010], [-0.078, -0.029], [-0.168, -0.0245], [-0.215, 0.001], [-0.215, 0.016], [-0.078, 0.016]], [0.004, 0.007, 0.01, 0.009, 0.003, 0.003]), 0.03, { bevel: 0.0035, seg: 4 }), steel);
+  // 제동구: 앞뒤 솔리드 링 + 사이 3개 측면 포트(위·아래 아치만 남김)
+  const brakeZ = [-0.2985, -0.246], portC = [-0.2625, -0.2765, -0.2905], pw = 0.0078;
+  const bz = brakeZ[1];
+  M(cylZ(0.0178, brakeZ[0], brakeZ[1], { seg: 40 }), abyss, root, 0, BORE_Y, 0);                       // 포트 안쪽 어둠
+  M(cylZ(0.0178, brakeZ[0], brakeZ[1], { seg: 40 }), blackOx, root, 0, BORE_Y, 0);
+  const edges = [brakeZ[1], ...portC.flatMap((c) => [c + pw / 2, c - pw / 2]), brakeZ[0]]; // 뒤→앞
+  for (let i = 0; i < edges.length - 1; i += 2) { // 솔리드 구간(i: 닫힘)
+    M(cylZ(0.0205, edges[i + 1], edges[i], { seg: 64 }), steel, root, 0, BORE_Y, 0);
+  }
+  for (const c of portC) for (const st of [Math.PI - 1.05, -1.05]) { // 포트 구간: 위/아래 아치
+    const g = cylZ(0.0205, c - pw / 2, c + pw / 2, { seg: 20, open: true, start: st, len: 2.1 });
+    M(g, new THREE.MeshStandardMaterial({ color: 0xd9dde2, metalness: 1, roughness: 0.5, side: THREE.DoubleSide, roughnessMap: brushed, envMapIntensity: 1.2 }), root, 0, BORE_Y, 0);
+  }
+  { // 총구 크라운
+    const pts = [[0.0095, -0.3], [0.0165, -0.3], [0.0195, -0.2992], [0.0205, -0.2975]].map(([r, z]) => new THREE.Vector2(r, z));
+    const g = new THREE.LatheGeometry(pts.reverse(), 64); g.rotateX(Math.PI / 2); M(g, steel, root, 0, BORE_Y, 0);
+    const bore = new THREE.CylinderGeometry(0.0095, 0.0095, 0.012, 32, 1, true); bore.rotateX(Math.PI / 2); M(bore, abyss, root, 0, BORE_Y, -0.294);
+  }
+  // 앞 가늠자(램프 + 붉은 파이버)
+  M(ext(rounded([[-0.298, 0.0], [-0.298, 0.0075], [-0.292, 0.0105], [-0.272, 0.0], ], 0.002), 0.008, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, BORE_Y + 0.0192, 0);
+  { const f = cylZ(0.0024, -0.2985, -0.2895, { seg: 16 }); M(f, fiber, root, 0, BORE_Y + 0.0195 + 0.0105, 0.0); }
+  // 배럴 각인
+  decal(textTex('SMITH & WESSON', 512, 40, 30), 0.064, 0.005, BARREL_R + 0.0004, BORE_Y, -0.158, 1);
+  decal(textTex('.500 S&W MAGNUM', 512, 40, 30), 0.064, 0.005, -BARREL_R - 0.0004, BORE_Y, -0.158, -1);
 
   // ── 뒤 가늠자 (검정 조절식) ──
-  box(0.02, 0.008, 0.026, black, 0, 0.0515, 0.046);
-  box(0.0075, 0.014, 0.008, black, -0.0072, 0.0625, 0.054);
-  box(0.0075, 0.014, 0.008, black, 0.0072, 0.0625, 0.054);
+  { const s = new THREE.Shape(); // x-y 윤곽 (노치 포함)
+    s.moveTo(-0.0115, 0); s.lineTo(0.0115, 0); s.lineTo(0.0115, 0.0135); s.lineTo(0.0042, 0.0135); s.lineTo(0.0, 0.0075); s.lineTo(-0.0042, 0.0135); s.lineTo(-0.0115, 0.0135); s.closePath();
+    const g = new THREE.ExtrudeGeometry(s, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0008, bevelSegments: 2 });
+    M(toCreasedNormals(g, 0.8), blackOx, root, 0, 0.0505, 0.052);
+    M(ext(rounded([[0.0, 0.0], [0.0, 0.0065], [0.03, 0.0065], [0.034, 0.0], ], 0.002), 0.024, { bevel: 0.0012, seg: 2 }), blackOx, root, 0, 0.0475, 0.032);
+    const sc = new THREE.CylinderGeometry(0.0034, 0.0034, 0.0035, 20); sc.rotateZ(Math.PI / 2); M(sc, steelSoft, root, 0.0125, 0.0555, 0.055);
+  }
 
-  // ── 스윙아웃 실린더 (크레인 축 기준) ──
-  const swing = new THREE.Group(); swing.position.set(-0.03, -0.03, -0.0375); root.add(swing);
-  cyl(0.005, 0.005, 0.1, 8, steelDark, 0, 0, -0.005, swing);  // 크레인 로드
-  const cylPivot = new THREE.Group(); cylPivot.position.set(0.03, 0.03, 0); swing.add(cylPivot);
-  const half = CYL_LEN / 2, band = 0.012, midLen = CYL_LEN - band * 2;
-  cyl(R_CYL, R_CYL, band, 16, steel, 0, 0, half - band / 2, cylPivot);   // 뒤 밴드
-  cyl(R_CYL, R_CYL, band, 16, steel, 0, 0, -half + band / 2, cylPivot);  // 앞 밴드
-  { // 플루트가 파인 중간부 (챔버 사이 5개)
-    const pts = [], N = 120, depth = 0.0042, wid = 15 * Math.PI / 180;
+  // ── 스윙아웃 실린더 ──
+  const swing = new THREE.Group(); swing.position.set(-0.034, -0.034, -0.0375); root.add(swing);
+  M(cylZ(0.0042, -0.05, 0.0, { seg: 20 }), steel, swing);                                              // 크레인 로드
+  M(cylZ(0.0075, -0.058, -0.044, { seg: 20 }), steel, swing);                                               // 크레인 요크 부시
+  const cylPivot = new THREE.Group(); cylPivot.position.set(0.034, 0.034, 0); swing.add(cylPivot);
+  const half = CYL_LEN / 2, band = 0.0125, midLen = CYL_LEN - band * 2, HR = 0.0085;
+  const chamberPos = Array.from({ length: 5 }, (_, i) => { const a = Math.PI / 2 + i * TAU / 5; return [Math.cos(a) * CHAMBER_R, Math.sin(a) * CHAMBER_R]; });
+  const withHoles = (sh, r = HR, center = 0.0056) => {
+    for (const [x, y] of chamberPos) { const p = new THREE.Path(); p.absarc(x, y, r, 0, TAU, true); sh.holes.push(p); }
+    const c = new THREE.Path(); c.absarc(0, 0, center, 0, TAU, true); sh.holes.push(c); return sh;
+  };
+  for (const zc of [half - band / 2, -half + band / 2]) { // 앞·뒤 밴드(구멍 뚫림, 베벨)
+    const sh = new THREE.Shape(); sh.absarc(0, 0, R_CYL - 0.0012, 0, TAU, false);
+    let g = new THREE.ExtrudeGeometry(withHoles(sh), { depth: band - 0.0024, bevelEnabled: true, bevelThickness: 0.0012, bevelSize: 0.0012, bevelSegments: 3, curveSegments: 64 });
+    g.translate(0, 0, zc - (band - 0.0024) / 2); uvScale(g, 40, 40); M(toCreasedNormals(g, 0.8), steel, cylPivot);
+  }
+  { // 플루트(홈)가 파인 중간부
+    const pts = [], N = 360, depth = 0.0045, wid = 15 * Math.PI / 180;
     for (let i = 0; i < N; i++) {
-      const a = i / N * Math.PI * 2; let r = R_CYL, dmin = 9;
-      for (let k = 0; k < 5; k++) { const c = Math.PI / 2 + Math.PI / 5 + k * Math.PI * 2 / 5; dmin = Math.min(dmin, Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)))); }
+      const a = i / N * TAU; let r = R_CYL, dmin = 9;
+      for (let k = 0; k < 5; k++) { const c = Math.PI / 2 + Math.PI / 5 + k * TAU / 5; dmin = Math.min(dmin, Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)))); }
       if (dmin < wid) r -= depth * (0.5 + 0.5 * Math.cos(Math.PI * dmin / wid));
       pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
     }
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: midLen, bevelEnabled: false }); g.translate(0, 0, -midLen / 2);
-    cylPivot.add(new THREE.Mesh(g, steel));
+    let g = new THREE.ExtrudeGeometry(withHoles(new THREE.Shape(pts)), { depth: midLen, bevelEnabled: false, curveSegments: 48 });
+    g.translate(0, 0, -midLen / 2); uvScale(g, 45, 45); M(toCreasedNormals(g, 0.7), steel, cylPivot);
   }
-  for (let i = 0; i < 5; i++) { // 챔버 구멍 5개 (앞·뒤)
-    const a = Math.PI / 2 + i * Math.PI * 2 / 5;
-    for (const z of [half + 0.0004, -half - 0.0004]) cyl(0.0078, 0.0078, 0.002, 12, black, Math.cos(a) * CHAMBER_R, Math.sin(a) * CHAMBER_R, z, cylPivot);
+  for (const [x, y] of chamberPos) { // 챔버 내부 어둠
+    const t = new THREE.CylinderGeometry(HR - 0.0002, HR - 0.0002, CYL_LEN - 0.001, 24, 1, true); t.rotateX(Math.PI / 2); M(t, abyss, cylPivot, x, y, 0);
   }
-  { // 이젝터 스타(별) + 가운데 핀
-    const s = [], n = 10; for (let i = 0; i < n; i++) { const r = i % 2 ? 0.0075 : 0.0135, a = i / n * Math.PI * 2; s.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r)); }
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(s), { depth: 0.003, bevelEnabled: false });
-    const star = new THREE.Mesh(g, steelDark); star.position.z = half; cylPivot.add(star);
-    cyl(0.0045, 0.0045, 0.012, 8, steelDark, 0, 0, half + 0.004, cylPivot);
-    cyl(0.005, 0.005, 0.005, 8, steelDark, 0, 0, -half - 0.002, cylPivot);
+  { // 이젝터 스타 + 센터 핀
+    const s = []; const n = 20; for (let i = 0; i < n; i++) { const r = i % 2 ? 0.0078 : 0.0138, a = i / n * TAU + Math.PI / 2; s.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r)); }
+    let g = new THREE.ExtrudeGeometry(polyShape(s), { depth: 0.0022, bevelEnabled: true, bevelThickness: 0.0006, bevelSize: 0.0006, bevelSegments: 1 });
+    g.translate(0, 0, half + 0.0004); M(toCreasedNormals(g, 0.6), steelSoft, cylPivot);
+    M(cylZ(0.0045, -half - 0.003, half + 0.008, { seg: 20 }), steelSoft, cylPivot);
+    M(cylZ(0.0058, -half - 0.003, -half - 0.0005, { seg: 20 }), steelSoft, cylPivot);
   }
   // 재장전용 탄
-  const bullet = new THREE.Group();
-  const bc = new THREE.Mesh(new THREE.CylinderGeometry(0.0068, 0.0068, 0.032, 10), brass); bc.rotation.x = Math.PI / 2;
-  const bt = new THREE.Mesh(new THREE.CylinderGeometry(0.0038, 0.0066, 0.018, 10), steelDark); bt.rotation.x = Math.PI / 2; bt.position.z = -0.025;
-  bullet.add(bc, bt); bullet.visible = false; swing.add(bullet);
-  const loadPoint = new THREE.Vector3(0.03, 0.03 + CHAMBER_R, half); // swing 좌표: 맨 위 챔버 입구(뒷면)
+  const bullet = new THREE.Group(); M(createCasingGeometry(), brass, bullet); M(createBulletTip(), lead, bullet);
+  bullet.visible = false; swing.add(bullet);
+  const loadPoint = new THREE.Vector3(0.034, 0.034 + CHAMBER_R, half);
 
   // ── 해머 (스테인리스 + 체커링 스퍼) ──
   const hammer = new THREE.Group(); hammer.position.set(0, 0.03, 0.062); root.add(hammer);
-  const arm = box(0.014, 0.04, 0.014, steel, 0, 0.022, 0.008, hammer); arm.rotation.x = 0.35;
-  const spur = box(0.015, 0.008, 0.028, [steel, steel, new THREE.MeshStandardMaterial({ map: checkerTex(), metalness: 0.7, roughness: 0.4 }), steel, steel, steel], 0, 0.042, 0.022, hammer);
-  spur.rotation.x = 0.35;
+  M(ext(polyShape(spline([[-0.007, -0.006], [0.008, -0.006], [0.013, 0.014], [0.024, 0.034], [0.036, 0.045], [0.0415, 0.0505], [0.031, 0.0545], [0.013, 0.048], [-0.003, 0.031], [-0.01, 0.009], [-0.007, -0.006]], 90)), 0.0155, { bevel: 0.002, seg: 3, curve: 40 }), steel, hammer);
+  { const chk = new THREE.Mesh(new THREE.PlaneGeometry(0.011, 0.016), new THREE.MeshStandardMaterial({ color: 0xaaaeb4, metalness: 1, roughness: 0.55, bumpMap: checker, bumpScale: 2 }));
+    chk.material.bumpMap.repeat.set(2, 3); chk.position.set(0, 0.0522, 0.0345); chk.rotation.set(-Math.PI / 2 + 0.38, 0, 0); hammer.add(chk); }
+  M(cylZ(0.0035, -0.004, 0.004, { seg: 16 }), steelSoft, hammer, 0.0068, 0, 0).rotation.y = Math.PI / 2;
+
   // ── 방아쇠 (매끈한 곡선형) + 대형 방아쇠울 ──
   const trigger = new THREE.Group(); trigger.position.set(0, -0.042, 0.024); root.add(trigger);
-  mesh(profile([[0.004, 0], [0.012, 0], [0.012, -0.012], [0.006, -0.026], [-0.006, -0.033], [-0.018, -0.032], [-0.016, -0.027], [-0.007, -0.022], [-0.003, -0.012]], 0.011), steel, 0, 0, 0, trigger);
-  mesh(profile(ellipse(0.0, -0.066, 0.044, 0.025), 0.012, { holes: [ellipse(0.0, -0.066, 0.0335, 0.0155)] }), steel, 0, 0, 0.0);
+  M(ext(polyShape(spline([[0.005, 0], [0.013, -0.002], [0.0145, -0.014], [0.009, -0.027], [-0.004, -0.036], [-0.019, -0.0385], [-0.0225, -0.033], [-0.0125, -0.0295], [-0.003, -0.021], [-0.0015, -0.008], [0.005, 0]], 80)), 0.0115, { bevel: 0.0016, seg: 3, curve: 40 }), steel, trigger);
+  { const outer = polyShape(ellipsePts(0.0, -0.066, 0.045, 0.0275, 96)); outer.holes.push(new THREE.Path(ellipsePts(0.0, -0.066, 0.0315, 0.0143, 96).map(([x, y]) => new THREE.Vector2(x, y))));
+    M(ext(outer, 0.014, { bevel: 0.0022, seg: 3, curve: 96 }), steel); }
 
-  // ── 호그 고무 그립 (핑거 홈 4개) ──
-  const gp = [[0.088, -0.02], [0.104, -0.06], [0.118, -0.11], [0.128, -0.15], [0.124, -0.176], [0.1, -0.186], [0.068, -0.18]];
-  for (let i = 0; i <= 24; i++) { // 앞면 핑거 홈
-    const t = 1 - i / 24, y = -0.045 - 0.13 * t, z = 0.03 + 0.036 * t - 0.0042 * (0.5 - 0.5 * Math.cos(2 * Math.PI * 4 * t));
-    gp.push([z, y]);
-  }
-  mesh(profile(gp, 0.042, { bevel: 0.004 }), rubber, 0, 0, 0);
+  // ── 호그 고무 그립 ──
+  { const back = spline([[0.09, -0.018], [0.108, -0.058], [0.126, -0.108], [0.1365, -0.15], [0.133, -0.178], [0.113, -0.193]], 40);
+    const bottom = spline([[0.113, -0.193], [0.09, -0.192], [0.064, -0.183]], 14);
+    const front = []; for (let i = 0; i <= 80; i++) { const t = 1 - i / 80; front.push(new THREE.Vector2(0.026 + 0.038 * t - 0.0045 * (0.5 - 0.5 * Math.cos(TAU * 4 * t)), -0.045 - 0.135 * t)); }
+    const top = [new THREE.Vector2(0.03, -0.045), new THREE.Vector2(0.034, -0.03), new THREE.Vector2(0.05, -0.022), new THREE.Vector2(0.074, -0.018)];
+    const outline = [...back, ...bottom.slice(1), ...front, ...top];
+    M(ext(polyShape(outline), 0.046, { bevel: 0.0055, seg: 5, curve: 8, crease: 0.9, uv: 130 }), rubber);
+    decal(medallionTex(), 0.014, 0.014, -0.0292, -0.046, 0.062, -1); decal(medallionTex(), 0.014, 0.014, 0.0292, -0.046, 0.062, 1); }
 
-  // ── 실린더 래치(좌측 체커 엄지 조각) + 나사 + 메달리온 + 500 로고 ──
-  const latch = box(0.006, 0.014, 0.02, [steel, new THREE.MeshStandardMaterial({ map: checkerTex(), metalness: 0.7, roughness: 0.4 }), steel, steel, steel, steel], -0.0307, 0.013, 0.032);
-  const latchRest = 0.032;
-  const pin = cyl(0.0038, 0.0038, 0.004, 8, steelDark, -0.0285, 0.032, 0.036); pin.rotation.set(0, 0, Math.PI / 2);
-  decal(medallionTex(), 0.017, 0.017, -0.0283, -0.014, 0.048, -1);
-  decal(textTex('500', 96, 40, 34), 0.034, 0.0142, 0.0283, -0.004, 0.036, 1);
-
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, BORE_Y, -0.306); root.add(muzzle);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, BORE_Y, -0.308); root.add(muzzle);
   return { root, swing, cylPivot, hammer, trigger, latch, latchRest, bullet, loadPoint, muzzle };
 }

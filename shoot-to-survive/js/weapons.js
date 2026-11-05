@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createRevolver } from './revolver.js';
+import { createRevolver, createCasingGeometry } from './revolver.js';
 import { createFlashlight } from './flashlight.js';
 
 const SWITCH_T = 0.7, FIRE_T = 0.6, FIRE_SHOT_AT = 0.2;
@@ -35,8 +35,8 @@ export class Weapons {
     this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.sprite.scale.set(0.2, 0.2, 1); this.sprite.visible = false;
     this.rev.muzzle.add(this.sprite);
-    this.casingGeo = new THREE.CylinderGeometry(0.0075, 0.0075, 0.03, 6);
-    this.casingMat = new THREE.MeshStandardMaterial({ color: 0xc8a040, metalness: 0.8, roughness: 0.3 });
+    this.casingGeo = createCasingGeometry();
+    this.casingMat = new THREE.MeshStandardMaterial({ color: 0xd3a93f, metalness: 1, roughness: 0.28 });
     this.casings = [];
     this.time = 0;
     this.reset();
