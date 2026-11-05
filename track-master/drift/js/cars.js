@@ -15,7 +15,7 @@
     list: [
       {
         id: 'ae86', name: 'AE86 트레노', full: 'Toyota Sprinter Trueno GT-APEX (AE86)',
-        tagline: '가볍고 균형 잡힌 FR — 드리프트가 가장 쉬워요',
+        tagline: '가벼운 클래식 FR 쿠페 — 팝업 헤드라이트와 4A-GE의 날카로운 소리',
         engine: '1.6L 직렬 4기통 4A-GE · 130마력', weight: '940kg',
         len: 4.205, wid: 1.625, hgt: 1.335, wb: 2.4, tyre: 0.29,
         color: 0xf4f4f0, eye: { fwd: 1.0, up: 1.08 },
@@ -31,7 +31,7 @@
       },
       {
         id: 'rx7', name: 'RX-7 (FD3S)', full: 'Mazda RX-7 Type R (FD3S)',
-        tagline: '트윈터보 로터리 — 가장 빠르지만 미끄러지면 잡기 어려워요',
+        tagline: '낮고 날렵한 로터리 쿠페 — 터보 휘파람과 플러터 소리',
         engine: '1.3L 트윈터보 로터리 13B-REW · 280마력', weight: '1260kg',
         len: 4.285, wid: 1.76, hgt: 1.23, wb: 2.425, tyre: 0.31,
         color: 0xb3121c, eye: { fwd: 0.95, up: 1.1 },
@@ -47,7 +47,7 @@
       },
       {
         id: 'miata', name: '미아타 (NA)', full: 'Mazda MX-5 Miata (NA)',
-        tagline: '작고 날카로운 로드스터 — 코너 그립이 가장 좋아요',
+        tagline: '작고 귀여운 오픈 로드스터 — 부드러운 소리와 블로오프 "쉬익"',
         engine: '1.6L 직렬 4기통 B6-ZE · 115마력', weight: '940kg',
         len: 3.97, wid: 1.675, hgt: 1.235, wb: 2.265, tyre: 0.285,
         color: 0x18a39d, eye: { fwd: 0.8, up: 1.1 },
@@ -62,6 +62,22 @@
       },
     ],
   };
+  // The three cars drive identically; only the body and the sound differ.
+  // Everything follows the RX-7, except the drift grip (DRIFT_TURN_ACCEL x
+  // tyre grip, and the speed lost while sliding), which is the AE86's.
+  // Body size (collision box) stays per car.
+  var PERF = {
+    FINAL_DRIVE: 4.1, TORQUE_SCALE: 1.32, CAR_MASS: 960, DRAG_COEF: 0.31, TIRE_GRIP_TARMAC: 1.15,
+    MAX_STEER_ANGLE: 0.5, STEER_RESPONSE_RATE: 5.0, REDLINE_RPM: 8000,
+    DRIFT_TURN_ACCEL: (2.5 * 1.08) / 1.15, DRIFT_SPEED_COST: 0.32,
+  };
+  Cars.list.forEach(function (c) {
+    var body = { CAR_HALF_WIDTH: c.physics.CAR_HALF_WIDTH, CAR_HALF_LENGTH: c.physics.CAR_HALF_LENGTH };
+    c.physics = {};
+    for (var k in PERF) c.physics[k] = PERF[k];
+    for (var b in body) c.physics[b] = body[b];
+    c.stats = { power: 1.0, grip: 0.8, drift: 1.0 };
+  });
   Cars.byId = {};
   Cars.list.forEach(function (c) { Cars.byId[c.id] = c; });
 
