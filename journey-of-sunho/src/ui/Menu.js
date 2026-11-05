@@ -116,7 +116,7 @@ export class Menu {
         <div class="keys">
           <div><kbd>↑</kbd> 페달 밟기 (가속)</div><div><kbd>↓</kbd> 감속</div>
           <div><kbd>←</kbd><kbd>→</kbd> 조향</div><div><kbd>Space</kbd> 브레이크</div>
-          <div><kbd>Esc</kbd> 일시정지</div><div><kbd>Enter</kbd> 연출 건너뛰기</div>
+          <div><kbd>Esc</kbd> 일시정지</div><div class="muted" style="grid-column:1/3">모바일: 화면 아래 ◀ ▶ 조향, 오른쪽 페달·브레이크 버튼, 위쪽 Ⅱ 일시정지</div><div><kbd>Enter</kbd> 연출 건너뛰기</div>
         </div>
         <ul>
           <li><b>체온</b> — 비·눈·바람·젖은 옷에 떨어지고, 페달을 밟으면 올라가요. 너무 낮으면 힘이 빠지고 <b>감기</b>에 걸려요.</li>

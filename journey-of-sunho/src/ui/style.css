@@ -172,3 +172,28 @@ table.rank tr.me td { color: #ffd43b; font-weight: 800; }
 .r-parts b { color: #8ce99a; } .r-parts b.neg { color: #ffa8a8; }
 .r-comments { background: rgba(255,212,59,0.08); border-left: 3px solid #ffd43b; padding: 8px 14px; border-radius: 6px; }
 .r-comments p { margin: 4px 0; font-size: 15px; }
+
+/* ---------- 모바일 터치 조작 ---------- */
+html, body, #app { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.screen, .result, .r-card { touch-action: pan-y; }
+.touch { position: absolute; inset: 0; pointer-events: none; }
+.touch button { pointer-events: auto; touch-action: none; font: inherit; color: #fff; border: 2px solid rgba(255,255,255,0.45); background: rgba(10,14,20,0.5); backdrop-filter: blur(3px); -webkit-tap-highlight-color: transparent; }
+.touch button.on { background: rgba(245,159,0,0.8); border-color: #ffd43b; transform: scale(0.96); }
+.t-left { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: max(18px, env(safe-area-inset-bottom)); display: flex; gap: 14px; }
+.t-left button { width: 88px; height: 88px; border-radius: 22px; font-size: 34px; }
+.t-right { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.t-gas { width: 132px; height: 108px; border-radius: 26px; font-size: 22px; font-weight: 800; }
+.t-gas small { display: block; font-size: 12px; font-weight: 600; opacity: 0.8; }
+.t-brake { width: 132px; height: 56px; border-radius: 16px; font-size: 16px; font-weight: 700; }
+.t-pause { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); width: 46px; height: 38px; border-radius: 10px; font-size: 18px; font-weight: 800; }
+/* 터치 기기에선 키보드 안내를 숨기고 속도계·미니맵을 버튼과 겹치지 않게 */
+.is-touch .hud-keys { display: none; }
+.is-touch .hud-speed { right: auto; left: 50%; margin-left: -75px; bottom: 10px; }
+.is-touch .minimap { width: 150px !important; height: 150px !important; }
+@media (max-height: 520px) {
+  .t-left button { width: 70px; height: 70px; font-size: 28px; }
+  .t-gas { width: 110px; height: 84px; } .t-brake { width: 110px; height: 44px; }
+  .is-touch .hud-speed { bottom: 4px; transform: scale(0.8); transform-origin: center bottom; }
+  .hud-stats { width: 200px; transform: scale(0.85); transform-origin: left top; }
+  .is-touch .hud-weather { display: none; }
+}

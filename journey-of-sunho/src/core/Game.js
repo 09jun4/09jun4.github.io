@@ -23,6 +23,7 @@ import { ResultScreen } from '../ui/ResultScreen.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { Cloud } from '../systems/Cloud.js';
+import { TouchControls } from '../ui/TouchControls.js';
 import { Autopilot } from '../systems/DebugTools.js';
 
 const params = new URLSearchParams(location.search);
@@ -56,6 +57,7 @@ export class Game {
     this.minimap = new Minimap(this.hud.mapSlot());
     this.story = new StoryManager(this, this.ui);
     this.result = new ResultScreen(this.ui, this);
+    this.touchUI = new TouchControls(this.ui, this);
     this.menu = new Menu(this.ui, this);
     this.score = new ScoreSystem(balance.score, balance.comments);
     this.save = new SaveSystem();
@@ -268,6 +270,7 @@ export class Game {
     this.player.character.setCleanliness(st.cleanliness);
     this.player.bike.setCleanliness(st.cleanliness);
 
+    this.touchUI.setVisible(s === 'playing' || s === 'paused');
     if (s === 'title' || s === 'briefing') this._titleCamera(dt);
     else this.cam.update(s === 'paused' ? 0 : dt, this.player);
     const P = this.player.physics;
