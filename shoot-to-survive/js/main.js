@@ -34,6 +34,8 @@ const key = new THREE.DirectionalLight(0xfff0dd, 3.2); key.position.set(0.5, 1, 
   const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 128);
   g.addColorStop(0, '#d8dde6'); g.addColorStop(0.5, '#555a63'); g.addColorStop(1, '#15171a');
   x.fillStyle = g; x.fillRect(0, 0, 256, 128);
+  x.fillStyle = 'rgba(255,255,255,0.9)'; for (const [px, w] of [[20, 26], [90, 14], [160, 30], [220, 12]]) x.fillRect(px, 14, w, 34);
+  x.fillStyle = 'rgba(0,0,0,0.55)'; for (const px of [60, 130, 195]) x.fillRect(px, 40, 18, 50);
   const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
   const pm = new THREE.PMREMGenerator(renderer);
   viewScene.environment = pm.fromEquirectangular(t).texture;

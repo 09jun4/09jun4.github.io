@@ -10,7 +10,7 @@ const SWING_OPEN = 1.2;
 const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 
 const BASE = {
-  pistol: { p: [0.11, -0.115, -0.3], r: [0.02, 0.05, 0] },
+  pistol: { p: [0.085, -0.1, -0.36], r: [0.04, 0.16, 0] },
   flash: { p: [0.15, -0.12, -0.32], r: [0.04, 0.1, 0] },
 };
 
@@ -69,7 +69,7 @@ export class Weapons {
 
   cancelReload() {
     this.reload = null; this.displayAmmo = this.ammo; // 탄약은 재장전 전 상태 유지
-    this.rev.bullet.visible = false; this.rev.latch.position.z = -0.012; this.cylExtra = 0; this.swingGoal = 0; // 실린더는 닫힌 상태로 복귀
+    this.rev.bullet.visible = false; this.rev.latch.position.z = this.rev.latchRest; this.cylExtra = 0; this.swingGoal = 0; // 실린더는 닫힌 상태로 복귀
   }
 
   tryFire() {
@@ -137,7 +137,7 @@ export class Weapons {
     const r = this.reload; r.t += dt; const t = r.t, rv = this.rev;
     const insertStart = RELOAD.eject, insertEnd = RELOAD.eject + RELOAD.insert * RELOAD.count;
     this.swingGoal = t < insertEnd ? 1 : 0;
-    rv.latch.position.z = -0.012 - 0.01 * Math.min(1, this.swingVis / SWING_OPEN);
+    rv.latch.position.z = rv.latchRest - 0.01 * Math.min(1, this.swingVis / SWING_OPEN);
     if (t >= 0.3 && !r.ejected) { // 탄피 5개 한 번에 배출
       r.ejected = true; this.displayAmmo = 0; this.spawnCasings();
     }
@@ -147,14 +147,14 @@ export class Weapons {
       if (k > r.lastK) { this.cylBase += STEP; r.lastK = k; }
       const b = rv.bullet; b.visible = true;
       const p = smooth(lt / 0.3);
-      b.position.set(-0.02 + 0.05 * p, -0.03 + 0.09 * p, 0.17 - 0.14 * p);
+      const L = rv.loadPoint; b.position.set(L.x - 0.03 * (1 - p), L.y - 0.07 * (1 - p), L.z + 0.012 + 0.12 * (1 - p) - 0.03 * p);
       if (lt >= 0.3 && r.inserted === k) { r.inserted++; this.displayAmmo = r.inserted; }
       this.cylExtra = lt >= 0.3 ? STEP * smooth((lt - 0.3) / 0.1) : 0;
     } else if (t >= insertEnd) {
       if (!r.finalRot) { r.finalRot = true; this.cylBase += STEP; this.cylExtra = 0; rv.bullet.visible = false; }
     }
     if (t >= insertEnd + RELOAD.close) {
-      this.ammo = 5; this.displayAmmo = 5; this.reload = null; rv.latch.position.z = -0.012;
+      this.ammo = 5; this.displayAmmo = 5; this.reload = null; rv.latch.position.z = rv.latchRest;
     }
   }
 
