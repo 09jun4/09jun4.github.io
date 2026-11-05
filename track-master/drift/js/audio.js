@@ -31,38 +31,64 @@
   function filt(type, f, q) { var b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q != null) b.Q.value = q; return b; }
   function gain(v) { var g = ac.createGain(); g.gain.value = v; return g; }
 
-  // Tyre squeal built from four noise layers (no pure tone, so it never
-  // sounds like a voice): a low rubber scrub, a gritty chatter, a mid
-  // squeal band and a thin high hiss. Each layer's loudness and pitch follow
-  // the slide amount and each has its own irregular stick-slip wobble.
+  // Tyre squeal. Real squeal is stick-slip: the tread grips and slips again
+  // hundreds of times a second, which makes a bright, rasping, saw-like tone
+  // (about 1-2 kHz with strong harmonics up to 8 kHz) wandering in pitch,
+  // on top of broadband rubber hiss. So: (1) two saw-like stick-slip voices
+  // with random pitch wander, high-passed so the harmonics dominate and it
+  // never sounds like a pure whistle or a scream, (2) noise bands from
+  // mid to very high, (3) a little low/mid noise for body.
+  var sawWave = null;
+  function getSaw() {
+    if (sawWave) return sawWave;
+    var n = 48, re = new Float32Array(n + 1), im = new Float32Array(n + 1);
+    for (var k = 1; k <= n; k++) im[k] = Math.pow(1 / k, 0.8) * (1 + 0.25 * Math.sin(k * 1.7)); // saw-ish, slightly uneven harmonics
+    sawWave = ac.createPeriodicWave(re, im);
+    return sawWave;
+  }
   function makeSqueal() {
-    var layers = [
-      // freq: [at slide 0, at slide 1], q, base level, how late it fades in, wobble Hz / depth
-      { f: [190, 260], q: 1.0, lvl: 0.1, curve: 1.2, wf: 6.5, wd: 0.25, type: 'bandpass' },   // low body
-      { f: [480, 620], q: 2.4, lvl: 0.15, curve: 1.0, wf: 9.3, wd: 0.45, type: 'bandpass' },    // lower-mid grit
-      { f: [1000, 1350], q: 2.2, lvl: 0.35, curve: 0.9, wf: 14.1, wd: 0.4, type: 'bandpass' }, // mid squeal
-      { f: [2000, 2700], q: 2.0, lvl: 1.4, curve: 0.8, wf: 18, wd: 0.4, type: 'bandpass' },   // main screech
-      { f: [3600, 4800], q: 1.2, lvl: 1.0, curve: 1.0, wf: 23, wd: 0.5, type: 'bandpass' },   // high hiss
-      { f: [3000, 4200], q: 3.6, lvl: 1.7, curve: 0.9, wf: 11.5, wd: 0.5, type: 'bandpass' },  // "kiiik" high squeal
-      { f: [5200, 6800], q: 2.6, lvl: 1.0, curve: 1.1, wf: 17, wd: 0.45, type: 'bandpass' },   // very high edge
-    ];
-    var out = gain(1);
+    var out = gain(1), bands = [], voices = [];
     out.connect(master);
-    layers.forEach(function (L) {
-      var src = noiseSrc(), bp = filt(L.type, L.f[0], L.q), wob = gain(1), lg = gain(0), lfo = ac.createOscillator(), ld = gain(L.wd), lfo2 = ac.createOscillator(), ld2 = gain(L.wd * 0.6);
+    // noise bands: f [slide 0, slide 1], q, level, fade-in curve, wobble Hz / depth
+    var specs = [
+      { f: [200, 280], q: 1.0, lvl: 0.1, curve: 1.2, wf: 6.5, wd: 0.25 },
+      { f: [520, 680], q: 2.2, lvl: 0.12, curve: 1.0, wf: 9.3, wd: 0.45 },
+      { f: [1100, 1500], q: 2.0, lvl: 0.35, curve: 0.9, wf: 14.1, wd: 0.4 },
+      { f: [2200, 3000], q: 1.8, lvl: 1.1, curve: 0.8, wf: 18, wd: 0.4 },
+      { f: [3800, 5200], q: 1.4, lvl: 1.0, curve: 0.9, wf: 23, wd: 0.5 },
+      { f: [6000, 8000], q: 1.2, lvl: 0.7, curve: 1.0, wf: 29, wd: 0.5 },
+    ];
+    specs.forEach(function (L) {
+      var src = noiseSrc(), bp = filt('bandpass', L.f[0], L.q), wob = gain(1), lg = gain(0), lfo = ac.createOscillator(), ld = gain(L.wd), lfo2 = ac.createOscillator(), ld2 = gain(L.wd * 0.6);
       lfo.frequency.value = L.wf; lfo2.frequency.value = L.wf * 0.37 + Math.random();
       lfo.connect(ld); ld.connect(wob.gain); lfo2.connect(ld2); ld2.connect(wob.gain);
       lfo.start(); lfo2.start();
       src.connect(bp); bp.connect(wob); wob.connect(lg); lg.connect(out);
-      L.bp = bp; L.g = lg;
+      L.bp = bp; L.g = lg; bands.push(L);
     });
-    return { out: out, layers: layers };
+    // stick-slip voices: saw -> high-pass (harmonics only) -> peak -> chop -> out
+    [{ f: [1250, 1900], hp: 2300, lvl: 1.0, chop: 37, ratio: 1 }, { f: [1250, 1900], hp: 3200, lvl: 0.7, chop: 53, ratio: 1.47 }].forEach(function (V) {
+      var o = ac.createOscillator(); o.setPeriodicWave(getSaw()); o.frequency.value = V.f[0] * V.ratio;
+      // random pitch wander: noise -> low-pass -> depth in Hz
+      var wn = noiseSrc(), wl = filt('lowpass', 22), wd = gain(V.f[0] * V.ratio * 0.9); // lowpassed noise is tiny, so the gain is large
+      wn.connect(wl); wl.connect(wd); wd.connect(o.frequency);
+      var hp = filt('highpass', V.hp, 0.7), pk = filt('peaking', 3500, 0.8), chop = gain(1), cl = ac.createOscillator(), cd = gain(0.45), vg = gain(0);
+      pk.gain.value = 6; cl.frequency.value = V.chop; cl.connect(cd); cd.connect(chop.gain); cl.start();
+      o.connect(hp); hp.connect(pk); pk.connect(chop); chop.connect(vg); vg.connect(out); o.start();
+      voices.push({ o: o, g: vg, f: V.f, ratio: V.ratio, lvl: V.lvl });
+    });
+    return { out: out, layers: bands, voices: voices };
   }
   function setSqueal(s, slide, speed, t) {
     s.layers.forEach(function (L) {
       var lv = Math.pow(slide, L.curve) * L.lvl * 0.17;
       L.g.gain.setTargetAtTime(lv, t, 0.06);
       L.bp.frequency.setTargetAtTime(L.f[0] + (L.f[1] - L.f[0]) * slide + speed * 1.5, t, 0.1);
+    });
+    s.voices.forEach(function (V) {
+      var on = Math.max(0, (slide - 0.08) / 0.92);
+      V.g.gain.setTargetAtTime(Math.pow(on, 0.8) * V.lvl * 0.13, t, 0.05);
+      V.o.frequency.setTargetAtTime((V.f[0] + (V.f[1] - V.f[0]) * slide + speed * 4) * V.ratio, t, 0.12);
     });
   }
 
