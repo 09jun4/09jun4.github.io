@@ -38,13 +38,13 @@
   function makeSqueal() {
     var layers = [
       // freq: [at slide 0, at slide 1], q, base level, how late it fades in, wobble Hz / depth
-      { f: [190, 260], q: 1.0, lvl: 0.28, curve: 1.2, wf: 6.5, wd: 0.25, type: 'bandpass' },   // low body
-      { f: [480, 620], q: 2.4, lvl: 0.4, curve: 1.0, wf: 9.3, wd: 0.45, type: 'bandpass' },    // lower-mid grit
-      { f: [1000, 1350], q: 2.2, lvl: 0.75, curve: 0.9, wf: 14.1, wd: 0.4, type: 'bandpass' }, // mid squeal
-      { f: [2000, 2700], q: 2.0, lvl: 1.25, curve: 0.8, wf: 18, wd: 0.4, type: 'bandpass' },   // main screech
-      { f: [3600, 4800], q: 1.2, lvl: 0.85, curve: 1.0, wf: 23, wd: 0.5, type: 'bandpass' },   // high hiss
-      { f: [3000, 4200], q: 3.6, lvl: 1.0, curve: 0.9, wf: 11.5, wd: 0.5, type: 'bandpass' },  // "kiiik" high squeal
-      { f: [5200, 6800], q: 2.6, lvl: 0.55, curve: 1.1, wf: 17, wd: 0.45, type: 'bandpass' },   // very high edge
+      { f: [190, 260], q: 1.0, lvl: 0.1, curve: 1.2, wf: 6.5, wd: 0.25, type: 'bandpass' },   // low body
+      { f: [480, 620], q: 2.4, lvl: 0.15, curve: 1.0, wf: 9.3, wd: 0.45, type: 'bandpass' },    // lower-mid grit
+      { f: [1000, 1350], q: 2.2, lvl: 0.35, curve: 0.9, wf: 14.1, wd: 0.4, type: 'bandpass' }, // mid squeal
+      { f: [2000, 2700], q: 2.0, lvl: 1.4, curve: 0.8, wf: 18, wd: 0.4, type: 'bandpass' },   // main screech
+      { f: [3600, 4800], q: 1.2, lvl: 1.0, curve: 1.0, wf: 23, wd: 0.5, type: 'bandpass' },   // high hiss
+      { f: [3000, 4200], q: 3.6, lvl: 1.7, curve: 0.9, wf: 11.5, wd: 0.5, type: 'bandpass' },  // "kiiik" high squeal
+      { f: [5200, 6800], q: 2.6, lvl: 1.0, curve: 1.1, wf: 17, wd: 0.45, type: 'bandpass' },   // very high edge
     ];
     var out = gain(1);
     out.connect(master);
