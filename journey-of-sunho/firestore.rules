@@ -1,0 +1,38 @@
+rules_version = '2';
+// 선호의 여정 — Firestore 보안 규칙.
+// Firebase 콘솔 > Firestore Database > 규칙 탭에 이 내용을 통째로 붙여 넣고 "게시"하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validName(n) {
+      return n is string && n.size() >= 2 && n.size() <= 12 && !n.matches('.*[<>"\'`\\\\].*');
+    }
+
+    // 계정별 저장 데이터: 본인만 읽고 쓸 수 있어요.
+    match /users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['save', 'nickname', 'updatedAt'])
+        && (!('save' in request.resource.data) || (request.resource.data.save is string && request.resource.data.save.size() < 200000))
+        && (!('nickname' in request.resource.data) || validName(request.resource.data.nickname));
+    }
+
+    // 챕터별 점수 랭킹: 누구나 보고, 본인 기록만 쓸 수 있어요. (이름은 직접 정한 닉네임)
+    match /chapters/{chapter}/scores/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && chapter in ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8', 'ch9', 'ch10']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'score', 'grade', 'time', 'at'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && request.resource.data.score is int && request.resource.data.score >= 0 && request.resource.data.score <= 5000
+        && request.resource.data.grade in ['S', 'A', 'B', 'C', 'D']
+        && request.resource.data.time is number && request.resource.data.time > 20 && request.resource.data.time < 7200
+        && request.resource.data.at == request.time;
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "_note": "챕터 데이터. 챕터를 추가하려면 이 배열에 하나 더 넣으면 돼요. route는 맵 파일(routes)의 이름, timeOfDay는 day/sunset/night, weatherBias는 날씨 가중치 배율, eventBias는 이벤트 가중치 배율, eventRate는 이벤트 빈도 범위(무작위).",
+  "map": { "id": "test-town", "file": "assets/maps/test-map.json" },
+  "difficulty": { "maxScore": 0.82, "globalRate": [0.75, 1.35], "weatherJitter": [0.5, 1.8], "longChance": [0.15, 0.6], "tempJitter": 3 },
+  "chapters": [
+    {
+      "id": "ch1", "no": 1, "title": "평범한 화요일",
+      "summary": "수학 수업이 끝났다. 오늘 저녁은 치킨이다.",
+      "route": "short", "timeOfDay": "sunset", "baseTemp": 11,
+      "weatherBias": {}, "eventBias": {}, "eventRate": [0.8, 1.1],
+      "intro": [
+        { "who": "", "text": "오후 6시 10분. 최강수학학원 수업이 끝났다." },
+        { "who": "엄마 (문자)", "text": "선호야~ 오늘 저녁 치킨이야. 식기 전에 와!" },
+        { "who": "선호", "text": "치킨…! 바로 갑니다!!" }
+      ],
+      "ride": [
+        { "at": 0.12, "text": "후라이드 반, 양념 반이었으면 좋겠다…" },
+        { "at": 0.45, "text": "은행나무길은 냄새만 빼면 예쁘단 말이야" },
+        { "at": 0.78, "text": "이 언덕만 넘으면 집이다!" }
+      ],
+      "outro": "치킨은 아직 따뜻했다. 오늘도 무사히 귀가 완료."
+    },
+    {
+      "id": "ch2", "no": 2, "title": "우산은 학원에",
+      "summary": "하늘이 수상하다. 우산은… 학원 사물함에 두고 왔다.",
+      "route": "river", "timeOfDay": "day", "baseTemp": 8,
+      "weatherBias": { "rain": 2.6, "clear": 0.6 }, "eventBias": { "puddle": 1.8 }, "eventRate": [0.9, 1.2],
+      "intro": [
+        { "who": "", "text": "토요일 오후 2시. 주말 특강이 끝났다." },
+        { "who": "선호", "text": "구름이 좀 끼었네. 우산은… 아, 사물함에 두고 왔다." },
+        { "who": "선호", "text": "괜찮아. 강변로로 빨리 달리면 비 오기 전에 도착할 거야." }
+      ],
+      "ride": [
+        { "at": 0.2, "text": "강변로는 바람이 세단 말이지…" },
+        { "at": 0.55, "text": "흙받이를 달았어야 했는데" },
+        { "at": 0.85, "text": "집에 가면 바로 샤워부터!" }
+      ],
+      "outro": "현관 앞에서 엄마가 수건을 들고 기다리고 있었다."
+    },
+    {
+      "id": "ch3", "no": 3, "title": "비둘기의 복수",
+      "summary": "어제 공원에서 비둘기 과자를 뺏어 먹었다. 그들은 잊지 않았다.",
+      "route": "park", "timeOfDay": "sunset", "baseTemp": 12,
+      "weatherBias": { "wind": 1.5 }, "eventBias": { "pigeons": 2.8, "birdPoop": 2.8, "leaves": 1.5 }, "eventRate": [1.0, 1.3],
+      "intro": [
+        { "who": "", "text": "오후 5시 40분. 영어 단어 시험을 망쳤다." },
+        { "who": "선호", "text": "오늘은 공원길로 가 볼까? 공기도 좋고." },
+        { "who": "비둘기", "text": "구구… (저 녀석이다)" }
+      ],
+      "ride": [
+        { "at": 0.15, "text": "왜 다들 나를 쳐다보는 것 같지…?" },
+        { "at": 0.5, "text": "과자 하나 먹은 걸로 이러기야?" },
+        { "at": 0.8, "text": "거의 다 왔다, 조금만 버티자!" }
+      ],
+      "outro": "다음부터 비둘기 과자는 절대 건드리지 않기로 했다."
+    },
+    {
+      "id": "ch4", "no": 4, "title": "첫눈 오는 밤",
+      "summary": "밤 10시, 자습까지 끝나고 나오니 공기가 차갑다.",
+      "route": "river", "timeOfDay": "night", "baseTemp": 1,
+      "weatherBias": { "snow": 3.0, "fog": 1.3, "clear": 0.5 }, "eventBias": { "hotDrink": 2.2, "bungeoppang": 1.8 }, "eventRate": [0.85, 1.15],
+      "intro": [
+        { "who": "", "text": "밤 10시. 자습실 불이 하나둘 꺼진다." },
+        { "who": "선호", "text": "으, 춥다. 장갑도 안 가져왔는데." },
+        { "who": "엄마 (문자)", "text": "눈 온대. 조심해서 천천히 와." }
+      ],
+      "ride": [
+        { "at": 0.2, "text": "입김이 하얗게 나온다" },
+        { "at": 0.5, "text": "붕어빵 냄새가 나는 것 같은데…" },
+        { "at": 0.82, "text": "언덕길 미끄러우니까 천천히…" }
+      ],
+      "outro": "따뜻한 방에 들어오자 안경에 김이 서렸다."
+    }
+  ]
+}

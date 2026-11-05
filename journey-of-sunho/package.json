@@ -1,0 +1,16 @@
+{
+  "name": "journey-of-sunho",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "선호의 여정 (The Journey of Sunho) — 3D 자전거 어드벤처 MVP",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "three": "0.170.0",
+    "vite": "5.4.11"
+  }
+}

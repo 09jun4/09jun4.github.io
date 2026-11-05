@@ -1,0 +1,24 @@
+{
+  "_note": "날씨 정의. weight=무작위 선택 가중치, short/long=지속 시간(초) 범위, tempOffset=기온 변화(°C), visibility=안개 시작/끝 거리(m). 챕터가 weight를 덮어쓸 수 있어요.",
+  "blendTime": 7,
+  "longChance": 0.35,
+  "types": {
+    "clear": { "name": "맑음", "weight": 3, "short": [18, 35], "long": [50, 90], "tempOffset": 0, "overcast": 0, "visibility": [70, 430], "wind": [0.5, 2] },
+    "rain":  { "name": "비", "weight": 2.2, "short": [15, 30], "long": [50, 100], "tempOffset": -3, "overcast": 0.85, "visibility": [25, 170], "wind": [1.5, 4], "rain": 1 },
+    "snow":  { "name": "눈", "weight": 1.4, "short": [15, 30], "long": [45, 90], "tempOffset": -6, "overcast": 0.7, "visibility": [18, 120], "wind": [0.5, 3], "snow": 1, "maxTemp": -1.5 },
+    "wind":  { "name": "강풍", "weight": 1.6, "short": [12, 25], "long": [35, 70], "tempOffset": -2.5, "overcast": 0.3, "visibility": [60, 380], "wind": [8, 13] },
+    "fog":   { "name": "안개", "weight": 1.4, "short": [15, 30], "long": [45, 90], "tempOffset": -1, "overcast": 0.6, "visibility": [2, 32], "wind": [0, 1] }
+  },
+  "road": {
+    "wetRate": 0.08, "dryRate": 0.0045, "dryWarmBonus": 0.004,
+    "snowRate": 0.02, "meltRate": 0.006, "rainMelt": 0.02
+  },
+  "gust": { "freq": 0.35, "amount": 0.35 },
+  "announce": {
+    "clear": "구름이 걷히고 맑아졌어요",
+    "rain": "비가 내리기 시작했어요! 노면이 미끄러워요",
+    "snow": "눈이 내려요! 길이 얼어붙어요",
+    "wind": "강풍 주의! 옆바람에 밀려요",
+    "fog": "짙은 안개! 앞이 잘 안 보여요"
+  }
+}

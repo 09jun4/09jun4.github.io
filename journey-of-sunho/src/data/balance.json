@@ -1,0 +1,157 @@
+{
+  "_note": "게임 밸런스·물리·상태·점수 설정. 숫자만 바꾸면 게임 전체에 반영돼요. 모든 게이지는 0~100 기준, 체온만 섭씨(°C).",
+  "bike": {
+    "riderMass": 110,
+    "bikeMass": 15,
+    "wheelbase": 1.05,
+    "wheelRadius": 0.34,
+    "maxPower": 380,
+    "maxForce": 170,
+    "throttleRise": 2.6,
+    "throttleFall": 4.0,
+    "cdA": 0.62,
+    "crr": {
+      "road": 0.006,
+      "sidewalk": 0.009,
+      "grass": 0.035
+    },
+    "maxSpeedKmh": 48,
+    "brakeDecel": 6.0,
+    "softBrake": 0.35,
+    "steerMax": 0.55,
+    "steerMaxHighSpeed": 0.035,
+    "steerSpeedRef": 0.8,
+    "steerRate": 0.75,
+    "steerReturn": 1.6,
+    "slipLimit": 0.88,
+    "lateralDamping": 5.0,
+    "curbBumpSpeed": 2.5
+  },
+  "friction": {
+    "road": 0.8,
+    "sidewalk": 0.75,
+    "grass": 0.55,
+    "crosswalkWetPenalty": 0.25,
+    "wetPenalty": 0.32,
+    "snowPenalty": 0.55,
+    "leavesPenalty": 0.3,
+    "puddlePenalty": 0.35
+  },
+  "state": {
+    "baseBodyTemp": 36.5,
+    "minBodyTemp": 33.0,
+    "maxBodyTemp": 38.5,
+    "tempDanger": 35.4,
+    "tempWarn": 35.9,
+    "fatigueRate": 0.0016,
+    "fatigueUphill": 3.2,
+    "fatigueRecover": 1.2,
+    "fatigueColdMult": 1.7,
+    "coldRiskRate": 1.6,
+    "coldRiskWetMult": 1.0,
+    "coldRiskRecover": 0.4,
+    "balanceRecover": 22,
+    "balanceSteerLoss": 15,
+    "balanceSlipLoss": 70,
+    "balanceSlowWobble": 6,
+    "balanceFallThreshold": 0,
+    "balanceAfterGetup": 65,
+    "sprayLoss": 0.25,
+    "tempGain": 0.01,
+    "tempLossK": 0.00025,
+    "clothesWetRain": 0.02,
+    "clothesDry": 0.002,
+    "balanceBumpLoss": 14,
+    "balanceSkidLoss": 40,
+    "balanceGustLoss": 3,
+    "balanceHitLoss": 12,
+    "sneezeMin": 7,
+    "sneezeMax": 16
+  },
+  "fall": {
+    "tipTime": 0.7,
+    "lieTime": 1.3,
+    "getupTime": 1.4,
+    "mountTime": 0.9,
+    "hardHitSpeed": 4.2
+  },
+  "score": {
+    "base": 1000,
+    "timeBonusMax": 600,
+    "parSpeedKmh": 17,
+    "fallPenalty": 90,
+    "coldPenalty": 150,
+    "cleanWeight": 3.0,
+    "fatigueWeight": 2.0,
+    "tempWeight": 160,
+    "difficultyBonus": 120,
+    "grades": [
+      {
+        "grade": "S",
+        "min": 1750
+      },
+      {
+        "grade": "A",
+        "min": 1450
+      },
+      {
+        "grade": "B",
+        "min": 1150
+      },
+      {
+        "grade": "C",
+        "min": 850
+      },
+      {
+        "grade": "D",
+        "min": 0
+      }
+    ]
+  },
+  "comments": [
+    {
+      "if": "falls>=5",
+      "text": "넘어진 횟수가 학원 숙제 개수와 맞먹어요."
+    },
+    {
+      "if": "falls==0",
+      "text": "무사고 귀가! 엄마가 안심했어요."
+    },
+    {
+      "if": "poop>=2",
+      "text": "비둘기들 사이에서 선호는 이제 유명인사예요."
+    },
+    {
+      "if": "poop==1",
+      "text": "머리에 묻은 건… 행운의 상징이라고 해 두죠."
+    },
+    {
+      "if": "clean<30",
+      "text": "현관에서 엄마가 '거기 서!'라고 외쳤어요."
+    },
+    {
+      "if": "cold",
+      "text": "에취! 내일 학원은 쉬고 싶다는 핑계가 생겼어요."
+    },
+    {
+      "if": "temp<35.6",
+      "text": "입술이 파래요. 따뜻한 국물이 시급합니다."
+    },
+    {
+      "if": "fatigue>80",
+      "text": "집에 오자마자 현관에서 잠들었어요."
+    },
+    {
+      "if": "time<par",
+      "text": "택배 기사님도 놀랄 배달 속도로 귀가했어요."
+    },
+    {
+      "if": "pickups>=2",
+      "text": "간식은 다 챙겨 먹으면서 왔네요."
+    },
+    {
+      "if": "hits>=3",
+      "text": "행인 여러분께 사과 문자를 돌려야 할 것 같아요."
+    }
+  ]
+}
