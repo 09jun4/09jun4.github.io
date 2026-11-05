@@ -1,13 +1,13 @@
 // ai.js — the drift race's AI driver.
 // It drifts every corner (handbrake + steer from the curvature ahead, trimmed
 // by the lateral offset and heading error), pure-pursuit in grip mode on the
-// straights. `pace` (0.4..1.05) is how hard it drives; updatePace() moves it
+// straights. `pace` (0.4..1.35) is how hard it drives; updatePace() moves it
 // so the rival stays about TARGET_LEAD seconds ahead of the player: it slows
 // when the player is far behind and drives flat out when the player is quick.
 (function () {
   'use strict';
   var DR = window.DR = window.DR || {};
-  var AI = { TARGET_LEAD: 0.8, MIN_PACE: 0.4, MAX_PACE: 1.15 };
+  var AI = { TARGET_LEAD: 0.8, MIN_PACE: 0.4, MAX_PACE: 1.35, SWING: 1.1, SWING_PERIOD: 42 };
 
   AI.prepare = function (c, pace) {
     c.plan1 = DR.Physics.driftPlan(c);
@@ -53,7 +53,11 @@
   AI.updatePace = function (rival, player, dt) {
     var lead = (rival.prog - player.prog) / Math.max(12, player.speed);
     lead = Math.max(-6, Math.min(8, lead));
-    var err = AI.TARGET_LEAD - lead;
+    // The target lead swings (+0.8 s +/- SWING) so the rival sometimes drops
+    // back and then attacks and overtakes, instead of sitting ahead all race.
+    rival.aiT = (rival.aiT || 0) + dt;
+    var target = AI.TARGET_LEAD + AI.SWING * Math.sin(2 * Math.PI * rival.aiT / AI.SWING_PERIOD + 1.2);
+    var err = target - lead;
     rival.paceI = Math.max(-0.35, Math.min(0.35, (rival.paceI || 0) + 0.05 * err * dt));
     var want = 0.8 + 0.16 * err + rival.paceI;
     want = Math.max(AI.MIN_PACE, Math.min(AI.MAX_PACE, want));
