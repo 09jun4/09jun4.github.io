@@ -4,13 +4,14 @@ import { createFlashlight } from './flashlight.js';
 
 const SWITCH_T = 0.7, FIRE_T = 0.6, FIRE_SHOT_AT = 0.2;
 const MELEE_ANIM = 0.4, MELEE_CD = 0.8, MELEE_HIT_AT = 0.14;
-const RELOAD = { eject: 0.5, insert: 0.4, count: 5, close: 0.5 }; // 0.5 + 5*0.4 + 0.5 = 3.0초
+const RELOAD = { eject: 0.9, insert: 0.36, count: 5, close: 0.5 }; // 0.9 + 5*0.36 + 0.5 = 3.2초 (부드러운 동작을 위해 배출 구간을 길게)
 const STEP = Math.PI * 2 / 5;
 const SWING_OPEN = 1.2;
 const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 
-// 오른손잡이 재장전 자세: 총을 오른쪽으로 기울여(롤) 왼쪽으로 열린 실린더가 위·뒤를 향하게 하고, 총구는 비스듬히 아래로
-const LOAD = { rx: -0.6, ry: -0.2, rz: -0.8, px: 0.0, py: 0.075, pz: -0.03 };
+// 오른손잡이 재장전: 총을 화면 오른쪽으로 가져와 (1) 총구를 위로 들어 탄피가 중력으로 빠지게, (2) 총구를 왼쪽·비스듬히 아래로 향해 왼쪽 면(열린 실린더)이 보이게
+const EJECT = { rx: 1.0, ry: 0.3, rz: 0.0, px: 0.09, py: 0.04, pz: -0.02 };
+const LOAD = { rx: -0.55, ry: 0.75, rz: -0.1, px: 0.09, py: 0.04, pz: -0.04 };
 const BASE = {
   pistol: { p: [0.0, -0.166, -0.22], r: [-0.035, 0.0, 0] },
   flash: { p: [0.15, -0.12, -0.32], r: [0.04, 0.1, 0] },
@@ -112,9 +113,10 @@ export class Weapons {
     this.swingVis += (this.swingGoal * SWING_OPEN - this.swingVis) * Math.min(1, dt * 14);
     { // 재장전 자세: rw1 = 뒤로 젖히는 순간(탄피 사출), rw2 = 총구를 비스듬히 아래로 향한 장전 자세
       const t = this.reload ? this.reload.t : -1;
-      const T1 = t >= 0.04 && t < 0.34 ? 1 : 0, T2 = t >= 0.38 && t < 2.55 ? 1 : 0;
-      this.rw1 += (T1 - this.rw1) * Math.min(1, dt * (T1 > this.rw1 ? 28 : 11));
-      this.rw2 += (T2 - this.rw2) * Math.min(1, dt * 6);
+      const loadEnd = RELOAD.eject + RELOAD.insert * RELOAD.count;
+      const T1 = t >= 0.02 && t < RELOAD.eject - 0.1 ? 1 : 0, T2 = t >= RELOAD.eject - 0.1 && t < loadEnd ? 1 : 0;
+      this.rw1 += (T1 - this.rw1) * Math.min(1, dt * 5);
+      this.rw2 += (T2 - this.rw2) * Math.min(1, dt * 5);
     }
     this.kick *= Math.exp(-dt * 9);
     this.flashT = Math.max(0, this.flashT - dt);
@@ -145,9 +147,9 @@ export class Weapons {
   updateReload(dt) {
     const r = this.reload; r.t += dt; const t = r.t, rv = this.rev;
     const insertStart = RELOAD.eject, insertEnd = RELOAD.eject + RELOAD.insert * RELOAD.count;
-    this.swingGoal = t < insertEnd ? 1 : 0;
+    this.swingGoal = t >= 0.25 && t < insertEnd ? 1 : 0;
     rv.latch.position.z = rv.latchRest - 0.01 * Math.min(1, this.swingVis / SWING_OPEN);
-    if (t >= 0.24 && !r.ejected) { // 탄피 5개 한 번에 배출 (젖힌 반동 + 중력)
+    if (t >= 0.6 && !r.ejected) { // 총구를 든 뒤 탄피 5개가 중력으로 빠짐
       r.ejected = true; this.displayAmmo = 0; this.spawnCasings();
     }
     if (t >= insertStart && t < insertEnd) {
@@ -155,10 +157,10 @@ export class Weapons {
       const lt = (t - insertStart) - k * RELOAD.insert; // 0 ~ 0.4
       if (k > r.lastK) { this.cylBase += STEP; r.lastK = k; }
       const b = rv.bullet; b.visible = true;
-      const p = smooth(lt / 0.3);
+      const ins = RELOAD.insert * 0.75, p = smooth(lt / ins);
       const L = rv.loadPoint; b.position.set(L.x - 0.06 * (1 - p), L.y + 0.03 * (1 - p), L.z + 0.012 + 0.13 * (1 - p) - 0.03 * p);
-      if (lt >= 0.3 && r.inserted === k) { r.inserted++; this.displayAmmo = r.inserted; }
-      this.cylExtra = lt >= 0.3 ? STEP * smooth((lt - 0.3) / 0.1) : 0;
+      if (lt >= ins && r.inserted === k) { r.inserted++; this.displayAmmo = r.inserted; }
+      this.cylExtra = lt >= ins ? STEP * smooth((lt - ins) / (RELOAD.insert - ins)) : 0;
     } else if (t >= insertEnd) {
       if (!r.finalRot) { r.finalRot = true; this.cylBase += STEP; this.cylExtra = 0; rv.bullet.visible = false; }
     }
@@ -176,8 +178,8 @@ export class Weapons {
       this.viewScene.add(mesh);
       this.casings.push({
         mesh, age: 0,
-        v: new THREE.Vector3((Math.random() - 0.5) * 0.3, 0.25 + Math.random() * 0.25, 0.35 + Math.random() * 0.3),
-        w: new THREE.Vector3(Math.random() * 14, Math.random() * 14, Math.random() * 14),
+        v: new THREE.Vector3((Math.random() - 0.5) * 0.04, -0.02 - Math.random() * 0.03, 0.03 + Math.random() * 0.04),
+        w: new THREE.Vector3(Math.random() * 5, Math.random() * 5, Math.random() * 5),
       });
     }
   }
@@ -207,8 +209,8 @@ export class Weapons {
       if (name === 'pistol') {
         rx += this.kick * 0.4; pz += this.kick * 0.05; py += this.kick * 0.015;
         const a = this.rw1, b2 = this.rw2; // 오른손잡이: 총을 오른쪽으로 틀어 열린 실린더가 보이게
-        rx += 0.8 * a + LOAD.rx * b2; ry += -0.15 * a + LOAD.ry * b2; rz += 0.15 * a + LOAD.rz * b2;
-        px += LOAD.px * b2; py += 0.015 * a + LOAD.py * b2; pz += 0.045 * a + LOAD.pz * b2;
+        rx += EJECT.rx * a + LOAD.rx * b2; ry += EJECT.ry * a + LOAD.ry * b2; rz += EJECT.rz * a + LOAD.rz * b2;
+        px += EJECT.px * a + LOAD.px * b2; py += EJECT.py * a + LOAD.py * b2; pz += EJECT.pz * a + LOAD.pz * b2;
         rx -= 1.0 * m; pz -= 0.1 * m; py -= 0.03 * m;
       } else {
         px -= 0.22 * m; pz -= 0.08 * m; ry += 1.3 * m; rz -= 0.5 * m;
