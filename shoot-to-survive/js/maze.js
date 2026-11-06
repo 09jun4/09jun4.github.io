@@ -1,5 +1,5 @@
 // 미로 생성(재귀 백트래킹) + 격자 유틸. grid[z][x] : 1=벽, 0=통로
-export const N = 21;          // 21x21 타일
+export const N = 15;          // 15x15 타일 (통로 칸 7x7)
 export const TILE = 3;        // 타일 한 변 3m
 export const WALL_H = 3.2;    // 벽 높이
 

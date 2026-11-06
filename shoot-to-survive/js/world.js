@@ -62,7 +62,7 @@ export class World {
     this.lamps = [];
     for (const [x, z] of tiles) {
       if (this.lamps.length >= want) break;
-      if (this.lamps.some(l => Math.abs(l.tx - x) + Math.abs(l.tz - z) < 5)) continue;
+      if (this.lamps.some(l => Math.abs(l.tx - x) + Math.abs(l.tz - z) < 4)) continue;
       this.lamps.push({ tx: x, tz: z, x: centerOf(x), z: centerOf(z) });
     }
     for (const l of this.lamps) {
