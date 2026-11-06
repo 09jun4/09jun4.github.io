@@ -30,7 +30,8 @@ renderer.autoClear = false;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 scene.fog = new THREE.FogExp2(0x000000, 0.085);
-scene.add(new THREE.AmbientLight(0x222a33, 0.9)); // 거의 0: 벽 윤곽만 겨우 보이게
+const ambient = new THREE.AmbientLight(0x222a33, 0.9); scene.add(ambient); // 거의 0: 벽 윤곽만 겨우 보이게 (총구 화염 때만 순간적으로 밝아짐)
+const AMB0 = new THREE.Color(0x222a33), AMB1 = new THREE.Color(0xfff0dc), BASE_FOG = 0.085, FLASH_FOG = 0.012;
 
 const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 80);
 scene.add(camera);
@@ -56,7 +57,7 @@ let envTex = null;
 
 const spot = new THREE.SpotLight(0xfff1d6, 0, 18, 35 * Math.PI / 180, 0.4, 1.6);
 scene.add(spot, spot.target);
-const muzzleLight = new THREE.PointLight(0xffc860, 0, 9, 2);
+const muzzleLight = new THREE.PointLight(0xffc860, 0, 45, 1.4); // 총구 화염: 멀리까지 비추는 강한 순간 조명
 scene.add(muzzleLight);
 
 const world = new World(scene);
@@ -291,6 +292,7 @@ const fwd = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  weapons.flashFx = Math.max(0, weapons.flashFx - dt / 0.2); // 총구 화염 감쇠: 약 0.2초 (느린 기기에서도 몇 프레임은 보이도록 게임 시간 기준)
   if (state === 'playing' && !game.paused && !auto && settings.quality === 'high' && !perf.hinted && raw < 0.5) { // 높음에서 5초 평균 35fps 미만이면 안내
     perf.n++; perf.t += raw;
     if (perf.t >= 5) { if (perf.n / perf.t < 35) { $('hint').textContent = (COARSE ? '메뉴(☰)' : 'Esc 메뉴') + '에서 그래픽을 \'낮음\'으로 바꾸면 더 부드러워요'; $('hint').classList.remove('hide'); setTimeout(() => $('hint').classList.add('hide'), 8000); perf.hinted = true; } else { perf.n = 0; perf.t = 0; } }
@@ -312,7 +314,7 @@ function frame(now) {
         if (player.hp <= 0) finish('over');
       }
     }
-    world.update(player.pos);
+    world.update(player.pos, performance.now() / 1000);
     camera.getWorldDirection(fwd);
     voices.update(dt, game.freeze ? [] : ghosts, camera.position, fwd, (g) => hasLOS(grid, g.x, g.z, player.pos.x, player.pos.z)); // 유령 속삭임
     hud();
@@ -329,7 +331,13 @@ function frame(now) {
   spot.intensity = weapons.lightOn ? 130 : 0;
   // 총구 화염 조명 (0.05초)
   muzzleLight.position.copy(camera.position).addScaledVector(fwd, 1.0);
-  muzzleLight.intensity = weapons.flashT > 0 ? 6 : 0;
+  { // 총구 화염: 순간적으로 배경 전체(멀리 벽·바닥·유령)까지 환하게
+    const L = Math.pow(Math.min(1, weapons.flashFx * 1.7), 1.3);
+    ambient.intensity = 0.9 + L * (settings.quality === 'high' ? 4.6 : 6.4); ambient.color.copy(AMB0).lerp(AMB1, L); // 낮음은 재질이 단순해 더 세게
+    ghostAssets.flash(L);
+    scene.fog.density = BASE_FOG + (FLASH_FOG - BASE_FOG) * L; // 안개가 걷혀 멀리까지 보임
+    muzzleLight.intensity = settings.quality === 'high' ? L * 70 : 0; // 높음: 점광원까지 추가
+  }
   viewScene.updateMatrixWorld(true);
   renderer.clear();
   renderer.render(scene, camera);

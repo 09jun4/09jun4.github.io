@@ -89,7 +89,7 @@ export class Weapons {
     this.ammo = 5; this.displayAmmo = 5;
     this.slots = ['live', 'live', 'live', 'live', 'live']; this.applySlots();
     this.fire = null; this.reload = null; this.melee = null; this.meleeCd = 0; this.punch = 0;
-    this.kick = 0; this.flashT = 0;
+    this.kick = 0; this.flashT = 0; this.flashFx = 0;
     this.cylBase = 0; this.cylExtra = 0; this.swingVis = 0; this.swingGoal = 0; this.rw1 = 0; this.rw2 = 0;
     this.rev.bullet.visible = false;
     for (const c of this.casings) this.viewScene.remove(c.mesh);
@@ -182,7 +182,7 @@ export class Weapons {
     if (!f.shot && t >= FIRE_SHOT_AT) {
       f.shot = true;
       if (f.live) {
-        this.ammo--; this.displayAmmo = this.ammo; this.kick = 1; this.flashT = 0.05;
+        this.ammo--; this.displayAmmo = this.ammo; this.kick = 1; this.flashT = 0.05; this.flashFx = 1; // flashFx: 총구 화염이 배경 전체를 밝히는 정도 (main에서 감쇠)
         const ci = (this.topIdx + 1) % 5; // 코킹으로 새로 올라온 챔버가 발사됨 → 빈 탄피로
         this.slots[ci] = 'spent'; this.rev.setRound(ci, 'spent');
         this.sprite.material.rotation = Math.random() * 6;

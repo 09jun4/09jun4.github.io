@@ -92,8 +92,8 @@ function buildLow() {
   const f = buildFace(6);
   return {
     body: { geo, mat: cloth }, head: { geo: head, mat: cloth },
-    arms: { geo: buildArms(4, false), mat: new THREE.MeshLambertMaterial({ color: 0x8d8a84, flatShading: true }) },
-    legs: { L: buildLeg(-1, 5, false), R: buildLeg(1, 5, false), mat: new THREE.MeshLambertMaterial({ color: 0x8d8a84, flatShading: true }) },
+    arms: { geo: buildArms(4, false), mat: new THREE.MeshLambertMaterial({ color: 0x8d8a84, emissive: 0x0b0b0b, flatShading: true }) },
+    legs: { L: buildLeg(-1, 5, false), R: buildLeg(1, 5, false), mat: new THREE.MeshLambertMaterial({ color: 0x8d8a84, emissive: 0x0b0b0b, flatShading: true }) },
     face: { geo: f.face, mat: new THREE.MeshBasicMaterial({ color: 0x000000 }) }, glow: { geo: f.glow, mat: new THREE.MeshBasicMaterial({ color: 0x9cc0ff }) },
   };
 }
@@ -193,7 +193,11 @@ function buildHigh() {
 // 품질별 에셋 (높음은 처음 쓸 때 한 번만 생성)
 export function createGhostAssets() {
   const cache = {};
-  return { get(q) { return cache[q] || (cache[q] = q === 'high' ? buildHigh() : buildLow()); } };
+  return {
+    get(q) { return cache[q] || (cache[q] = q === 'high' ? buildHigh() : buildLow()); },
+    // 총구 화염 순간(L=0~1)에 유령의 몸을 같이 밝힌다 (어둠 속에서도 형태가 또렷이 보이도록)
+    flash(L) { for (const a of Object.values(cache)) for (const m of new Set([a.body.mat, a.head.mat, a.arms.mat, a.legs.mat])) m.emissiveIntensity = 1 + L * 6; },
+  };
 }
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
