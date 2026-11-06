@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDist, tileOf, centerOf } from './maze.js';
+import { generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDist, tileOf, centerOf, pushOut } from './maze.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { Weapons } from './weapons.js';
@@ -95,16 +95,19 @@ function shoot() {
   if (g.damage(head ? 100 : 50)) killGhost(g);
 }
 
-function meleeHit() { // 전방 1.8m, 전방 약 60° 안 즉살
-  let kills = 0;
+function meleeHit() { // 전방 1.8m, 전방 약 60° 안의 유령에게 50 피해 (체력 100 → 두 번 때려야 죽음)
+  let kills = 0, hits = 0;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
   for (const g of ghosts.slice()) {
     const dx = g.x - player.pos.x, dz = g.z - player.pos.z, d = Math.hypot(dx, dz);
     if (d > 1.8) continue;
     if (d > 0.5 && (dx * fx + dz * fz) / d < Math.cos(30 * Math.PI / 180)) continue;
-    killGhost(g); kills++;
+    hits++;
+    if (g.damage(50)) { killGhost(g); kills++; continue; }
+    g.stunT = 0.6; g.attackT = -1; // 맞으면 뒤로 밀리고 잠깐 기절 → 두 번째 타격 가능
+    if (d > 1e-3) { const p = { x: g.x + dx / d * 0.45, z: g.z + dz / d * 0.45 }; pushOut(grid, p, 0.35); g.x = p.x; g.z = p.z; }
   }
-  if (kills) weapons.punch = 1.9; // 명중 시 더 큰 화면 충격
+  if (hits) weapons.punch = kills ? 1.9 : 1.3; // 명중 시 더 큰 화면 충격
 }
 
 function finish(kind) {
@@ -157,7 +160,7 @@ function hud() {
   if (lastCount !== ghosts.length) { lastCount = ghosts.length; $('count').textContent = `유령 ${ghosts.length}/${GHOSTS}`; }
   const eq = weapons.current === 'pistol' ? '[1] 권총' : '[2] 손전등';
   const cyl = $('cyl');
-  if (eq !== lastEquip) { lastEquip = eq; $('equip').textContent = eq; cyl.style.display = weapons.current === 'pistol' ? 'flex' : 'none'; lastAmmo = -1; }
+  if (eq !== lastEquip) { lastEquip = eq; $('bMelee').style.opacity = weapons.current === 'pistol' ? '' : '0.3'; /* 손전등은 근접공격 불가 */ $('equip').textContent = eq; cyl.style.display = weapons.current === 'pistol' ? 'flex' : 'none'; lastAmmo = -1; }
   if (weapons.displayAmmo !== lastAmmo) {
     lastAmmo = weapons.displayAmmo;
     cyl.innerHTML = Array.from({ length: 5 }, (_, i) => `<b class="${i < lastAmmo ? 'on' : ''}"></b>`).join('');

@@ -45,7 +45,7 @@ export class Ghost {
     this.lastSeen = null; this.lostT = 0;
     this.path = []; this.pathT = 0;
     this.attackT = -1; this.attackCd = 0;
-    this.flash = 0;
+    this.flash = 0; this.stunT = 0;
     this.sync();
   }
 
@@ -73,6 +73,7 @@ export class Ghost {
   // 반환: 이번 프레임에 플레이어에게 피해를 주려 하는가
   update(dt, player, grid) {
     this.flash = Math.max(0, this.flash - dt);
+    if (this.stunT > 0) { this.stunT -= dt; this.attackT = -1; this.sync(); return false; } // 근접 피격 직후 잠깐 기절
     this.attackCd = Math.max(0, this.attackCd - dt);
     const px = player.pos.x, pz = player.pos.z;
     const dist = Math.hypot(px - this.x, pz - this.z);

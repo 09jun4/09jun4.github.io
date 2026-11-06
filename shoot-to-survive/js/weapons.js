@@ -113,7 +113,7 @@ export class Weapons {
   }
 
   tryMelee() {
-    if (this.switching || this.reload || this.fire || this.melee || this.meleeCd > 0) return false;
+    if (this.current !== 'pistol' || this.switching || this.reload || this.fire || this.melee || this.meleeCd > 0) return false; // 근접공격은 권총만
     this.melee = { t: 0, hit: false, lunged: false }; this.meleeCd = MELEE_CD;
     return true;
   }
