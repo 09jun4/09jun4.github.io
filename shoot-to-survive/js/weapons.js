@@ -27,6 +27,25 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// ── 효과음 타이밍 ──
+// 재장전 파일: 열림(0.30~1.15초 구간) / 탄 삽입 클릭 ×5 (원본 1.515초 부근 한 번을 복제) / 닫힘(2.05~2.45초). 끝의 실린더 돌리는 라칫(2.9초~)은 잘라냄.
+const SND_LEAD = { reload_open: 0.5, reload_insert: 0.025, reload_close: 0.245 }; // 파일 시작부터 '핵심 소리'까지 시간
+export function timingPlan(kind) {
+  const R = RELOAD, ins = R.insert * 0.75, loadEnd = R.eject + R.insert * R.count, EJECT_AT = 0.6, CLOSED_AT = loadEnd + 0.3;
+  if (kind === 'fire') return { dur: FIRE_T, sounds: [{ t: 0, name: 'cock' }, { t: FIRE_SHOT_AT, name: 'shot' }], marks: [{ t: 0.15, label: '코킹 완료' }, { t: 0.19, label: '해머 릴리즈' }, { t: FIRE_SHOT_AT, label: '발사' }] };
+  if (kind === 'dry') return { dur: FIRE_T, sounds: [{ t: 0, name: 'cock' }, { t: FIRE_SHOT_AT, name: 'dry' }], marks: [{ t: 0.15, label: '코킹 완료' }, { t: 0.19, label: '해머 릴리즈' }, { t: FIRE_SHOT_AT, label: '빈 격발' }] };
+  const sounds = [{ t: Math.max(0, EJECT_AT - SND_LEAD.reload_open), name: 'reload_open', group: 'reload' }];
+  const marks = [{ t: 0.25, label: '실린더 열림' }, { t: EJECT_AT, label: '탄피 배출' }];
+  for (let k = 0; k < R.count; k++) {
+    const t = R.eject + R.insert * k + ins; // 탄이 챔버에 들어가는 순간
+    sounds.push({ t: t - SND_LEAD.reload_insert, name: 'reload_insert', group: 'reload', varied: true });
+    marks.push({ t, label: '장전 ' + (k + 1) });
+  }
+  sounds.push({ t: CLOSED_AT - SND_LEAD.reload_close, name: 'reload_close', group: 'reload' });
+  marks.push({ t: loadEnd, label: '닫기 시작' }, { t: CLOSED_AT, label: '닫힘' });
+  return { dur: loadEnd + R.close, sounds, marks };
+}
+
 function disposeTree(o) {
   o.traverse((n) => {
     if (n.geometry) n.geometry.dispose();
@@ -95,6 +114,7 @@ export class Weapons {
   cycle() { return this.equip(this.current === 'pistol' ? 'flash' : 'pistol'); }
 
   cancelReload() {
+    this.cb.stopSound?.('reload'); // 재장전 취소 시 남은 재장전 소리 끊기
     if (this.reload && this.reload.snap) { this.slots = this.reload.snap; this.applySlots(); } // 챔버 속 총알도 재장전 전 상태로
     this.reload = null; this.displayAmmo = this.ammo; // 탄약은 재장전 전 상태 유지
     this.rev.bullet.visible = false; this.rev.latch.position.z = this.rev.latchRest; this.cylExtra = 0; this.swingGoal = 0; // 실린더는 닫힌 상태로 복귀
@@ -103,12 +123,13 @@ export class Weapons {
   tryFire() {
     if (this.current !== 'pistol' || this.switching || this.reload || this.fire || this.melee) return false;
     this.fire = { t: 0, live: this.ammo > 0, shot: false };
+    this.cb.sound?.('cock'); // 코킹 (빈 총이어도 클릭하면 코킹은 한다)
     return true;
   }
 
   tryReload() {
     if (this.current !== 'pistol' || this.switching || this.reload || this.fire || this.melee || this.ammo >= 5) return false;
-    this.reload = { t: 0, snap: this.slots.slice(), ejected: false, inserted: 0, lastK: 0, finalRot: false };
+    this.reload = { t: 0, plan: timingPlan('reload').sounds, sidx: 0, snap: this.slots.slice(), ejected: false, inserted: 0, lastK: 0, finalRot: false };
     return true;
   }
 
@@ -165,14 +186,19 @@ export class Weapons {
         const ci = (this.topIdx + 1) % 5; // 코킹으로 새로 올라온 챔버가 발사됨 → 빈 탄피로
         this.slots[ci] = 'spent'; this.rev.setRound(ci, 'spent');
         this.sprite.material.rotation = Math.random() * 6;
+        this.cb.sound?.('shot'); // 총성 = 발사 순간
         this.cb.fire();
-      } // 빈 총이면 빈 클릭 연출만
+      } else this.cb.sound?.('dry'); // 빈 총이면 '틱' 한 번
     }
     if (t >= FIRE_T) { this.cylBase += STEP; this.cylExtra = 0; r.hammer.rotation.x = 0; r.trigger.rotation.x = 0; this.fire = null; }
   }
 
   updateReload(dt) {
     const r = this.reload; r.t += dt; const t = r.t, rv = this.rev;
+    while (r.sidx < r.plan.length && r.plan[r.sidx].t <= t) { // 재장전 효과음
+      const sp = r.plan[r.sidx++];
+      this.cb.sound?.(sp.name, sp.varied ? { group: sp.group, rate: 0.96 + Math.random() * 0.09, gain: 0.85 + Math.random() * 0.25 } : { group: sp.group });
+    }
     const insertStart = RELOAD.eject, insertEnd = RELOAD.eject + RELOAD.insert * RELOAD.count;
     this.swingGoal = t >= 0.25 && t < insertEnd ? 1 : 0;
     rv.latch.position.z = rv.latchRest - 0.01 * Math.min(1, this.swingVis / SWING_OPEN);

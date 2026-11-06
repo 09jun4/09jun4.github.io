@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDist, tileOf, centerOf, pushOut } from './maze.js';
 import { World } from './world.js';
 import { Player } from './player.js';
-import { Weapons } from './weapons.js';
+import { Weapons, timingPlan } from './weapons.js';
 import { Ghost, createGhostAssets, ghostTime, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
 import { Bot } from './auto.js';
 import { setupTouch } from './touch.js';
+import { Sound } from './audio.js';
 
 let auto = !!window.__AUTO || new URLSearchParams(location.search).has('auto'); // AI 자동 플레이
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); // 터치 기기
@@ -13,10 +14,11 @@ const GHOSTS = 10;
 const $ = (id) => document.getElementById(id);
 
 // ── 설정 (그래픽 높음/낮음, 마우스 감도) — 브라우저에 저장 ──
-const settings = { quality: COARSE ? 'low' : 'high', sens: 1 }; // 터치 기기는 기본 '낮음'
+const settings = { quality: COARSE ? 'low' : 'high', sens: 1, volume: 0.8 }; // 터치 기기는 기본 '낮음'
 try { Object.assign(settings, JSON.parse(localStorage.getItem('sts-settings') || '{}')); } catch (e) {}
 if (settings.quality !== 'low' && settings.quality !== 'high') settings.quality = 'high';
 settings.sens = Math.min(3, Math.max(0.2, +settings.sens || 1));
+settings.volume = Math.min(1, Math.max(0, isNaN(+settings.volume) ? 0.8 : +settings.volume));
 const saveSettings = () => { try { localStorage.setItem('sts-settings', JSON.stringify(settings)); } catch (e) {} };
 
 // ── 렌더러 (저사양: 그림자 없음, antialias 끔, pixelRatio 1) ──
@@ -65,12 +67,15 @@ const raycaster = new THREE.Raycaster();
 let grid = null, ghosts = [], state = 'title', endTimer = 0;
 const keys = new Set();
 
+const sound = new Sound(); sound.setVolume(settings.volume);
 const weapons = new Weapons(viewScene, {
+  sound: (n, o) => { sound.play(n, o); if (sound.onPlay2) sound.onPlay2(n, weapons.time); },
+  stopSound: (g) => sound.stop(g),
   fire: shoot,
   meleeHit: meleeHit,
   lunge: () => player.lunge(),
 }, settings.quality);
-const game = { get endTimer() { return endTimer; }, settings, toggleMenu, paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
+const game = { sound, timingPlan, freeze: false, demo, get endTimer() { return endTimer; }, settings, toggleMenu, paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
 const bot = new Bot(game); game.bot = bot;
 setupTouch(game, $('stage'));
 window.__game = game;
@@ -108,6 +113,17 @@ function meleeHit() { // 전방 1.8m, 전방 약 60° 안의 유령에게 50 피
     if (d > 1e-3) { const p = { x: g.x + dx / d * 0.45, z: g.z + dz / d * 0.45 }; pushOut(grid, p, 0.35); g.x = p.x; g.z = p.z; }
   }
   if (hits) weapons.punch = kills ? 1.9 : 1.3; // 명중 시 더 큰 화면 충격
+}
+
+// 사운드 타이밍 확인용: AI·유령을 멈추고 발사/빈 총/재장전 한 동작만 실행 (아티팩트 패널에서 사용)
+function demo(kind) {
+  game.freeze = true; keys.clear(); const w = weapons; w.reset();
+  if (kind === 'dry') { w.ammo = 0; w.displayAmmo = 0; w.slots = ['spent', 'spent', 'spent', 'spent', 'spent']; }
+  if (kind === 'reload') { w.ammo = 1; w.displayAmmo = 1; w.slots = ['live', 'spent', 'spent', 'spent', 'spent']; }
+  w.applySlots();
+  const t0 = w.time;
+  if (kind === 'reload') w.tryReload(); else w.tryFire();
+  return t0;
 }
 
 function finish(kind) {
@@ -167,6 +183,8 @@ function hud() {
   }
 }
 
+// 브라우저는 사용자 입력 뒤에만 소리를 허용한다 → 첫 클릭·터치·키 입력에서 오디오를 켠다
+for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => sound.unlock(), { capture: true });
 // ── 입력 ─────────────────────────────────────────────
 const locked = () => document.pointerLockElement === canvas;
 const playable = () => auto || COARSE || locked();
@@ -181,8 +199,8 @@ function setAuto(v) {
   else if (!COARSE && state === 'playing' && !locked()) showMenu();
 }
 // ── 메뉴 (Esc) ──
-function showMenu() { $('menu').classList.remove('hide'); game.paused = true; keys.clear(); game.fireHeld = false; }
-function closeMenu(noLock) { $('menu').classList.add('hide'); game.paused = false; if (!noLock) lock(); }
+function showMenu() { $('menu').classList.remove('hide'); game.paused = true; keys.clear(); game.fireHeld = false; sound.suspend(); }
+function closeMenu(noLock) { $('menu').classList.add('hide'); game.paused = false; sound.resume(); if (!noLock) lock(); }
 function toggleMenu() { if (state !== 'playing') return; $('menu').classList.contains('hide') ? showMenu() : closeMenu(); }
 document.addEventListener('pointerlockchange', () => {
   if (locked()) {
@@ -198,16 +216,17 @@ $('menu').addEventListener('touchstart', (e) => e.stopPropagation());
 // 설정 패널 (타이틀·메뉴 공용)
 function mountSettings(el) {
   el.innerHTML = `<div class="set"><span>그래픽</span><div class="seg"><button type="button" data-q="low">낮음</button><button type="button" data-q="high">높음</button></div></div>
-    <div class="set"><span>마우스 감도</span><input type="range" min="0.2" max="3" step="0.05"><b></b></div>
+    <div class="set"><span>마우스 감도</span><input type="range" min="0.2" max="3" step="0.05" data-r="sens"><b></b></div>
+    <div class="set"><span>소리 크기</span><input type="range" min="0" max="1" step="0.05" data-r="volume"><b></b></div>
     <small data-note></small>`;
   el.addEventListener('click', (e) => { e.stopPropagation(); const q = e.target.dataset && e.target.dataset.q; if (q) setQuality(q); });
   el.addEventListener('touchstart', (e) => e.stopPropagation());
-  el.querySelector('input').addEventListener('input', (e) => { settings.sens = +e.target.value; saveSettings(); syncSettingsUI(); });
+  el.querySelectorAll('input').forEach((inp) => inp.addEventListener('input', (e) => { settings[inp.dataset.r] = +e.target.value; if (inp.dataset.r === 'volume') sound.setVolume(settings.volume); saveSettings(); syncSettingsUI(); }));
 }
 function syncSettingsUI() {
   for (const el of [$('menuSettings'), $('titleSettings')]) {
     el.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('sel', b.dataset.q === settings.quality));
-    const r = el.querySelector('input'); r.value = settings.sens; el.querySelector('b').textContent = settings.sens.toFixed(2) + '×';
+    el.querySelectorAll('input').forEach((inp) => { const k = inp.dataset.r; inp.value = settings[k]; inp.parentElement.querySelector('b').textContent = k === 'sens' ? settings.sens.toFixed(2) + '×' : Math.round(settings.volume * 100) + '%'; });
     el.querySelector('[data-note]').textContent = settings.quality === 'low'
       ? '낮음: 총까지 전부 로우폴리, 해상도 70%, 조명 최소화 (노트북·저사양 추천)'
       : '높음: 하이폴리 리볼버, 금속 반사, 조명 전체 사용';
@@ -273,7 +292,7 @@ function frame(now) {
     if (perf.t >= 5) { if (perf.n / perf.t < 35) { $('hint').textContent = (COARSE ? '메뉴(☰)' : 'Esc 메뉴') + '에서 그래픽을 \'낮음\'으로 바꾸면 더 부드러워요'; $('hint').classList.remove('hide'); setTimeout(() => $('hint').classList.add('hide'), 8000); perf.hinted = true; } else { perf.n = 0; perf.t = 0; } }
   }
   if (state === 'playing' && !game.paused && playable()) {
-    if (auto) bot.update(dt);
+    if (auto && !game.freeze) bot.update(dt);
     else if (game.fireHeld) weapons.tryFire(); // 발사 버튼 누르고 있으면 연사(발사 간격 제한 유지)
     player.update(dt, keys, grid, game.joy);
     weapons.update(dt);
@@ -283,7 +302,7 @@ function frame(now) {
       if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); }
       camera.rotation.x -= pu * 0.035; camera.rotation.z += Math.sin(performance.now() * 0.06) * pu * 0.012;
     }
-    for (const g of ghosts.slice()) {
+    for (const g of (game.freeze ? [] : ghosts.slice())) {
       if (g.update(dt, player, grid) && player.hit()) {
         $('vignette').classList.add('hit'); requestAnimationFrame(() => requestAnimationFrame(() => $('vignette').classList.remove('hit')));
         if (player.hp <= 0) finish('over');
