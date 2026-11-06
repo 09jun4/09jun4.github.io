@@ -32,8 +32,8 @@ export function setupTouch(game, root) {
         knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       } else if (t.identifier === lookId) {
         const dx = t.clientX - lookLast[0], dy = t.clientY - lookLast[1]; lookLast = [t.clientX, t.clientY];
-        game.player.yaw -= dx * 0.0055;
-        game.player.pitch = Math.max(-1.45, Math.min(1.45, game.player.pitch - dy * 0.0055));
+        game.player.yaw -= dx * 0.0055 * game.settings.sens;
+        game.player.pitch = Math.max(-1.45, Math.min(1.45, game.player.pitch - dy * 0.0055 * game.settings.sens));
       }
     }
     e.preventDefault();

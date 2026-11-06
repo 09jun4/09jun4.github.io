@@ -26,6 +26,8 @@ export class World {
     this.lamps = [];
   }
 
+  setQuality(q) { this.low = q === 'low'; this.lights.forEach((l, i) => { l.intensity = this.low ? 10 : 7; }); }
+
   build(grid, rng) {
     while (this.group.children.length) this.group.remove(this.group.children[0]);
     // 벽: 통로와 맞닿은 것만
@@ -76,8 +78,8 @@ export class World {
       (a.x - p.x) ** 2 + (a.z - p.z) ** 2 - ((b.x - p.x) ** 2 + (b.z - p.z) ** 2));
     this.lights.forEach((light, i) => {
       const l = sorted[i];
-      if (l) { light.position.set(l.x, WALL_H - 0.4, l.z); light.visible = true; }
-      else light.intensity = 0;
+      if (l && !(this.low && i > 0)) { light.position.set(l.x, WALL_H - 0.4, l.z); light.visible = true; }
+      else light.visible = false; // 낮음: 가장 가까운 전등 1개만 실제 조명
     });
   }
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createRevolver } from './revolver.js';
+import { createRevolverLow } from './revolver_low.js';
 import { createFlashlight } from './flashlight.js';
 
 const SWITCH_T = 0.7, FIRE_T = 0.6, FIRE_SHOT_AT = 0.2;
@@ -26,23 +27,43 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+function disposeTree(o) {
+  o.traverse((n) => {
+    if (n.geometry) n.geometry.dispose();
+    const ms = n.material ? (Array.isArray(n.material) ? n.material : [n.material]) : [];
+    for (const m of ms) { for (const k of ['map', 'roughnessMap', 'bumpMap']) if (m[k]) m[k].dispose(); m.dispose(); }
+  });
+}
+
 export class Weapons {
   // cb: { fire(), meleeHit() }
-  constructor(viewScene, cb) {
-    this.cb = cb; this.viewScene = viewScene;
-    this.rev = createRevolver();
+  constructor(viewScene, cb, quality = 'high') {
+    this.cb = cb; this.viewScene = viewScene; this.quality = quality;
     this.fl = createFlashlight();
-    this.pistolHolder = new THREE.Group(); this.pistolHolder.add(this.rev.root);
-    this.rev.root.position.set(0, 0.1, -0.08); // 회전축을 그립(손) 위치로: 총구를 내려도 그립은 화면 아래에 머문다
+    this.pistolHolder = new THREE.Group();
     this.flashHolder = new THREE.Group(); this.flashHolder.add(this.fl.root);
     viewScene.add(this.pistolHolder, this.flashHolder);
     this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.sprite.scale.set(0.2, 0.2, 1); this.sprite.visible = false;
-    this.rev.muzzle.add(this.sprite);
     this.casings = [];
     this.time = 0;
+    this.rev = null; this.slots = ['live', 'live', 'live', 'live', 'live'];
+    this.buildRevolver(quality);
     this.reset();
   }
+
+  // 그래픽 품질에 맞는 총 모델로 교체 (낮음: 전부 로우폴리)
+  buildRevolver(q) {
+    if (this.rev) { this.pistolHolder.remove(this.rev.root); disposeTree(this.rev.root); }
+    this.quality = q;
+    this.rev = q === 'low' ? createRevolverLow() : createRevolver();
+    this.pistolHolder.add(this.rev.root);
+    this.rev.root.position.set(0, 0.1, -0.08); // 회전축을 그립(손) 위치로: 총구를 내려도 그립은 화면 아래에 머문다
+    this.rev.muzzle.add(this.sprite);
+    this.rev.bullet.visible = false;
+    this.applySlots();
+  }
+  setQuality(q) { if (q !== this.quality) this.buildRevolver(q); }
 
   reset() {
     this.current = 'pistol'; this.switching = null;

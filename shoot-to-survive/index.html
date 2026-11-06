@@ -46,6 +46,19 @@
   #bQ { left: calc(16px + env(safe-area-inset-left, 0px)); top: 40%; width: calc(var(--b) * .8); height: calc(var(--b) * .8); }
   #bE { right: calc(16px + env(safe-area-inset-right, 0px)); top: 40%; width: calc(var(--b) * .8); height: calc(var(--b) * .8); }
   body.touch-ui #left, body.touch-ui #right { bottom: auto; top: 38px; }
+
+  /* 설정 메뉴 */
+  .panel { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: min(360px, 86vw); text-align: left; cursor: default; }
+  .set { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 16px; }
+  .set > span:first-child { white-space: nowrap; }
+  .seg { display: flex; } .seg button { font-size: 15px; padding: 7px 18px; border-radius: 0; margin: 0 0 0 -1px; }
+  .seg button.sel { background: #fff; color: #000; }
+  .set input[type=range] { flex: 1; min-width: 120px; accent-color: #fff; } .set b { font-weight: 500; min-width: 3.2em; text-align: right; }
+  .panel small { font-size: 12px; opacity: .55; line-height: 1.5; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  #hint { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.7); border: 1px solid #888; padding: 6px 12px; font-size: 13px; text-align: center; max-width: 88vw; }
+  #menuBtn { display: none; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); width: 40px; height: 40px; font-size: 18px; }
+  body.touch-ui #menuBtn { display: flex; } body.touch-ui #badge { right: 56px; }
   .hide { display: none !important; }
   @media (max-width: 640px) {
     .screen h1 { font-size: 26px; } .screen p { font-size: 16px; }
@@ -59,7 +72,7 @@
 <canvas id="c"></canvas>
 <div id="hud">
   <div id="cross"></div><div id="vignette"></div>
-  <div id="count"></div><div id="badge">AI AUTO PLAY</div>
+  <div id="count"></div><div id="hint" class="hide"></div><div id="badge">AI AUTO PLAY</div>
   <div id="left"><div id="hearts"></div></div>
   <div id="right"><div id="equip"></div><div id="cyl"></div></div>
 </div>
@@ -71,10 +84,15 @@
     <button class="tbtn" id="bSwitch" type="button">전환</button>
     <button class="tbtn" id="bQ" type="button">◀Q</button>
     <button class="tbtn" id="bE" type="button">E▶</button>
+    <button class="tbtn" id="menuBtn" type="button">☰</button>
   </div>
 <div id="title" class="screen"><h1>SHOOT TO SURVIVE</h1><p>클릭하여 시작</p>
+  <div id="titleSettings" class="panel"></div>
   <small>WASD 이동 · 마우스 시점 · 좌클릭 발사 · R 재장전 · V 근접공격<br>1 권총 / 2 손전등 / 휠 전환 · Q E 기울이기</small></div>
-<div id="paused" class="screen hide"><h1>PAUSED</h1><p>클릭하여 계속</p></div>
+<div id="menu" class="screen hide" style="cursor:default"><h1>PAUSED</h1>
+  <div id="menuSettings" class="panel"></div>
+  <div class="row"><button id="resumeBtn" type="button">계속하기</button><button id="newMazeBtn" type="button">새 미로로 다시 시작</button></div>
+  <small>Esc 키로 메뉴를 열고 닫아요</small></div>
 <div id="end" class="screen hide" style="cursor:default"><h1 id="endTitle"></h1><p id="endText"></p><button id="restart">다시 시작</button></div>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>

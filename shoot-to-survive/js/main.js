@@ -12,6 +12,13 @@ const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 const GHOSTS = 10;
 const $ = (id) => document.getElementById(id);
 
+// ── 설정 (그래픽 높음/낮음, 마우스 감도) — 브라우저에 저장 ──
+const settings = { quality: COARSE ? 'low' : 'high', sens: 1 }; // 터치 기기는 기본 '낮음'
+try { Object.assign(settings, JSON.parse(localStorage.getItem('sts-settings') || '{}')); } catch (e) {}
+if (settings.quality !== 'low' && settings.quality !== 'high') settings.quality = 'high';
+settings.sens = Math.min(3, Math.max(0.2, +settings.sens || 1));
+const saveSettings = () => { try { localStorage.setItem('sts-settings', JSON.stringify(settings)); } catch (e) {} };
+
 // ── 렌더러 (저사양: 그림자 없음, antialias 끔, pixelRatio 1) ──
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -29,9 +36,11 @@ scene.add(camera);
 // 총·손전등은 별도 씬에서 그려서 벽을 뚫고 보이지 않게 한다
 const viewScene = new THREE.Scene();
 const viewCam = new THREE.PerspectiveCamera(60, 1, 0.01, 5);
-viewScene.add(viewCam, new THREE.AmbientLight(0xffffff, 0.35));
+const viewAmbient = new THREE.AmbientLight(0xffffff, 0.35);
+viewScene.add(viewCam, viewAmbient);
 const key = new THREE.DirectionalLight(0xfff0dd, 3.2); key.position.set(0.5, 1, 0.8); viewScene.add(key);
-{ // 금속 반사용 간단한 환경맵
+let envTex = null;
+{ // 금속 반사용 간단한 환경맵 (높음에서만 사용)
   const c = document.createElement('canvas'); c.width = 256; c.height = 128;
   const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 128);
   g.addColorStop(0, '#d8dde6'); g.addColorStop(0.5, '#555a63'); g.addColorStop(1, '#15171a');
@@ -40,7 +49,7 @@ const key = new THREE.DirectionalLight(0xfff0dd, 3.2); key.position.set(0.5, 1, 
   x.fillStyle = 'rgba(0,0,0,0.55)'; for (const px of [60, 130, 195]) x.fillRect(px, 40, 18, 50);
   const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
   const pm = new THREE.PMREMGenerator(renderer);
-  viewScene.environment = pm.fromEquirectangular(t).texture;
+  envTex = pm.fromEquirectangular(t).texture;
 }
 
 const spot = new THREE.SpotLight(0xfff1d6, 0, 18, 35 * Math.PI / 180, 0.4, 1.6);
@@ -60,8 +69,8 @@ const weapons = new Weapons(viewScene, {
   fire: shoot,
   meleeHit: meleeHit,
   lunge: () => player.lunge(),
-});
-const game = { paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
+}, settings.quality);
+const game = { settings, toggleMenu, paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
 const bot = new Bot(game); game.bot = bot;
 setupTouch(game, $('stage'));
 window.__game = game;
@@ -129,7 +138,7 @@ function newGame(seed) {
   weapons.reset();
   player.applyCamera(grid);
   state = 'playing';
-  $('end').classList.add('hide'); $('paused').classList.add('hide'); $('title').classList.add('hide');
+  $('end').classList.add('hide'); $('menu').classList.add('hide'); $('title').classList.add('hide'); game.paused = false;
   $('hud').style.display = 'block';
   $('badge').style.display = auto ? 'block' : 'none';
   hudHearts(true);
@@ -165,28 +174,67 @@ function setAuto(v) {
   auto = !!v; keys.clear(); game.joy.x = game.joy.y = 0; game.fireHeld = false;
   $('badge').style.display = auto ? 'block' : 'none'; $('restart').classList.toggle('hide', auto);
   $('touch').classList.toggle('hide', auto || !COARSE); document.body.classList.toggle('touch-ui', COARSE && !auto);
-  if (auto) { $('paused').classList.add('hide'); endTimer = Math.max(endTimer, 1); }
-  else if (!COARSE && state === 'playing' && !locked()) $('paused').classList.remove('hide');
+  if (auto) { closeMenu(true); endTimer = Math.max(endTimer, 1); }
+  else if (!COARSE && state === 'playing' && !locked()) showMenu();
 }
+// ── 메뉴 (Esc) ──
+function showMenu() { $('menu').classList.remove('hide'); game.paused = true; keys.clear(); game.fireHeld = false; }
+function closeMenu(noLock) { $('menu').classList.add('hide'); game.paused = false; if (!noLock) lock(); }
+function toggleMenu() { if (state !== 'playing') return; $('menu').classList.contains('hide') ? showMenu() : closeMenu(); }
 document.addEventListener('pointerlockchange', () => {
   if (locked()) {
     if (state === 'title') newGame();
-    $('paused').classList.add('hide'); $('title').classList.add('hide');
-  } else if (state === 'playing') $('paused').classList.remove('hide');
+    $('menu').classList.add('hide'); $('title').classList.add('hide'); game.paused = false;
+  } else if (state === 'playing' && !auto) showMenu(); // Esc로 포인터락이 풀리면 메뉴
 });
+$('resumeBtn').addEventListener('click', () => closeMenu());
+$('newMazeBtn').addEventListener('click', () => { newGame(); lock(); });
+$('menuBtn').addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); toggleMenu(); }, { passive: false });
+$('menu').addEventListener('touchstart', (e) => e.stopPropagation());
+
+// 설정 패널 (타이틀·메뉴 공용)
+function mountSettings(el) {
+  el.innerHTML = `<div class="set"><span>그래픽</span><div class="seg"><button type="button" data-q="low">낮음</button><button type="button" data-q="high">높음</button></div></div>
+    <div class="set"><span>마우스 감도</span><input type="range" min="0.2" max="3" step="0.05"><b></b></div>
+    <small data-note></small>`;
+  el.addEventListener('click', (e) => { e.stopPropagation(); const q = e.target.dataset && e.target.dataset.q; if (q) setQuality(q); });
+  el.addEventListener('touchstart', (e) => e.stopPropagation());
+  el.querySelector('input').addEventListener('input', (e) => { settings.sens = +e.target.value; saveSettings(); syncSettingsUI(); });
+}
+function syncSettingsUI() {
+  for (const el of [$('menuSettings'), $('titleSettings')]) {
+    el.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('sel', b.dataset.q === settings.quality));
+    const r = el.querySelector('input'); r.value = settings.sens; el.querySelector('b').textContent = settings.sens.toFixed(2) + '×';
+    el.querySelector('[data-note]').textContent = settings.quality === 'low'
+      ? '낮음: 총까지 전부 로우폴리, 해상도 70%, 조명 최소화 (노트북·저사양 추천)'
+      : '높음: 하이폴리 리볼버, 금속 반사, 조명 전체 사용';
+  }
+}
+mountSettings($('menuSettings')); mountSettings($('titleSettings'));
+// 그래픽 품질 적용: 총 모델 교체 + 조명 수 + 렌더 해상도 + 환경맵
+function setQuality(q) { settings.quality = q; saveSettings(); applyQuality(); }
+function applyQuality() {
+  const q = settings.quality;
+  weapons.setQuality(q); world.setQuality(q);
+  viewScene.environment = q === 'high' ? envTex : null;
+  muzzleLight.visible = q === 'high';
+  key.intensity = q === 'high' ? 3.2 : 1.7; viewAmbient.intensity = q === 'high' ? 0.35 : 0.55; // 낮음(Lambert)은 조명을 낮춰 음영이 보이게
+  perf.n = 0; perf.t = 0;
+  resize(); syncSettingsUI();
+}
 $('title').addEventListener('click', () => auto ? newGame() : COARSE ? startTouch() : lock());
-$('paused').addEventListener('click', lock);
 $('restart').addEventListener('click', () => { newGame(); lock(); });
 $('touch').classList.toggle('hide', auto || !COARSE); document.body.classList.toggle('touch-ui', COARSE && !auto);
 document.addEventListener('mousemove', (e) => {
   if (!locked() || state !== 'playing') return;
-  player.yaw -= e.movementX * 0.0022;
-  player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - e.movementY * 0.0022));
+  player.yaw -= e.movementX * 0.0022 * settings.sens;
+  player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - e.movementY * 0.0022 * settings.sens));
 });
 document.addEventListener('mousedown', (e) => { if (locked() && state === 'playing' && e.button === 0) weapons.tryFire(); });
 document.addEventListener('wheel', (e) => { if (locked() && state === 'playing') weapons.cycle(); }, { passive: true });
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
+  if (e.code === 'Escape' && state === 'playing' && (auto || COARSE)) { toggleMenu(); return; }
   if (!auto) keys.add(e.code);
   if (state !== 'playing' || !playable() || auto) return;
   if (e.code === 'Digit1') weapons.equip('pistol');
@@ -199,7 +247,8 @@ addEventListener('blur', () => keys.clear());
 
 function resize() {
   const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
-  renderer.setSize(w, h, false);
+  const sc = settings.quality === 'low' ? 0.7 : 1; // 낮음: 내부 해상도 70%
+  renderer.setSize(Math.round(w * sc), Math.round(h * sc), false);
   const a = w / h;
   camera.aspect = a; camera.fov = camera.userData.baseFov = a >= 1.2 ? 75 : Math.min(105, 75 + (1.2 - a) * 45); camera.updateProjectionMatrix();
   viewCam.aspect = a; viewCam.fov = camera.fov - 12; viewCam.updateProjectionMatrix();
@@ -210,10 +259,15 @@ resize();
 
 // ── 메인 루프 ────────────────────────────────────────
 let last = performance.now();
+const perf = { n: 0, t: 0, hinted: false };
 const fwd = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  if (state === 'playing' && !game.paused && !auto && settings.quality === 'high' && !perf.hinted && raw < 0.5) { // 높음에서 5초 평균 35fps 미만이면 안내
+    perf.n++; perf.t += raw;
+    if (perf.t >= 5) { if (perf.n / perf.t < 35) { $('hint').textContent = (COARSE ? '메뉴(☰)' : 'Esc 메뉴') + '에서 그래픽을 \'낮음\'으로 바꾸면 더 부드러워요'; $('hint').classList.remove('hide'); setTimeout(() => $('hint').classList.add('hide'), 8000); perf.hinted = true; } else { perf.n = 0; perf.t = 0; } }
+  }
   if (state === 'playing' && !game.paused && playable()) {
     if (auto) bot.update(dt);
     else if (game.fireHeld) weapons.tryFire(); // 발사 버튼 누르고 있으면 연사(발사 간격 제한 유지)
@@ -252,6 +306,7 @@ function frame(now) {
   renderer.clearDepth();
   renderer.render(viewScene, viewCam);
 }
+applyQuality();
 if (COARSE) { $('title').querySelector('p').textContent = '탭하여 시작'; $('title').querySelector('small').innerHTML = '왼쪽 화면: 이동 조이스틱 · 오른쪽 화면: 드래그로 시점<br>오른쪽 아래 버튼: 발사 · 재장전 · 근접 · 전환 · 기울이기<br>가로 화면을 권장해요'; }
 if (auto) { $('title').querySelector('p').textContent = 'AI 자동 플레이 · 탭하여 시작'; newGame(); }
 requestAnimationFrame(frame);
