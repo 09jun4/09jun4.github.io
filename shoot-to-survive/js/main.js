@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDist, tileOf, centerOf, pushOut } from './maze.js';
+import { hasLOS, generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDist, tileOf, centerOf, pushOut } from './maze.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { Weapons, timingPlan } from './weapons.js';
 import { Ghost, createGhostAssets, ghostTime, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
 import { Bot } from './auto.js';
 import { setupTouch } from './touch.js';
-import { Sound } from './audio.js';
+import { Sound, GhostVoices } from './audio.js';
 
 let auto = !!window.__AUTO || new URLSearchParams(location.search).has('auto'); // AI 자동 플레이
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); // 터치 기기
@@ -68,6 +68,7 @@ let grid = null, ghosts = [], state = 'title', endTimer = 0;
 const keys = new Set();
 
 const sound = new Sound(); sound.setVolume(settings.volume);
+const voices = new GhostVoices(sound); voices.setQuality(settings.quality); sound.voices = voices;
 const weapons = new Weapons(viewScene, {
   sound: (n, o) => { sound.play(n, o); if (sound.onPlay2) sound.onPlay2(n, weapons.time); },
   stopSound: (g) => sound.stop(g),
@@ -82,6 +83,7 @@ window.__game = game;
 
 // ── 판정 ─────────────────────────────────────────────
 function killGhost(g) {
+  voices.stopFor(g);
   scene.remove(g.mesh);
   ghosts.splice(ghosts.indexOf(g), 1);
   if (ghosts.length === 0) finish('clear');
@@ -129,6 +131,7 @@ function demo(kind) {
 function finish(kind) {
   if (state !== 'playing') return;
   state = kind;
+  voices.stopAll();
   document.exitPointerLock?.();
   $('endTitle').textContent = kind === 'clear' ? '클리어!' : '게임 오버';
   $('endText').textContent = kind === 'clear' ? '유령 10마리를 모두 처리했어요' : '유령에게 5번 맞았어요';
@@ -142,6 +145,7 @@ function newGame(seed) {
   const rng = mulberry32(seed ?? (Math.random() * 2 ** 32) >>> 0);
   grid = generateMaze(rng);
   world.build(grid, rng);
+  voices.stopAll();
   for (const g of ghosts) scene.remove(g.mesh);
   ghosts = [];
   const tiles = openTiles(grid);
@@ -237,7 +241,7 @@ mountSettings($('menuSettings')); mountSettings($('titleSettings'));
 function setQuality(q) { settings.quality = q; saveSettings(); applyQuality(); }
 function applyQuality() {
   const q = settings.quality;
-  weapons.setQuality(q); world.setQuality(q);
+  weapons.setQuality(q); world.setQuality(q); voices.setQuality(q);
   for (const g of ghosts) g.setQuality(q, ghostAssets); // 유령도 품질별 모델(높음: 하이폴리 천 유령)
   viewScene.environment = q === 'high' ? envTex : null;
   muzzleLight.visible = q === 'high';
@@ -309,6 +313,8 @@ function frame(now) {
       }
     }
     world.update(player.pos);
+    camera.getWorldDirection(fwd);
+    voices.update(dt, game.freeze ? [] : ghosts, camera.position, fwd, (g) => hasLOS(grid, g.x, g.z, player.pos.x, player.pos.z)); // 유령 속삭임
     hud();
   } else if (auto && (state === 'clear' || state === 'over')) {
     endTimer -= dt; if (endTimer <= 0) newGame();
