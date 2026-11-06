@@ -24,7 +24,7 @@ export class Bot {
       this.idle = 0;
       if (w.current !== 'pistol' && !w.switching) w.equip('pistol');
       const yawGoal = Math.atan2(-(tgt.x - cx), -(tgt.z - cz));
-      const pitchGoal = Math.atan2(GHOST_FLOAT + 1.5 - 1.6, best);
+      const pitchGoal = Math.atan2(GHOST_FLOAT + 1.9 - 1.6, best); // 굽은 상체(가슴) 높이를 겨냥
       p.yaw = turn(p.yaw, yawGoal, 7 * dt);
       p.pitch = turn(p.pitch, pitchGoal, 5 * dt);
       const yErr = Math.abs(angDiff(yawGoal, p.yaw)), pErr = Math.abs(angDiff(pitchGoal, p.pitch));

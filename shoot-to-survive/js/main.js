@@ -3,7 +3,7 @@ import { hasLOS, generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, ra
 import { World } from './world.js';
 import { Player } from './player.js';
 import { Weapons, timingPlan } from './weapons.js';
-import { Ghost, createGhostAssets, ghostTime, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
+import { Ghost, createGhostAssets, ghostTime, GHOST_FLOAT, BODY_DMG, HEAD_DMG } from './ghost.js';
 import { Bot } from './auto.js';
 import { setupTouch } from './touch.js';
 import { Sound, GhostVoices } from './audio.js';
@@ -95,11 +95,11 @@ function shoot() {
   const d = camera.getWorldDirection(new THREE.Vector3());
   const wallD = rayWorldDist(grid, o, d, 60);
   raycaster.set(o, d); raycaster.far = wallD;
-  const hits = raycaster.intersectObjects(ghosts.map(g => g.mesh), false);
+  const hits = raycaster.intersectObjects(ghosts.map(g => g.mesh), true); // 머리·팔 등 자식 메시까지
   if (!hits.length) return;
   const g = hits[0].object.userData.ghost;
-  const head = hits[0].point.y - GHOST_FLOAT > HEAD_FROM; // 모델 상단 25%
-  if (g.damage(head ? 100 : 50)) killGhost(g);
+  const head = !!hits[0].object.userData.head; // 머리 메시에 맞았는가
+  if (g.damage(head ? HEAD_DMG : BODY_DMG)) killGhost(g); // 몸통 3발 · 머리 2발
 }
 
 function meleeHit() { // 전방 1.8m, 전방 약 60° 안의 유령에게 50 피해 (체력 100 → 두 번 때려야 죽음)
