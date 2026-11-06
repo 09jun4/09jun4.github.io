@@ -3,7 +3,7 @@ import { generateMaze, mulberry32, openTiles, bfsDist, openNeighbors, rayWorldDi
 import { World } from './world.js';
 import { Player } from './player.js';
 import { Weapons } from './weapons.js';
-import { Ghost, createGhostAssets, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
+import { Ghost, createGhostAssets, ghostTime, GHOST_FLOAT, HEAD_FROM } from './ghost.js';
 import { Bot } from './auto.js';
 import { setupTouch } from './touch.js';
 
@@ -136,7 +136,7 @@ function newGame(seed) {
   let cand = tiles.filter(([x, z]) => dist[z][x] >= 8).sort(() => rng() - 0.5);
   if (cand.length < GHOSTS) cand = tiles.filter(([x, z]) => dist[z][x] >= 4).sort(() => rng() - 0.5);
   for (const [x, z] of cand.slice(0, GHOSTS)) {
-    const g = new Ghost(ghostAssets, x, z); scene.add(g.mesh); ghosts.push(g);
+    const g = new Ghost(ghostAssets, x, z, settings.quality); scene.add(g.mesh); ghosts.push(g);
   }
   weapons.reset();
   player.applyCamera(grid);
@@ -219,6 +219,7 @@ function setQuality(q) { settings.quality = q; saveSettings(); applyQuality(); }
 function applyQuality() {
   const q = settings.quality;
   weapons.setQuality(q); world.setQuality(q);
+  for (const g of ghosts) g.setQuality(q, ghostAssets); // 유령도 품질별 모델(높음: 하이폴리 천 유령)
   viewScene.environment = q === 'high' ? envTex : null;
   muzzleLight.visible = q === 'high';
   key.intensity = q === 'high' ? 3.2 : 1.7; viewAmbient.intensity = q === 'high' ? 0.35 : 0.55; // 낮음(Lambert)은 조명을 낮춰 음영이 보이게
@@ -295,6 +296,7 @@ function frame(now) {
   } else if (state === 'clear' || state === 'over') {
     for (const g of ghosts) g.sync();
   }
+  if (settings.quality === 'high') ghostTime.value = now / 1000; // 고화질 유령 밑단 천 일렁임
   // 손전등 SpotLight
   camera.getWorldDirection(fwd);
   spot.position.copy(camera.position).addScaledVector(fwd, 0.1); spot.position.y -= 0.08;
