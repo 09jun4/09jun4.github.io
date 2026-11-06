@@ -70,7 +70,7 @@ const weapons = new Weapons(viewScene, {
   meleeHit: meleeHit,
   lunge: () => player.lunge(),
 }, settings.quality);
-const game = { settings, toggleMenu, paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
+const game = { get endTimer() { return endTimer; }, settings, toggleMenu, paused: false, joy: { x: 0, y: 0 }, fireHeld: false, get auto() { return auto; }, touchActive: () => COARSE && !auto && state === 'playing', setAuto, keys, player, weapons, get ghosts() { return ghosts; }, get grid() { return grid; }, get state() { return state; }, camera, shoot, newGame };
 const bot = new Bot(game); game.bot = bot;
 setupTouch(game, $('stage'));
 window.__game = game;
