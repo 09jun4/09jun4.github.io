@@ -7,14 +7,29 @@ const BASE_GAIN = { cock: 1.5, shot: 0.8, dry: 0.9, reload_open: 1.7, reload_ins
 export class Sound {
   constructor() { this.ctx = null; this.master = null; this.bufs = {}; this.vol = 0.8; this.active = new Set(); this.onPlay = null; this.ready = null; }
 
-  // 사용자 입력(클릭·터치·키) 안에서 호출해야 브라우저가 소리를 허용한다
+  // 사용자 입력(클릭·터치·키) 안에서 호출해야 브라우저가 소리를 허용한다.
+  // 모바일 대응: ① 무음 버퍼를 직접 재생해 iOS 오디오를 확실히 해제 ② 무음 스위치(벨소리 끔)여도 나오게 오디오 세션을 'playback'으로
+  // ③ 전화·앱 전환으로 멈춘 상태(suspended/interrupted)는 다음 터치에서 계속 되살림
   unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = this.vol; this.master.connect(this.ctx.destination);
       this.ready = this.load();
+      this.ctx.onstatechange = () => { if (this.ctx.state === 'running') this.silentTag(); };
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    try { const b = this.ctx.createBuffer(1, 1, 22050), n = this.ctx.createBufferSource(); n.buffer = b; n.connect(this.ctx.destination); n.start(0); } catch (e) {}
+    this.silentTag();
+  }
+  // iOS: 무음 <audio>를 한 번 재생하면 무음 스위치를 무시하고 웹 오디오가 나온다
+  silentTag() {
+    if (this._tag) return;
+    try {
+      const a = document.createElement('audio'); a.setAttribute('playsinline', ''); a.loop = true; a.volume = 0.01;
+      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      const p = a.play(); if (p && p.catch) p.catch(() => { this._tag = null; }); this._tag = a;
+    } catch (e) {}
   }
   get on() { return !!this.ctx && this.ctx.state === 'running'; }
 
@@ -31,7 +46,7 @@ export class Sound {
 
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.value = v; }
   suspend() { this.ctx && this.ctx.state === 'running' && this.ctx.suspend().catch(() => {}); }
-  resume() { this.ctx && this.ctx.state === 'suspended' && this.ctx.resume().catch(() => {}); }
+  resume() { this.ctx && this.ctx.state !== 'running' && this.ctx.resume().catch(() => {}); }
 
   // group: 같은 그룹(예: 'reload')을 한꺼번에 끊을 때 사용
   play(name, { gain = 1, rate = 1, group = '' } = {}) {

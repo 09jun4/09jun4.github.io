@@ -189,7 +189,8 @@ function hud() {
 }
 
 // 브라우저는 사용자 입력 뒤에만 소리를 허용한다 → 첫 클릭·터치·키 입력에서 오디오를 켠다
-for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => sound.unlock(), { capture: true });
+for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown']) addEventListener(ev, () => { if (!game.paused || !sound.ctx) sound.unlock(); }, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !game.paused) sound.resume(); }); // 앱 전환 후 복귀 시 소리 복구
 // ── 입력 ─────────────────────────────────────────────
 const locked = () => document.pointerLockElement === canvas;
 const playable = () => auto || COARSE || locked();
