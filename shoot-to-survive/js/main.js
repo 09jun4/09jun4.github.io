@@ -307,6 +307,6 @@ function frame(now) {
   renderer.render(viewScene, viewCam);
 }
 applyQuality();
-if (COARSE) { $('title').querySelector('p').textContent = '탭하여 시작'; $('title').querySelector('small').innerHTML = '왼쪽 화면: 이동 조이스틱 · 오른쪽 화면: 드래그로 시점<br>오른쪽 아래 버튼: 발사 · 재장전 · 근접 · 전환 · 기울이기<br>가로 화면을 권장해요'; }
+if (COARSE) { $('title').querySelector('p').textContent = '탭하여 시작'; $('titleHelp').innerHTML = '왼쪽 화면: 이동 조이스틱 · 오른쪽 화면: 드래그로 시점<br>오른쪽 아래 버튼: 발사 · 재장전 · 근접 · 전환 · 기울이기<br>가로 화면을 권장해요'; }
 if (auto) { $('title').querySelector('p').textContent = 'AI 자동 플레이 · 탭하여 시작'; newGame(); }
 requestAnimationFrame(frame);
