@@ -29,12 +29,15 @@
   function at(o, x, y, z) { o.position.set(x, y, z); return o; }
 
   // ---- side profile (ground-relative metres; y = 0 is the road)
-  function profile(a, b) {
+  // tub = true cuts the cabin out of the top (doors are separate panels),
+  // so the cockpit has a real floor, footwells and door cards.
+  function profile(a, b, tub) {
     var s = new THREE.Shape(), AR = 0.43, AY = 0.33;
     s.moveTo(2.0, 0.2);
     s.bezierCurveTo(2.07, 0.26, 2.08, 0.5, 2.05, 0.6);   // front bumper face
     s.bezierCurveTo(2.02, 0.68, 1.98, 0.71, 1.9, 0.72);   // nose top
     s.lineTo(0.95, 0.86);                                 // bonnet to cowl
+    if (tub) { s.lineTo(0.62, 0.87); s.lineTo(0.62, 0.4); s.lineTo(-1.45, 0.4); s.lineTo(-1.45, 0.915); }
     s.lineTo(-1.55, 0.92);                                // shoulder / beltline
     s.bezierCurveTo(-1.85, 0.93, -1.96, 0.92, -1.99, 0.86); // hatch lip
     s.bezierCurveTo(-2.04, 0.7, -2.05, 0.4, -2.0, 0.22);    // rear face
@@ -121,8 +124,8 @@
     var orange = paint(0xff7a1a), red = paint(0xd6202f);
 
     // --- lower body (extruded profile, bevelled = rounded edges)
-    var W = 1.74, shape = profile(a, b);
-    var bg = new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 4, curveSegments: 28 });
+    var W = 1.74, shape = profile(a, b, false);
+    var bg = new THREE.ExtrudeGeometry(profile(a, b, true), { depth: W, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 4, curveSegments: 28 });
     bg.translate(0, 0, -W / 2);
     var lower = new THREE.Mesh(bg, white); shell.add(lower); parts.shell = lower;
     // glasshouse, narrower with rounded edges (tumblehome)
@@ -147,7 +150,14 @@
     glassPanel(-1.4, 1.36, -1.82, 1.0, 1.2, -0.66, 0.75, 0.16);
     // inside: headliner and a dark cabin floor (the outer shells are one-sided)
     var liner2 = box(1.6, 0.02, 1.3, std(0x2a2c30, { roughness: 1 })); at(liner2, -0.55, 1.4, 0); shell.add(liner2);
-    var cabFloor = box(2.1, 0.01, 1.55, std(0x18191c, { roughness: 1 })); at(cabFloor, -0.55, 0.93, 0); shell.add(cabFloor);
+    // doors: outer skin painted, inner door card dark
+    var cardM = std(0x1c1e22, { roughness: 0.85 });
+    [-1, 1].forEach(function (sd) {
+      var mats = [white, white, black, white, sd > 0 ? white : cardM, sd > 0 ? cardM : white];
+      var door = new THREE.Mesh(new THREE.BoxGeometry(2.07, 0.5, 0.07), mats);
+      at(door, -0.415, 0.655, sd * (W / 2 + 0.025)); shell.add(door);
+      var pull = box(0.2, 0.03, 0.03, std(0xff7a1a)); at(pull, 0.05, 0.8, sd * (W / 2 - 0.03)); shell.add(pull);
+    });
 
     // --- livery decals on both sides (clipped canvases)
     var livR = liveryCanvas(shape, false), livL = liveryCanvas(shape, true);
@@ -240,43 +250,70 @@
     });
     parts.mudflaps = true;
 
-    // --- interior (cockpit camera)
-    var interior = new THREE.Group(); body.add(interior); parts.interior = interior;
-    var dashM = std(0x1d2024, { roughness: 0.8 }), cageM = std(0xb9bec4, { metalness: 0.6, roughness: 0.35 });
-    var dash = box(0.36, 0.2, 1.44, dashM); at(dash, 0.66, floorY + 0.62, 0); interior.add(dash);
-    var dashTop = box(0.36, 0.03, 1.44, std(0x101215, { roughness: 0.9 })); at(dashTop, 0.64, floorY + 0.735, 0); interior.add(dashTop);
-    var gaugeFace = glow(0x0b0d10), ring = glow(0xff7a1a);
-    function gauge(z, r) {
-      var g = new THREE.Group();
-      var face = new THREE.Mesh(new THREE.CircleGeometry(r, 24), gaugeFace); face.rotation.y = -Math.PI / 2; g.add(face);
-      var rim = new THREE.Mesh(new THREE.RingGeometry(r * 0.9, r, 24, 1, Math.PI * 1.25, Math.PI * 1.5), ring); rim.rotation.y = -Math.PI / 2; rim.position.x = -0.001; g.add(rim);
-      var nd = new THREE.Group(); var needle = box(0.002, r * 0.85, 0.008, glow(0xffffff)); needle.position.y = r * 0.42; nd.add(needle); nd.position.x = -0.004; g.add(nd);
-      g.position.set(0.47, floorY + 0.74, z); g.rotation.z = 0.25; interior.add(g);
-      return nd;
-    }
-    parts.rpmNeedle = gauge(-0.38, 0.075);
-    parts.speedNeedle = gauge(-0.22, 0.055);
-    var wheelG = new THREE.Group(); at(wheelG, 0.28, floorY + 0.7, -0.38); wheelG.rotation.z = 0.4; interior.add(wheelG);
-    var sw = new THREE.Group(); wheelG.add(sw);
-    var rimT = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.017, 10, 30), std(0x141414, { roughness: 0.9 })); rimT.rotation.y = Math.PI / 2; sw.add(rimT);
-    [0, 2.1, 4.2].forEach(function (an) { var sp = box(0.012, 0.13, 0.024, satin); sp.rotation.x = an; sp.position.set(0, Math.cos(an) * 0.065, -Math.sin(an) * 0.065); sw.add(sp); });
-    var hub = cyl(0.04, 0.04, 0.03, 16, satin); hub.rotation.z = Math.PI / 2; sw.add(hub);
-    var mark = box(0.01, 0.03, 0.02, ring); mark.position.set(0.003, 0.15, 0); sw.add(mark);
-    parts.steeringWheel = sw;
-    [-0.38, 0.38].forEach(function (z) {
-      var seat = box(0.55, 0.12, 0.5, std(0x202226)); at(seat, -0.35, floorY + 0.25, z); interior.add(seat);
-      var back = box(0.12, 0.72, 0.5, std(0x24272c)); at(back, -0.62, floorY + 0.6, z); back.rotation.z = 0.15; interior.add(back);
-      var wing2 = box(0.1, 0.5, 0.06, std(0xff7a1a)); at(wing2, -0.6, floorY + 0.62, z + 0.24 * Math.sign(z || 1)); wing2.rotation.z = 0.15; interior.add(wing2);
+    // --- interior (cockpit camera), ground-relative like the shell
+    var interior = new THREE.Group(); shell.add(interior); parts.interior = interior;
+    var trimM = std(0x1d2024, { roughness: 0.85 }), softM = std(0x141619, { roughness: 1 }), cageM = std(0xb9bec4, { metalness: 0.6, roughness: 0.35 });
+    var accent = std(0xff7a1a, { roughness: 0.6 }), suede = std(0x111214, { roughness: 1 });
+    function I(o, x, y, z) { at(o, x, y, z); interior.add(o); return o; }
+    I(box(2.05, 0.02, 1.6, softM), -0.4, 0.41, 0);                       // floor
+    // dashboard: main body under the windscreen, padded top, knee panel
+    I(box(0.45, 0.22, 1.62, trimM), 0.74, 0.84, 0);
+    var pad = I(box(0.34, 0.05, 1.62, softM), 0.7, 0.965, 0); pad.rotation.z = 0.08;
+    I(box(0.12, 0.3, 1.5, trimM), 0.5, 0.66, 0);
+    // driver's binnacle with a digital display
+    I(box(0.2, 0.12, 0.44, trimM), 0.54, 1.02, -0.38);
+    var visor = I(box(0.26, 0.022, 0.48, softM), 0.52, 1.09, -0.38); visor.rotation.z = -0.12;
+    var dc = document.createElement('canvas'); dc.width = 512; dc.height = 160;
+    var dTex = new THREE.CanvasTexture(dc); dTex.encoding = THREE.sRGBEncoding;
+    var disp = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.112), new THREE.MeshBasicMaterial({ map: dTex, toneMapped: false }));
+    disp.rotation.set(0, -Math.PI / 2, 0); I(disp, 0.437, 1.025, -0.38);
+    parts.display = { canvas: dc, ctx: dc.getContext('2d'), tex: dTex, frame: 0 };
+    // co-driver trip meter on the passenger side
+    I(box(0.14, 0.09, 0.24, trimM), 0.62, 1.01, 0.36);
+    var trip = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.06), new THREE.MeshBasicMaterial({ map: textTex(['TRIP 0.00'], 256, 80, '#05170c', '#57ff8a', '700 40px ui-monospace, monospace'), toneMapped: false }));
+    trip.rotation.y = -Math.PI / 2; I(trip, 0.548, 1.012, 0.36);
+    // centre switch panel (coloured buttons) on the dash face
+    I(box(0.02, 0.16, 0.34, softM), 0.448, 0.82, 0.02);
+    [0xff3b2f, 0xffd23c, 0x3ccf6e, 0x9ad7ff, 0xff7a1a, 0xffffff].forEach(function (c, k) {
+      I(box(0.015, 0.022, 0.03, glow(c)), 0.44, 0.86 - Math.floor(k / 3) * 0.05, -0.06 + (k % 3) * 0.07);
     });
-    function tube(x1, y1, z1, x2, y2, z2) {
-      var v = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1), len = v.length();
-      var t = cyl(0.017, 0.017, len, 8, cageM); t.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
-      t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); interior.add(t);
+    // steering column and wheel (suede rim, 3 spokes, 12 o'clock marker, paddles)
+    function bar(x1, y1, z1, x2, y2, z2, r, m) {
+      var v = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1), len = v.length(), o = cyl(r, r, len, 10, m);
+      o.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); interior.add(o); return o;
     }
-    var yt = floorY + 1.13, yb = floorY + 0.3;
-    [-0.62, 0.62].forEach(function (z) { tube(0.72, yb + 0.3, z, 0.42, yt, z); tube(0.42, yt, z, -1.05, yt, z); tube(-1.05, yt, z, -1.2, yb, z); });
-    tube(0.42, yt, -0.62, 0.42, yt, 0.62); tube(-1.05, yt, -0.62, -1.05, yt, 0.62); tube(-1.05, yt, -0.62, 0.42, yt, 0.62);
-    tube(0.55, yb + 0.25, -0.64, -0.9, yb + 0.25, -0.64);
+    bar(0.52, 0.86, -0.38, 0.22, 0.91, -0.38, 0.035, trimM);
+    var wheelG = I(new THREE.Group(), 0.18, 0.92, -0.38); wheelG.rotation.z = -0.42;
+    var sw = new THREE.Group(); wheelG.add(sw);
+    var rimT = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.02, 12, 40), suede); rimT.rotation.y = Math.PI / 2; sw.add(rimT);
+    [Math.PI / 2, -Math.PI / 2, Math.PI].forEach(function (an) {
+      var sp = box(0.014, 0.15, 0.04, satin); sp.position.set(0, Math.cos(an + Math.PI / 2) * 0.085, Math.sin(an + Math.PI / 2) * 0.085);
+      sp.rotation.x = -an; sw.add(sp);
+    });
+    var hub = cyl(0.042, 0.042, 0.04, 20, satin); hub.rotation.z = Math.PI / 2; sw.add(hub);
+    var logo = cyl(0.022, 0.022, 0.005, 16, accent); logo.rotation.z = Math.PI / 2; logo.position.x = -0.022; sw.add(logo);
+    var mark = box(0.012, 0.035, 0.025, accent); mark.position.set(0, 0.165, 0); sw.add(mark);
+    [-1, 1].forEach(function (sd) { var pd = box(0.01, 0.09, 0.05, carbon); pd.position.set(0.04, 0.02, sd * 0.13); sw.add(pd); });
+    parts.steeringWheel = sw;
+    // centre console, sequential lever, hydraulic handbrake (rally style)
+    I(box(0.62, 0.34, 0.24, trimM), 0.16, 0.58, 0.0);
+    bar(0.22, 0.75, 0.04, 0.08, 1.02, 0.02, 0.014, satin);
+    I(new THREE.Mesh(new THREE.SphereGeometry(0.035, 14, 10), satin), 0.075, 1.035, 0.02);
+    bar(-0.05, 0.75, -0.08, 0.1, 0.93, -0.1, 0.014, satin);
+    var hbGrip = bar(0.07, 0.895, -0.096, 0.115, 0.95, -0.1, 0.02, std(0xb5141c, { roughness: 0.7 })); void hbGrip;
+    // bucket seats with bolsters and harness
+    [-0.38, 0.38].forEach(function (z) {
+      I(box(0.5, 0.1, 0.48, softM), -0.32, 0.53, z);
+      var back = I(box(0.1, 0.86, 0.5, softM), -0.6, 0.98, z); back.rotation.z = 0.12;
+      [-1, 1].forEach(function (s) { var bo = I(box(0.12, 0.6, 0.06, trimM), -0.56, 0.9, z + s * 0.25); bo.rotation.z = 0.12; });
+      var hd = I(box(0.11, 0.08, 0.5, accent), -0.66, 1.41, z); hd.rotation.z = 0.12;
+      if (z < 0) [-0.1, 0.1].forEach(function (dz) { var st = I(box(0.012, 0.6, 0.05, accent), -0.52, 1.0, z + dz); st.rotation.z = 0.2; });
+    });
+    // roll cage
+    function tube(x1, y1, z1, x2, y2, z2) { bar(x1, y1, z1, x2, y2, z2, 0.018, cageM); }
+    var yt = 1.37, yb = 0.54;
+    [-0.64, 0.64].forEach(function (z) { tube(0.72, yb + 0.35, z, 0.42, yt, z); tube(0.42, yt, z, -1.05, yt, z); tube(-1.05, yt, z, -1.2, yb, z); tube(0.55, 0.78, z, -0.9, 0.78, z); });
+    tube(0.42, yt, -0.64, 0.42, yt, 0.64); tube(-1.05, yt, -0.64, -1.05, yt, 0.64); tube(-1.05, yt, -0.64, 0.42, yt, 0.64);
 
     parts.cockpitMount = at(new THREE.Object3D(), -0.3, floorY + 1.0, -0.38); body.add(parts.cockpitMount);
     parts.cockpitMount.rotation.z = -0.06;
@@ -359,6 +396,27 @@
     return V;
   }
 
+  // Digital dash: shift-light bar, gear, speed, rpm (every other frame).
+  function drawDisplay(D, car) {
+    if ((D.frame++ & 1) === 1) return;
+    var g = D.ctx, w = 512, h = 160, rpm = car.rpm, lim = car.spec.limiter;
+    g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
+    var segs = 24, on = Math.round(Math.min(1, rpm / lim) * segs), flash = rpm > lim * 0.94 && (Date.now() / 90 | 0) % 2;
+    for (var i = 0; i < segs; i++) {
+      var f = i / segs, col = f < 0.6 ? '#2fe36a' : f < 0.82 ? '#ffd23c' : '#ff3b2f';
+      g.fillStyle = i < on ? (flash ? '#4ad7ff' : col) : '#16191e'; g.fillRect(14 + i * 20.3, 10, 16, 22);
+    }
+    g.fillStyle = '#ff7a1a'; g.font = '900 70px "Segoe UI", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(car.shiftT > 0 ? '-' : car.gear === -1 ? 'R' : car.gear === 0 ? 'N' : car.gear, w / 2, 72); // above the wheel rim
+    g.fillStyle = '#fff'; g.font = '800 54px ui-monospace, Consolas, monospace'; g.textAlign = 'right';
+    g.fillText(Math.round(car.speed * 3.6), w - 20, 92);
+    g.fillStyle = '#7d8794'; g.font = '700 20px system-ui, sans-serif'; g.fillText('km/h', w - 20, 136);
+    g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = '800 40px ui-monospace, Consolas, monospace';
+    g.fillText((Math.round(rpm / 10) * 10 + ''), 20, 92);
+    g.fillStyle = '#7d8794'; g.font = '700 20px system-ui, sans-serif'; g.fillText('rpm', 20, 136);
+    D.tex.needsUpdate = true;
+  }
+
   function sync(V, car) {
     var root = V.root;
     root.position.set(car.x, car.y, car.z);
@@ -378,8 +436,7 @@
       vw.strut.scale.y = Math.max(0.05, top - hub);
     }
     V.parts.steeringWheel.rotation.x = car.steer / spec.maxSteer * 2.2;
-    V.parts.rpmNeedle.rotation.x = -(-2.3 + 4.6 * Math.min(1, car.rpm / 8000));
-    V.parts.speedNeedle.rotation.x = -(-2.3 + 4.6 * Math.min(1, car.speed * 3.6 / 220));
+    if (V.parts.interior.visible) drawDisplay(V.parts.display, car);
     var gy = (car.wheels[0].gy + car.wheels[1].gy + car.wheels[2].gy + car.wheels[3].gy) / 4;
     V.blob.position.y = gy - car.y + 0.03;
   }
