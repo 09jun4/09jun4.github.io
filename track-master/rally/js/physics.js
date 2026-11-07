@@ -25,7 +25,7 @@
   'use strict';
   var RL = G.RL = G.RL || {};
   var D = RL.Data, T = RL.Track;
-  var DT = 1 / 600, GRAV = 9.81, ATTACH = 0.1;
+  var DT = 1 / 600, GRAV = 9.81, ATTACH = 0.1, DRIVE = 1.32;
 
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
   function sign(x) { return x < 0 ? -1 : 1; }
@@ -189,11 +189,22 @@
     // the front wheels are pulled toward the direction of travel (automatic
     // counter-steer, like a driver's hands catching the slide), so the
     // player's steering sets the drift angle instead of fighting a spin.
+    // The front wheels are turned all the way to the direction of travel, so
+    // in a drift the fronts keep their grip and pull the car along while the
+    // rear tyres slide: the tail is out, not the whole car crabbing sideways.
     var beta = vAbs > 4 ? Math.atan2(vLat, Math.abs(vLong)) : 0, slideF = 0;
     car.beta = beta;
+    var slideAll = vLong > 4 ? clamp((Math.abs(beta) - 0.06) / 0.2, 0, 1) : 0;
+    var powerSlide = vLong > 4 ? clamp((Math.abs(beta) - 0.1) / 0.2, 0, 1) : 0; // clearly sideways
     if (set.driftAssist && vLong > 4) {
-      slideF = clamp((Math.abs(beta) - 0.08) / 0.25, 0, 1);
-      delta = clamp(delta + slideF * clamp(beta, -0.5, 0.5) * 0.9, -spec.maxSteer, spec.maxSteer);
+      slideF = slideAll;
+      // aim the fronts along the front axle's own path (body slip + yaw
+      // rate * distance to the front axle): the front tyres keep grip and
+      // the player's steering adds a little slip on top to pull the nose in
+      // or let it run wide; the rear axle does the sliding.
+      var phiF = Math.atan2(vLat + car.r * ws[0].lx, Math.abs(vLong));
+      var csLock = spec.maxSteer * 1.25;
+      delta = clamp(slideF * clamp(phiF, -0.78, 0.78) + delta * (1 - 0.6 * powerSlide), -csLock, csLock);
     }
     car.steer = delta;
     ws[0].steer = delta * (delta < 0 ? 1.08 : 0.93); // FL is the inside wheel turning left
@@ -216,8 +227,16 @@
       if (comp > 0) {
         var cv = (comp - w.comp) / dt;
         w.compVel = cv; w.comp = comp;
-        var F = k * hs * comp + (cv > 0 ? cB : cR) * hs * cv;
-        if (comp > spec.travel) { F += spec.bumpStop * (comp - spec.travel); w.bump = Math.max(w.bump, cv); }
+        // digressive damper: firm on slow body motion (roll, pitch, float
+        // after a crest), softer on fast hits so small stones don't kick
+        var cc = (cv > 0 ? cB : cR) * hs, av = Math.abs(cv), knee = 0.16;
+        var F = k * hs * comp + (av < knee ? cc * cv : sign(cv) * cc * (knee + 0.2 * (av - knee)));
+        // hydraulic bump stop (rally dampers): the last 6 cm of travel add a
+        // strong velocity-dependent force that soaks up a landing instead of
+        // hitting the stop, then the rubber stop past full travel
+        var hz = comp - (spec.travel - 0.06);
+        if (hz > 0 && cv > 0) F += 14000 * cv * Math.min(1, hz / 0.04) + 20000 * hz;
+        if (comp > spec.travel) { var ov = comp - spec.travel; F += spec.bumpStop * ov * (1 + ov / 0.04); w.bump = Math.max(w.bump, cv); }
         else if (w.bump > 0) w.bumpDone = true;
         w.Fz = Math.max(0, F); w.contact = w.Fz > 0;
         w.wheelY = gr.y + R;
@@ -270,7 +289,7 @@
         // launch: the clutch slips, the engine holds revs, full torque passes
         clutchSlip = true;
         if (thrEff > 0.03) {
-          var target = 1500 + thrEff * 2600;
+          var target = 2200 + thrEff * 2900; // rally launch: held near peak torque
           car.rpm += (target - car.rpm) * Math.min(1, dt * 6);
           Tout = torqueAt(spec, car.rpm) * thrEff * (0.45 + 0.55 * car.engineHealth) * gearR;
         } else {
@@ -293,7 +312,10 @@
     // torque split: centre coupling (handbrake opens it) + axle diffs
     var wF = (ws[0].omega + ws[1].omega) / 2, wR = (ws[2].omega + ws[3].omega) / 2;
     var hbOpen = hb > 0.2;
-    var TF = Tout * spec.awdFront, TRr = Tout * (1 - spec.awdFront);
+    // rear-biased split; more to the rear while sliding on the throttle, so
+    // the throttle holds the tail out (power oversteer)
+    var fShare = spec.awdFront + ((spec.driftFront || spec.awdFront) - spec.awdFront) * powerSlide * clamp((thrEff - 0.2) / 0.5, 0, 1);
+    var TF = Tout * fShare, TRr = Tout * (1 - fShare);
     if (hbOpen) { TF = Tout; TRr = 0; }
     else if (engaged && !clutchSlip) { var vis = spec.centerLock * (wR - wF); TF += vis; TRr -= vis; }
     var dt0 = [TF / 2, TF / 2, TRr / 2, TRr / 2];
@@ -352,6 +374,9 @@
         continue;
       }
       var mu = S.mu * TY.grip[w.surf] * (0.55 + 0.45 * w.tyre);
+      // a rear tyre spun up on loose ground while sliding loses side grip
+      // first: the tail swings wide and the throttle holds it there
+      if (!w.front && powerSlide > 0) mu *= 1 - (set.driftAssist ? 0.28 : 0.1) * powerSlide * (0.35 + 0.65 * clamp(thrEff, 0, 1));
       var Fz0 = spec.mass * GRAV / 4;
       mu *= clamp(1 - 0.09 * (w.Fz / Fz0 - 1), 0.75, 1.12);
       var Dmax = mu * w.Fz;
@@ -369,7 +394,11 @@
         Ck = Dmax * sh.C * Math.cos(sh.C * at) * sh.B / (1 + sh.B * sh.B * s * s) / kp;
       } else Ck = Dmax * sh.C * sh.B / kp;
       Ck = Math.max(0, Ck);
-      var Fx = s > 1e-6 ? F * sx / s : 0, Fy = s > 1e-6 ? -F * sy / s : 0;
+      // tyres grip harder pulling than sideways (friction ellipse wider
+      // along the tread): driven wheels get DRIVE x the longitudinal force
+      var kx = Td > 0 && kappa > 0 ? (w.front ? DRIVE : 1 + (DRIVE - 1) * (1 - powerSlide)) : 1;
+      Ck *= kx;
+      var Fx = s > 1e-6 ? kx * F * sx / s : 0, Fy = s > 1e-6 ? -F * sy / s : 0;
       // rolling resistance
       Fx -= S.roll * w.Fz * Math.tanh(vl / 0.8);
       // implicit wheel spin update (stable at any load)
@@ -382,7 +411,7 @@
       }
       // recompute the longitudinal force with the new spin (consistent)
       var kap1 = (om1 * R - vl) / den, sx1 = kap1 / kp, s1 = Math.hypot(sx1, sy);
-      if (s1 > 1e-6) { var F1 = Dmax * Math.sin(sh.C * Math.atan(sh.B * s1)); Fx = F1 * sx1 / s1 - S.roll * w.Fz * Math.tanh(vl / 0.8); Fy = -F1 * sy / s1; }
+      if (s1 > 1e-6) { var F1 = Dmax * Math.sin(sh.C * Math.atan(sh.B * s1)); Fx = kx * F1 * sx1 / s1 - S.roll * w.Fz * Math.tanh(vl / 0.8); Fy = -F1 * sy / s1; }
       w.omega = om1; w.kappa = kap1; w.alpha = Math.atan(tanA);
       w.angle += w.omega * dt;
       // low-speed lateral damping (no jitter when parked)
@@ -423,8 +452,8 @@
       var muA = D.SURFACES[car.surface].mu, rAsk = vLong * Math.tan(steerIn * lock) / spec.wheelbase;
       var rLim = 1.25 * muA * GRAV / Math.max(vAbs, 3);
       rAsk = clamp(rAsk, -rLim, rLim);
-      yawT += -(car.r - rAsk) * 5200 * slideF;
-      if (Math.abs(beta) > 0.75) yawT += sign(beta) * (Math.abs(beta) - 0.75) * 26000; // beta>0 = nose left of travel: turn right
+      yawT += -(car.r - rAsk) * 2600 * slideF;
+      if (Math.abs(beta) > 0.72) yawT += sign(beta) * (Math.abs(beta) - 0.72) * 26000; // beta>0 = nose left of travel: turn right
     }
     car.r += yawT / spec.yawInertia * dt;
     if (car.airborne) car.r *= 1 - 0.3 * dt;
@@ -433,7 +462,7 @@
     car.vy += (Fsum / mass - GRAV) * dt;
     car.y += car.vy * dt;
     pitchT += h * Flong; rollT -= h * Flat;
-    pitchT -= 900 * car.pitchRate; rollT -= 420 * car.rollRate; // chassis damping
+    pitchT -= 2400 * car.pitchRate; rollT -= 1100 * car.rollRate; // chassis damping (calm body)
     car.pitchRate += pitchT / spec.pitchInertia * dt;
     car.rollRate += rollT / spec.rollInertia * dt;
     if (car.airborne) { car.pitchRate *= 1 - 0.8 * dt; car.rollRate *= 1 - 0.8 * dt; }
@@ -449,7 +478,7 @@
       w = ws[i];
       if (!w.bumpDone) continue;
       if (w.bump > 4.2) {
-        if (set.damage) w.susp = Math.max(0, w.susp - (w.bump - 4.2) * 0.03);
+        if (set.damage && w.bump > 5.6) w.susp = Math.max(0, w.susp - (w.bump - 5.6) * 0.03); // normal jump landings are free
         car.events.push({ type: 'suspHit', wheel: i, v: w.bump });
       }
       w.bump = 0; w.bumpDone = false;

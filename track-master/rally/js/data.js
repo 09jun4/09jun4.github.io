@@ -45,15 +45,19 @@
     wheelRadius: 0.33, wheelInertia: 1.1, // kg m^2 per wheel (with brake disc)
     maxSteer: 0.6,           // rad (~34 deg) at the wheels
     // suspension (per wheel); stiffness/height settings scale these
-    spring: 36000, damperBump: 2300, damperRebound: 3200, travel: 0.24, restLength: 0.34, bumpStop: 220000,
-    // engine: 1.6 turbo, ~290 hp
+    // ~1.6 Hz ride, damping ~0.55/0.8 of critical (rally dampers: soft springs,
+    // long travel, strong damping so the body settles after one bump)
+    spring: 26000, damperBump: 2900, damperRebound: 4800, travel: 0.31, restLength: 0.34, bumpStop: 160000,
+    // engine: 1.6 turbo, tuned well past Rally2 (~280 hp / 420 Nm) for the game:
+    // ~620 hp with a huge mid-range, 0-100 km/h is traction-limited (~2.8 s)
     idleRpm: 1050, redline: 7600, limiter: 7700, engineInertia: 0.16,
-    torque: [[1000, 210], [2000, 310], [3000, 410], [4000, 440], [5000, 430], [6000, 400], [7000, 350], [7700, 300]],
+    torque: [[1000, 400], [2000, 680], [3000, 880], [4000, 940], [5000, 930], [6000, 880], [7000, 780], [7700, 650]],
     engineBrake: 55,         // Nm at redline, closed throttle
-    gears: [3.10, 2.25, 1.76, 1.43, 1.19, 1.00], reverse: 3.2, finalDrive: 4.9,
-    shiftTime: { AUTOMATIC: 0.22, MANUAL: 0.32, SEQUENTIAL: 0.07 },
-    awdFront: 0.5,           // static front torque share (Rally2: fixed 50:50)
-    centerLock: 900,         // Nm per rad/s of front/rear speed difference (stiff coupling)
+    gears: [3.10, 2.25, 1.76, 1.43, 1.19, 1.00], reverse: 3.2, finalDrive: 5.1,
+    shiftTime: { AUTOMATIC: 0.12, MANUAL: 0.25, SEQUENTIAL: 0.05 },
+    awdFront: 0.4,           // static front torque share (rear-biased: the tail steps out on power)
+    driftFront: 0.1,         // front share while the car is sliding on the throttle
+    centerLock: 480,         // Nm per rad/s of front/rear speed difference
     diffLock: 140,           // Nm per rad/s left/right (limited slip)
     brakeTorque: 3600,       // Nm total at full pedal (both axles)
     handbrakeTorque: 2400,   // Nm per rear wheel

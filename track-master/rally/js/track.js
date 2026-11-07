@@ -45,6 +45,12 @@
         segs.push({ len: L, k0: 0, k1: 0 });
         break;
       }
+      case 'jumpRun': { // a long straight for a jump, ending in a fast corner
+        segs.push({ len: rng.range(170, 230), k0: 0, k1: 0 }); s = segs[0].len;
+        g = rng.weighted([[4, 0.6], [5, 1], [6, 1]]);
+        cornerSegs(dir, radiusFor(rng, g), rng.range(0.35, 0.8), segs, corners, s);
+        break;
+      }
       case 'gentle':   // grade 5-6
         g = rng.weighted([[5, 1], [6, 1]]); R = radiusFor(rng, g); a = rng.range(0.35, 0.95);
         cornerSegs(dir, R, a, segs, corners, 0);
@@ -169,7 +175,7 @@
       for (var attempt = 0; attempt < 7 && !ok; attempt++) {
         var kind = rng.weighted([
           ['straight', lastKind === 'straight' ? 0.2 : 1.5], ['gentle', 0.9], ['medium', 2.4], ['sharp', 2.0], ['square', 2.6],
-          ['hairpin', Math.abs(dev) > 0.6 && lastKind !== 'hairpin' ? 0.9 : 0.12], ['linked', 1.0], ['chicane', 1.3],
+          ['hairpin', Math.abs(dev) > 0.6 && lastKind !== 'hairpin' ? 0.9 : 0.12], ['linked', 1.0], ['chicane', 1.3], ['jumpRun', lastKind === 'jumpRun' ? 0 : 1.4],
         ]);
         // turn back toward the main direction when drifting away
         var dir = Math.abs(dev) > 0.9 ? (rng.chance(0.82) ? -Math.sign(dev) : Math.sign(dev)) : rng.sign();
@@ -208,7 +214,7 @@
     plan.modules.forEach(function (m) {
       modules.push({ kind: m.kind, dir: m.dir, s0: s, s1: s + m.len });
       m.corners.forEach(function (c) {
-        corners.push({ dir: c.dir, R: c.R, angle: c.angle, s0: s + c.s0, apex: s + c.apex, s1: s + c.s1, hairpin: !!c.hairpin, module: m.kind });
+        corners.push({ dir: c.dir, R: c.R, angle: c.angle, s0: s + c.s0, apex: s + c.apex, s1: s + c.s1, hairpin: !!c.hairpin, square: !!c.square, module: m.kind });
       });
       m.segs.forEach(function (q) { segs.push(q); });
       s += m.len;
@@ -290,11 +296,29 @@
         if ((!flat || i === Math.floor((finishS - 40) / SP) - 1) && i0 >= 0) { if ((i - i0) * SP >= 42) stretches.push({ kind: 'straight', s0: i0 * SP + 4, s1: i * SP - 4, used: false }); i0 = -1; }
       }
     })();
+    // The corner that follows a stretch decides how much calm road a jump or
+    // crest needs before it: never a sharp corner right after a landing.
+    function nextCornerAfter(sEnd) {
+      for (var q = 0; q < corners.length; q++) if (corners[q].s0 >= sEnd - 6) return corners[q];
+      return null;
+    }
+    function runOut(m, sharpNeed, softNeed) {
+      var nc = nextCornerAfter(m.s1), g = nc ? (nc.hairpin || nc.square ? 1 : D.gradeOf(nc.R)) : 6;
+      // a long-angle corner (> ~70 deg) is braked for like a tight one
+      if (nc && g > 3 && Math.abs(nc.angle || 0) > 1.2) g = 3;
+      return g <= 3 ? sharpNeed : g === 4 ? (sharpNeed + softNeed) / 2 : softNeed;
+    }
     stretches.forEach(function (m) {
       var len = m.s1 - m.s0;
       if (len < 34) return;
-      if (len >= 50 && vr.chance(0.45)) {
-        var sj = m.s0 + len * vr.range(0.45, 0.65), lip = vr.range(0.8, 1.25), drop = vr.range(1.4, 2.2);
+      // jump: 16 m ramp; at speed the car flies up to ~40 m past the lip,
+      // then needs a straight run-out to land, settle and brake: 150 m
+      // before a grade 1-3 (or 90-degree / hairpin) corner, 70 m before a
+      // fast one. Never a sharp corner straight after a landing.
+      var jNeed = runOut(m, 150, 70), jLo = m.s0 + 20, jHi = m.s1 - 40 - jNeed;
+      var cNeed = runOut(m, 85, 40);
+      if (jHi >= jLo && vr.chance(len > 140 ? 0.9 : 0.6)) {
+        var sj = jLo + (jHi - jLo) * vr.range(0, 0.45), lip = vr.range(0.8, 1.25), drop = vr.range(1.4, 2.2);
         for (var i = Math.floor((sj - 16) / SP); i <= Math.floor((sj + 26) / SP) && i < n; i++) {
           var d = i * SP - sj;
           bump[i] += d < 0 ? lip * smooth((d + 16) / 16) : lip - (lip + drop) * smooth(d / 22) + drop * smooth((d - 22) / 4) * 0;
@@ -304,7 +328,9 @@
         for (var t = 1; t <= 20 && tail + t < n; t++) bump[tail + t] += base * (1 - smooth(t / 20));
         features.push({ type: 'jump', s0: sj - 16, s1: sj + 26, at: sj }); m.used = true;
       } else if (len >= 40 && vr.chance(0.4)) {
-        var sc = m.s0 + len * vr.range(0.4, 0.6), A = vr.range(1.5, 2.8), half = Math.min(vr.range(26, 40), len * 0.45);
+        var half = Math.min(vr.range(26, 40), len * 0.45), cLo = m.s0 + half, cHi = m.s1 - half - cNeed;
+        if (cHi < cLo) return;
+        var sc = cLo + (cHi - cLo) * vr.range(0, 1), A = vr.range(1.5, 2.8);
         for (var c = Math.floor((sc - half) / SP); c <= Math.ceil((sc + half) / SP) && c < n; c++) {
           var u = (c * SP - sc) / half; if (Math.abs(u) <= 1) bump[c] += A * 0.5 * (1 + Math.cos(Math.PI * u));
         }
