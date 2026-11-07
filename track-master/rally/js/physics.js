@@ -79,7 +79,7 @@
   function defaultSetup() {
     return {
       tyre: 'gravel', compound: 'soft', brakeBias: 0.62, stiffness: 1.0, rideHeight: 0.0,
-      transmission: 'AUTOMATIC', abs: true, tcs: false, esc: false, damage: true,
+      transmission: 'AUTOMATIC', abs: true, tcs: false, esc: false, damage: true, driftAssist: true,
     };
   }
 
@@ -184,7 +184,17 @@
 
     // steering: speed-sensitive lock + Ackermann
     var vAbs = Math.abs(vLong), lock = spec.maxSteer * (1 - 0.6 * clamp((vAbs - 6) / 36, 0, 1));
-    var delta = clamp(inpRaw.steer || 0, -1, 1) * lock;
+    var steerIn = clamp(inpRaw.steer || 0, -1, 1), delta = steerIn * lock;
+    // Drift assist (RALLY SETTINGS, on by default): while the car slides,
+    // the front wheels are pulled toward the direction of travel (automatic
+    // counter-steer, like a driver's hands catching the slide), so the
+    // player's steering sets the drift angle instead of fighting a spin.
+    var beta = vAbs > 4 ? Math.atan2(vLat, Math.abs(vLong)) : 0, slideF = 0;
+    car.beta = beta;
+    if (set.driftAssist && vLong > 4) {
+      slideF = clamp((Math.abs(beta) - 0.08) / 0.25, 0, 1);
+      delta = clamp(delta + slideF * clamp(beta, -0.5, 0.5) * 0.9, -spec.maxSteer, spec.maxSteer);
+    }
     car.steer = delta;
     ws[0].steer = delta * (delta < 0 ? 1.08 : 0.93); // FL is the inside wheel turning left
     ws[1].steer = delta * (delta > 0 ? 1.08 : 0.93);
@@ -331,7 +341,7 @@
       var Iw = spec.wheelInertia + Ieng;
       // brake torque on this wheel
       var Tb = brk * spec.brakeTorque * (w.front ? bias : 1 - bias) / 2 + escBrake[i];
-      if (!w.front && hb > 0) Tb += hb * spec.handbrakeTorque;
+      if (!w.front && hb > 0) Tb += hb * spec.handbrakeTorque * (set.driftAssist ? 0.7 : 1);
       var Td = dt0[i];
       if (!w.contact) {
         // wheel in the air: only drive / brake
@@ -406,6 +416,16 @@
     // ---- integrate body
     var mass = spec.mass, h = spec.cgHeight;
     car.vx += Fwx / mass * dt; car.vz += Fwz / mass * dt;
+    // Drift assist part 2: yaw stabiliser. When sliding, pull the yaw rate
+    // toward what the steering asks for (limited by grip), and stop the
+    // slide angle growing past ~50 degrees (no sudden spins).
+    if (set.driftAssist && vLong > 4 && slideF > 0) {
+      var muA = D.SURFACES[car.surface].mu, rAsk = vLong * Math.tan(steerIn * lock) / spec.wheelbase;
+      var rLim = 1.25 * muA * GRAV / Math.max(vAbs, 3);
+      rAsk = clamp(rAsk, -rLim, rLim);
+      yawT += -(car.r - rAsk) * 5200 * slideF;
+      if (Math.abs(beta) > 0.75) yawT += sign(beta) * (Math.abs(beta) - 0.75) * 26000; // beta>0 = nose left of travel: turn right
+    }
     car.r += yawT / spec.yawInertia * dt;
     if (car.airborne) car.r *= 1 - 0.3 * dt;
     car.x += car.vx * dt; car.z += car.vz * dt; car.yaw += car.r * dt;

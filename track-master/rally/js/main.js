@@ -175,7 +175,7 @@
   var PEN_NAMES = { offCourse: '코스 이탈', collision: '심각한 충돌', rollover: '차량 전복', recover: '수동 복구 (R)', stuck: '주행 불가 (자동 복구)' };
   function renderRally() {
     var st = S();
-    $('rs-assists').innerHTML = [['abs', 'ABS (바퀴 잠김 방지)'], ['tcs', 'TCS (휠스핀 억제)'], ['esc', 'ESC (자세 제어)']].map(function (a) {
+    $('rs-assists').innerHTML = [['drift', '드리프트 어시스트 (자동 카운터스티어)'], ['abs', 'ABS (바퀴 잠김 방지)'], ['tcs', 'TCS (휠스핀 억제)'], ['esc', 'ESC (자세 제어)']].map(function (a) {
       return '<label class="tg"><input type="checkbox" data-as="' + a[0] + '"' + (st.assists[a[0]] ? ' checked' : '') + ' /> ' + a[1] + '</label>';
     }).join('');
     qa('[data-as]').forEach(function (c) { c.onchange = function () { st.assists[c.dataset.as] = c.checked; PS.save(); applyCarSetup(); }; });
@@ -214,14 +214,14 @@
   // ---------------------------------------------------------------- applying settings
   function carSetup() {
     var st = S(), v = st.vehicle;
-    return { tyre: v.tyre, compound: v.compound, brakeBias: v.brakeBias, stiffness: v.stiffness, rideHeight: v.rideHeight, transmission: v.transmission, abs: st.assists.abs, tcs: st.assists.tcs, esc: st.assists.esc, damage: st.rally.damage };
+    return { tyre: v.tyre, compound: v.compound, brakeBias: v.brakeBias, stiffness: v.stiffness, rideHeight: v.rideHeight, transmission: v.transmission, abs: st.assists.abs, tcs: st.assists.tcs, esc: st.assists.esc, driftAssist: st.assists.drift, damage: st.rally.damage };
   }
   function applyCarSetup() {
     if (!M.car) return;
     var s = carSetup(), cur = M.car.setup;
     if (M.stage && !M.stage.free) {
       // during a special stage only the bias and the assists can change
-      cur.brakeBias = s.brakeBias; cur.abs = s.abs; cur.tcs = s.tcs; cur.esc = s.esc;
+      cur.brakeBias = s.brakeBias; cur.abs = s.abs; cur.tcs = s.tcs; cur.esc = s.esc; cur.driftAssist = s.driftAssist;
     } else {
       var transChanged = cur.transmission !== s.transmission;
       Object.assign(cur, s);

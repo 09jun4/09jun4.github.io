@@ -18,7 +18,7 @@
     var gp = isTouch() ? 'low' : 'high';
     return {
       vehicle: { tyre: 'gravel', compound: 'soft', brakeBias: 0.62, stiffness: 1.0, rideHeight: 0, transmission: 'AUTOMATIC' },
-      assists: { abs: true, tcs: true, esc: false },
+      assists: { abs: true, tcs: true, esc: false, drift: true },
       rally: { damage: true, penalties: clone(D.PENALTIES), pacenoteTiming: 1.0 },
       hud: { speed: true, rpm: true, gear: true, pacenote: true, nextCorner: true, cornerDist: true, remaining: true, progress: true, splits: true, bias: true, tyres: true, suspension: true, engine: true, assists: true, timer: true, fps: false },
       graphics: Object.assign({ preset: gp }, clone(D.GRAPHICS[gp])),

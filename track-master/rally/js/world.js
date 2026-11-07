@@ -27,21 +27,40 @@
     var r = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
     r.outputEncoding = THREE.sRGBEncoding;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.08;
     W.renderer = r;
     W.scene = new THREE.Scene();
     W.scene.background = new THREE.Color(0xb7c9d6);
     W.scene.fog = new THREE.Fog(0xb7c9d6, 120, 900);
-    W.hemi = new THREE.HemisphereLight(0xdfeaf2, 0x4a4630, 0.62); W.scene.add(W.hemi);
-    var sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+    W.hemi = new THREE.HemisphereLight(0xdfeaf2, 0x4a4630, 0.8); W.scene.add(W.hemi);
+    var sun = new THREE.DirectionalLight(0xfff1dc, 1.35);
     sun.position.set(120, 220, 80);
     sun.shadow.camera.left = -70; sun.shadow.camera.right = 70; sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
     sun.shadow.camera.near = 10; sun.shadow.camera.far = 600; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
     W.scene.add(sun); W.scene.add(sun.target); W.sun = sun;
     W.sky = makeSky(); W.scene.add(W.sky);
     W.frustum = new THREE.Frustum();
+    W.scene.environment = makeEnv(r); // reflections on the car's paint, glass and chrome
     W.particles = makeParticles(1200); W.scene.add(W.particles.points);
     return W;
   };
+
+  // Environment map: a small sky / ground / sun scene rendered once into a
+  // prefiltered cube (PMREM), used for PBR reflections.
+  function makeEnv(r) {
+    var es = new THREE.Scene(), g = new THREE.SphereGeometry(10, 32, 16), col = [], pos = g.attributes.position;
+    for (var i = 0; i < pos.count; i++) {
+      var y = pos.getY(i) / 10, c = y >= 0 ? new THREE.Color(0xcfdde8).lerp(new THREE.Color(0x4f86c6), Math.pow(y, 0.7)) : new THREE.Color(0x6b6247).lerp(new THREE.Color(0x3a4a26), Math.min(1, -y * 3));
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    es.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+    var sunM = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 5.6, 5) }));
+    sunM.position.set(5, 7, 3.5); es.add(sunM);
+    var pm = new THREE.PMREMGenerator(r), rt = pm.fromScene(es, 0.02);
+    pm.dispose(); g.dispose();
+    return rt.texture;
+  }
 
   function makeSky() {
     var g = new THREE.SphereGeometry(1, 24, 12), col = [], pos = g.attributes.position;
@@ -65,7 +84,12 @@
     r.setPixelRatio(Math.max(0.35, dpr * gfx.resolution));
     r.shadowMap.enabled = !!gfx.shadows;
     W.sun.castShadow = !!gfx.shadows;
-    var sz = gfx.shadows ? (gfx.resolution >= 0.9 ? 2048 : 1024) : 512;
+    var high = gfx.preset === 'high' || (gfx.preset !== 'low' && gfx.resolution >= 0.85);
+    var sz = gfx.shadows ? (high ? 4096 : 1536) : 512;
+    var ext = high ? 48 : 70, sc = W.sun.shadow.camera;
+    if (sc.right !== ext) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix(); }
+    if (W.vehicle && W.vehicle.setQuality) W.vehicle.setQuality(high);
+    W.renderer.toneMappingExposure = 1.08;
     if (W.sun.shadow.mapSize.x !== sz) { W.sun.shadow.mapSize.set(sz, sz); if (W.sun.shadow.map) { W.sun.shadow.map.dispose(); W.sun.shadow.map = null; } }
     W.scene.fog.near = gfx.viewDistance * 0.18; W.scene.fog.far = gfx.viewDistance;
     W.zones.forEach(function (z) { setZoneCounts(z); });
