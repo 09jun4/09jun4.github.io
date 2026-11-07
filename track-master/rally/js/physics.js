@@ -158,11 +158,12 @@
     var wr = Math.abs(avgOmega(car)) * 60 / (2 * Math.PI);
     var rpm = wr * ratio(car, car.gear);
     var spinning = car.wheels.some(function (w) { return w.kappa > 0.35; });
-    var up = inp.throttle > 0.6 ? 7150 : 5600;
+    var up = inp.throttle > 0.6 || inp.throttle < 0.05 || Math.abs(car.beta || 0) > 0.15 ? 7150 : 5600; // coasting / sliding: hold the gear (no hunting)
     if (rpm > up && car.gear < spec.gears.length && !spinning && !car.airborne) startShift(car, car.gear + 1);
     else if (car.gear > 1) {
-      var lower = wr * ratio(car, car.gear - 1), down = inp.brake > 0.2 ? 4300 : (inp.throttle > 0.6 ? 3600 : 2600);
-      if (rpm < down && lower < 6900) startShift(car, car.gear - 1);
+      // off the throttle at speed: drop gears early for engine braking (rally style)
+      var lower = wr * ratio(car, car.gear - 1), down = inp.brake > 0.2 ? 4300 : (inp.throttle > 0.6 ? 3600 : inp.throttle < 0.05 && v > 12 ? 4800 : 2600);
+      if (rpm < down && lower < (inp.throttle < 0.05 ? 6500 : 6900)) startShift(car, car.gear - 1);
     }
   }
 
@@ -204,7 +205,10 @@
       // or let it run wide; the rear axle does the sliding.
       var phiF = Math.atan2(vLat + car.r * ws[0].lx, Math.abs(vLong));
       var csLock = spec.maxSteer * 1.25;
-      delta = clamp(slideF * clamp(phiF, -0.78, 0.78) + delta * (1 - 0.15 * powerSlide), -csLock, csLock);
+      // in a slide the player's steering puts up to ~17 deg of slip on the
+      // fronts (near their peak grip, never washed out past it)
+      var dPl = steerIn * (lock * (1 - powerSlide) + Math.min(lock, 0.3) * powerSlide);
+      delta = clamp(slideF * clamp(phiF, -0.78, 0.78) + dPl, -csLock, csLock);
     }
     car.steer = delta;
     ws[0].steer = delta * (delta < 0 ? 1.08 : 0.93); // FL is the inside wheel turning left
@@ -255,8 +259,9 @@
     else {
       if (wasAir && car.airTime > 0.25) {
         car.events.push({ type: 'land', air: car.airTime, vy: car.vy });
-        // landing sideways at speed digs in and rolls the car
-        if (Math.abs(vLat) > 11 && !car.flip) startFlip(car, sign(vLat));
+        // landing well sideways after a real jump digs in and rolls the car
+        // (a short hop over a bump while drifting does not)
+        if (car.airTime > 0.45 && Math.abs(vLat) > 12.5 && !car.flip) startFlip(car, sign(vLat));
       }
       car.airTime = 0;
     }
@@ -446,15 +451,16 @@
     // ---- integrate body
     var mass = spec.mass, h = spec.cgHeight;
     car.vx += Fwx / mass * dt; car.vz += Fwz / mass * dt;
-    // Drift assist part 2: yaw stabiliser. When sliding, pull the yaw rate
-    // toward what the steering asks for (limited by grip), and stop the
-    // slide angle growing past ~50 degrees (no sudden spins).
+    // Drift assist part 2: yaw stabiliser. While sliding the body turns
+    // with the car's direction of TRAVEL (so the angle holds by itself) and
+    // the steering adds or takes away angle quickly (~50 deg/s at full
+    // lock); the slide angle is capped near 37 deg (no sudden spins).
     if (set.driftAssist && vLong > 4 && slideF > 0) {
-      var muA = D.SURFACES[car.surface].mu, rAsk = 1.6 * vLong * Math.tan(steerIn * lock) / spec.wheelbase; // drifting: steering turns the car quickly
-      var rLim = 1.25 * muA * GRAV / Math.max(vAbs, 3);
-      rAsk = clamp(rAsk, -rLim, rLim);
+      var sp2 = Math.max(9, car.vx * car.vx + car.vz * car.vz);
+      var wTravel = (car.vx * Fwz - car.vz * Fwx) / mass / sp2;
+      var rAsk = wTravel + steerIn * 0.9;
       yawT += -(car.r - rAsk) * 4600 * slideF;
-      if (Math.abs(beta) > 0.72) yawT += sign(beta) * (Math.abs(beta) - 0.72) * 26000; // beta>0 = nose left of travel: turn right
+      if (Math.abs(beta) > 0.64) yawT += sign(beta) * (Math.abs(beta) - 0.64) * 40000; // beta>0 = nose left of travel: turn right
     }
     car.r += yawT / spec.yawInertia * dt;
     if (car.airborne) car.r *= 1 - 0.3 * dt;

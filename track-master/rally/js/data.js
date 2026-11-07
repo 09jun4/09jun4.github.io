@@ -52,7 +52,7 @@
     // ~620 hp with a huge mid-range, 0-100 km/h is traction-limited (~2.8 s)
     idleRpm: 1050, redline: 7600, limiter: 7700, engineInertia: 0.16,
     torque: [[1000, 400], [2000, 680], [3000, 880], [4000, 940], [5000, 930], [6000, 880], [7000, 780], [7700, 650]],
-    engineBrake: 55,         // Nm at redline, closed throttle
+    engineBrake: 150,        // Nm at redline, closed throttle (lifting slows the car ~0.25 g)
     gears: [3.10, 2.25, 1.76, 1.43, 1.19, 1.00], reverse: 3.2, finalDrive: 5.1,
     shiftTime: { AUTOMATIC: 0.12, MANUAL: 0.25, SEQUENTIAL: 0.05 },
     awdFront: 0.4,           // static front torque share (rear-biased: the tail steps out on power)
