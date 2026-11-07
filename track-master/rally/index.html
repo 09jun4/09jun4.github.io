@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>랠리 레이스 · Track Master</title>
+<meta name="description" content="Track Master 랠리 레이스 — 시드로 매번 새로 만들어지는 자갈·진흙 산악 스테이지를 AWD 랠리카로 코드라이버 페이스노트를 들으며 달리는 스페셜 스테이지와 자유 주행" />
+<link rel="icon" href="../icon-192.png" />
+<style>
+  :root { --fg: #f2f3f5; --dim: #98a0aa; --panel: rgba(13, 15, 19, 0.9); --panel2: #1b2027; --line: rgba(255, 255, 255, 0.12); --acc: #ff7a1a; --acc2: #e8202f; --good: #3ccf6e; --bad: #ff5a4a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0e11; color: var(--fg); font: 14px/1.42 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  [hidden] { display: none !important; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select { -webkit-user-select: text; user-select: text; }
+  a { color: inherit; }
+
+  /* ---------- menu screens */
+  .screen { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; touch-action: pan-y; background: radial-gradient(900px 500px at 85% -10%, rgba(255,122,26,0.15), transparent 60%), radial-gradient(800px 500px at -10% 110%, rgba(232,32,47,0.1), transparent 60%), rgba(8, 10, 13, 0.82); }
+  .card { width: min(880px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; backdrop-filter: blur(6px); }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font: italic 900 34px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: -0.5px; }
+  h1 span { color: var(--acc); }
+  h2 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 1px; color: var(--dim); font-weight: 800; text-transform: uppercase; }
+  .sub { margin: 6px 0 0; color: var(--dim); }
+  .back { text-decoration: none; color: var(--dim); font-weight: 700; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: none; }
+  .menu-list { display: grid; gap: 10px; margin-top: 18px; }
+  .menu-item { display: flex; align-items: baseline; gap: 14px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); background: linear-gradient(135deg, var(--panel2), rgba(20, 24, 30, 0.9)); text-align: left; }
+  .menu-item:hover, .menu-item:focus-visible { border-color: var(--acc); outline: none; }
+  .menu-item b { font: italic 900 22px/1 'Segoe UI', system-ui, sans-serif; min-width: 230px; }
+  .menu-item small { color: var(--dim); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-weight: 800; }
+  .chip small { display: block; font-weight: 600; color: var(--dim); font-size: 12px; }
+  .chip.on { border-color: var(--acc); background: rgba(255,122,26,0.14); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .seed { width: 13ch; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0f1216; font: 800 18px/1 ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; }
+  .btn { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-weight: 800; }
+  .btn:hover { border-color: rgba(255,255,255,0.3); }
+  .btn.primary { background: var(--acc); color: #1a0c02; border: 0; }
+  .btn.big { padding: 14px 24px; font-size: 18px; }
+  .btn.white { background: #fff; color: #1b1b1b; border: 0; }
+  .grid2 { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+  .grid2 > * { min-width: 0; }
+  .info { padding: 12px 14px; border-radius: 12px; background: #0f1216; border: 1px solid var(--line); }
+  .info dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-variant-numeric: tabular-nums; }
+  .info dt { color: var(--dim); }
+  .info dd { margin: 0; font-weight: 700; }
+  #preview { width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; background: #0f1216; border: 1px solid var(--line); display: block; }
+  .list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .list li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.04); font-variant-numeric: tabular-nums; cursor: pointer; }
+  .list li:hover { background: rgba(255,122,26,0.12); }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: #0f1216; border: 1px solid var(--line); }
+  .field label, .field .lab { font-weight: 800; display: flex; justify-content: space-between; gap: 8px; }
+  .field .lab em, .field label em { font-style: normal; color: var(--acc); font-variant-numeric: tabular-nums; }
+  .field small { color: var(--dim); }
+  .field input[type=range] { width: 100%; accent-color: var(--acc); }
+  .field input[type=number] { width: 80px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: #151a20; }
+  .toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .tg { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: #0f1216; border: 1px solid var(--line); font-weight: 700; }
+  .tg input { accent-color: var(--acc); width: 18px; height: 18px; }
+  .note { color: var(--dim); font-size: 13px; margin: 8px 0 0; }
+  .warn { color: #ffb4a8; font-size: 13px; }
+  .acct { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pause-card { width: min(380px, 100%); display: grid; gap: 10px; text-align: center; }
+  .pause-card .btn { padding: 12px; }
+  #loading .card { width: auto; text-align: center; font-weight: 800; }
+  .res-time { font: 900 48px/1 ui-monospace, Consolas, monospace; margin: 8px 0; }
+  .res-time.pb { color: var(--good); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td, th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--dim); font-size: 12px; }
+  td.r, th.r { text-align: right; }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+
+  /* ---------- HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; }
+  .box { position: absolute; background: rgba(10, 12, 15, 0.62); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 8px 12px; backdrop-filter: blur(4px); }
+  #hb-time { top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); min-width: 170px; }
+  #h-mode { font-size: 10px; letter-spacing: 1.5px; color: var(--acc); font-weight: 900; }
+  #h-time { font: 800 26px/1.1 ui-monospace, Consolas, monospace; }
+  #h-pen { color: var(--bad); font-weight: 800; font-size: 13px; }
+  #h-best { color: var(--dim); font-size: 12px; }
+  #h-splits { font-size: 12px; margin-top: 4px; }
+  #h-splits em { font-style: normal; font-weight: 800; }
+  #hb-notes { top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; min-height: 58px; min-width: 120px; justify-content: center; }
+  #h-notes { display: flex; gap: 6px; }
+  .pn { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 9px; background: rgba(255,255,255,0.06); font: 800 19px/1 'Segoe UI', system-ui, sans-serif; white-space: nowrap; opacity: 0.75; }
+  .pn .arrow { width: 38px; height: 38px; }
+  .pn .ico { width: 38px; text-align: center; font-size: 24px; }
+  .pn.feat { color: #ffd27a; }
+  .pn.now { opacity: 1; background: rgba(255,122,26,0.9); color: #170a02; }
+  #hb-next { top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); text-align: right; min-width: 150px; }
+  #h-next { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 16px; }
+  #h-next .arrow { width: 30px; height: 30px; }
+  #h-next-dist { font: 800 22px/1 ui-monospace, Consolas, monospace; }
+  #h-remain, #h-surface { color: var(--dim); font-size: 12px; }
+  #hb-prog { top: calc(78px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(420px, 50vw); padding: 6px 10px; }
+  #h-prog-track { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); }
+  #h-prog-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--acc2), var(--acc)); border-radius: 3px; }
+  #h-prog-ticks i { position: absolute; top: -3px; width: 2px; height: 12px; background: #fff; opacity: 0.7; }
+  #hb-meter { right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: auto auto; gap: 2px 14px; align-items: end; min-width: 230px; }
+  #h-speed { font: 900 46px/0.95 'Segoe UI', system-ui, sans-serif; text-align: right; }
+  .unit { color: var(--dim); font-size: 11px; }
+  #h-gear { font: 900 44px/1 'Segoe UI', system-ui, sans-serif; color: var(--acc); text-align: center; min-width: 40px; }
+  #h-rpm { grid-column: 1 / 3; height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  #h-rpm-fill { height: 100%; background: linear-gradient(90deg, #3ccf6e, #ffd23c 70%, #ff3b2f); }
+  #h-rpm.shift { box-shadow: 0 0 0 2px #ff3b2f; }
+  .meta { grid-column: 1 / 3; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--dim); }
+  #h-assist span { padding: 1px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.3); font-weight: 800; font-size: 11px; }
+  #h-assist span.on { color: #9ad7ff; border-color: rgba(154,215,255,0.5); }
+  #h-assist span.act { background: #ffd23c; color: #1a1300; }
+  #hb-dmg { left: calc(12px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: auto auto; gap: 6px 12px; font-size: 11px; color: var(--dim); }
+  .carmap { display: grid; grid-template-columns: 14px 14px; gap: 22px 18px; padding: 4px 8px; border: 2px solid rgba(255,255,255,0.18); border-radius: 10px 10px 6px 6px; }
+  .cell { width: 14px; height: 14px; border-radius: 3px; }
+  .cell.ok { background: #3ccf6e; } .cell.worn { background: #ffd23c; } .cell.bad { background: #ff8a2a; } .cell.dead { background: #ff3b2f; }
+  #e-wrap { grid-column: 1 / 3; }
+  #e-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; margin-top: 2px; width: 120px; }
+  #e-bar { height: 100%; } #e-bar.ok { background: #3ccf6e; } #e-bar.worn { background: #ffd23c; } #e-bar.bad { background: #ff8a2a; } #e-bar.dead { background: #ff3b2f; }
+  #h-count { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); font: 900 110px/1 'Segoe UI', system-ui, sans-serif; text-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+  #h-msg { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); font: 900 26px/1 'Segoe UI', system-ui, sans-serif; opacity: 0; transition: opacity 0.2s; text-shadow: 0 2px 10px rgba(0,0,0,0.7); white-space: nowrap; }
+  #h-msg.show { opacity: 1; } #h-msg.penalty, #h-msg.warn { color: #ff6a5a; } #h-msg.go { color: var(--good); font-size: 44px; } #h-msg.recover { color: #ffd27a; }
+  #h-fps { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(96px + env(safe-area-inset-top)); font: 700 11px ui-monospace, monospace; color: #b8ffcf; background: rgba(0,0,0,0.5); padding: 3px 6px; border-radius: 6px; }
+  #bias-panel { position: absolute; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: 280px; pointer-events: auto; }
+  #bias-panel .lab { display: flex; justify-content: space-between; font-weight: 800; }
+  #bias-track { height: 10px; border-radius: 5px; background: #3a4350; overflow: hidden; margin: 6px 0; }
+  #bias-bar { height: 100%; background: var(--acc); }
+  #h-help { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 11px; color: var(--dim); text-align: center; max-width: 52vw; }
+  kbd { padding: 0 4px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; font-size: 10px; }
+
+  /* ---------- touch */
+  #touch { display: none; }
+  body.touch.playing #touch { display: block; }
+  body.touch #h-help { display: none; }
+  .tc { position: fixed; z-index: 6; display: flex; align-items: flex-end; gap: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .tc-l { left: calc(12px + env(safe-area-inset-left)); }
+  .tc-r { right: calc(12px + env(safe-area-inset-right)); }
+  .tc-col { display: flex; flex-direction: column; gap: 10px; }
+  .tc button { width: 92px; height: 92px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.28); background: rgba(20, 22, 26, 0.45); font-weight: 800; font-size: 15px; line-height: 1.15; touch-action: none; }
+  .tc button.on { background: rgba(255, 122, 26, 0.55); }
+  .tc .gas { height: 140px; }
+  .tc-top { position: fixed; top: calc(150px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 6px; z-index: 6; }
+  .tc-top button { padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(20, 22, 26, 0.55); font-size: 13px; font-weight: 700; }
+  body.touch #hb-meter { bottom: auto; top: calc(110px + env(safe-area-inset-top)); min-width: 0; padding: 6px 10px; }
+  body.touch #h-speed { font-size: 32px; } body.touch #h-gear { font-size: 30px; }
+  body.touch #hb-dmg { bottom: auto; top: calc(150px + env(safe-area-inset-top)); left: auto; right: calc(10px + env(safe-area-inset-right)); display: none; }
+  @media (pointer: coarse) and (min-width: 721px) and (min-height: 600px) {
+    .tc { bottom: calc(8vh + env(safe-area-inset-bottom)); gap: 2vw; }
+    .tc-l button { width: 15vw; height: min(24vh, 18vw); font-size: 46px; }
+    .tc .gas { width: 17vw; height: min(28vh, 24vw); font-size: 34px; }
+    .tc .brake, .tc .hb { width: 17vw; height: min(15vh, 13vw); font-size: 24px; }
+  }
+  @media (max-width: 720px) {
+    .grid2, .form { grid-template-columns: 1fr; }
+    .menu-item { flex-direction: column; gap: 4px; } .menu-item b { min-width: 0; }
+    h1 { font-size: 26px; }
+    .pn { font-size: 14px; padding: 3px 7px 3px 4px; } .pn .arrow, .pn .ico { width: 26px; height: 26px; font-size: 17px; }
+    .pn:nth-child(3) { display: none; }
+    #hb-prog { top: calc(70px + env(safe-area-inset-top)); width: 60vw; }
+    #hb-time { min-width: 0; } #h-time { font-size: 18px; }
+    #hb-next { min-width: 0; } #h-next-dist { font-size: 16px; }
+    #h-help { display: none; }
+  }
+</style>
+</head>
+<body class="in-menu">
+<canvas id="game"></canvas>
+
+<!-- ================= HUD ================= -->
+<div id="hud" hidden>
+  <div id="hb-time" class="box" data-hud="timer">
+    <div id="h-mode"></div><div id="h-time">0:00.000</div><div id="h-pen"></div><div id="h-best"></div>
+    <div id="h-splits" data-hud="splits"></div>
+  </div>
+  <div id="hb-notes" class="box" data-hud="pacenote"><div id="h-notes"></div></div>
+  <div id="hb-next" class="box">
+    <div data-hud="nextCorner"><div id="h-next"></div></div>
+    <div data-hud="cornerDist"><div id="h-next-dist"></div></div>
+    <div data-hud="remaining"><div id="h-remain"></div></div>
+    <div id="h-surface"></div>
+  </div>
+  <div id="hb-prog" class="box" data-hud="progress"><div id="h-prog-track"><div id="h-prog-fill"></div><div id="h-prog-ticks"></div></div></div>
+  <div id="hb-meter" class="box">
+    <div data-hud="speed"><div id="h-speed">0</div><div class="unit" style="text-align:right">km/h</div></div>
+    <div data-hud="gear"><div id="h-gear">1</div><div class="unit" id="h-trans" style="text-align:center">AUTO</div></div>
+    <div id="h-rpm" data-hud="rpm"><div id="h-rpm-fill"></div></div>
+    <div class="meta"><span data-hud="rpm"><span id="h-rpm-val">0</span> rpm</span><span id="h-bias" data-hud="bias">BB 62:38</span></div>
+    <div class="meta" id="h-assist" data-hud="assists"><span id="a-abs">ABS</span><span id="a-tcs">TCS</span><span id="a-esc">ESC</span></div>
+  </div>
+  <div id="hb-dmg" class="box">
+    <div data-hud="tyres"><div>타이어</div><div class="carmap"><i id="t-fl" class="cell ok"></i><i id="t-fr" class="cell ok"></i><i id="t-rl" class="cell ok"></i><i id="t-rr" class="cell ok"></i></div></div>
+    <div data-hud="suspension"><div>서스펜션</div><div class="carmap"><i id="s-fl" class="cell ok"></i><i id="s-fr" class="cell ok"></i><i id="s-rl" class="cell ok"></i><i id="s-rr" class="cell ok"></i></div></div>
+    <div id="e-wrap" data-hud="engine">엔진 <b id="e-val">100%</b><div id="e-track"><div id="e-bar" class="ok" style="width:100%"></div></div></div>
+  </div>
+  <div id="h-count" hidden>3</div>
+  <div id="h-msg"></div>
+  <div id="h-fps" data-hud="fps"></div>
+  <div id="bias-panel" class="box" hidden>
+    <div class="lab"><span>앞 <span id="bias-front">62%</span></span><span>브레이크 바이어스</span><span>뒤 <span id="bias-rear">38%</span></span></div>
+    <div id="bias-track"><div id="bias-bar" style="width:62%"></div></div>
+    <div class="unit" style="text-align:center"><kbd>[</kbd> 뒤로 · <kbd>]</kbd> 앞으로 · <kbd>B</kbd> 닫기</div>
+  </div>
+  <div id="h-help"><kbd>W</kbd> 가속 <kbd>S</kbd> 브레이크/후진 <kbd>A</kbd><kbd>D</kbd> 조향 <kbd>Space</kbd> 핸드브레이크 <kbd>Shift</kbd>/<kbd>E</kbd> 업 <kbd>Ctrl</kbd>/<kbd>Q</kbd> 다운 <kbd>R</kbd> 복구 <kbd>C</kbd> 시점 <kbd>B</kbd> 바이어스 <kbd>Esc</kbd> 일시정지</div>
+</div>
+
+<div id="touch">
+  <div class="tc tc-l"><button type="button" data-hold="left" aria-label="왼쪽">◀</button><button type="button" data-hold="right" aria-label="오른쪽">▶</button></div>
+  <div class="tc tc-r">
+    <div class="tc-col"><button type="button" class="hb" data-hold="handbrake">핸드<br>브레이크</button><button type="button" class="brake" data-hold="brake">브레이크</button></div>
+    <button type="button" class="gas" data-hold="gas">가속</button>
+  </div>
+  <div class="tc-top"><button type="button" data-tap="pause">일시정지</button><button type="button" data-tap="recover">복구</button><button type="button" data-tap="camera" id="tc-cam">시점</button></div>
+</div>
+
+<!-- ================= RALLY MODE home ================= -->
+<section id="home" class="screen" hidden>
+  <div class="card">
+    <div class="top">
+      <div><h1>RALLY <span>MODE</span></h1><p class="sub">시드로 매번 새로 만드는 산악 스테이지 · AWD 랠리카 · 코드라이버 페이스노트</p></div>
+      <a class="back" href="../">← Track Master</a>
+    </div>
+    <div class="menu-list">
+      <button type="button" class="menu-item" data-go="select" data-mode="stage"><b>SPECIAL STAGE</b><small>코스 길이와 시드를 고르고 기록을 재요</small></button>
+      <button type="button" class="menu-item" data-go="select" data-mode="free"><b>FREE DRIVE</b><small>기록 없이 자유롭게 · 노면과 세팅 시험</small></button>
+      <button type="button" class="menu-item" data-go="vehicle"><b>VEHICLE SETTINGS</b><small>타이어 · 브레이크 바이어스 · 서스펜션 · 변속기</small></button>
+      <button type="button" class="menu-item" data-go="rallyset"><b>RALLY SETTINGS</b><small>주행 보조 · 손상 · 페널티 · 페이스노트 · HUD</small></button>
+      <button type="button" class="menu-item" data-go="graphics"><b>GRAPHICS SETTINGS</b><small>HIGH / LOW 프리셋과 세부 옵션</small></button>
+    </div>
+    <h2>계정</h2>
+    <div id="account" class="acct"></div>
+  </div>
+</section>
+
+<!-- ================= stage select ================= -->
+<section id="select" class="screen" hidden>
+  <div class="card">
+    <div class="top">
+      <div><h1 id="sel-title">SPECIAL <span>STAGE</span></h1><p class="sub" id="sel-sub">출발지와 도착지가 다른 일방향 스테이지</p></div>
+      <button type="button" class="back" data-go="home">← 랠리 메뉴</button>
+    </div>
+    <div class="grid2">
+      <div>
+        <h2>코스 길이</h2>
+        <div class="chips" id="len-chips"></div>
+        <h2>시드</h2>
+        <div class="row">
+          <input id="seed" class="seed" maxlength="16" spellcheck="false" autocomplete="off" />
+          <button type="button" class="btn" id="seed-apply">생성</button>
+          <button type="button" class="btn" id="seed-random">랜덤</button>
+          <button type="button" class="btn" id="seed-copy">복사</button>
+        </div>
+        <p class="note" id="seed-msg">같은 시드를 넣으면 도로·지형·노면·페이스노트가 똑같이 만들어져요.</p>
+        <h2>스테이지 정보</h2>
+        <div class="info"><dl id="stage-info"><dt>생성 중</dt><dd>…</dd></dl></div>
+      </div>
+      <div>
+        <h2>코스 미리보기</h2>
+        <canvas id="preview" width="480" height="360"></canvas>
+        <p class="note">갈색 = 진흙 구간 · 초록 점 = 출발 · 빨간 점 = 결승 · 흰 점 = 스플릿</p>
+        <h2>최근 시드</h2>
+        <ul class="list" id="recent-seeds"></ul>
+      </div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px">
+      <button type="button" class="btn" data-go="vehicle" data-ret="select">차량 세팅</button>
+      <button type="button" class="btn primary big" id="start">출발 ▶</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= vehicle settings ================= -->
+<section id="vehicle" class="screen" hidden>
+  <div class="card">
+    <div class="top"><div><h1>VEHICLE <span>SETTINGS</span></h1><p class="sub" id="veh-sub">R2 AWD · 1.6 터보 약 290마력 · 1260kg · 6단</p></div><button type="button" class="back" id="veh-back">← 돌아가기</button></div>
+    <h2>타이어</h2>
+    <div class="form">
+      <div class="field"><span class="lab">종류</span><div class="chips" id="tyre-type"></div><small>자갈용은 자갈에서, 진흙용은 진흙에서 접지력이 가장 좋아요.</small></div>
+      <div class="field"><span class="lab">경도</span><div class="chips" id="tyre-comp"></div><small>소프트는 접지력이 높지만 빨리 닳아요. 하드는 오래가요.</small></div>
+    </div>
+    <h2>브레이크 · 서스펜션 · 변속기</h2>
+    <div class="form">
+      <div class="field"><label for="v-bias">브레이크 바이어스 (앞) <em id="v-bias-v"></em></label><input type="range" id="v-bias" min="40" max="80" step="1" /><small>주행 중 <kbd>[</kbd> <kbd>]</kbd>로도 바꿀 수 있어요. 앞이 높을수록 안정적, 뒤가 높을수록 잘 돌아가요.</small></div>
+      <div class="field"><label for="v-stiff">서스펜션 강도 <em id="v-stiff-v"></em></label><input type="range" id="v-stiff" min="70" max="140" step="5" /><small>부드러우면 요철을 잘 넘고, 단단하면 롤이 줄어 반응이 빨라요.</small></div>
+      <div class="field"><label for="v-ride">차고 <em id="v-ride-v"></em></label><input type="range" id="v-ride" min="-5" max="5" step="1" /><small>높이면 점프·요철에 강하고, 낮추면 무게중심 이동이 줄어요.</small></div>
+      <div class="field"><span class="lab">변속기</span><div class="chips" id="v-trans"></div><small>수동은 <kbd>Shift</kbd>/<kbd>Ctrl</kbd>(또는 <kbd>E</kbd>/<kbd>Q</kbd>)·숫자키 1~6, 시퀀셜은 빠른 연속 변속이에요.</small></div>
+    </div>
+    <p class="note" id="veh-lock"></p>
+  </div>
+</section>
+
+<!-- ================= rally settings ================= -->
+<section id="rallyset" class="screen" hidden>
+  <div class="card">
+    <div class="top"><div><h1>RALLY <span>SETTINGS</span></h1></div><button type="button" class="back" id="rs-back">← 돌아가기</button></div>
+    <h2>주행 보조 (실제 물리에 작동)</h2>
+    <div class="toggles" id="rs-assists"></div>
+    <h2>차량 손상</h2>
+    <div class="toggles"><label class="tg"><input type="checkbox" id="rs-damage" /> 손상 사용</label></div>
+    <p class="note">타이어(접지력·조향 안정성), 서스펜션(차체 안정성), 엔진(출력)이 충돌과 가혹한 주행으로 손상돼요.</p>
+    <h2>페널티 (초)</h2>
+    <div class="form" id="rs-pen"></div>
+    <h2>페이스노트</h2>
+    <div class="field"><label for="rs-timing">안내 시점 <em id="rs-timing-v"></em></label><input type="range" id="rs-timing" min="70" max="140" step="5" /><small>높을수록 더 일찍 안내해요. 안내 거리는 속도에 따라 자동으로 늘어나요.</small></div>
+    <h2>HUD 표시</h2>
+    <div class="toggles" id="rs-hud"></div>
+    <div class="row" style="margin-top:14px"><button type="button" class="btn" id="rs-reset">기본값으로</button></div>
+  </div>
+</section>
+
+<!-- ================= graphics ================= -->
+<section id="graphics" class="screen" hidden>
+  <div class="card">
+    <div class="top"><div><h1>GRAPHICS <span>SETTINGS</span></h1><p class="sub">차량 물리는 그래픽 설정과 상관없이 똑같이 계산돼요 (600Hz 고정).</p></div><button type="button" class="back" id="gx-back">← 돌아가기</button></div>
+    <h2>프리셋</h2>
+    <div class="chips" id="gx-preset"></div>
+    <h2>세부 설정</h2>
+    <div class="form">
+      <div class="field"><label for="gx-res">렌더링 해상도 <em id="gx-res-v"></em></label><input type="range" id="gx-res" min="40" max="100" step="5" /></div>
+      <div class="field"><label for="gx-view">시야 거리 <em id="gx-view-v"></em></label><input type="range" id="gx-view" min="250" max="1200" step="50" /></div>
+      <div class="field"><label for="gx-part">파티클 (먼지·진흙) <em id="gx-part-v"></em></label><input type="range" id="gx-part" min="0" max="100" step="5" /></div>
+      <div class="field"><label for="gx-veg">식생 밀도 <em id="gx-veg-v"></em></label><input type="range" id="gx-veg" min="40" max="100" step="5" /><small>충돌하는 나무는 낮음에서도 항상 보여요.</small></div>
+      <div class="field"><span class="lab">그림자</span><label class="tg"><input type="checkbox" id="gx-shadow" /> 그림자 사용</label></div>
+      <div class="field"><span class="lab">성능 표시</span><label class="tg"><input type="checkbox" id="gx-fps" /> FPS · 프레임 시간 · draw call (<kbd>F</kbd>)</label></div>
+    </div>
+  </div>
+</section>
+
+<section id="loading" class="screen" hidden><div class="card" id="loading-text">코스 생성 중…</div></section>
+
+<section id="pause" class="screen" hidden>
+  <div class="card pause-card">
+    <h1>일시정지</h1>
+    <button type="button" class="btn primary" id="p-resume">계속하기</button>
+    <button type="button" class="btn" id="p-restart">처음부터 다시</button>
+    <button type="button" class="btn" id="p-vehicle">차량 세팅</button>
+    <button type="button" class="btn" id="p-rally">랠리 설정</button>
+    <button type="button" class="btn" id="p-gfx">그래픽 설정</button>
+    <button type="button" class="btn" id="p-sound">소리 끄기</button>
+    <button type="button" class="btn" id="p-menu">메뉴로</button>
+  </div>
+</section>
+
+<section id="result" class="screen" hidden>
+  <div class="card" style="width:min(640px,100%)">
+    <div id="res-body"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn" id="r-copy">시드 복사</button>
+      <button type="button" class="btn" id="r-new">새 스테이지</button>
+      <button type="button" class="btn" id="r-menu">메뉴</button>
+      <button type="button" class="btn primary" id="r-retry">같은 코스 다시</button>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/vendor/firebase.js"></script>
+<script src="../js/firebase-config.js"></script>
+<script src="../drift/js/engine.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/data.js"></script>
+<script src="js/track.js"></script>
+<script src="js/pacenotes.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/damage.js"></script>
+<script src="js/persistence.js"></script>
+<script src="js/input.js"></script>
+<script src="js/vehicle.js"></script>
+<script src="js/world.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/stage.js"></script>
+<script src="js/touchguard.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

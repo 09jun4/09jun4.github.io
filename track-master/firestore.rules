@@ -80,6 +80,14 @@ service cloud.firestore {
         && request.resource.data.save is string && request.resource.data.save.size() < 100000;
     }
 
+    // 랠리 레이스 개인 저장(기록·세팅): 본인만 읽고 쓸 수 있어요.
+    match /rally_users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string && request.resource.data.save.size() < 200000;
+    }
+
     // 드리프트 레이스 점수 랭킹(점수 = 시간 점수 + 드리프트 점수): 누구나 보고, 본인 기록만 쓸 수 있어요.
     match /drift/{course}/times/{uid} {
       allow read: if true;

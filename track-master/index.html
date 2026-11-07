@@ -11,9 +11,9 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>Track Master</title>
-<meta name="description" content="Track Master — 실제 F1 서킷의 서킷 레이스와 일본 산길 다운힐 드리프트 레이스를 고르는 브라우저 레이싱 게임">
+<meta name="description" content="Track Master — 실제 F1 서킷의 서킷 레이스, 일본 산길 다운힐 드리프트 레이스, 시드로 만드는 산악 랠리 스테이지를 고르는 브라우저 레이싱 게임">
 <meta property="og:title" content="Track Master">
-<meta property="og:description" content="서킷 레이스 · 드리프트 레이스 · 계정 저장 · 온라인 랭킹">
+<meta property="og:description" content="서킷 레이스 · 드리프트 레이스 · 랠리 레이스 · 계정 저장 · 온라인 랭킹">
 <meta name="theme-color" content="#0b0d11">
 <style>
   :root { --bg: #0b0d11; --panel: #151920; --panel2: #1c222b; --line: rgba(255,255,255,0.1); --fg: #f2f3f5; --dim: #8e96a3; --acc: #ff7a1a; --acc2: #e8202f; }
@@ -101,7 +101,7 @@
       <p>어떤 레이스를 달릴지 고르세요</p>
     </div>
     <div class="main-menu">
-      <button type="button" class="big" data-go="modes"><b>Game Mode</b><small>서킷 레이스 · 드리프트 레이스</small></button>
+      <button type="button" class="big" data-go="modes"><b>Game Mode</b><small>서킷 레이스 · 드리프트 레이스 · 랠리 레이스</small></button>
       <button type="button" class="big" data-go="records"><b>Records</b><small>모드별 내 기록과 온라인 랭킹</small></button>
     </div>
   </section>
@@ -118,6 +118,10 @@
         <img src="img/drift.jpg" alt="드리프트 레이스 장면">
         <div class="txt"><b>DRIFT <span>RACE</span></b><p>일본 산길 다운힐 4코스 · AE86 · RX-7 · 미아타 · 타임어택과 AI 1:1 배틀</p></div>
       </a>
+      <a class="mode" href="rally/">
+        <img src="img/rally.jpg" alt="랠리 레이스 장면">
+        <div class="txt"><b>RALLY <span>RACE</span></b><p>시드로 매번 새로 만드는 자갈·진흙 산악 스테이지 · AWD 랠리카 · 코드라이버 페이스노트 · 스페셜 스테이지와 자유 주행</p></div>
+      </a>
     </div>
     <div class="soon">다른 레이스 모드도 곧 추가될 예정이에요.</div>
   </section>
@@ -125,7 +129,7 @@
   <section id="records" hidden>
     <button type="button" class="btn small back" data-go="home">← 메인</button>
     <h2>Records</h2>
-    <div class="tabs"><button type="button" class="tab on" data-rec="circuit">서킷 레이스</button><button type="button" class="tab" data-rec="drift">드리프트 레이스</button></div>
+    <div class="tabs"><button type="button" class="tab on" data-rec="circuit">서킷 레이스</button><button type="button" class="tab" data-rec="drift">드리프트 레이스</button><button type="button" class="tab" data-rec="rally">랠리 레이스</button></div>
     <div id="rec-body"></div>
   </section>
 </div>

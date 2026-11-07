@@ -7,6 +7,7 @@
 //   Circuit: guest 'circuit-racer-copy.shop', account users/{uid}.save
 //            (or its local cache 'f1-champion.account.<uid>', newer wins)
 //   Drift:   guest 'f1-champion.drift', account drift_users/{uid}.save
+//   Rally:   guest 'track-master.rally', account rally_users/{uid}.save
 // Rankings: tracks/{slug}/laps|laps_cockpit, career, drift/{course}/times.
 (function () {
   'use strict';
@@ -95,6 +96,11 @@
           if (snap.exists()) { try { saves.driftRemote = JSON.parse(snap.data().save); } catch (e) { /* bad */ } }
         }).catch(function () { saves.driftRemote = null; });
       }).then(function () {
+        return SDK.getDoc(SDK.doc(db, 'rally_users', u.uid)).then(function (snap) {
+          saves.rallyRemote = null;
+          if (snap.exists()) { try { saves.rallyRemote = JSON.parse(snap.data().save); } catch (e) { /* bad */ } }
+        }).catch(function () { saves.rallyRemote = null; });
+      }).then(function () {
         state.pending = false;
         renderAccount();
         if (!$('records').hidden) renderRecords();
@@ -146,7 +152,9 @@
   }
 
   // --- Saves ------------------------------------------------------------------
-  var saves = { circuitRemote: null, driftRemote: null };
+  var saves = { circuitRemote: null, driftRemote: null, rallyRemote: null };
+  function rallySave() { return (state.user ? saves.rallyRemote : readLocal('track-master.rally')) || {}; }
+  var RALLY_LEN = { short: 'SHORT', medium: 'MEDIUM', long: 'LONG' };
   function circuitSave() {
     if (state.user) {
       var cache = readLocal('f1-champion.account.' + state.user.uid), remote = saves.circuitRemote;
@@ -239,6 +247,14 @@
         { h: '차', f: function (r) { return CIRCUIT_CARS[r.car] || ''; } }, { h: '랩', r: true, f: function (r) { return fmt(r.time); } }]);
       fill('rk-career', query('career', ['career'], 'points', 'desc'), [
         { h: '포인트', r: true, f: function (r) { return r.points; } }, { h: '우승', r: true, f: function (r) { return r.wins; } }, { h: '챔피언', r: true, f: function (r) { return r.titles; } }]);
+    } else if (state.rec === 'rally') {
+      var rs = rallySave(), recs = Object.keys(rs.records || {}).map(function (k) { return rs.records[k]; }).sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+      var rrows = recs.map(function (r) {
+        return '<tr><td><a href="rally/?seed=' + encodeURIComponent(r.seed) + '&len=' + r.length + '"><b>' + esc(r.seed) + '</b></a></td><td>' + (RALLY_LEN[r.length] || '') + '</td><td class="r">' + fmt(r.final) + '</td><td class="r">' + (r.penalty ? '+' + r.penalty + '초' : '0') + '</td><td class="r dim">' + (r.at ? new Date(r.at).toLocaleDateString() : '') + '</td></tr>';
+      }).join('');
+      var recent = (rs.recent || []).slice(0, 8).map(function (r) { return '<tr><td>' + esc(r.seed) + '</td><td>' + (RALLY_LEN[r.length] || '') + '</td><td class="r">' + (r.finished ? fmt(r.final) : '<span class="dim">미완주</span>') + '</td></tr>'; }).join('');
+      el.innerHTML = login + '<div class="grid2"><div class="card"><h3>스테이지별 개인 최고 (시드 · 길이)</h3>' + (rrows ? '<table><tr><th>시드</th><th>길이</th><th class="r">최종</th><th class="r">페널티</th><th class="r">날짜</th></tr>' + rrows + '</table>' : '<p class="dim">아직 완주한 스테이지가 없어요.</p>') + '</div>' +
+        '<div class="card"><h3>최근 주행</h3>' + (recent ? '<table><tr><th>시드</th><th>길이</th><th class="r">기록</th></tr>' + recent + '</table>' : '<p class="dim">아직 없어요.</p>') + '<p class="dim" style="font-size:13px;margin:10px 0 0">시드를 누르면 같은 코스로 바로 이동해요.</p></div></div>';
     } else {
       var ds = driftSave(), best = ds.best || {}, bt = ds.battle || { wins: 0, losses: 0 };
       var head = '<tr><th>코스</th>' + Object.keys(DRIFT_CARS).map(function (k) { return '<th class="r">' + DRIFT_CARS[k] + '</th>'; }).join('') + '</tr>';
