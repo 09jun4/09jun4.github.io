@@ -53,7 +53,7 @@
   }
 
   // Read everything once per frame. speed (m/s) shapes the keyboard steering.
-  I.read = function (dt, speed) {
+  I.read = function (dt, speed, slide) { // slide: body slip angle (+ = nose left of travel)
     var k = I.keys, t = I.touch, s = I.state, out = { edges: I.edges };
     I.edges = {};
     var gp = pad(), padOut = null;
@@ -72,9 +72,13 @@
     } else {
       var left = k.KeyA || k.ArrowLeft || t.left, right = k.KeyD || k.ArrowRight || t.right;
       var target = (right ? 1 : 0) - (left ? 1 : 0);
-      // keyboard steering: ramps toward the target, slower at speed,
-      // returns to centre faster
-      var v = speed || 0, rate = target === 0 ? 4.2 : (Math.sign(target) !== Math.sign(s.steer) && s.steer !== 0 ? 5.5 : 3.4 - 1.9 * clamp(v / 40, 0, 1));
+      // keyboard / touch steering: quick ramp (a little gentler at speed),
+      // snaps back to centre, and a countersteer against a slide (or any
+      // change of side) goes straight to opposite lock, like a rally driver
+      // catching the tail
+      var v = speed || 0, sl = slide || 0;
+      var counter = target !== 0 && ((Math.sign(target) !== Math.sign(s.steer) && s.steer !== 0) || (Math.abs(sl) > 0.08 && Math.sign(target) === Math.sign(sl)));
+      var rate = target === 0 ? 8 : counter ? 12 : 7 - 2.6 * clamp(v / 40, 0, 1);
       var d = target - s.steer; s.steer += clamp(d, -rate * dt, rate * dt);
       var gas = k.KeyW || k.ArrowUp || t.gas ? 1 : 0, brk = k.KeyS || k.ArrowDown || t.brake ? 1 : 0;
       s.throttle += clamp(gas - s.throttle, -dt / 0.1, dt / 0.16);

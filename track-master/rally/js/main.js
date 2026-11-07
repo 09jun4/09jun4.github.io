@@ -332,7 +332,7 @@
     var realDt = Math.max(0.001, (now - last) / 1000), dt = Math.min(0.05, realDt); last = now;
     if (!M.playing || !W.renderer) return;
     var car = M.car, stage = M.stage;
-    var inp = Input.read(dt, car.speed);
+    var inp = Input.read(dt, car.speed, car.beta);
     if (inp.edges.pause) { pause(!M.paused); return; }
     if (M.paused) return;
     if (inp.edges.camera) { M.cam.cycle(); S().camera = M.cam.mode; PS.save(); $('tc-cam').textContent = M.cam.name() + ' 시점'; stage.say(M.cam.name() + ' 시점', 'info'); }

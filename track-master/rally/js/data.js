@@ -39,9 +39,9 @@
   // The rally car: a 4WD turbo hatch of the Rally2 class.
   var CAR = {
     name: 'R2 AWD',
-    mass: 1260,              // kg with driver
+    mass: 1230,              // kg with crew (Rally2 minimum weight)
     wheelbase: 2.48, track: 1.56, cgHeight: 0.52, frontWeight: 0.53,
-    yawInertia: 1750, pitchInertia: 1650, rollInertia: 520,
+    yawInertia: 1420, pitchInertia: 1450, rollInertia: 470, // short, light hatch: turns in eagerly
     wheelRadius: 0.33, wheelInertia: 1.1, // kg m^2 per wheel (with brake disc)
     maxSteer: 0.6,           // rad (~34 deg) at the wheels
     // suspension (per wheel); stiffness/height settings scale these

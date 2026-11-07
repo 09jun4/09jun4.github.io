@@ -458,8 +458,8 @@
     if (set.driftAssist && vLong > 4 && slideF > 0) {
       var sp2 = Math.max(9, car.vx * car.vx + car.vz * car.vz);
       var wTravel = (car.vx * Fwz - car.vz * Fwx) / mass / sp2;
-      var rAsk = wTravel + steerIn * 0.9;
-      yawT += -(car.r - rAsk) * 4600 * slideF;
+      var rAsk = wTravel + steerIn * 1.25;
+      yawT += -(car.r - rAsk) * 7000 * slideF;
       if (Math.abs(beta) > 0.64) yawT += sign(beta) * (Math.abs(beta) - 0.64) * 40000; // beta>0 = nose left of travel: turn right
     }
     car.r += yawT / spec.yawInertia * dt;

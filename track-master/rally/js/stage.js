@@ -28,7 +28,7 @@
     this.count = 3.6; this.time = 0; this.penalty = 0; this.penList = [];
     this.splits = []; this.nextCp = 0; this.top = 0; this.maxS = r.startS - 3;
     this.lastValid = { s: r.startS }; this.validT = 0;
-    this.offT = 0; this.stuckT = 0; this.flipT = 0; this.wrongT = 0; this.recoverCool = 0; this.collCool = 0;
+    this.offT = 0; this.stuckT = 0; this.progS = r.startS - 3; this.progT = 0; this.flipT = 0; this.wrongT = 0; this.recoverCool = 0; this.collCool = 0;
     this.finishedAt = null; this.result = null;
     this.caller.reset(r.startS - 30);
     this.messages = [];
@@ -102,6 +102,10 @@
       // stuck: barely moving for a while (not at a deliberate standstill on the road)
       if (!car.flip && car.speed < 1.2 && (input.throttle > 0.3 || off > 1.5)) { this.stuckT += dt; if (this.stuckT > 6) this.recover(this.free ? null : 'stuck'); }
       else this.stuckT = 0;
+      // rocking in place off the road (on a bank, in a ditch): no forward
+      // progress for 8 s also counts as stuck
+      if (car.s > this.progS + 3) { this.progS = car.s; this.progT = 0; }
+      else if (!car.flip && off > 0.5) { this.progT += dt; if (this.progT > 8) { this.progT = 0; this.progS = car.s; this.recover(this.free ? null : 'stuck'); } }
       // wrong way warning
       if (car.vLong > 3 && Math.abs(he) > 2.2) { this.wrongT += dt; if (this.wrongT > 1.2 && this.wrongT - dt <= 1.2) this.say('역주행', 'warn'); }
       else this.wrongT = 0;
