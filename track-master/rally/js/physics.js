@@ -283,7 +283,8 @@
       if (cut > 0.02) { thrEff *= 1 - cut; car.tcsActive = true; }
     }
     // ESC (computed below with the yaw error) may cut too
-    var engaged = gearR !== 0 && !shifting, clutchSlip = false, Tout = 0;
+    // hold (countdown / after the finish): clutch open, the engine revs freely
+    var engaged = gearR !== 0 && !shifting && !inpRaw.hold, clutchSlip = false, Tout = 0;
     if (engaged) {
       if (Math.abs(wheelRpm) < 1400 * (1 - 0.4 * (car.gear < 0)) && (wheelRpm >= -50 || car.gear < 0)) {
         // launch: the clutch slips, the engine holds revs, full torque passes
