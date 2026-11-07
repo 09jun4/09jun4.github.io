@@ -183,7 +183,7 @@
     }
 
     // steering: speed-sensitive lock + Ackermann
-    var vAbs = Math.abs(vLong), lock = spec.maxSteer * (1 - 0.6 * clamp((vAbs - 6) / 36, 0, 1));
+    var vAbs = Math.abs(vLong), lock = spec.maxSteer * (1 - 0.45 * clamp((vAbs - 6) / 36, 0, 1));
     var steerIn = clamp(inpRaw.steer || 0, -1, 1), delta = steerIn * lock;
     // Drift assist (RALLY SETTINGS, on by default): while the car slides,
     // the front wheels are pulled toward the direction of travel (automatic
@@ -493,8 +493,9 @@
     car.lastImpact = car.time;
     car.events.push({ type: 'impact', v: impact, kind: o.kind });
     var rx = -Math.sin(car.yaw), rz = Math.cos(car.yaw), side = nx * rx + nz * rz; // + = hit on the left (pushed right)
+    var soft = o.kind === 'bale' ? 0.3 : 1; // hay bales absorb most of a hit
     if (car.setup.damage && impact > 4) {
-      var dmg = (impact - 4) / 22;
+      var dmg = (impact - 4) / 22 * soft;
       var wi = circle === 0 ? (side > 0 ? 0 : 1) : circle === 2 ? (side > 0 ? 2 : 3) : (side > 0 ? 0 : 1) + (Math.abs(side) > 0.5 ? 2 : 0);
       var w = car.wheels[Math.min(3, wi)];
       w.susp = Math.max(0, w.susp - dmg * 0.9);
@@ -502,7 +503,7 @@
       if (circle === 0) car.engineHealth = Math.max(0, car.engineHealth - dmg * 0.7);
     }
     // a heavy side hit trips the car over
-    if (impact > 10 && Math.abs(side) > 0.6 && !car.flip) startFlip(car, side > 0 ? 1 : -1);
+    if (impact > 10 && soft === 1 && Math.abs(side) > 0.6 && !car.flip) startFlip(car, side > 0 ? 1 : -1);
   }
 
   // Rollover: the model above keeps roll small (no tipping physics), so a

@@ -80,7 +80,7 @@
     var self = this;
     car.events.forEach(function (e) {
       ev.push(e);
-      if (e.type === 'impact' && e.v > 9 && self.collCool <= 0) { self.collCool = 2; self.addPenalty('collision'); }
+      if (e.type === 'impact' && e.v > (e.kind === 'bale' ? 12 : 9) && self.collCool <= 0) { self.collCool = 2; self.addPenalty('collision'); }
     });
 
     // progress (furthest point) + pace notes

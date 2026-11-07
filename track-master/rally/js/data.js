@@ -15,9 +15,9 @@
   //  roll     rolling resistance (x load)
   //  visc     sinking drag: N per (m/s) per kN of load (mud grabs the car)
   var SURFACES = {
-    gravel: { name: '자갈', mu: 1.05, slipPeak: 0.12, anglePeak: 0.15, falloff: 0.9, roll: 0.022, visc: 0.6, dust: [0.88, 0.82, 0.72], color: [0.56, 0.51, 0.44] },
-    mud:    { name: '진흙', mu: 0.74, slipPeak: 0.18, anglePeak: 0.19, falloff: 0.8, roll: 0.055, visc: 3.2, dust: [0.40, 0.31, 0.22], color: [0.29, 0.22, 0.16] },
-    grass:  { name: '풀밭', mu: 0.8, slipPeak: 0.15, anglePeak: 0.17, falloff: 0.84, roll: 0.040, visc: 1.4, dust: [0.66, 0.64, 0.5], color: [0.28, 0.36, 0.18] },
+    gravel: { name: '흙길', mu: 1.05, slipPeak: 0.12, anglePeak: 0.15, falloff: 0.9, roll: 0.022, visc: 0.6, dust: [0.88, 0.82, 0.72], color: [0.64, 0.56, 0.44] },
+    mud:    { name: '진흙', mu: 0.74, slipPeak: 0.18, anglePeak: 0.19, falloff: 0.8, roll: 0.055, visc: 3.2, dust: [0.30, 0.23, 0.16], color: [0.16, 0.115, 0.075] },
+    grass:  { name: '흙밭', mu: 0.8, slipPeak: 0.15, anglePeak: 0.17, falloff: 0.84, roll: 0.040, visc: 1.4, dust: [0.66, 0.57, 0.44], color: [0.42, 0.33, 0.23] },
   };
 
   // Tyres: grip factor per surface, lateral stiffness factor, wear rate.
@@ -43,7 +43,7 @@
     wheelbase: 2.48, track: 1.56, cgHeight: 0.52, frontWeight: 0.53,
     yawInertia: 1750, pitchInertia: 1650, rollInertia: 520,
     wheelRadius: 0.33, wheelInertia: 1.1, // kg m^2 per wheel (with brake disc)
-    maxSteer: 0.52,          // rad (~30 deg) at the wheels
+    maxSteer: 0.6,           // rad (~34 deg) at the wheels
     // suspension (per wheel); stiffness/height settings scale these
     spring: 36000, damperBump: 2300, damperRebound: 3200, travel: 0.24, restLength: 0.34, bumpStop: 220000,
     // engine: 1.6 turbo, ~290 hp

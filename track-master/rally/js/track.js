@@ -41,7 +41,7 @@
     var segs = [], corners = [], s = 0, R, a, g, g2;
     switch (kind) {
       case 'straight': {
-        var L = rng.weighted([[rng.range(30, 70), 4], [rng.range(70, 160), 4], [rng.range(160, 320), 2]]);
+        var L = rng.weighted([[rng.range(30, 70), 4], [rng.range(70, 140), 4], [rng.range(140, 230), 1.2]]);
         segs.push({ len: L, k0: 0, k1: 0 });
         break;
       }
@@ -56,6 +56,11 @@
       case 'sharp':    // grade 1-2
         g = rng.weighted([[1, 0.8], [2, 1]]); R = radiusFor(rng, g); a = rng.range(1.0, 1.9);
         cornerSegs(dir, R, a, segs, corners, 0);
+        break;
+      case 'square':   // 90-degree junction-style corner ("직각")
+        g = rng.weighted([[2, 1], [3, 1.2], [4, 0.5]]); R = radiusFor(rng, g); a = Math.PI / 2 * rng.range(0.95, 1.06);
+        cornerSegs(dir, R, a, segs, corners, 0);
+        corners[0].square = true;
         break;
       case 'hairpin':
         R = rng.range(10, 13.5); a = rng.range(2.75, 3.25);
@@ -163,16 +168,16 @@
       var ok = false;
       for (var attempt = 0; attempt < 7 && !ok; attempt++) {
         var kind = rng.weighted([
-          ['straight', lastKind === 'straight' ? 0.4 : 2.2], ['gentle', 2.2], ['medium', 2.6], ['sharp', 1.5],
-          ['hairpin', Math.abs(dev) > 0.6 && lastKind !== 'hairpin' ? 0.9 : 0.12], ['linked', 1.0], ['chicane', 1.0],
+          ['straight', lastKind === 'straight' ? 0.2 : 1.5], ['gentle', 0.9], ['medium', 2.4], ['sharp', 2.0], ['square', 2.6],
+          ['hairpin', Math.abs(dev) > 0.6 && lastKind !== 'hairpin' ? 0.9 : 0.12], ['linked', 1.0], ['chicane', 1.3],
         ]);
         // turn back toward the main direction when drifting away
         var dir = Math.abs(dev) > 0.9 ? (rng.chance(0.82) ? -Math.sign(dev) : Math.sign(dev)) : rng.sign();
         if (kind === 'hairpin') dir = -Math.sign(dev) || 1;
         var m = makeModule(rng, kind, dir);
         // after a corner put a short straight in often (real roads breathe)
-        if (kind !== 'straight' && rng.chance(0.55)) {
-          var gap = rng.range(12, 60); m.segs.push({ len: gap, k0: 0, k1: 0 }); m.len += gap;
+        if (kind !== 'straight' && rng.chance(0.42)) {
+          var gap = rng.range(12, 45); m.segs.push({ len: gap, k0: 0, k1: 0 }); m.len += gap;
         }
         if (fits(m)) { commit(m); lastKind = kind; ok = true; fails = 0; }
       }
@@ -237,7 +242,7 @@
     // --- elevation: a grade per module (up / down / steep / flat), smoothed
     var vr = Rng.stream(seed, 'elev'), grade = new Float32Array(n), yEst = 0;
     modules.forEach(function (m, mi) {
-      var kind = mi === 0 ? 'flat' : vr.weighted([['flat', 2.0], ['up', 1.6], ['down', 1.8], ['steepUp', 0.45], ['steepDown', 0.55]]);
+      var kind = mi === 0 ? 'flat' : vr.weighted([['flat', 1.1], ['up', 2.1], ['down', 1.7], ['steepUp', 0.85], ['steepDown', 0.7]]);
       // stay inside a mountain's height range
       if (yEst > 110 && (kind === 'up' || kind === 'steepUp')) kind = 'down';
       if (yEst < -110 && (kind === 'down' || kind === 'steepDown')) kind = 'up';
@@ -274,10 +279,21 @@
 
     // crests and jumps on straights (vertical bumps added on top)
     var bump = new Float32Array(n);
-    modules.forEach(function (m, mi) {
-      if (m.kind !== 'straight' || mi === 0 || m.s1 > finishS - 40) return;
+    // straight stretches measured from the road itself (straight modules and
+    // the straight gaps after corners); jumps / crests / obstacles go there
+    var stretches = [];
+    (function () {
+      var i0 = -1;
+      for (var i = Math.floor((startS + 40) / SP); i < Math.floor((finishS - 40) / SP); i++) {
+        var flat = Math.abs(K[i]) < 0.0025;
+        if (flat && i0 < 0) i0 = i;
+        if ((!flat || i === Math.floor((finishS - 40) / SP) - 1) && i0 >= 0) { if ((i - i0) * SP >= 42) stretches.push({ kind: 'straight', s0: i0 * SP + 4, s1: i * SP - 4, used: false }); i0 = -1; }
+      }
+    })();
+    stretches.forEach(function (m) {
       var len = m.s1 - m.s0;
-      if (len >= 95 && vr.chance(0.42)) {
+      if (len < 34) return;
+      if (len >= 50 && vr.chance(0.45)) {
         var sj = m.s0 + len * vr.range(0.45, 0.65), lip = vr.range(0.8, 1.25), drop = vr.range(1.4, 2.2);
         for (var i = Math.floor((sj - 16) / SP); i <= Math.floor((sj + 26) / SP) && i < n; i++) {
           var d = i * SP - sj;
@@ -286,13 +302,13 @@
         // ease the drop back into the grade after the landing
         var tail = Math.floor((sj + 26) / SP), base = bump[tail] || 0;
         for (var t = 1; t <= 20 && tail + t < n; t++) bump[tail + t] += base * (1 - smooth(t / 20));
-        features.push({ type: 'jump', s0: sj - 16, s1: sj + 26, at: sj });
-      } else if (len >= 70 && vr.chance(0.4)) {
-        var sc = m.s0 + len * vr.range(0.35, 0.65), A = vr.range(1.5, 2.8), half = vr.range(26, 40);
+        features.push({ type: 'jump', s0: sj - 16, s1: sj + 26, at: sj }); m.used = true;
+      } else if (len >= 40 && vr.chance(0.4)) {
+        var sc = m.s0 + len * vr.range(0.4, 0.6), A = vr.range(1.5, 2.8), half = Math.min(vr.range(26, 40), len * 0.45);
         for (var c = Math.floor((sc - half) / SP); c <= Math.ceil((sc + half) / SP) && c < n; c++) {
           var u = (c * SP - sc) / half; if (Math.abs(u) <= 1) bump[c] += A * 0.5 * (1 + Math.cos(Math.PI * u));
         }
-        features.push({ type: 'crest', s0: sc - half, s1: sc + half, at: sc });
+        features.push({ type: 'crest', s0: sc - half, s1: sc + half, at: sc }); m.used = true;
       }
     });
     for (yi = 0; yi < n; yi++) Y[yi] += bump[yi];
@@ -301,7 +317,8 @@
     var wr = Rng.noise2(seed + ':width');
     for (var wi = 0; wi < n; wi++) {
       W[wi] = D.ROAD_WIDTH + 0.7 * wr.fbm(wi * SP / 160, 3.1, 2);
-      SIDE[wi] = 0.28 * wr.fbm(wi * SP / 400, 11.7, 2) + 0.18 * (wr.fbm(wi * SP / 900, 5.3, 1) > 0 ? 1 : -1);
+      // mountain side: steep slope up on one side, a drop on the other
+      SIDE[wi] = 0.35 * wr.fbm(wi * SP / 400, 11.7, 2) + 0.5 * (wr.fbm(wi * SP / 900, 5.3, 1) > 0 ? 1 : -1);
     }
     // narrower at hairpins? no — hairpins are wider in reality (cars swing out)
     corners.forEach(function (c) {
@@ -341,6 +358,27 @@
       features.push({ type: 'rockfall', s0: sh, s1: sp, side: side });
     }
 
+    // --- obstacles on straights (hay-bale barriers on alternating sides):
+    // they block one half of the road, so the driver has to steer around
+    var orr = Rng.stream(seed, 'obstacles'), bales = [];
+    stretches.forEach(function (m) {
+      if (m.used || m.s0 < startS + 60 || m.s1 > finishS - 60) return;
+      var len = m.s1 - m.s0; if (len < 40) return;
+      var side = orr.sign(), s = m.s0 + orr.range(14, 20);
+      while (s < m.s1 - 15) {
+        if (!features.some(function (f) { return (f.type === 'jump' || f.type === 'crest' || f.type === 'rockfall') && s > f.s0 - 45 && s < f.s1 + 30; })) {
+          var ii = Math.min(n - 1, Math.floor(s / SP)), nx = -Math.sin(H[ii]), nz = Math.cos(H[ii]);
+          [0.55, 1.65, 2.75].forEach(function (inset) {
+            var lat = side * (W[ii] / 2 - inset);
+            bales.push({ x: X[ii] + nx * lat, z: Z[ii] + nz * lat, r: 0.6, s: s, h: H[ii] });
+          });
+          features.push({ type: 'obstacle', s0: s - 2, s1: s + 2, side: side });
+          side = -side;
+        }
+        s += orr.range(32, 46);
+      }
+    });
+
     // --- checkpoints (split times): equal shares of the timed section
     var checkpoints = [];
     for (var cp = 1; cp < L.splits; cp++) checkpoints.push(startS + (finishS - startS) * cp / L.splits);
@@ -352,7 +390,7 @@
       seed: seed, lengthKey: lengthKey, SP: SP, n: n, total: total, startS: startS, finishS: finishS,
       x: X, z: Z, y: Y, h: H, k: K, w: W, surf: SURF, side: SIDE, grade: GR,
       modules: modules, corners: corners.filter(function (c) { return c.s1 > startS && c.s0 < finishS; }),
-      features: features, hazards: hazards, checkpoints: checkpoints, mainH: plan.mainH,
+      features: features, hazards: hazards, bales: bales, checkpoints: checkpoints, mainH: plan.mainH,
     };
     buildIndex(route);
     buildTerrain(route);
@@ -414,9 +452,10 @@
   // side going up on one side and down on the other, plus noise.
   function sideProfile(e, side, nz) {
     if (e <= 0) return 0;
-    var ditch = -0.42 * Math.exp(-Math.pow((e - 1.5) / 0.9, 2));
+    var ditch = -0.16 * Math.exp(-Math.pow((e - 1.5) / 0.9, 2));
     var slope = side * Math.max(0, e - 2.5) * smooth((e - 2.5) / 8);
-    var amp = Math.min(9, 0.12 * Math.max(0, e - 3));
+    // smooth next to the road, rough mountain further out
+    var q = Math.max(0, e - 4), amp = Math.min(14, 0.03 * q + 0.0025 * q * q);
     return ditch + slope + amp * nz;
   }
 
@@ -490,7 +529,7 @@
   // itself (flat across, slight crown); off it, the terrain.
   function ground(route, x, z, hint) {
     var L = locate(route, x, z, hint, 24), e = Math.abs(L.lat) - L.w / 2;
-    var crown = 0.06 * (1 - Math.min(1, Math.abs(L.lat) / (L.w / 2)));
+    var crown = 0.02 * (1 - Math.min(1, Math.abs(L.lat) / (L.w / 2)));
     if (e <= 0) return { y: L.y + crown, surf: L.surf ? 'mud' : 'gravel', loc: L, onRoad: true };
     var t = smooth(e / 3), th = terrainHeight(route, x, z);
     return { y: L.y + (th - L.y) * t, surf: e < 1.2 ? (L.surf ? 'mud' : 'gravel') : 'grass', loc: L, onRoad: false };
@@ -532,6 +571,10 @@
       var c = { x: o.x, z: o.z, r: 0.35 * o.s + 0.15, kind: 'tree' }; route.obstacles.push(c); ob.add(o.x, o.z, c);
     });
     rocks.forEach(function (o) { var c = { x: o.x, z: o.z, r: o.r * 0.8, kind: 'rock' }; route.obstacles.push(c); ob.add(o.x, o.z, c); });
+    route.bales.forEach(function (o) {
+      o.y = ground(route, o.x, o.z, null).y;
+      var c = { x: o.x, z: o.z, r: o.r, kind: 'bale' }; route.obstacles.push(c); ob.add(o.x, o.z, c);
+    });
     route.hazards.forEach(function (o) {
       o.y = ground(route, o.x, o.z, null).y;
       var c = { x: o.x, z: o.z, r: o.r, kind: 'rock' }; route.obstacles.push(c); ob.add(o.x, o.z, c);

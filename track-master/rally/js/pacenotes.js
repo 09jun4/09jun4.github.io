@@ -13,23 +13,23 @@
 
   var DIR = { '-1': '좌', '1': '우' };
   var FEATURE_TEXT = {
-    jump: '점프', crest: '크레스트', rockfall: '낙석 주의', mud: '주의 진흙',
+    jump: '점프', crest: '크레스트', obstacle: '장애물', rockfall: '낙석 주의', mud: '주의 진흙',
     steepUp: '급경사 오르막', steepDown: '급경사 내리막', up: '오르막', down: '내리막',
   };
   // Order of importance when notes share a spot.
-  var PRIORITY = { corner: 0, jump: 1, crest: 2, rockfall: 3, mud: 4, steepUp: 5, steepDown: 5, up: 6, down: 6 };
+  var PRIORITY = { obstacle: 0.5, corner: 0, jump: 1, crest: 2, rockfall: 3, mud: 4, steepUp: 5, steepDown: 5, up: 6, down: 6 };
 
   function build(route) {
     var notes = [];
     route.corners.forEach(function (c) {
       if (c.s1 < route.startS || c.s0 > route.finishS) return;
-      var n = { s: c.s0, end: c.s1, kind: 'corner', dir: c.dir, grade: c.grade, hairpin: c.hairpin, R: c.R, angle: c.angle };
+      var n = { s: c.s0, end: c.s1, kind: 'corner', dir: c.dir, grade: c.grade, hairpin: c.hairpin, square: !!c.square, R: c.R, angle: c.angle };
       n.long = !c.hairpin && c.angle > 1.75;
       notes.push(n);
     });
     route.features.forEach(function (f) {
       if (!FEATURE_TEXT[f.type] || f.s0 < route.startS || f.s0 > route.finishS) return;
-      notes.push({ s: f.type === 'jump' || f.type === 'crest' ? f.at - 20 : f.s0, end: f.s1, kind: f.type });
+      notes.push({ s: f.type === 'jump' || f.type === 'crest' ? f.at - 20 : f.s0, end: f.s1, kind: f.type, side: f.side });
     });
     notes.sort(function (a, b) { return a.s - b.s || PRIORITY[a.kind] - PRIORITY[b.kind]; });
     // Links: a corner straight into the next ("이어서"), same direction
@@ -50,8 +50,9 @@
   }
 
   function text(n) {
+    if (n.kind === 'obstacle') return '장애물 ' + DIR[n.side] + ' → ' + DIR[-n.side];
     if (n.kind !== 'corner') return FEATURE_TEXT[n.kind];
-    var t = n.hairpin ? '헤어핀 ' + DIR[n.dir] : DIR[n.dir] + ' ' + n.grade;
+    var t = n.hairpin ? '헤어핀 ' + DIR[n.dir] : n.square ? '직각 ' + DIR[n.dir] + ' ' + n.grade : DIR[n.dir] + ' ' + n.grade;
     if (n.long) t += ' 길게';
     if (n.link) t += ' ' + n.link;
     if (n.dist) t += ' · ' + n.dist;

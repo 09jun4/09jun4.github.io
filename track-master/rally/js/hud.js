@@ -30,7 +30,7 @@
     return '<svg viewBox="0 0 44 44" class="arrow"><path d="' + d + '" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>' +
       '<polygon points="' + head.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '" fill="currentColor"/></svg>';
   }
-  var ICON = { jump: '⤴', crest: '⌒', rockfall: '◆', mud: '≋', steepUp: '⇡', steepDown: '⇣', up: '↗', down: '↘' };
+  var ICON = { obstacle: '▮', jump: '⤴', crest: '⌒', rockfall: '◆', mud: '≋', steepUp: '⇡', steepDown: '⇣', up: '↗', down: '↘' };
   function noteHTML(n, now) {
     var ico = n.kind === 'corner' ? arrow(n) : '<span class="ico">' + (ICON[n.kind] || '!') + '</span>';
     return '<div class="pn' + (now ? ' now' : '') + (n.kind !== 'corner' ? ' feat' : '') + '">' + ico + '<span>' + n.text + '</span></div>';

@@ -190,13 +190,14 @@
     var g = c.getContext('2d'), img = g.createImageData(S2, S2), d = img.data, n = tileFbm('grassH', 16, 4), m = tileFbm('grassC', 4, 3), r = RL.Rng.stream('tex', 'grass2');
     for (var i = 0; i < S2 * S2; i++) H[i] = n((i % S2) / S2 * 16, Math.floor(i / S2) / S2 * 16) * 0.6;
     // blades: short random strokes raise the height field
-    for (var k = 0; k < 9000; k++) {
-      var x = r.next() * S2, y = r.next() * S2, len = 2 + r.next() * 6, dx = (r.next() - 0.5) * 0.6, hgt = 0.3 + r.next() * 0.7;
+    // clods and pebbles in the soil (short marks raise the height field)
+    for (var k = 0; k < 3000; k++) {
+      var x = r.next() * S2, y = r.next() * S2, len = 1 + r.next() * 3, dx = (r.next() - 0.5) * 0.6, hgt = 0.3 + r.next() * 0.7;
       for (var s = 0; s < len; s++) { var px = Math.floor(x + dx * s + S2) % S2, py = Math.floor(y - s + S2) % S2; H[py * S2 + px] = Math.max(H[py * S2 + px], hgt * (1 - s / len * 0.4)); }
     }
     for (i = 0; i < S2 * S2; i++) {
-      var tone = m((i % S2) / S2 * 4, Math.floor(i / S2) / S2 * 4), h = H[i], v = 0.55 + 0.6 * h;
-      d[i * 4] = Math.min(255, 255 * v * (0.92 + 0.12 * tone)); d[i * 4 + 1] = Math.min(255, 255 * v); d[i * 4 + 2] = Math.min(255, 255 * v * (0.72 + 0.1 * tone)); d[i * 4 + 3] = 255;
+      var tone = m((i % S2) / S2 * 4, Math.floor(i / S2) / S2 * 4), h = H[i], v = 0.5 + 0.45 * h;
+      d[i * 4] = Math.min(255, 255 * v * (1.0 + 0.06 * tone)); d[i * 4 + 1] = Math.min(255, 255 * v * 0.92); d[i * 4 + 2] = Math.min(255, 255 * v * (0.8 - 0.05 * tone)); d[i * 4 + 3] = 255;
     }
     g.putImageData(img, 0, 0);
     grassTex = new THREE.CanvasTexture(c); grassTex.encoding = THREE.sRGBEncoding; grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.anisotropy = 8; grassTex.shared = true;
@@ -210,8 +211,9 @@
     var S2 = 512, H = new Float32Array(S2 * S2), r = RL.Rng.stream('tex', 'stones'), n = tileFbm('grit', 64, 3);
     for (var i = 0; i < S2 * S2; i++) H[i] = n((i % S2) / S2 * 64, Math.floor(i / S2) / S2 * 64) * 0.35;
     var tint = new Float32Array(S2 * S2);
-    for (var k = 0; k < 2600; k++) {
-      var cx = r.next() * S2, cy = r.next() * S2, rad = 1.5 + Math.pow(r.next(), 2) * 7, hh = 0.5 + r.next() * 0.6, tn = r.next();
+    // packed dirt: fine grit with a scatter of small pebbles (flat road)
+    for (var k = 0; k < 5000; k++) {
+      var cx = r.next() * S2, cy = r.next() * S2, rad = 0.6 + Math.pow(r.next(), 3) * 2.4, hh = 0.25 + r.next() * 0.3, tn = r.next();
       for (var yy = -rad; yy <= rad; yy++) for (var xx = -rad; xx <= rad; xx++) {
         var q = 1 - (xx * xx + yy * yy) / (rad * rad); if (q <= 0) continue;
         var px = Math.floor(cx + xx + S2) % S2, py = Math.floor(cy + yy + S2) % S2, j = py * S2 + px, v2 = hh * Math.sqrt(q);
@@ -222,13 +224,13 @@
     var g = c.getContext('2d'), img = g.createImageData(S2, S2), d = img.data;
     for (i = 0; i < S2 * S2; i++) {
       var u = (i % S2) / S2, rut = Math.exp(-Math.pow((u - 0.36) / 0.05, 2)) + Math.exp(-Math.pow((u - 0.64) / 0.05, 2));
-      H[i] *= 1 - 0.55 * rut;
-      var v = 0.5 + 0.55 * H[i] - 0.1 * rut, tn2 = tint[i];
-      d[i * 4] = 255 * Math.min(1, v * (0.98 + 0.1 * tn2)); d[i * 4 + 1] = 255 * Math.min(1, v * 0.95); d[i * 4 + 2] = 255 * Math.min(1, v * (0.86 - 0.08 * tn2)); d[i * 4 + 3] = 255;
+      H[i] *= 1 - 0.6 * rut;
+      var v = 0.62 + 0.4 * H[i] - 0.14 * rut, tn2 = tint[i];
+      d[i * 4] = 255 * Math.min(1, v * (1.0 + 0.08 * tn2)); d[i * 4 + 1] = 255 * Math.min(1, v * 0.9); d[i * 4 + 2] = 255 * Math.min(1, v * (0.76 - 0.06 * tn2)); d[i * 4 + 3] = 255;
     }
     g.putImageData(img, 0, 0);
     var map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.anisotropy = 8; map.shared = true;
-    gravelHigh = { map: map, normal: normalFrom(H, S2, S2, 5) };
+    gravelHigh = { map: map, normal: normalFrom(H, S2, S2, 2.6) };
     return gravelHigh;
   }
 
@@ -269,7 +271,7 @@
     if (high && terrainMat && !terrainMatHigh) {
       grassTexture(); var gv = gravelTextures();
       terrainMatHigh = new THREE.MeshStandardMaterial({ vertexColors: true, map: grassTex, normalMap: grassNrm, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.95, metalness: 0 });
-      roadMatHigh = new THREE.MeshStandardMaterial({ vertexColors: true, map: gv.map, normalMap: gv.normal, normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.92, metalness: 0 });
+      roadMatHigh = new THREE.MeshStandardMaterial({ vertexColors: true, map: gv.map, normalMap: gv.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
     }
     W.chunks.forEach(function (c) { c.lods.forEach(function (m) { m.material = high && terrainMatHigh ? terrainMatHigh : terrainMat; }); });
     W.roadPieces.forEach(function (m) { m.material = high && roadMatHigh ? roadMatHigh : roadMat; });
@@ -319,7 +321,8 @@
     var T0 = route.terrain, N = T0.CHUNK + 1, size = T0.size, noise = T0.noise;
     terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     terrainMatHigh = null;
-    var cGrass = new THREE.Color(0x3f6524), cDry = new THREE.Color(0x77753a), cDirt = new THREE.Color(0x6b5a40), cRock = new THREE.Color(0x77736b), c = new THREE.Color();
+    // mountain soil: brown earth with sparse dry scrub patches, rock on steep faces
+    var cGrass = new THREE.Color(0x5a4230), cDry = new THREE.Color(0x4c552a), cDirt = new THREE.Color(0x6a4f37), cRock = new THREE.Color(0x6f6a62), c = new THREE.Color();
     T0.chunks.forEach(function (ch) {
       var lods = [];
       [1, 2].forEach(function (step) {
@@ -329,13 +332,15 @@
           var x = ch.cx * size + ia * T0.CELL, z = ch.cz * size + ib * T0.CELL;
           // keep the terrain under the road surface (no poking through)
           var L = null, dd = 1e9;
-          route.hash.near(x, z, 10, function (j) { var dx = route.x[j] - x, dz = route.z[j] - z, d = dx * dx + dz * dz; if (d < dd) { dd = d; L = j; } });
-          if (L != null && dd < Math.pow(route.w[L] / 2 + 1.6, 2)) h = Math.min(h, route.y[L] - 0.18);
+          route.hash.near(x, z, 18, function (j) { var dx = route.x[j] - x, dz = route.z[j] - z, d = dx * dx + dz * dz; if (d < dd) { dd = d; L = j; } });
+          // keep the terrain below the road and its shoulders: a grid cell is
+          // 4 m, so a raised vertex next to the road would cover its edge
+          if (L != null) { var dl = Math.sqrt(dd) - route.w[L] / 2; if (dl < 10) h = Math.min(h, route.y[L] - 0.15 * step + Math.max(0, dl - 0.4) * (step > 1 ? 0.12 : 0.3) - (step > 1 ? 0.25 : 0)); }
           var k = (b * n + a) * 3;
           pos[k] = x; pos[k + 1] = h; pos[k + 2] = z;
           // colour: grass with dry patches, dirt near the road, rock on steep bits
           var nz = noise.fbm(x / 40, z / 40, 2);
-          c.copy(cGrass).lerp(cDry, Math.max(0, nz) * 0.9);
+          c.copy(cGrass).lerp(cDry, Math.max(0, nz - 0.15) * 1.3);
           if (dd < 100) c.lerp(cDirt, 1 - Math.sqrt(dd) / 10);
           var hx = ch.h[ib * N + Math.min(N - 1, ia + 1)] - ch.h[ib * N + Math.max(0, ia - 1)];
           var hz = ch.h[Math.min(N - 1, ib + 1) * N + ia] - ch.h[Math.max(0, ib - 1) * N + ia];
@@ -378,7 +383,7 @@
   }
   function buildRoad(route, stage) {
     var tex = gravelTexture();
-    var mat = roadMat = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true }); roadMatHigh = null;
+    var mat = roadMat = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 }); roadMatHigh = null;
     var gC = D.SURFACES.gravel.color, mC = D.SURFACES.mud.color;
     var PIECE = 100, cols = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5]; // shoulder, edge, .. centre .. edge, shoulder
     for (var s0 = 0; s0 < route.n - 1; s0 += PIECE) {
@@ -390,7 +395,7 @@
         for (var c = 0; c < nc; c++) {
           var f = cols[c], off = Math.abs(f) <= 1 ? f * w2 : Math.sign(f) * (w2 + 1.3);
           var x = route.x[i] + nx * off, z = route.z[i] + nz * off, y;
-          if (Math.abs(f) <= 1) y = route.y[i] + 0.06 * (1 - Math.abs(f)) + 0.035;
+          if (Math.abs(f) <= 1) y = route.y[i] + 0.02 * (1 - Math.abs(f)) + 0.035;
           else y = Math.min(route.y[i] - 0.05, T.terrainHeight(route, x, z) + 0.05);
           var k = (r * nc + c) * 3;
           pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
@@ -401,7 +406,7 @@
       }
       for (r = 0; r < rows - 1; r++) for (c = 0; c < nc - 1; c++) {
         var a = r * nc + c, b = a + 1, d = a + nc, e = d + 1;
-        idx.push(a, d, b, b, d, e);
+        idx.push(a, b, d, b, e, d); // counter-clockwise from above (faces up)
       }
       var g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -463,7 +468,7 @@
       rock: mergeColored([{ geo: new THREE.DodecahedronGeometry(1, 0), color: 0x85817a }]),
       grass: (function () {
         var p = [];
-        for (var i = 0; i < 3; i++) { var g = new THREE.PlaneGeometry(0.9, 0.55); var m = new THREE.Matrix4().makeRotationY(i * Math.PI / 3).multiply(tr(0, 0.27, 0)); p.push({ geo: g, color: i % 2 ? 0x5c7a34 : 0x6d8a3c, matrix: m }); }
+        for (var i = 0; i < 3; i++) { var g = new THREE.PlaneGeometry(0.9, 0.55); var m = new THREE.Matrix4().makeRotationY(i * Math.PI / 3).multiply(tr(0, 0.27, 0)); p.push({ geo: g, color: i % 2 ? 0x7a7038 : 0x8a7d45, matrix: m }); }
         return mergeColored(p);
       })(),
       post: mergeColored([
@@ -492,8 +497,8 @@
     var gr = RL.Rng.stream(route.seed, 'grass');
     for (var s = 0; s < route.total; s += 3) {
       var i = Math.min(route.n - 1, Math.floor(s / route.SP)), h = route.h[i];
-      for (var k = 0; k < 2; k++) {
-        var side = gr.sign(), off = route.w[i] / 2 + gr.range(1.8, 18), along = gr.range(-1.5, 1.5);
+      for (var k = 0; k < 1; k++) {
+        var side = gr.sign(), off = route.w[i] / 2 + gr.range(2.5, 18), along = gr.range(-1.5, 1.5);
         var x = route.x[i] + Math.cos(h) * along - Math.sin(h) * off * side, z = route.z[i] + Math.sin(h) * along + Math.cos(h) * off * side;
         var L = T.locate(route, x, z, i, 6);
         if (Math.abs(L.lat) < L.w / 2 + 1.2) continue;
@@ -535,6 +540,18 @@
       var hm = new THREE.InstancedMesh(geo.rock, propMat, route.hazards.length);
       route.hazards.forEach(function (o, n) { tmpP.set(o.x, o.y - o.r * 0.25, o.z); tmpQ.setFromEuler(tmpE.set(0.4 * n, n, 0)); tmpS.set(o.r, o.r * 0.8, o.r); tmpM.compose(tmpP, tmpQ, tmpS); hm.setMatrixAt(n, tmpM); });
       whiteColors(hm); hm.castShadow = true; stage.add(hm);
+    }
+    // hay-bale barriers on straights (round bales, straw colour with bands)
+    if (route.bales && route.bales.length) {
+      var bc = document.createElement('canvas'); bc.width = 64; bc.height = 64; var bg2 = bc.getContext('2d'), br = RL.Rng.stream('tex', 'straw');
+      bg2.fillStyle = '#c9a85a'; bg2.fillRect(0, 0, 64, 64);
+      for (var bi = 0; bi < 400; bi++) { bg2.strokeStyle = br.chance(0.5) ? 'rgba(120,90,40,0.45)' : 'rgba(240,215,140,0.5)'; var bx = br.range(0, 64), by = br.range(0, 64); bg2.beginPath(); bg2.moveTo(bx, by); bg2.lineTo(bx + br.range(-6, 6), by + br.range(-2, 2)); bg2.stroke(); }
+      bg2.fillStyle = 'rgba(220,40,30,0.9)'; bg2.fillRect(0, 20, 64, 3); bg2.fillRect(0, 42, 64, 3);
+      var btex = new THREE.CanvasTexture(bc); btex.encoding = THREE.sRGBEncoding; btex.wrapS = btex.wrapT = THREE.RepeatWrapping;
+      var balM = new THREE.MeshStandardMaterial({ map: btex, roughness: 1 });
+      var bm = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.62, 1.15, 16), balM, route.bales.length);
+      route.bales.forEach(function (o, n) { tmpP.set(o.x, o.y + 0.55, o.z); tmpQ.setFromEuler(tmpE.set(0, n * 0.7, 0)); tmpS.set(1, 1, 1); tmpM.compose(tmpP, tmpQ, tmpS); bm.setMatrixAt(n, tmpM); });
+      bm.castShadow = true; bm.receiveShadow = true; bm.frustumCulled = false; stage.add(bm);
     }
     // marker posts every 25 m on both edges
     var posts = [];
