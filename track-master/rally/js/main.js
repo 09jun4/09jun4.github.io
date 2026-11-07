@@ -362,7 +362,8 @@
   Input.attach(function () { return M.playing && !M.paused; });
   Input.bindTouch($('touch'));
   if (RL.Settings.isTouch()) document.body.classList.add('touch');
-  RL.Audio.muted = S().sound === false;
+  // sound starts ON every session (M / pause menu mutes until reload)
+  RL.Audio.muted = false; S().sound = true;
   // deep link: ?seed=XXXX&len=short
   (function () {
     var q = new URLSearchParams(location.search);

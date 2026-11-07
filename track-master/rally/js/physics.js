@@ -204,7 +204,7 @@
       // or let it run wide; the rear axle does the sliding.
       var phiF = Math.atan2(vLat + car.r * ws[0].lx, Math.abs(vLong));
       var csLock = spec.maxSteer * 1.25;
-      delta = clamp(slideF * clamp(phiF, -0.78, 0.78) + delta * (1 - 0.6 * powerSlide), -csLock, csLock);
+      delta = clamp(slideF * clamp(phiF, -0.78, 0.78) + delta * (1 - 0.15 * powerSlide), -csLock, csLock);
     }
     car.steer = delta;
     ws[0].steer = delta * (delta < 0 ? 1.08 : 0.93); // FL is the inside wheel turning left
@@ -449,10 +449,10 @@
     // toward what the steering asks for (limited by grip), and stop the
     // slide angle growing past ~50 degrees (no sudden spins).
     if (set.driftAssist && vLong > 4 && slideF > 0) {
-      var muA = D.SURFACES[car.surface].mu, rAsk = vLong * Math.tan(steerIn * lock) / spec.wheelbase;
+      var muA = D.SURFACES[car.surface].mu, rAsk = 1.6 * vLong * Math.tan(steerIn * lock) / spec.wheelbase; // drifting: steering turns the car quickly
       var rLim = 1.25 * muA * GRAV / Math.max(vAbs, 3);
       rAsk = clamp(rAsk, -rLim, rLim);
-      yawT += -(car.r - rAsk) * 2600 * slideF;
+      yawT += -(car.r - rAsk) * 4600 * slideF;
       if (Math.abs(beta) > 0.72) yawT += sign(beta) * (Math.abs(beta) - 0.72) * 26000; // beta>0 = nose left of travel: turn right
     }
     car.r += yawT / spec.yawInertia * dt;

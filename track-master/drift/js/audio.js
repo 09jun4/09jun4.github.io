@@ -13,7 +13,7 @@
   var ac = null, master = null, voices = [], squeal = null, wind = null, noiseBuf = null, shaper = null;
 
   function vol() {
-    try { var v = JSON.parse(localStorage.getItem('f1-champion.volume')); if (v && typeof v.master === 'number') return v.muted ? 0 : v.master; } catch (e) { /* none */ }
+    try { var v = JSON.parse(localStorage.getItem('f1-champion.volume')); if (v && typeof v.master === 'number' && v.master >= 0.05) return v.master; /* sound on by default */ } catch (e) { /* none */ }
     return 0.8;
   }
   function noise() {

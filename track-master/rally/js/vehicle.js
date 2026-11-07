@@ -89,7 +89,7 @@
   // glasshouse section: side glass leaning in (tumblehome), rounded roof
   function houseSection(F, x) {
     var yB = F.top(x) - 0.04, yR = Math.max(yB + 0.005, cr(ROOF, x)), h = yR - yB;
-    var Wb = F.sideZ(x, F.top(x) - 0.15) - 0.15, Wr = Wb - 0.2, rr = Math.min(0.13, h * 0.5), out = [];
+    var Wb = F.sideZ(x, F.top(x) - 0.15) - 0.11, Wr = Wb - 0.13, rr = Math.min(0.13, h * 0.5), out = [];
     for (var i = 0; i < 5; i++) { var f = i / 4, y = yB + (h - rr) * f; out.push([Wb + (Wr - Wb) * f, y]); }
     [30, 60, 90].forEach(function (a) { a *= Math.PI / 180; out.push([Wr - rr + rr * Math.cos(a), yR - rr + rr * Math.sin(a)]); });
     [0.5, 0].forEach(function (f) { out.push([(Wr - rr) * f, yR + 0.02 * (1 - f * f)]); });
@@ -279,12 +279,18 @@
 
     // --- body hull (one smooth mesh, livery mapped on)
     var xs = stations(XR, XF, 0.035, [a - AR - 0.004, a - AR + 0.004, a + AR - 0.004, a + AR + 0.004, -b - AR - 0.004, -b - AR + 0.004, -b + AR - 0.004, -b + AR + 0.004, XF - 0.02, XF - 0.05, XR + 0.02, XR + 0.05]);
-    var hull = new THREE.Mesh(loft(xs, function (x) { return hullSection(F, x); }, liveryUV, null, 0), white);
+    // the hull top between the windscreen and the rear bulkhead is the
+    // cabin opening: drawn from outside (seen through the glass), hidden in
+    // the cockpit view so it doesn't cover the dash, seats and floor
+    var hiddenM = new THREE.MeshBasicMaterial({ visible: false });
+    var hullG = loft(xs, function (x) { return hullSection(F, x); }, liveryUV, function (x, j) { return x > -1.48 && x < 0.86 && j >= 14 ? 1 : 0; }, 0);
+    var hull = new THREE.Mesh(hullG, [white, white, hiddenM]);
     shell.add(hull); parts.shell = hull;
+    parts.deck = hullG.groups.filter(function (g) { return g.materialIndex === 1; })[0];
     // glasshouse: tinted glass with painted roof, A/C pillars and black B pillar
     var hx = stations(-1.88, 0.93, 0.03, [0.1, -0.38, -0.5, -1.3, -1.42, 0.62]);
     var hg = loft(hx, function (x) { return houseSection(F, x); }, function () { return [0, 0]; }, function (x, j) {
-      var top = j >= 6, corner = j >= 4 && j < 6;
+      var top = j >= 6, corner = j === 5;
       if (top) return x < 0.12 && x > -1.42 ? 1 : 0;           // roof painted, windscreen / rear glass
       if (j === 0) return 2;                                    // black window seal along the belt
       if (corner && x > 0.06) return 1;                         // A pillar
@@ -294,6 +300,9 @@
       return 0;
     }, 0);
     var house = new THREE.Mesh(hg, [glass, pillarPaint, trimBlack]); shell.add(house); parts.cabin = house;
+    // seen from inside: pillars and roof are dark trim, the glass is clear
+    var innerTrim = std(0x1c1e22, { roughness: 0.9, side: THREE.BackSide });
+    var houseIn = new THREE.Mesh(hg, [hiddenM, innerTrim, innerTrim]); houseIn.scale.set(1, 0.998, 0.996);
     // wheel wells: dark tunnels so the arches read as openings
     var wellM = reg(new THREE.MeshStandardMaterial({ color: 0x080809, roughness: 0.95, side: THREE.DoubleSide }));
     [a, -b].forEach(function (x) {
@@ -401,6 +410,7 @@
 
     // --- interior (cockpit camera), ground-relative like the shell
     var interior = new THREE.Group(); shell.add(interior); parts.interior = interior;
+    interior.add(houseIn);
     var trimM = std(0x1d2024, { roughness: 0.85 }), softM = std(0x141619, { roughness: 1 }), cageM = std(0xb9bec4, { metalness: 0.6, roughness: 0.35 });
     var accent = std(0xff7a1a, { roughness: 0.6 }), suede = std(0x111214, { roughness: 1 });
     function I(o, x, y, z) { at(o, x, y, z); interior.add(o); return o; }
@@ -440,8 +450,8 @@
       var v = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1), len = v.length(), o = cyl(r, r, len, 10, m);
       o.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); interior.add(o); return o;
     }
-    bar(0.52, 0.86, -0.38, 0.22, 0.91, -0.38, 0.035, trimM);
-    var wheelG = I(new THREE.Group(), 0.18, 0.92, -0.38); wheelG.rotation.z = -0.42;
+    bar(0.52, 0.84, -0.38, 0.22, 0.875, -0.38, 0.035, trimM);
+    var wheelG = I(new THREE.Group(), 0.18, 0.885, -0.38); wheelG.rotation.z = -0.42;
     var sw = new THREE.Group(); wheelG.add(sw);
     var rimT = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.02, 12, 40), suede); rimT.rotation.y = Math.PI / 2; sw.add(rimT);
     [Math.PI / 2, -Math.PI / 2, Math.PI].forEach(function (an) {
@@ -473,7 +483,8 @@
     [-0.64, 0.64].forEach(function (z) { tube(0.72, yb + 0.35, z, 0.42, yt, z); tube(0.42, yt, z, -1.05, yt, z); tube(-1.05, yt, z, -1.2, yb, z); tube(0.55, 0.78, z, -0.9, 0.78, z); });
     tube(0.42, yt, -0.64, 0.42, yt, 0.64); tube(-1.05, yt, -0.64, -1.05, yt, 0.64); tube(-1.05, yt, -0.64, 0.42, yt, 0.64);
 
-    parts.cockpitMount = at(new THREE.Object3D(), -0.3, floorY + 1.0, -0.38); body.add(parts.cockpitMount);
+    // driver's eye: low in the bucket seat, clear of the roof rail
+    parts.cockpitMount = at(new THREE.Object3D(), -0.22, floorY + 0.95, -0.34); body.add(parts.cockpitMount);
     parts.cockpitMount.rotation.z = -0.06;
     parts.hoodMount = at(new THREE.Object3D(), 1.05, floorY + 0.78, 0); body.add(parts.hoodMount);
 
@@ -540,7 +551,7 @@
     var mats = allMats.slice();
     var V = { root: root, body: body, parts: parts, wheels: wheels, blob: blob, floorY: floorY, mats: mats };
     V.update = function (car) { sync(V, car); };
-    V.setInteriorVisible = function (on) { interior.visible = on; };
+    V.setInteriorVisible = function (on) { interior.visible = on; if (parts.deck) parts.deck.materialIndex = on ? 2 : 1; };
     // HIGH: clear-coat PBR with reflections; LOW: Lambert copies (cheaper)
     V.setQuality = function (high) {
       root.traverse(function (o) {

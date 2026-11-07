@@ -36,12 +36,16 @@
   var engine = null; // nodes for the current car's engine
   var tyre = null;
 
-  try { Audio.muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* storage unavailable */ }
+  // Sound starts ON every session: a mute (M key / button) lasts until the
+  // page is reloaded, and a saved master volume of 0 is reset to the default.
+  Audio.muted = false;
+  try { localStorage.setItem(MUTE_KEY, '0'); } catch (e) { /* storage unavailable */ }
   try {
     var saved = JSON.parse(localStorage.getItem(VOLUME_KEY));
     if (saved) ['master', 'engine', 'sfx'].forEach(function (k) {
       if (typeof saved[k] === 'number' && isFinite(saved[k])) Audio.volume[k] = Math.max(0, Math.min(1, saved[k]));
     });
+    if (Audio.volume.master < 0.05) Audio.volume.master = 0.8;
   } catch (e) { /* storage unavailable or bad data */ }
 
   // Slider position -> gain. Squared so the slider feels even to the ear.
