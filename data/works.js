@@ -5,7 +5,7 @@ window.WORKS = [
   { title: '치이카와 토벌 대작전', url: '/chiikawa-tobatsu/', thumb: 'assets/thumbs/chiikawa-tobatsu.jpg', date: '2026-10-29',
     desc: '먼작귀 친구 5명이 함께 싸우는 서바이벌 게임' },
   { title: 'Track Master', url: '/track-master/', thumb: 'assets/thumbs/track-master.jpg', date: '2026-11-05',
-    desc: '서킷 레이스 · 드리프트 레이스를 고르는 레이싱 게임' },
+    desc: '서킷 · 드리프트 · 랠리 레이스를 고르는 레이싱 게임' },
   { title: 'Shoot to Survive', url: '/shoot-to-survive/', thumb: 'assets/thumbs/shoot-to-survive.jpg', date: '2026-11-05',
     desc: '무작위 미로에서 유령 10마리를 처리하는 로우폴리 공포 FPS' },
   { title: '선호의 여정', url: '/journey-of-sunho/', thumb: 'assets/thumbs/journey-of-sunho.jpg', date: '2026-11-05', desc: '학원 끝! 날씨와 돌발 상황을 뚫고 자전거로 귀가하는 3D 어드벤처' },
