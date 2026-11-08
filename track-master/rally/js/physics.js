@@ -25,7 +25,7 @@
   'use strict';
   var RL = G.RL = G.RL || {};
   var D = RL.Data, T = RL.Track;
-  var DT = 1 / 600, GRAV = 9.81, ATTACH = 0.1, DRIVE = 1.32;
+  var DT = 1 / 600, GRAV = 9.81, ATTACH = 0.1, DRIVE = 1.32, DROOP = 0.1;
 
   function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
   function sign(x) { return x < 0 ? -1 : 1; }
@@ -228,6 +228,15 @@
       var len = yA - (gr.y + R);
       var comp = rest - len;
       var hs = 0.7 + 0.3 * w.susp; // damaged suspension: softer, sags
+      // long droop (rally suspension): an unloaded wheel extends up to
+      // DROOP past its free length to keep touching the ground in a dip
+      if (comp <= 0 && comp > -DROOP) {
+        w.compVel = 0; w.comp = 0; w.Fz = 0; w.contact = true; w.touch = true; if (w.bump > 0) w.bumpDone = true;
+        w.wheelY = gr.y + R;
+        contacts++;
+        continue;
+      }
+      w.touch = false;
       if (comp > 0) {
         var cv = (comp - w.comp) / dt;
         w.compVel = cv; w.comp = comp;
@@ -483,11 +492,27 @@
     car.y += car.vy * dt;
     pitchT += h * Flong; rollT -= h * Flat;
     pitchT -= 2400 * car.pitchRate; rollT -= 1100 * car.rollRate; // chassis damping (calm body)
+    // terrain following: the plane through the ground under the 4 wheels.
+    // Body pitch/roll beyond ~3 deg away from it is pulled back hard, so on
+    // a hillside the body lies along the slope and all four wheels stay on
+    // the ground (ordinary body roll / pitch in corners is untouched). Off
+    // the road it also holds when the car skips off a bump.
+    var sxl = 0, sxx = 0, syl = 0, syy = 0, gmean = 0;
+    for (i = 0; i < 4; i++) { gmean += ws[i].gy / 4; }
+    for (i = 0; i < 4; i++) { var dg = ws[i].gy - gmean; sxl += dg * ws[i].lx; sxx += ws[i].lx * ws[i].lx; syl += dg * ws[i].ly; syy += ws[i].ly * ws[i].ly; }
+    var gP = Math.atan(sxl / sxx), gR = -Math.atan(syl / syy);
+    var nearGround = !car.airborne || (offAll && car.y - gmean < 1.6);
+    if (nearGround && !car.flip) {
+      var eP = car.pitch - gP, eR = car.roll - gR, dz = 0.05;
+      var xP = Math.abs(eP) > dz ? eP - sign(eP) * dz : 0, xR = Math.abs(eR) > dz ? eR - sign(eR) * dz : 0;
+      pitchT -= 90000 * xP + (xP ? 9000 * car.pitchRate : 0);
+      rollT -= 45000 * xR + (xR ? 4000 * car.rollRate : 0);
+    }
     car.pitchRate += pitchT / spec.pitchInertia * dt;
     car.rollRate += rollT / spec.rollInertia * dt;
     if (car.airborne) { car.pitchRate *= 1 - 0.8 * dt; car.rollRate *= 1 - 0.8 * dt; }
     car.pitch += car.pitchRate * dt; car.roll += car.rollRate * dt;
-    car.pitch = clamp(car.pitch, -0.5, 0.5); car.roll = clamp(car.roll, -0.45, 0.45);
+    car.pitch = clamp(car.pitch, -0.7, 0.7); car.roll = clamp(car.roll, -0.7, 0.7);
     // never sink through the ground (body floor)
     var gmin = Math.max(ws[0].gy, ws[1].gy, ws[2].gy, ws[3].gy) + 0.12 + ATTACH;
     if (car.y < gmin) { car.y = gmin; if (car.vy < 0) { if (car.vy < -6) car.events.push({ type: 'bottom', vy: car.vy }); car.vy = 0; } }

@@ -261,7 +261,8 @@
 
   function create(spec) {
     allMats = [];
-    var root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+    // root (position, heading) > chassis (rolls as one piece in a rollover) > body + wheels
+    var root = new THREE.Group(), chassis = new THREE.Group(), body = new THREE.Group(); root.add(chassis); chassis.add(body);
     var cg = spec.cgHeight, a = spec.wheelbase * (1 - spec.frontWeight), b = spec.wheelbase * spec.frontWeight;
     var tw = spec.track / 2, R = spec.wheelRadius, yG = -cg; // ground level in body space
     var floorY = yG + 0.24;
@@ -524,7 +525,7 @@
     var wheels = [];
     [[a, -tw, true], [a, tw, true], [-b, -tw, false], [-b, tw, false]].forEach(function (p) {
       var out = p[1] > 0 ? 1 : -1;
-      var pivot = new THREE.Group(); pivot.position.set(p[0], 0, p[1]); root.add(pivot);
+      var pivot = new THREE.Group(); pivot.position.set(p[0], 0, p[1]); chassis.add(pivot);
       var spin = new THREE.Group(); pivot.add(spin);
       spin.add(new THREE.Mesh(tyreGeo, tyreM));
       spin.add(new THREE.Mesh(lugGeo, lugM));
@@ -549,7 +550,7 @@
     blob.castShadow = false;
 
     var mats = allMats.slice();
-    var V = { root: root, body: body, parts: parts, wheels: wheels, blob: blob, floorY: floorY, mats: mats };
+    var V = { root: root, chassis: chassis, body: body, parts: parts, wheels: wheels, blob: blob, floorY: floorY, mats: mats };
     V.update = function (car) { sync(V, car); };
     V.setInteriorVisible = function (on) { interior.visible = on; if (parts.deck) parts.deck.materialIndex = on ? 2 : 1; };
     // HIGH: clear-coat PBR with reflections; LOW: Lambert copies (cheaper)
@@ -608,20 +609,22 @@
     var root = V.root;
     root.position.set(car.x, car.y, car.z);
     root.rotation.set(0, -car.yaw, 0);
-    var roll = car.roll, lift = 0;
-    if (car.flip) {
-      // pivot over the body's edges: keep the lowest corner of the body box
-      // (wheels / sills -0.55 m, roof +0.9 m, sides +-0.9 m) on the ground
+    var flipping = !!car.flip, ch = V.chassis;
+    if (flipping) {
+      // the whole car (body AND wheels) rolls as one piece over its edges:
+      // keep the lowest point of the car's outline (tyre bottoms -0.67 m,
+      // roof +0.9 m, sides +-0.95 m from the centre) on the ground
       var vr = car.flip.visualRoll || 0, cr = Math.cos(vr), sr = Math.sin(vr), lo = 1e9;
-      [-0.55, 0.9].forEach(function (yy) { [-0.9, 0.9].forEach(function (zz) { lo = Math.min(lo, yy * cr - zz * sr); }); });
-      roll += vr; lift = Math.max(0, -0.55 - lo);
-    }
-    V.body.rotation.set(roll, 0, car.pitch, 'YZX');
-    V.body.position.y = lift;
+      [-0.67, 0.9].forEach(function (yy) { [-0.95, 0.95].forEach(function (zz) { lo = Math.min(lo, yy * cr - zz * sr); }); });
+      ch.rotation.set(vr, 0, 0); ch.position.y = Math.max(0, -0.67 - lo);
+    } else { ch.rotation.set(0, 0, 0); ch.position.y = 0; }
+    V.body.rotation.set(car.roll, 0, car.pitch, 'YZX');
+    V.body.position.y = 0;
     var spec = car.spec;
     for (var i = 0; i < 4; i++) {
       var w = car.wheels[i], vw = V.wheels[i];
-      vw.pivot.position.y = w.wheelY - car.y;
+      // in a roll the wheels hang at full droop under the body
+      vw.pivot.position.y = flipping ? -0.34 : w.wheelY - car.y;
       vw.pivot.rotation.y = -w.steer;
       vw.spin.rotation.z = -w.angle;
     }

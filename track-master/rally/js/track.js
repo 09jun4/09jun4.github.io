@@ -481,7 +481,7 @@
     var ditch = -0.16 * Math.exp(-Math.pow((e - 1.5) / 0.9, 2));
     var slope = side * Math.max(0, e - 2.5) * smooth((e - 2.5) / 8);
     // smooth next to the road, rough mountain further out
-    var q = Math.max(0, e - 4), amp = Math.min(14, 0.03 * q + 0.0025 * q * q);
+    var q = Math.max(0, e - 12), amp = Math.min(14, 0.02 * q + 0.002 * q * q); // drivable ground for ~12 m, mountains further out
     return ditch + slope + amp * nz;
   }
 
@@ -539,6 +539,7 @@
       // this same heightfield): just under the road at the edge, ~0.3 m per
       // metre for the first 10 m, steeper after, mountains past ~25 m. Drops
       // (cliffs) on the valley side are left as they are.
+      var near = new Uint8Array(N * N);
       for (a = 0; a < N; a++) for (b = 0; b < N; b++) {
         var vx = c.cx * size + a * CELL, vz = c.cz * size + b * CELL, best = 1e9, bj = -1;
         route.hash.near(vx, vz, 30, function (j) { var dx = route.x[j] - vx, dz = route.z[j] - vz, d = dx * dx + dz * dz; if (d < best) { best = d; bj = j; } });
@@ -547,6 +548,18 @@
         if (dl > 26) continue;
         var bank = dl < 0.4 ? 0 : dl < 10 ? (dl - 0.4) * 0.3 : 2.88 + (dl - 10) * 0.6;
         h[b * N + a] = Math.min(h[b * N + a], route.y[bj] - 0.15 + bank);
+        near[b * N + a] = dl < 40 ? 1 : 0;
+      }
+      // smooth the ground within ~40 m of the road (no twisted 4 m bumps
+      // under the car: all four wheels can follow it)
+      for (var pass = 0; pass < 2; pass++) {
+        var h2 = h.slice();
+        for (a = 1; a < N - 1; a++) for (b = 1; b < N - 1; b++) {
+          if (!near[b * N + a]) continue;
+          var sm = 0; for (var da = -1; da <= 1; da++) for (var db = -1; db <= 1; db++) sm += h[(b + db) * N + a + da] * (da === 0 && db === 0 ? 4 : da === 0 || db === 0 ? 2 : 1);
+          h2[b * N + a] = sm / 16;
+        }
+        h = h2;
       }
       c.h = h;
     });
