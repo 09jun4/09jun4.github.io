@@ -36,11 +36,11 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
   `c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991` (판별 방법은 `track-master/circuit/js/cloud.js`의 `checkAdmin` 참고, 이메일 인증된 계정만 인정)
 
 ## 사이트 구조 (디자인: 검정 바탕 모노, 이모지 없이 단순하게)
-- `index.html` — 작품 카드 목록 (방문자에게는 이것만 보임)
+- `index.html` — 인터랙티브 3D 포트폴리오 메인(영어 제목·메뉴, 설명글만 한글). 대표작은 Track Master 하나(스크롤로 크롬 조형물이 변형), 나머지 작품은 `data/works.js` 에서 자동으로 갤러리에 나와요. 스타일 `assets/home.css`, 동작 `js/home.js`, 3D `js/home-scene.js`(Three.js r128 + 셰이더). 다크 기본·화이트 지원(localStorage `theme`). 메뉴: Home/Project/About/Contact. 새 작품은 `data/works.js` 한 줄이면 갤러리에 들어가요.
 - `feedback/` — 방문자 의견 남기기(구글 로그인 필요). 읽기·정리는 관리자만. 작품에서 `/feedback/?work=/작품-이름/`으로 링크하면 그 작품이 골라져요.
 - `js/auth.js`, `js/firebase-config.js`, `js/bridge.html` — 사이트 공통 구글 로그인 (머리말 login 버튼, 연결된 작품 같이 로그인·로그아웃)
 - `firestore.rules` — 사이트 프로젝트(chiikawa-tobatsu)에 게시된 규칙에 덧붙이는 `notes`·`feedback` 규칙. 콘솔에 있는 기존 규칙(치이카와, `private/**`)은 지우지 않아요.
 - `notes/` — 위키식 공개 노트(바이브 코딩하며 공부한 내용). `[[노트 제목]]` 링크·역링크·분류·태그·목차 지원. 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만. 내용은 Firestore `private/notes/items`에 있고(이름만 private), 저장소에 파일로 올리지 않아요.
-- `js/claude3d.js` — 메인 첫 화면의 3D 클로드 로고(Three.js, `data-claude3d` 요소에 붙음). WebGL이 없거나 모션 줄이기 설정이면 정지·평면으로 대체.
+- `js/claude3d.js` — 3D 클로드 로고 모듈(지금은 메인에서 쓰지 않음, 필요하면 `data-claude3d` 요소에 붙여 재사용).
 - `assets/style.css`, `assets/site.js` — 공통 스타일·카드
 - 치이카와 토벌 대작전은 별도 저장소 `09jun4/chiikawa-tobatsu` (주소 `/chiikawa-tobatsu/`)
