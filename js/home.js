@@ -83,7 +83,7 @@
       var lt = clamp((p - a) / (b - a), -.4, 1.4);
       if (v > .002 || (ui.vis[i] || 0) > .002) {
         // 스크롤하는 동안 계속 천천히 올라가요 (끊김 없이 이어지는 느낌)
-        var ty = (.5 - lt) * (mobile ? 46 : 100);
+        var ty = (.5 - lt) * (mobile ? 30 : 60);
         el.style.opacity = v.toFixed(3);
         el.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0) scale(' + (.94 + .06 * v).toFixed(3) + ')';
       }
@@ -117,8 +117,8 @@
     // 스크롤·포인터 속도 → 에너지 (빠르게 오르고 천천히 가라앉아요)
     var vy = (y - prevY) / Math.max(dt, .001); prevY = y; vs += (vy - vs) * (1 - Math.exp(-dt * 10));
     var pv = Math.hypot(ptr.x - prevPx, ptr.y - prevPy) / Math.max(dt, .001); prevPx = ptr.x; prevPy = ptr.y;
-    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 2200, 0, 1), clamp(pv / 7, 0, .45));
-    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 12 : 2.2))); dirv = clamp(vs / 2200, -1, 1);
+    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 3400, 0, 1), clamp(pv / 10, 0, .3));
+    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 12 : 2.2))); dirv = clamp(vs / 3400, -1, 1);
     sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 6));
     if (Math.abs(target - sp) < .0004) sp = target;
     if (moved || dirty) { updateSteps(sp); updateChrome(y); lastY = y; }
@@ -135,7 +135,7 @@
       stageEl.style.opacity = (1 - ss(geo.end, geo.end + geo.vh * .8, y)).toFixed(3);
     }
     dirty = false;
-    if (mqAnim) mqAnim.playbackRate = (dirv < -.05 ? -1 : 1) * (1 + energy * 7);
+    if (mqAnim) mqAnim.playbackRate = (dirv < -.05 ? -1 : 1) * (1 + energy * 3);
     cursorTick(dt);
     if (!document.hidden) requestAnimationFrame(frame);
   }

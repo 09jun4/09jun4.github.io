@@ -50,13 +50,13 @@
     'const float PI=3.14159265; const float LX=' + LX.toFixed(3) + '; const float TUBE=' + TUBE.toFixed(3) + ';',
     'vec2 rot(vec2 v,float a){float c=cos(a),s=sin(a);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}',
     'vec3 shape(vec3 d, out float nz){',
-    ' float t=uTime*(.55+uEnergy*1.6);',
+    ' float t=uTime*(.38+uEnergy*.9);',
     ' float a=clamp(d.x*1.05,-1.,1.)*PI; float tw=a*uTwist+uTime*.5;',
     ' vec3 cap=vec3(0.),ring=vec3(0.); nz=0.;',
     ' if(uBend<.999){',
     '  float n1=snoise(d*1.35+vec3(0.,t,t*.5)); float n2=snoise(d*2.9-vec3(t*.8,t*.3,0.));',
     '  float spk=pow(max(snoise(d*3.4+vec3(t*.6,0.,t*.3)),0.),2.)*uSpike;',
-    '  float rip=(sin(dot(d,vec3(.9,.6,.3))*7.-uTime*2.2)*.045+sin(uTime*1.4+d.y*3.)*.045)*(1.+uEnergy*2.);',
+    '  float rip=(sin(dot(d,vec3(.9,.6,.3))*7.-uTime*2.2)*.045+sin(uTime*1.4+d.y*3.)*.045)*(1.+uEnergy);',
     '  float disp=(n1*.36+n2*.10+rip)*uNoise+spk*.5; nz=n1;',
     '  vec2 es=mix(vec2(1.),vec2(.78,.42),uStretch); vec2 sec=rot(d.yz*es,tw);',
     '  cap=vec3(d.x*mix(1.,LX,uStretch),sec)*(1.+disp);',
@@ -123,7 +123,7 @@
     ' float e1=ease((uE1-aR.x*.4)/.6); float e2=ease((uE2-aR.y*.4)/.6);',
     ' vec3 p=mix(position,aMid,e1); p=mix(p,aEnd,e2);',
     ' float life=e1*(1.-e2);',
-    ' float sw=uTime*.8*life*(.4+aR.x); p.xz=mat2(cos(sw),-sin(sw),sin(sw),cos(sw))*p.xz;',
+    ' float sw=uTime*.5*life*(.4+aR.x); p.xz=mat2(cos(sw),-sin(sw),sin(sw),cos(sw))*p.xz;',
     ' p+=vec3(sin(uTime*.9+aR.z*40.),cos(uTime*.7+aR.x*30.),sin(uTime*.8+aR.y*35.))*.07*(.25+life);',
     ' vec4 mv=modelViewMatrix*vec4(p,1.);',
     ' gl_Position=projectionMatrix*mv;',
@@ -146,7 +146,7 @@
     'uniform float uTime,uPix,uAlpha,uEnergy;',
     'varying float vA;',
     'void main(){',
-    ' float r=length(position.xz); float ang=atan(position.z,position.x)+uTime*(.10+.22*aR.x)*(1.+uEnergy*3.)/(.5+r*.35);',
+    ' float r=length(position.xz); float ang=atan(position.z,position.x)+uTime*(.10+.22*aR.x)*(1.+uEnergy*1.5)/(.5+r*.35);',
     ' vec3 p=vec3(cos(ang)*r,position.y+sin(uTime*.6+aR.z*20.)*.22*(1.+uEnergy),sin(ang)*r);',
     ' vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;',
     ' gl_PointSize=(1.2+aR.z*2.6)*uPix*(5./-mv.z); vA=uAlpha*(.4+.6*aR.x);',
@@ -274,7 +274,7 @@
       }
       api.render = function (p, vis, time, dt, energy, dirv, ptrOn) {
         function ss(a, b, x) { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); }
-        energy = energy || 0; dirv = dirv || 0;
+        energy = (energy || 0) * .6; dirv = dirv || 0; time *= .65;
         S.stretch = ss(.14, .36, p);
         S.dissolve = ss(.36, .52, p) * (1 - ss(.66, .82, p));
         S.e1 = ss(.36, .54, p);
@@ -286,30 +286,30 @@
         S.energy = energy; S.canvasOpacity = vis;
         var u = mat.uniforms;
         u.uTime.value = time; u.uStretch.value = S.stretch; u.uBend.value = S.bend; u.uDissolve.value = S.dissolve; u.uShift.value = S.shift;
-        u.uEnergy.value = energy; u.uSpike.value = S.spike + energy * .35 * (1 - S.bend); u.uTwist.value = S.twist; u.uPhase.value = p * PI * 3;
-        u.uNoise.value = (1 - .5 * S.stretch + .3 * S.bend) * (1 + energy * .9);
+        u.uEnergy.value = energy; u.uSpike.value = S.spike * .8 + energy * .2 * (1 - S.bend); u.uTwist.value = S.twist; u.uPhase.value = p * PI * 3;
+        u.uNoise.value = (1 - .5 * S.stretch + .3 * S.bend) * (1 + energy * .45);
         pmat.uniforms.uTime.value = time; pmat.uniforms.uE1.value = S.e1; pmat.uniforms.uE2.value = S.e2;
         dmat.uniforms.uTime.value = time; dmat.uniforms.uEnergy.value = energy;
         applyTheme(1 - Math.exp(-dt * 5));
         var k = 1 - Math.exp(-dt * 6);
         pointer.x += (pointer.tx - pointer.x) * k; pointer.y += (pointer.ty - pointer.y) * k;
-        u.uPtr.value.set(pointer.x * 2.2, -pointer.y * 1.3, 1); u.uPtrAmt.value = ptrOn ? .28 * (1 - S.dissolve) : 0;
+        u.uPtr.value.set(pointer.x * 2.2, -pointer.y * 1.3, 1); u.uPtrAmt.value = ptrOn ? .16 * (1 - S.dissolve) : 0;
         // 회전: 계속 돌고, 스크롤하면 그 방향으로 휙 돌아요. 링이 되면 제자리에서 돌며 흔들려요
-        yawX += dirv * energy * dt * 7; yawX *= Math.exp(-dt * .9);
-        var spin = opts.reduce ? 0 : time * .28, sway = opts.reduce ? 0 : Math.sin(time * .45) * .8;
+        yawX += dirv * energy * dt * 3.5; yawX *= Math.exp(-dt * 1.2);
+        var spin = opts.reduce ? 0 : time * .2, sway = opts.reduce ? 0 : Math.sin(time * .45) * .5;
         var ringness = S.bend;
-        grp.rotation.set(pointer.y * .35 - .55 * ringness + (opts.reduce ? 0 : Math.sin(time * .6) * .12),
-          spin * (1 - ringness) + sway * ringness + pointer.x * .6 + yawX,
-          -.4 * S.stretch * (1 - ringness) + pointer.x * .05 + (opts.reduce ? 0 : time * .22 * ringness));
-        var sc = api.fit * (1.08 - .1 * ss(.1, .4, p) - .2 * S.spike) * (1 + (opts.reduce ? 0 : Math.sin(time * 1.3) * .035) + energy * .12);
+        grp.rotation.set(pointer.y * .25 - .55 * ringness + (opts.reduce ? 0 : Math.sin(time * .6) * .07),
+          spin * (1 - ringness) + sway * ringness + pointer.x * .4 + yawX,
+          -.4 * S.stretch * (1 - ringness) + pointer.x * .05 + (opts.reduce ? 0 : time * .12 * ringness));
+        var sc = api.fit * (1.08 - .1 * ss(.1, .4, p) - .2 * S.spike) * (1 + (opts.reduce ? 0 : Math.sin(time * 1.3) * .02) + energy * .05);
         grp.scale.setScalar(sc);
         // 패널 반대편으로 흘러 다녀요 (데스크톱)
         var ox = opts.mobile ? 0 : kx(p) * Math.min(1, api.fit / .95);
         grp.position.x += (ox - grp.position.x) * (1 - Math.exp(-dt * 4));
-        grp.position.y = (opts.mobile ? .42 * ss(0, .08, p) : 0) + (opts.reduce ? 0 : Math.sin(time * .9) * .06);
+        grp.position.y = (opts.mobile ? .42 * ss(0, .08, p) : 0) + (opts.reduce ? 0 : Math.sin(time * .9) * .035);
         // 카메라가 스크롤에 따라 천천히 공전해요
-        var cph = p * 1.4 + pointer.x * .25;
-        camera.position.set(Math.sin(cph) * .55 + pointer.x * .25, Math.sin(p * 5) * .2 - pointer.y * .15, 4.8 - .45 * Math.sin(p * PI) - energy * .12);
+        var cph = p * .8 + pointer.x * .15;
+        camera.position.set(Math.sin(cph) * .35 + pointer.x * .15, Math.sin(p * 5) * .1 - pointer.y * .1, 4.8 - .3 * Math.sin(p * PI) - energy * .08);
         camera.lookAt(0, 0, 0);
         dust.rotation.y = time * .02 + pointer.x * .12; dust.rotation.x = pointer.y * .06; dust.position.x = grp.position.x * .5;
         dmat.uniforms.uAlpha.value = (.6 + energy * .3) * vis;
