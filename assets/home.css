@@ -187,16 +187,16 @@ html:not(.js) .step{position:static;opacity:1;width:auto;margin:0}
 html:not(.js) .card .media{clip-path:none}
 
 /* 가만히 있어도 움직여요 */
-.mega,.proj-title{background-size:100% 200%;animation:shimmer 12s ease-in-out infinite alternate}
+.mega,.proj-title{background-size:100% 200%;animation:shimmer 22s ease-in-out infinite alternate}
 @keyframes shimmer{from{background-position:0 0}to{background-position:0 100%}}
-.mega b{animation:pulse4 4.5s ease-in-out infinite}
+.mega b{animation:pulse4 8s ease-in-out infinite}
 @keyframes pulse4{50%{filter:drop-shadow(0 0 22px rgba(40,125,255,.75))}}
 .panel{animation:bob 10s ease-in-out infinite}
 .panel-step:nth-of-type(odd) .panel{animation-delay:-2.5s}
-@keyframes bob{50%{transform:translateY(-4px)}}
+@keyframes bob{50%{transform:translateY(-2px)}}
 .kicker::before{content:"";display:inline-block;width:7px;height:7px;margin-right:10px;border-radius:50%;background:var(--blue);vertical-align:1px;animation:blink 1.6s ease-in-out infinite}
 @keyframes blink{50%{opacity:.25;transform:scale(.7)}}
 .marquee{overflow:hidden;margin:-30px 0 clamp(50px,9vh,90px);border-block:1px solid var(--line);padding:14px 0;transform:skewY(-1.2deg)}
-.marquee-track{display:flex;width:max-content;animation:mq 50s linear infinite}
+.marquee-track{display:flex;width:max-content;animation:mq 90s linear infinite}
 .marquee-track span{flex:none;padding-right:.4em;font:800 clamp(34px,6vw,84px)/1 var(--sans);letter-spacing:-.03em;color:transparent;-webkit-text-stroke:1px var(--line2);white-space:nowrap}
 @keyframes mq{to{transform:translateX(-50%)}}
