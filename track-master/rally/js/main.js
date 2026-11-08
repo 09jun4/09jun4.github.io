@@ -44,8 +44,8 @@
   // ---------------------------------------------------------------- account
   function renderAccount() {
     var el = $('account'), h = '';
-    if (!PS.enabled) h = '<span class="note">온라인 설정이 없어 이 브라우저에만 저장돼요.</span>';
-    else if (PS.state === 'in') h = '<span>로그인: <b>' + esc(PS.displayName()) + '</b> · 기록과 설정이 계정에 저장돼요</span><button type="button" class="btn" id="acct-out">로그아웃</button>';
+    if (!PS.enabled) h = '<span class="note">온라인 설정이 없어 이 브라우저에 자동 저장돼요.</span>';
+    else if (PS.state === 'in') h = '<span>로그인: <b>' + esc(PS.displayName()) + '</b> · 기록과 설정이 자동으로 계정에 저장돼요</span><button type="button" class="btn" id="acct-out">로그아웃</button>';
     else if (PS.state === 'pending') h = '<span class="note">계정 불러오는 중…</span>';
     else h = '<button type="button" class="btn white" id="acct-in">Google로 로그인</button><span class="note">로그인하면 기록·세팅이 계정에 저장돼요 (지금 기록도 함께 옮겨져요).</span>';
     if (PS.error) h += '<div class="warn" style="width:100%">' + esc(PS.error) + '</div>';
@@ -255,6 +255,7 @@
         ensureWorld();
         if (!M.route || M.routeKey !== key) { M.route = RL.Track.generate(M.seed, M.length); M.routeKey = key; }
         PS.rememberSeed(M.route.seed, M.length);
+        S().last = { mode: M.mode, length: M.length }; PS.save();
         var t0 = performance.now();
         W.build(M.route, S().graphics);
         M.buildMs = performance.now() - t0;
@@ -364,7 +365,12 @@
   if (RL.Settings.isTouch()) document.body.classList.add('touch');
   // sound starts ON every session (M / pause menu mutes until reload)
   RL.Audio.muted = false; S().sound = true;
-  // deep link: ?seed=XXXX&len=short
+  // restore the last stage choice, then the deep link: ?seed=XXXX&len=short
+  (function () {
+    var l = S().last || {};
+    if (l.mode === 'free' || l.mode === 'stage') M.mode = l.mode;
+    if (D.LENGTHS[l.length]) M.length = l.length;
+  })();
   (function () {
     var q = new URLSearchParams(location.search);
     if (q.get('seed')) M.seed = RL.Rng.cleanSeed(q.get('seed'));

@@ -24,6 +24,7 @@
       graphics: Object.assign({ preset: gp }, clone(D.GRAPHICS[gp])),
       camera: 'cockpit',
       sound: true,
+      last: { mode: 'stage', length: 'short' },
     };
   }
   // fill missing keys (older saves) from the defaults
@@ -46,10 +47,24 @@
   function changed() { listeners.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } }); }
 
   var remote = null, saveTimer = null;
+  P.savedAt = 0;
+  function localWrite() {
+    // signed in: the browser keeps only the settings, records live in the account
+    var d = remote ? Object.assign(blank(), { settings: P.data.settings }) : P.data;
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* full */ }
+  }
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; if (remote) remote(P.data); }
+  }
   P.save = function () {
-    try { localStorage.setItem(KEY, JSON.stringify(P.data)); } catch (e) { /* full */ }
-    if (remote) { clearTimeout(saveTimer); saveTimer = setTimeout(function () { remote(P.data); }, 800); }
+    localWrite(); P.savedAt = Date.now();
+    if (remote) { clearTimeout(saveTimer); saveTimer = setTimeout(function () { saveTimer = null; remote(P.data); }, 800); }
   };
+  // leaving the page must not lose the last change
+  if (G.addEventListener) {
+    G.addEventListener('pagehide', flush);
+    if (G.document) G.document.addEventListener('visibilitychange', function () { if (G.document.visibilityState === 'hidden') flush(); });
+  }
   P.settings = function () { return P.data.settings; };
   P.resetSettings = function (part) { var d = defaults(); if (part) P.data.settings[part] = d[part]; else P.data.settings = d; P.save(); };
 
@@ -116,7 +131,7 @@
     P.signOut = function () { SDK.signOut(auth); };
     SDK.getRedirectResult(auth).catch(function () { /* shown on next try */ });
     SDK.onAuthStateChanged(auth, function (u) {
-      if (!u) { P.state = 'out'; P.user = null; P.nickname = ''; remote = null; P.data = load(); changed(); return; }
+      if (!u) { P.state = 'out'; P.user = null; P.nickname = ''; flush(); remote = null; P.data = load(); changed(); return; }
       P.state = 'pending'; P.user = { uid: u.uid, name: u.displayName || '' }; changed();
       var userDoc = SDK.doc(db, 'users', u.uid), saveDoc = SDK.doc(db, 'rally_users', u.uid);
       Promise.all([
@@ -130,10 +145,10 @@
         // first sign-in on this browser moves the guest progress into the account
         var guest = load(), hasGuest = Object.keys(guest.records).length || guest.recent.length;
         P.data = merge(acc, hasGuest ? guest : null);
-        try { localStorage.setItem(KEY, JSON.stringify(Object.assign(blank(), { settings: P.data.settings }))); } catch (e) { /* ignore */ }
         remote = function (data) {
           SDK.setDoc(saveDoc, { save: JSON.stringify(data), updatedAt: SDK.serverTimestamp() }).catch(function (e) { if (denied(e)) { P.rulesMissing = true; changed(); } });
         };
+        localWrite();
         remote(P.data);
         P.state = 'in'; changed();
       });
