@@ -13,15 +13,18 @@
 </head>
 <body>
 <main id="main">
-  <section class="shell hero">
-    <p class="eyebrow"><span class="live"></span>Web experiments — 2026</p>
-    <h1>웹에서 만든 것들</h1>
-    <p class="lede">직접 만든 게임과 실험적인 프로그램을 모아 두었습니다.<br>카드를 누르면 바로 실행됩니다.</p>
-    <div class="stats">
-      <span><b id="count">0</b> works</span>
-      <span class="sep"></span>
-      <span>last update <b id="updated">—</b></span>
+  <section class="shell hero hero-grid">
+    <div class="hero-text">
+      <p class="eyebrow"><span class="live"></span>Web experiments — 2026</p>
+      <h1>웹에서 만든 것들</h1>
+      <p class="lede">직접 만든 게임과 실험적인 프로그램을 모아 두었습니다.<br>카드를 누르면 바로 실행됩니다.</p>
+      <div class="stats">
+        <span><b id="count">0</b> works</span>
+        <span class="sep"></span>
+        <span>last update <b id="updated">—</b></span>
+      </div>
     </div>
+    <div class="logo3d" data-claude3d aria-hidden="true"></div>
   </section>
 
   <section class="shell section" aria-labelledby="works-title">
@@ -34,6 +37,7 @@
   </section>
 </main>
 
+<script src="js/claude3d.js" defer></script>
 <script src="data/works.js"></script>
 <script src="assets/site.js"></script>
 <script>
