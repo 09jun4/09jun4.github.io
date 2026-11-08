@@ -72,7 +72,7 @@
     if (scene && scene.resize) scene.resize();
     dirty = true;
   }
-  var sp = 0, dirty = true, lastY = -1, last = performance.now(), start = last;
+  var sp = 0, dirty = true, lastY = -1, prevY = scrollY, vs = 0, energy = 0, dirv = 0, prevPx = 0, prevPy = 0, last = performance.now(), start = last;
   var ptr = { x: 0, y: 0 };
   var ui = { idx: -1, pct: -1, vis: [], clickable: [] };
 
@@ -80,15 +80,18 @@
     steps.forEach(function (el, i) {
       var a = +el.dataset.a, b = +el.dataset.b;
       var v = ss(a - .03, a + .03, p) * (1 - ss(b - .03, b + .03, p));
-      if (Math.abs(v - (ui.vis[i] == null ? -1 : ui.vis[i])) > .004) {
-        ui.vis[i] = v; el.style.opacity = v.toFixed(3);
-        var dir = p < (a + b) / 2 ? 1 : -1;
-        el.style.transform = 'translate3d(0,' + ((1 - v) * 22 * dir).toFixed(1) + 'px,0)';
-        var on = v > .5;
-        if (on !== ui.clickable[i]) { ui.clickable[i] = on; el.style.pointerEvents = on ? 'auto' : 'none'; $$('a', el).forEach(function (l) { l.tabIndex = on ? 0 : -1; }); }
+      var lt = clamp((p - a) / (b - a), -.4, 1.4);
+      if (v > .002 || (ui.vis[i] || 0) > .002) {
+        // 스크롤하는 동안 계속 천천히 올라가요 (끊김 없이 이어지는 느낌)
+        var ty = (.5 - lt) * (mobile ? 46 : 100);
+        el.style.opacity = v.toFixed(3);
+        el.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0) scale(' + (.94 + .06 * v).toFixed(3) + ')';
       }
+      ui.vis[i] = v;
+      var on = v > .5;
+      if (on !== ui.clickable[i]) { ui.clickable[i] = on; el.style.pointerEvents = on ? 'auto' : 'none'; $$('a', el).forEach(function (l) { l.tabIndex = on ? 0 : -1; }); }
       var shot = $('.shot img', el);
-      if (shot) shot.style.setProperty('--zs', (1.16 - .16 * ss(a, a + (b - a) * .55, p)).toFixed(3));
+      if (shot) shot.style.setProperty('--zs', (1.18 - .18 * ss(a, a + (b - a) * .6, p)).toFixed(3));
     });
   }
 
@@ -111,7 +114,12 @@
     var y = scrollY, target = clamp((y - geo.top) / geo.span, 0, 1);
     var moved = Math.abs(y - lastY) > .1 || Math.abs(target - sp) > .0005;
     // 스크롤을 부드럽게 따라가요 (역방향도 같은 함수라 그대로 되돌아가요)
-    sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 9));
+    // 스크롤·포인터 속도 → 에너지 (빠르게 오르고 천천히 가라앉아요)
+    var vy = (y - prevY) / Math.max(dt, .001); prevY = y; vs += (vy - vs) * (1 - Math.exp(-dt * 10));
+    var pv = Math.hypot(ptr.x - prevPx, ptr.y - prevPy) / Math.max(dt, .001); prevPx = ptr.x; prevPy = ptr.y;
+    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 2200, 0, 1), clamp(pv / 7, 0, .45));
+    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 12 : 2.2))); dirv = clamp(vs / 2200, -1, 1);
+    sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 6));
     if (Math.abs(target - sp) < .0004) sp = target;
     if (moved || dirty) { updateSteps(sp); updateChrome(y); lastY = y; }
     if (scene && sceneOK) {
@@ -120,17 +128,19 @@
       stageEl.style.opacity = vis.toFixed(3);
       if (live && (!reduce || moved || dirty || themeBusy())) {
         scene.pointer(reduce ? 0 : ptr.x, reduce ? 0 : ptr.y);
-        scene.render(sp, 1, reduce ? 0 : (now - start) / 1000, dt);
+        scene.render(sp, 1, reduce ? 0 : (now - start) / 1000, dt, energy, dirv, fine && !reduce);
       }
     } else if (orb && !orb.hidden) {
       orb.style.setProperty('--os', (1 + .25 * Math.sin(sp * Math.PI)).toFixed(3)); orb.style.setProperty('--oh', (sp * 40).toFixed(1) + 'deg');
       stageEl.style.opacity = (1 - ss(geo.end, geo.end + geo.vh * .8, y)).toFixed(3);
     }
     dirty = false;
+    if (mqAnim) mqAnim.playbackRate = (dirv < -.05 ? -1 : 1) * (1 + energy * 7);
     cursorTick(dt);
     if (!document.hidden) requestAnimationFrame(frame);
   }
-  var stageEl = $('#stage'), themeUntil = 0;
+  var stageEl = $('#stage'), themeUntil = 0, mq = $('.marquee-track'), mqAnim = null;
+  if (mq && mq.getAnimations) { mqAnim = mq.getAnimations()[0] || null; }
   function themeBusy() { return performance.now() < themeUntil; }
   themeBtn.addEventListener('click', function () { themeUntil = performance.now() + 900; });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { last = performance.now(); requestAnimationFrame(frame); } });

@@ -43,21 +43,33 @@
     '}'
   ].join('\n');
 
-  // 크롬 덩어리: 단위 구 방향(d)을 캡슐/링으로 변형하고, 유한 차분으로 부드러운 법선을 구해요
+  // 크롬 덩어리: 단위 구 방향(d)을 가시·비틀린 캡슐·링으로 변형하고, 유한 차분으로 부드러운 법선을 구해요
   var MESH_VERT = SNOISE + '\n' + [
-    'uniform float uTime,uStretch,uBend,uNoise;',
+    'uniform float uTime,uStretch,uBend,uNoise,uEnergy,uSpike,uTwist,uPtrAmt; uniform vec3 uPtr;',
     'varying vec3 vN; varying vec3 vW; varying float vNz;',
     'const float PI=3.14159265; const float LX=' + LX.toFixed(3) + '; const float TUBE=' + TUBE.toFixed(3) + ';',
+    'vec2 rot(vec2 v,float a){float c=cos(a),s=sin(a);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}',
     'vec3 shape(vec3 d, out float nz){',
-    ' float t=uTime*.32;',
-    ' float n1=snoise(d*1.35+vec3(0.,t,t*.5)); float n2=snoise(d*2.9-vec3(t*.8,t*.3,0.));',
-    ' float disp=(n1*.30+n2*.075)*uNoise; nz=n1;',
-    ' float rc=mix(1.,.6,uStretch);',
-    ' vec3 cap=vec3(d.x*mix(1.,LX,uStretch),d.y*rc,d.z*rc)*(1.+disp);',
-    ' float w=max(sqrt(max(1.-d.x*d.x,0.)),1e-3); float a=clamp(d.x*1.05,-1.,1.)*PI;',
-    ' float R=(LX/PI)*(1.+.16*cos(2.*a)+.08*sin(3.*a+1.)); vec2 rad=vec2(cos(a),sin(a));',
-    ' vec2 yz=d.yz/w; float rd=snoise(vec3(rad*1.1,yz.y*.9+yz.x*.4+t*.5))*.32*uNoise; float rt=TUBE*(1.+rd*.8);',
-    ' vec3 ring=vec3(R*rad,0.)+rt*(yz.x*vec3(rad,0.)+yz.y*vec3(0.,0.,1.));',
+    ' float t=uTime*(.55+uEnergy*1.6);',
+    ' float a=clamp(d.x*1.05,-1.,1.)*PI; float tw=a*uTwist+uTime*.5;',
+    ' vec3 cap=vec3(0.),ring=vec3(0.); nz=0.;',
+    ' if(uBend<.999){',
+    '  float n1=snoise(d*1.35+vec3(0.,t,t*.5)); float n2=snoise(d*2.9-vec3(t*.8,t*.3,0.));',
+    '  float spk=pow(max(snoise(d*3.4+vec3(t*.6,0.,t*.3)),0.),2.)*uSpike;',
+    '  float rip=(sin(dot(d,vec3(.9,.6,.3))*7.-uTime*2.2)*.045+sin(uTime*1.4+d.y*3.)*.045)*(1.+uEnergy*2.);',
+    '  float disp=(n1*.36+n2*.10+rip)*uNoise+spk*.5; nz=n1;',
+    '  vec2 es=mix(vec2(1.),vec2(.78,.42),uStretch); vec2 sec=rot(d.yz*es,tw);',
+    '  cap=vec3(d.x*mix(1.,LX,uStretch),sec)*(1.+disp);',
+    ' }',
+    ' if(uBend>.001){',
+    '  float w=max(sqrt(max(1.-d.x*d.x,0.)),1e-3);',
+    '  float R=(LX/PI)*(1.+.16*cos(2.*a+uTime*.7)+.08*sin(3.*a+1.-uTime*.9)); vec2 rad=vec2(cos(a),sin(a));',
+    '  vec2 yz=d.yz/w; float rn=snoise(vec3(rad*1.1,yz.y*.9+yz.x*.4+t*.5));',
+    '  float rt=TUBE*(1.+rn*.26*uNoise+sin(a*3.-uTime*1.6)*.07*(1.+uEnergy*2.));',
+    '  vec2 sec=rot(yz*vec2(1.25,.8)*rt,tw);',
+    '  ring=vec3(R*rad,0.)+sec.x*vec3(rad,0.)+sec.y*vec3(0.,0.,1.);',
+    '  if(uBend>=.999) nz=rn;',
+    ' }',
     ' return mix(cap,ring,uBend);',
     '}',
     'void main(){',
@@ -66,13 +78,14 @@
     ' vec3 t1=normalize(cross(d,ref)); vec3 t2=cross(d,t1); float e=.012;',
     ' vec3 p0=shape(d,nz); vec3 p1=shape(normalize(d+t1*e),n1); vec3 p2=shape(normalize(d+t2*e),n2);',
     ' vec3 n=normalize(cross(p1-p0,p2-p0)); if(uBend>.5) n=-n;',
-    ' vNz=nz; vN=normalize(mat3(modelMatrix)*n); vec4 wp=modelMatrix*vec4(p0,1.); vW=wp.xyz;',
-    ' gl_Position=projectionMatrix*viewMatrix*wp;',
+    ' vNz=nz; vN=normalize(mat3(modelMatrix)*n); vec4 wp=modelMatrix*vec4(p0,1.);',
+    ' vec2 dp=wp.xy-uPtr.xy; wp.xyz+=vN*exp(-dot(dp,dp)*1.4)*uPtrAmt;',
+    ' vW=wp.xyz; gl_Position=projectionMatrix*viewMatrix*wp;',
     '}'
   ].join('\n');
 
   var MESH_FRAG = [
-    'uniform float uDissolve,uWhite,uDark,uRim,uShift;',
+    'uniform float uDissolve,uWhite,uDark,uRim,uShift,uTime,uPhase;',
     'uniform vec3 uEnvLow,uEnvHigh,uBlue,uTint,uBand;',
     'varying vec3 vN; varying vec3 vW; varying float vNz;',
     'vec3 env(vec3 r){',
@@ -91,7 +104,7 @@
     ' float nv=vNz*.5+.5; float dis=mix(-.12,1.12,uDissolve);',
     ' if(nv<dis) discard;',
     ' vec3 N=normalize(vN); vec3 V=normalize(cameraPosition-vW); if(dot(N,V)<0.) N=-N;',
-    ' vec3 R=reflect(-V,N);',
+    ' vec3 R=reflect(-V,N); float ea=uTime*.24+uPhase; R=vec3(cos(ea)*R.x+sin(ea)*R.z,R.y,-sin(ea)*R.x+cos(ea)*R.z);',
     ' vec3 tint=mix(uTint,uTint*vec3(.55,.74,1.25),uShift);',
     ' vec3 col=env(R)*tint;',
     ' float fr=pow(1.-max(dot(N,V),0.),3.); col+=uBlue*fr*uRim*(1.+uShift);',
@@ -110,6 +123,7 @@
     ' float e1=ease((uE1-aR.x*.4)/.6); float e2=ease((uE2-aR.y*.4)/.6);',
     ' vec3 p=mix(position,aMid,e1); p=mix(p,aEnd,e2);',
     ' float life=e1*(1.-e2);',
+    ' float sw=uTime*.8*life*(.4+aR.x); p.xz=mat2(cos(sw),-sin(sw),sin(sw),cos(sw))*p.xz;',
     ' p+=vec3(sin(uTime*.9+aR.z*40.),cos(uTime*.7+aR.x*30.),sin(uTime*.8+aR.y*35.))*.07*(.25+life);',
     ' vec4 mv=modelViewMatrix*vec4(p,1.);',
     ' gl_Position=projectionMatrix*mv;',
@@ -129,15 +143,15 @@
 
   var DUST_VERT = [
     'attribute vec3 aR;',
-    'uniform float uTime,uPix,uAlpha;',
+    'uniform float uTime,uPix,uAlpha,uEnergy;',
     'varying float vA;',
     'void main(){',
-    ' vec3 p=position+vec3(sin(uTime*.25+aR.x*30.),cos(uTime*.22+aR.y*30.),sin(uTime*.2+aR.z*30.))*.25;',
+    ' float r=length(position.xz); float ang=atan(position.z,position.x)+uTime*(.10+.22*aR.x)*(1.+uEnergy*3.)/(.5+r*.35);',
+    ' vec3 p=vec3(cos(ang)*r,position.y+sin(uTime*.6+aR.z*20.)*.22*(1.+uEnergy),sin(ang)*r);',
     ' vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;',
-    ' gl_PointSize=(1.+aR.z*2.2)*uPix*(5./-mv.z); vA=uAlpha*(.35+.65*aR.x);',
+    ' gl_PointSize=(1.2+aR.z*2.6)*uPix*(5./-mv.z); vA=uAlpha*(.4+.6*aR.x);',
     '}'
   ].join('\n');
-
   var DUST_FRAG = 'uniform vec3 uBlue,uSilver; varying float vA; void main(){vec2 q=gl_PointCoord-.5;float r=length(q);if(r>.5)discard;gl_FragColor=vec4(mix(uSilver,uBlue,.45),smoothstep(.5,.05,r)*vA);}';
 
   function rnd(seedObj) { seedObj.s = (seedObj.s * 1664525 + 1013904223) >>> 0; return seedObj.s / 4294967296; }
@@ -173,11 +187,12 @@
       var camera = new T.PerspectiveCamera(38, 1, .1, 60); camera.position.set(0, 0, 4.8);
       var grp = new T.Group(); scene.add(grp);
 
-      var detail = mobile ? 28 : 46;
+      var detail = mobile ? 24 : 40;
       var mat = new T.ShaderMaterial({
         vertexShader: MESH_VERT, fragmentShader: MESH_FRAG, side: T.DoubleSide,
         uniforms: {
           uTime: { value: 0 }, uStretch: { value: 0 }, uBend: { value: 0 }, uNoise: { value: 1 }, uDissolve: { value: 0 }, uShift: { value: 0 },
+          uEnergy: { value: 0 }, uSpike: { value: 0 }, uTwist: { value: 0 }, uPhase: { value: 0 }, uPtrAmt: { value: 0 }, uPtr: { value: new T.Vector3() },
           uWhite: { value: 1.7 }, uDark: { value: 0 }, uRim: { value: .5 },
           uEnvLow: { value: new T.Vector3() }, uEnvHigh: { value: new T.Vector3() }, uBlue: { value: new T.Vector3() }, uTint: { value: new T.Vector3() }, uBand: { value: new T.Vector3() }
         }
@@ -202,13 +217,13 @@
       var pts = new T.Points(pg, pmat); pts.frustumCulled = false; grp.add(pts);
 
       // 주변의 미세한 먼지 입자
-      var DN = mobile ? 280 : 700, dp = new Float32Array(DN * 3), dr = new Float32Array(DN * 3);
-      for (i = 0; i < DN; i++) { var u = unit(sd), rd = 2.4 + rnd(sd) * 3.4; dp.set([u[0] * rd * 1.3, u[1] * rd * .8, u[2] * rd * .6 - .5], i * 3); dr.set([rnd(sd), rnd(sd), rnd(sd)], i * 3); }
+      var DN = mobile ? 700 : 1500, dp = new Float32Array(DN * 3), dr = new Float32Array(DN * 3);
+      for (i = 0; i < DN; i++) { var u = unit(sd), rd = 1.7 + rnd(sd) * 3.3; dp.set([u[0] * rd * 1.2, u[1] * rd * .5, u[2] * rd * .8 - .3], i * 3); dr.set([rnd(sd), rnd(sd), rnd(sd)], i * 3); }
       var dg = new T.BufferGeometry(); dg.setAttribute('position', new T.BufferAttribute(dp, 3)); dg.setAttribute('aR', new T.BufferAttribute(dr, 3));
       var dmat = new T.ShaderMaterial({
         vertexShader: DUST_VERT, fragmentShader: DUST_FRAG,
         transparent: true, depthWrite: false, blending: T.AdditiveBlending,
-        uniforms: { uTime: { value: 0 }, uPix: { value: dpr }, uAlpha: { value: .5 }, uBlue: { value: new T.Vector3() }, uSilver: { value: new T.Vector3() } }
+        uniforms: { uTime: { value: 0 }, uEnergy: { value: 0 }, uPix: { value: dpr }, uAlpha: { value: .5 }, uBlue: { value: new T.Vector3() }, uSilver: { value: new T.Vector3() } }
       });
       var dust = new T.Points(dg, dmat); dust.frustumCulled = false; scene.add(dust);
 
@@ -251,35 +266,53 @@
       api.pointer = function (nx, ny) { pointer.tx = nx; pointer.ty = ny; };
       var S = api.state;
 
-      // p: 프로젝트 구간 진행률(0~1), vis: 캔버스 투명도, 그 외는 시간
-      api.render = function (p, vis, time, dt) {
+      // p: 프로젝트 구간 진행률(0~1), vis: 캔버스 투명도, energy: 스크롤·포인터 속도(0~1), dirv: 스크롤 방향(-1~1)
+      var yawX = 0, KX = [[0, 0], [.14, 0], [.245, .95], [.45, -.95], [.65, .95], [.835, -.95], [1, 0]];
+      function kx(p) {
+        for (var q = 1; q < KX.length; q++) if (p <= KX[q][0]) { var a = KX[q - 1], b = KX[q], f = (p - a[0]) / (b[0] - a[0]); f = f * f * (3 - 2 * f); return a[1] + (b[1] - a[1]) * f; }
+        return 0;
+      }
+      api.render = function (p, vis, time, dt, energy, dirv, ptrOn) {
         function ss(a, b, x) { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); }
+        energy = energy || 0; dirv = dirv || 0;
         S.stretch = ss(.14, .36, p);
         S.dissolve = ss(.36, .52, p) * (1 - ss(.66, .82, p));
         S.e1 = ss(.36, .54, p);
         S.e2 = ss(.56, .78, p);
         S.bend = ss(.53, .57, p);
         S.shift = ss(.78, .95, p);
-        S.canvasOpacity = vis;
+        S.spike = ss(.08, .2, p) * (1 - ss(.3, .4, p));
+        S.twist = 2.5 * ss(.14, .34, p) - 1.5 * ss(.34, .5, p); // 링이 될 때는 정수(1)로 맞춰서 이음새가 닫혀요
+        S.energy = energy; S.canvasOpacity = vis;
         var u = mat.uniforms;
         u.uTime.value = time; u.uStretch.value = S.stretch; u.uBend.value = S.bend; u.uDissolve.value = S.dissolve; u.uShift.value = S.shift;
-        u.uNoise.value = 1 - .55 * S.stretch + .3 * S.bend;
+        u.uEnergy.value = energy; u.uSpike.value = S.spike + energy * .35 * (1 - S.bend); u.uTwist.value = S.twist; u.uPhase.value = p * PI * 3;
+        u.uNoise.value = (1 - .5 * S.stretch + .3 * S.bend) * (1 + energy * .9);
         pmat.uniforms.uTime.value = time; pmat.uniforms.uE1.value = S.e1; pmat.uniforms.uE2.value = S.e2;
-        dmat.uniforms.uTime.value = time;
+        dmat.uniforms.uTime.value = time; dmat.uniforms.uEnergy.value = energy;
         applyTheme(1 - Math.exp(-dt * 5));
         var k = 1 - Math.exp(-dt * 6);
         pointer.x += (pointer.tx - pointer.x) * k; pointer.y += (pointer.ty - pointer.y) * k;
-        // 회전: 블롭은 천천히 돌고, 링이 되면 정면을 향해 살짝 흔들려요
-        var spin = opts.reduce ? 0 : time * .18, sway = opts.reduce ? 0 : Math.sin(time * .35) * .5;
+        u.uPtr.value.set(pointer.x * 2.2, -pointer.y * 1.3, 1); u.uPtrAmt.value = ptrOn ? .28 * (1 - S.dissolve) : 0;
+        // 회전: 계속 돌고, 스크롤하면 그 방향으로 휙 돌아요. 링이 되면 제자리에서 돌며 흔들려요
+        yawX += dirv * energy * dt * 7; yawX *= Math.exp(-dt * .9);
+        var spin = opts.reduce ? 0 : time * .28, sway = opts.reduce ? 0 : Math.sin(time * .45) * .8;
         var ringness = S.bend;
-        rot.yaw = spin * (1 - ringness) + sway * ringness;
-        grp.rotation.set(pointer.y * .32 - .5 * ringness, rot.yaw + pointer.x * .55, -.32 * S.stretch * (1 - ringness) + pointer.x * .05);
-        var sc = api.fit * (1.06 - .1 * ss(.1, .4, p));
+        grp.rotation.set(pointer.y * .35 - .55 * ringness + (opts.reduce ? 0 : Math.sin(time * .6) * .12),
+          spin * (1 - ringness) + sway * ringness + pointer.x * .6 + yawX,
+          -.4 * S.stretch * (1 - ringness) + pointer.x * .05 + (opts.reduce ? 0 : time * .22 * ringness));
+        var sc = api.fit * (1.08 - .1 * ss(.1, .4, p) - .2 * S.spike) * (1 + (opts.reduce ? 0 : Math.sin(time * 1.3) * .035) + energy * .12);
         grp.scale.setScalar(sc);
-        grp.position.y = (opts.mobile ? .42 * Math.min(1, ss(0, .08, p) + 0) : 0) + (opts.reduce ? 0 : Math.sin(time * .9) * .05);
-        camera.position.x = pointer.x * .25; camera.position.y = -pointer.y * .15; camera.lookAt(0, 0, 0);
-        dust.rotation.y = time * .02 + pointer.x * .12; dust.rotation.x = pointer.y * .06;
-        dmat.uniforms.uAlpha.value = .55 * vis;
+        // 패널 반대편으로 흘러 다녀요 (데스크톱)
+        var ox = opts.mobile ? 0 : kx(p) * Math.min(1, api.fit / .95);
+        grp.position.x += (ox - grp.position.x) * (1 - Math.exp(-dt * 4));
+        grp.position.y = (opts.mobile ? .42 * ss(0, .08, p) : 0) + (opts.reduce ? 0 : Math.sin(time * .9) * .06);
+        // 카메라가 스크롤에 따라 천천히 공전해요
+        var cph = p * 1.4 + pointer.x * .25;
+        camera.position.set(Math.sin(cph) * .55 + pointer.x * .25, Math.sin(p * 5) * .2 - pointer.y * .15, 4.8 - .45 * Math.sin(p * PI) - energy * .12);
+        camera.lookAt(0, 0, 0);
+        dust.rotation.y = time * .02 + pointer.x * .12; dust.rotation.x = pointer.y * .06; dust.position.x = grp.position.x * .5;
+        dmat.uniforms.uAlpha.value = (.6 + energy * .3) * vis;
         pmat.uniforms.uAlpha.value = vis;
         if (vis > .003) renderer.render(scene, camera);
         adapt(dt);
