@@ -78,7 +78,7 @@ const UI = {
     document.documentElement.style.setProperty('--dirt', `url(${bg.toDataURL()})`);
     this.$('block-count').textContent = BLOCKS.filter(b => b && !b.noItem).length;
     this.$('item-count').textContent = Object.keys(ITEMS).length;
-    if ('ontouchstart' in window && !matchMedia('(pointer:fine)').matches) this.$('touch-note').hidden = false;
+    // touch controls are handled in touch.js
   },
   startGame() {
     const seed = this.$('seed').value.trim();
