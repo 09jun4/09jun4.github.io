@@ -4,7 +4,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var root = document.documentElement;
-  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var reduce = false; // 모션 감소 설정은 따르지 않고 항상 움직여요
   var fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   var mobile = matchMedia('(max-width: 720px)').matches || !fine;
   var clamp = function (x, a, b) { return Math.max(a, Math.min(b, x)); };

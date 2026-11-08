@@ -180,12 +180,6 @@ h1,h2,h3,p{margin:0}
 }
 @media (max-width:380px){.nav ul a{padding:10px 7px}.brand{font-size:12px}}
 @media (hover:none),(pointer:coarse){.cursor-ring,.cursor-dot{display:none}}
-@media (prefers-reduced-motion:reduce){
-  html{scroll-behavior:auto}
-  *,*::before,*::after{animation:none!important;transition:none!important}
-  .js .rv{opacity:1;transform:none}
-  .card .media{clip-path:none}
-}
 /* JS가 없을 때: 프로젝트 내용을 위에서 아래로 그냥 보여줘요 */
 html:not(.js) .pin{height:auto;padding:100px 0}
 html:not(.js) .pin-sticky{position:static;height:auto;overflow:visible;display:grid;gap:20px;width:min(1180px,100% - 48px);margin-inline:auto}
