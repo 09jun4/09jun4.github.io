@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09jun4 — works (classic)</title>
+<meta name="description" content="09jun4의 웹 게임과 프로그램">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main id="main">
+  <section class="shell hero hero-grid">
+    <div class="hero-text">
+      <p class="eyebrow"><span class="live"></span>Web experiments — 2026</p>
+      <h1>웹에서 만든 것들</h1>
+      <p class="lede">직접 만든 게임과 실험적인 프로그램을 모아 두었습니다.<br>카드를 누르면 바로 실행됩니다.</p>
+      <div class="stats">
+        <span><b id="count">0</b> works</span>
+        <span class="sep"></span>
+        <span>last update <b id="updated">—</b></span>
+      </div>
+    </div>
+    <div class="logo3d" data-claude3d aria-hidden="true"></div>
+  </section>
+
+  <section class="shell section" aria-labelledby="works-title">
+    <div class="sec-head">
+      <h2 id="works-title">all works</h2>
+      <span class="rule"></span>
+      <span class="n" id="countTab">00</span>
+    </div>
+    <div class="cards" id="works"></div>
+  </section>
+</main>
+
+<script src="js/claude3d.js" defer></script>
+<script src="data/works.js"></script>
+<script src="assets/site.js"></script>
+<script>
+  header('works');
+  // 새 디자인으로 돌아가는 버튼 (선택은 저장돼요)
+  (function () {
+    var nav = document.querySelector('.nav'); if (!nav) return;
+    var b = document.createElement('a'); b.className = 'ghost'; b.style.padding = '7px 14px'; b.href = '/'; b.textContent = 'New design'; b.setAttribute('aria-label', 'Switch to the new design');
+    b.addEventListener('click', function () { try { localStorage.setItem('design', 'new'); } catch (e) {} });
+    nav.insertBefore(b, document.getElementById('acct'));
+  })();
+  const list = WORKS.slice().sort(byDate);
+  document.getElementById('works').innerHTML = list.map((w, i) => workCard(w, i)).join('') || '<p class="empty">아직 없어요</p>';
+  document.getElementById('count').textContent = list.length;
+  document.getElementById('countTab').textContent = pad(list.length);
+  const latest = list.map(w => w.date || '').filter(Boolean).sort().pop();
+  if (latest) document.getElementById('updated').textContent = latest.slice(0, 7).replace('-', '.');
+</script>
+</body>
+</html>

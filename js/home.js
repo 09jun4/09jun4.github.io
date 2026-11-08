@@ -49,6 +49,9 @@
     }
   });
 
+  // ---------- 디자인 전환 (새 디자인 ↔ 변경 전 디자인) ----------
+  $('#design').addEventListener('click', function () { try { localStorage.setItem('design', 'classic'); } catch (e) {} location.href = 'classic/'; });
+
   // ---------- 3D 장면 (실패하면 CSS 구체로 대체) ----------
   var scene = null, canvas = $('#gl'), orb = $('#orb'), sceneOK = false;
   function fallback() { sceneOK = false; canvas.hidden = true; orb.hidden = false; }
