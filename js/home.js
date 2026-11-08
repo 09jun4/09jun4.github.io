@@ -72,8 +72,8 @@
     if (scene && scene.resize) scene.resize();
     dirty = true;
   }
-  var sp = 0, dirty = true, lastY = -1, prevY = scrollY, vs = 0, energy = 0, dirv = 0, prevPx = 0, prevPy = 0, last = performance.now(), start = last;
-  var ptr = { x: 0, y: 0 };
+  var sp = 0, dirty = true, lastY = -1, spV = 0, energy = 0, dirv = 0, prevPx = 0, prevPy = 0, last = performance.now(), start = last;
+  var SMOOTH = .85, ptr = { x: 0, y: 0 };
   var ui = { idx: -1, pct: -1, vis: [], clickable: [] };
 
   function updateSteps(p) {
@@ -114,13 +114,13 @@
     var y = scrollY, target = clamp((y - geo.top) / geo.span, 0, 1);
     var moved = Math.abs(y - lastY) > .1 || Math.abs(target - sp) > .0005;
     // 스크롤을 부드럽게 따라가요 (역방향도 같은 함수라 그대로 되돌아가요)
-    // 스크롤·포인터 속도 → 에너지 (빠르게 오르고 천천히 가라앉아요)
-    var vy = (y - prevY) / Math.max(dt, .001); prevY = y; vs += (vy - vs) * (1 - Math.exp(-dt * 10));
-    var pv = Math.hypot(ptr.x - prevPx, ptr.y - prevPy) / Math.max(dt, .001); prevPx = ptr.x; prevPy = ptr.y;
-    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 6000, 0, 1), 0);
-    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 4 : 1.6))); dirv = clamp(vs / 6000, -1, 1);
-    sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 2.6));
-    if (Math.abs(target - sp) < .0004) sp = target;
+    // 스크롤 진행: 임계 감쇠 스프링 — 처음엔 천천히 가속하고 끝에서 천천히 멈춰서 틱 직후에 툭 튀지 않아요
+    var om = 2 / SMOOTH, x = om * dt, ex = 1 / (1 + x + .48 * x * x + .235 * x * x * x), ch = sp - target, tmp = (spV + om * ch) * dt;
+    spV = (spV - om * tmp) * ex; sp = target + (ch + tmp) * ex;
+    if (Math.abs(target - sp) < .0002 && Math.abs(spV) < .0004) { sp = target; spV = 0; }
+    // 에너지는 부드러워진 진행 속도에서 계산 (빠르게 내릴 때만 조금 커져요)
+    var et = clamp(Math.abs(spV) / .16, 0, 1) * .6;
+    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 2.2 : 1.2))); dirv = clamp(spV / .16, -1, 1);
     if (moved || dirty) { updateSteps(sp); updateChrome(y); lastY = y; }
     if (scene && sceneOK) {
       var vis = 1 - ss(geo.end, geo.end + geo.vh * .8, y);
