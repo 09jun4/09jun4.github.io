@@ -17,7 +17,7 @@
   var SURFACES = {
     gravel: { name: '흙길', mu: 1.05, slipPeak: 0.12, anglePeak: 0.15, falloff: 0.9, roll: 0.022, visc: 0.6, dust: [0.88, 0.82, 0.72], color: [0.64, 0.56, 0.44] },
     mud:    { name: '진흙', mu: 0.74, slipPeak: 0.18, anglePeak: 0.19, falloff: 0.8, roll: 0.055, visc: 3.2, dust: [0.30, 0.23, 0.16], color: [0.16, 0.115, 0.075] },
-    grass:  { name: '흙밭', mu: 0.8, slipPeak: 0.15, anglePeak: 0.17, falloff: 0.84, roll: 0.040, visc: 1.4, dust: [0.66, 0.57, 0.44], color: [0.42, 0.33, 0.23] },
+    grass:  { name: '흙밭', mu: 0.8, slipPeak: 0.15, anglePeak: 0.17, falloff: 0.84, roll: 0.07, visc: 10, /* rough ground + brush: off the road the car slows hard */ dust: [0.66, 0.57, 0.44], color: [0.42, 0.33, 0.23] },
   };
 
   // Tyres: grip factor per surface, lateral stiffness factor, wear rate.

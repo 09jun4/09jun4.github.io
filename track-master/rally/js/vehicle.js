@@ -609,7 +609,13 @@
     root.position.set(car.x, car.y, car.z);
     root.rotation.set(0, -car.yaw, 0);
     var roll = car.roll, lift = 0;
-    if (car.flip) { roll += car.flip.visualRoll || 0; lift = Math.abs(Math.sin(car.flip.visualRoll || 0)) * 0.9; }
+    if (car.flip) {
+      // pivot over the body's edges: keep the lowest corner of the body box
+      // (wheels / sills -0.55 m, roof +0.9 m, sides +-0.9 m) on the ground
+      var vr = car.flip.visualRoll || 0, cr = Math.cos(vr), sr = Math.sin(vr), lo = 1e9;
+      [-0.55, 0.9].forEach(function (yy) { [-0.9, 0.9].forEach(function (zz) { lo = Math.min(lo, yy * cr - zz * sr); }); });
+      roll += vr; lift = Math.max(0, -0.55 - lo);
+    }
     V.body.rotation.set(roll, 0, car.pitch, 'YZX');
     V.body.position.y = lift;
     var spec = car.spec;

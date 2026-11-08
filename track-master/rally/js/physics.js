@@ -68,7 +68,7 @@
       x: 0, z: 0, y: 0, yaw: 0, vx: 0, vz: 0, vy: 0, r: 0,
       pitch: 0, roll: 0, pitchRate: 0, rollRate: 0,
       gear: 1, rpm: spec.idleRpm, shiftT: 0, nextGear: 1, clutch: 1, throttleOut: 0,
-      steer: 0, idx: 0, s: 0, lat: 0, speed: 0, vLong: 0, vLat: 0, airborne: false, airTime: 0, maxAir: 0,
+      steer: 0, idx: 0, s: 0, lat: 0, speed: 0, vLong: 0, vLat: 0, airborne: false, airTime: 0, maxAir: 0, slopeT: 0,
       engineHealth: 1, absActive: false, tcsActive: false, escActive: false, limiter: false,
       events: [], flip: null, onRoad: true, surface: 'gravel', time: 0,
       revT: 0, lastImpact: 0,
@@ -89,7 +89,7 @@
     var h = route.h[i], fx = Math.cos(h), fz = Math.sin(h), lat = lateral || 0;
     car.x = route.x[i] - fz * lat; car.z = route.z[i] + fx * lat; car.yaw = h;
     car.vx = car.vz = car.vy = car.r = 0; car.pitch = car.roll = car.pitchRate = car.rollRate = 0;
-    car.idx = i; car.flip = null; car.airborne = false; car.airTime = 0; car.shiftT = 0;
+    car.idx = i; car.flip = null; car.airborne = false; car.airTime = 0; car.shiftT = 0; car.slopeT = 0;
     car.gear = car.setup.transmission === 'AUTOMATIC' ? 1 : (car.gear > 0 ? 1 : 1);
     car.rpm = car.spec.idleRpm;
     var spec = car.spec, k = spec.spring * car.setup.stiffness;
@@ -223,7 +223,7 @@
       w = ws[i];
       var wx = car.x + fx * w.lx + rx * w.ly, wz = car.z + fz * w.lx + rz * w.ly;
       var gr = T.ground(route, wx, wz, w.idx);
-      w.idx = gr.loc.idx; w.gy = gr.y; w.surf = gr.surf; w.wx = wx; w.wz = wz;
+      w.idx = gr.loc.idx; w.gy = gr.y; w.surf = gr.surf; w.wx = wx; w.wz = wz; w.onRoad = gr.onRoad;
       var yA = car.y - ATTACH + w.lx * sinP - w.ly * sinRo;
       var len = yA - (gr.y + R);
       var comp = rest - len;
@@ -261,9 +261,18 @@
         car.events.push({ type: 'land', air: car.airTime, vy: car.vy });
         // landing well sideways after a real jump digs in and rolls the car
         // (a short hop over a bump while drifting does not)
-        if (car.airTime > 0.45 && Math.abs(vLat) > 12.5 && !car.flip) startFlip(car, sign(vLat));
+        if (car.airTime > 0.45 && Math.abs(vLat) > 12.5 && !car.flip) startFlip(car, sign(vLat), Math.abs(vLat), 'sideLanding');
+        // falling off the road down a drop (cliff, steep bank) and landing
+        // hard off-road tumbles the car
+        else if (!car.flip && car.airTime > 0.6 && car.vy < -8.5 && !ws[0].onRoad && !ws[3].onRoad) startFlip(car, Math.abs(vLat) > 1.5 ? sign(vLat) : -sign(slopeOf(ws)), Math.max(7, Math.abs(vLat)), 'fall');
       }
       car.airTime = 0;
+      // off the road on a mountainside steeper than ~40 deg across the car:
+      // it slides and rolls down
+      var sl = slopeOf(ws);
+      if (!car.flip && Math.abs(sl) > 0.85 && !ws[0].onRoad && !ws[1].onRoad && !ws[2].onRoad && !ws[3].onRoad && car.speed > 2) {
+        car.slopeT += dt; if (car.slopeT > 0.35) startFlip(car, -sign(sl), 6 + car.speed * 0.3, 'slope');
+      } else car.slopeT = 0;
     }
 
     // ---- drivetrain
@@ -466,7 +475,11 @@
     if (car.airborne) car.r *= 1 - 0.3 * dt;
     car.x += car.vx * dt; car.z += car.vz * dt; car.yaw += car.r * dt;
     // vertical / pitch / roll
-    car.vy += (Fsum / mass - GRAV) * dt;
+    // off the road (bumpy hillside, not a jump ramp) the car stays planted:
+    // when it skips off the terrain, extra pull brings it straight back down
+    var offAll = !ws[0].onRoad && !ws[1].onRoad && !ws[2].onRoad && !ws[3].onRoad;
+    var gExtra = car.airborne && offAll && !car.flip ? 1.4 * GRAV : 0;
+    car.vy += (Fsum / mass - GRAV - gExtra) * dt;
     car.y += car.vy * dt;
     pitchT += h * Flong; rollT -= h * Flat;
     pitchT -= 2400 * car.pitchRate; rollT -= 1100 * car.rollRate; // chassis damping (calm body)
@@ -538,20 +551,29 @@
       w.tyre = Math.max(0, w.tyre - dmg * 0.6);
       if (circle === 0) car.engineHealth = Math.max(0, car.engineHealth - dmg * 0.7);
     }
-    // a heavy side hit trips the car over
-    if (impact > 10 && soft === 1 && Math.abs(side) > 0.6 && !car.flip) startFlip(car, side > 0 ? 1 : -1);
+    // (impacts never roll the car: trees and rocks stop or spin it)
   }
 
   // Rollover: the model above keeps roll small (no tipping physics), so a
-  // trip (heavy side impact, sideways landing) starts a scripted roll.
-  function startFlip(car, dir) {
-    car.flip = { t: 0, dir: dir, roll0: car.roll };
-    car.events.push({ type: 'rollover' });
+  // trip (sideways landing, a fall off a drop, a too-steep mountainside)
+  // starts a scripted roll: one to three turns depending on how fast the
+  // car was going sideways, quick at first and slowing as it scrubs, while
+  // the car keeps sliding the way it was going. It ends upright.
+  function slopeOf(ws) { // ground rise per metre toward +ly (car's right)
+    var a = 0, b = 0;
+    for (var i = 0; i < 4; i++) { a += ws[i].gy * ws[i].ly; b += ws[i].ly * ws[i].ly; }
+    return b > 0 ? a / b : 0;
+  }
+  function startFlip(car, dir, vSide, why) {
+    var turns = clamp(Math.round((vSide || 8) / 7), 1, 3);
+    car.flip = { t: 0, dir: dir || 1, turns: turns, dur: 0.55 + 0.5 * turns, roll0: car.roll, visualRoll: 0 };
+    car.events.push({ type: 'rollover', why: why });
   }
   function flipStep(car, dt) {
     var f = car.flip; f.t += dt;
-    car.vx *= 1 - 1.6 * dt; car.vz *= 1 - 1.6 * dt; car.r *= 1 - 2 * dt;
-    f.visualRoll = f.dir * Math.min(1, f.t / 1.5) * Math.PI * 3;
+    car.vx *= 1 - 1.1 * dt; car.vz *= 1 - 1.1 * dt; car.r *= 1 - 3 * dt;
+    var x = Math.min(1, f.t / f.dur), e = 1 - (1 - x) * (1 - x); // decelerating roll
+    f.visualRoll = f.dir * e * Math.PI * 2 * f.turns;
   }
 
   RL.Physics = {

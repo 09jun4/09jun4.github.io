@@ -95,7 +95,7 @@
 
     if (this.phase === 'running' || (this.free && this.phase !== 'countdown')) {
       // rollover: let the roll play, then put the car back
-      if (car.flip) { if (car.flip.t > 2.2) this.recover('rollover'); }
+      if (car.flip) { if (car.flip.t > (car.flip.dur || 1.6) + 0.7) this.recover('rollover'); }
       // off course: far from the road for a while
       else if (off > 14) { this.offT += dt; if (off > 26 || this.offT > (this.free ? 6 : 3)) this.recover(this.free ? null : 'offCourse'); }
       else this.offT = 0;

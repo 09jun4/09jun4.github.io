@@ -248,12 +248,12 @@
     // --- elevation: a grade per module (up / down / steep / flat), smoothed
     var vr = Rng.stream(seed, 'elev'), grade = new Float32Array(n), yEst = 0;
     modules.forEach(function (m, mi) {
-      var kind = mi === 0 ? 'flat' : vr.weighted([['flat', 1.1], ['up', 2.1], ['down', 1.7], ['steepUp', 0.85], ['steepDown', 0.7]]);
+      var kind = mi === 0 ? 'flat' : vr.weighted([['flat', 2.2], ['up', 0.9], ['down', 1.4], ['steepUp', 0.15], ['steepDown', 0.55]]); // mostly flat or downhill: a fast stage
       // stay inside a mountain's height range
       if (yEst > 110 && (kind === 'up' || kind === 'steepUp')) kind = 'down';
       if (yEst < -110 && (kind === 'down' || kind === 'steepDown')) kind = 'up';
-      var gr = kind === 'flat' ? vr.range(-0.02, 0.02) : kind === 'up' ? vr.range(0.04, 0.085) : kind === 'down' ? -vr.range(0.04, 0.09)
-        : kind === 'steepUp' ? vr.range(0.105, 0.14) : -vr.range(0.105, 0.145);
+      var gr = kind === 'flat' ? vr.range(-0.02, 0.02) : kind === 'up' ? vr.range(0.03, 0.06) : kind === 'down' ? -vr.range(0.04, 0.09)
+        : kind === 'steepUp' ? vr.range(0.08, 0.1) : -vr.range(0.105, 0.145);
       m.vert = kind;
       var i0 = Math.floor(m.s0 / SP), i1 = Math.min(n - 1, Math.floor(m.s1 / SP));
       for (var i = i0; i <= i1; i++) grade[i] = gr;
@@ -535,6 +535,19 @@
       var sum = 0, cnt = 0, q;
       for (q = 0; q < h.length; q++) if (h[q] === h[q]) { sum += h[q]; cnt++; }
       for (q = 0; q < h.length; q++) if (h[q] !== h[q]) h[q] = sum / cnt - 4;
+      // banks beside the road rise gently (the physics and the renderer use
+      // this same heightfield): just under the road at the edge, ~0.3 m per
+      // metre for the first 10 m, steeper after, mountains past ~25 m. Drops
+      // (cliffs) on the valley side are left as they are.
+      for (a = 0; a < N; a++) for (b = 0; b < N; b++) {
+        var vx = c.cx * size + a * CELL, vz = c.cz * size + b * CELL, best = 1e9, bj = -1;
+        route.hash.near(vx, vz, 30, function (j) { var dx = route.x[j] - vx, dz = route.z[j] - vz, d = dx * dx + dz * dz; if (d < best) { best = d; bj = j; } });
+        if (bj < 0) continue;
+        var dl = Math.sqrt(best) - route.w[bj] / 2;
+        if (dl > 26) continue;
+        var bank = dl < 0.4 ? 0 : dl < 10 ? (dl - 0.4) * 0.3 : 2.88 + (dl - 10) * 0.6;
+        h[b * N + a] = Math.min(h[b * N + a], route.y[bj] - 0.15 + bank);
+      }
       c.h = h;
     });
     route.terrain = { chunks: chunks, CELL: CELL, CHUNK: CHUNK, size: size, key: ckey, noise: noise };
