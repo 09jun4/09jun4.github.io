@@ -267,7 +267,7 @@
       var S = api.state;
 
       // p: 프로젝트 구간 진행률(0~1), vis: 캔버스 투명도, energy: 스크롤·포인터 속도(0~1), dirv: 스크롤 방향(-1~1)
-      var yawX = 0, KX = [[0, 0], [.14, 0], [.245, .95], [.45, -.95], [.65, .95], [.835, -.95], [1, 0]];
+      var yawX = 0, KX = [[0, 0], [.14, 0], [.245, .55], [.45, -.55], [.65, .55], [.835, -.55], [1, 0]];
       function kx(p) {
         for (var q = 1; q < KX.length; q++) if (p <= KX[q][0]) { var a = KX[q - 1], b = KX[q], f = (p - a[0]) / (b[0] - a[0]); f = f * f * (3 - 2 * f); return a[1] + (b[1] - a[1]) * f; }
         return 0;
@@ -286,30 +286,30 @@
         S.energy = energy; S.canvasOpacity = vis;
         var u = mat.uniforms;
         u.uTime.value = time; u.uStretch.value = S.stretch; u.uBend.value = S.bend; u.uDissolve.value = S.dissolve; u.uShift.value = S.shift;
-        u.uEnergy.value = energy; u.uSpike.value = S.spike * .8 + energy * .2 * (1 - S.bend); u.uTwist.value = S.twist; u.uPhase.value = p * PI * 3;
+        u.uEnergy.value = energy; u.uSpike.value = S.spike * .8 + energy * .2 * (1 - S.bend); u.uTwist.value = S.twist; u.uPhase.value = p * PI * 1.5;
         u.uNoise.value = (1 - .5 * S.stretch + .3 * S.bend) * (1 + energy * .45);
         pmat.uniforms.uTime.value = time; pmat.uniforms.uE1.value = S.e1; pmat.uniforms.uE2.value = S.e2;
         dmat.uniforms.uTime.value = time; dmat.uniforms.uEnergy.value = energy;
         applyTheme(1 - Math.exp(-dt * 5));
-        var k = 1 - Math.exp(-dt * 6);
+        var k = 1 - Math.exp(-dt * 1.6);
         pointer.x += (pointer.tx - pointer.x) * k; pointer.y += (pointer.ty - pointer.y) * k;
-        u.uPtr.value.set(pointer.x * 2.2, -pointer.y * 1.3, 1); u.uPtrAmt.value = ptrOn ? .16 * (1 - S.dissolve) : 0;
+        u.uPtr.value.set(pointer.x * 2.2, -pointer.y * 1.3, 1); u.uPtrAmt.value = 0; // 마우스로 표면이 부풀던 효과는 뺐어요
         // 회전: 계속 돌고, 스크롤하면 그 방향으로 휙 돌아요. 링이 되면 제자리에서 돌며 흔들려요
-        yawX += dirv * energy * dt * 3.5; yawX *= Math.exp(-dt * 1.2);
+        yawX += dirv * energy * dt * 1.2; yawX *= Math.exp(-dt * 1.2);
         var spin = opts.reduce ? 0 : time * .2, sway = opts.reduce ? 0 : Math.sin(time * .45) * .5;
         var ringness = S.bend;
-        grp.rotation.set(pointer.y * .25 - .55 * ringness + (opts.reduce ? 0 : Math.sin(time * .6) * .07),
-          spin * (1 - ringness) + sway * ringness + pointer.x * .4 + yawX,
+        grp.rotation.set(pointer.y * .12 - .55 * ringness + (opts.reduce ? 0 : Math.sin(time * .6) * .07),
+          spin * (1 - ringness) + sway * ringness + pointer.x * .2 + yawX,
           -.4 * S.stretch * (1 - ringness) + pointer.x * .05 + (opts.reduce ? 0 : time * .12 * ringness));
         var sc = api.fit * (1.08 - .1 * ss(.1, .4, p) - .2 * S.spike) * (1 + (opts.reduce ? 0 : Math.sin(time * 1.3) * .02) + energy * .05);
         grp.scale.setScalar(sc);
         // 패널 반대편으로 흘러 다녀요 (데스크톱)
         var ox = opts.mobile ? 0 : kx(p) * Math.min(1, api.fit / .95);
-        grp.position.x += (ox - grp.position.x) * (1 - Math.exp(-dt * 4));
+        grp.position.x += (ox - grp.position.x) * (1 - Math.exp(-dt * 1.8));
         grp.position.y = (opts.mobile ? .42 * ss(0, .08, p) : 0) + (opts.reduce ? 0 : Math.sin(time * .9) * .035);
         // 카메라가 스크롤에 따라 천천히 공전해요
-        var cph = p * .8 + pointer.x * .15;
-        camera.position.set(Math.sin(cph) * .35 + pointer.x * .15, Math.sin(p * 5) * .1 - pointer.y * .1, 4.8 - .3 * Math.sin(p * PI) - energy * .08);
+        var cph = p * .4 + pointer.x * .06;
+        camera.position.set(Math.sin(cph) * .2 + pointer.x * .05, Math.sin(p * 5) * .05 - pointer.y * .04, 4.8 - .3 * Math.sin(p * PI) - energy * .08);
         camera.lookAt(0, 0, 0);
         dust.rotation.y = time * .02 + pointer.x * .12; dust.rotation.x = pointer.y * .06; dust.position.x = grp.position.x * .5;
         dmat.uniforms.uAlpha.value = (.6 + energy * .3) * vis;

@@ -83,7 +83,7 @@
       var lt = clamp((p - a) / (b - a), -.4, 1.4);
       if (v > .002 || (ui.vis[i] || 0) > .002) {
         // 스크롤하는 동안 계속 천천히 올라가요 (끊김 없이 이어지는 느낌)
-        var ty = (.5 - lt) * (mobile ? 30 : 60);
+        var ty = (.5 - lt) * (mobile ? 16 : 30);
         el.style.opacity = v.toFixed(3);
         el.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0) scale(' + (.94 + .06 * v).toFixed(3) + ')';
       }
@@ -117,9 +117,9 @@
     // 스크롤·포인터 속도 → 에너지 (빠르게 오르고 천천히 가라앉아요)
     var vy = (y - prevY) / Math.max(dt, .001); prevY = y; vs += (vy - vs) * (1 - Math.exp(-dt * 10));
     var pv = Math.hypot(ptr.x - prevPx, ptr.y - prevPy) / Math.max(dt, .001); prevPx = ptr.x; prevPy = ptr.y;
-    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 3400, 0, 1), clamp(pv / 10, 0, .3));
-    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 12 : 2.2))); dirv = clamp(vs / 3400, -1, 1);
-    sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 6));
+    var et = reduce ? 0 : Math.max(clamp(Math.abs(vs) / 6000, 0, 1), 0);
+    energy += (et - energy) * (1 - Math.exp(-dt * (et > energy ? 4 : 1.6))); dirv = clamp(vs / 6000, -1, 1);
+    sp = reduce ? target : sp + (target - sp) * (1 - Math.exp(-dt * 2.6));
     if (Math.abs(target - sp) < .0004) sp = target;
     if (moved || dirty) { updateSteps(sp); updateChrome(y); lastY = y; }
     if (scene && sceneOK) {
@@ -135,7 +135,7 @@
       stageEl.style.opacity = (1 - ss(geo.end, geo.end + geo.vh * .8, y)).toFixed(3);
     }
     dirty = false;
-    if (mqAnim) mqAnim.playbackRate = (dirv < -.05 ? -1 : 1) * (1 + energy * 3);
+    if (mqAnim) mqAnim.playbackRate = (dirv < -.05 ? -1 : 1) * (1 + energy * 1.2);
     cursorTick(dt);
     if (!document.hidden) requestAnimationFrame(frame);
   }
@@ -160,7 +160,7 @@
   var ring = $('#cRing'), dot = $('#cDot'), cx = 0, cy = 0, rx = 0, ry = 0, shown = false;
   function cursorTick(dt) {
     if (!shown) return;
-    var k = 1 - Math.exp(-dt * 16); rx += (cx - rx) * k; ry += (cy - ry) * k;
+    var k = 1 - Math.exp(-dt * 9); rx += (cx - rx) * k; ry += (cy - ry) * k;
     ring.style.transform = 'translate3d(' + rx.toFixed(1) + 'px,' + ry.toFixed(1) + 'px,0)'; dot.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0)';
   }
   if (fine && !reduce) {
@@ -173,14 +173,14 @@
     $$('.mag').forEach(function (el) {
       el.addEventListener('pointermove', function (e) {
         var r = el.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-        el.style.transition = 'transform .12s ease-out'; el.style.transform = 'translate3d(' + clamp(dx * .22, -9, 9).toFixed(1) + 'px,' + clamp(dy * .3, -7, 7).toFixed(1) + 'px,0)';
+        el.style.transition = 'transform .12s ease-out'; el.style.transform = 'translate3d(' + clamp(dx * .1, -5, 5).toFixed(1) + 'px,' + clamp(dy * .12, -4, 4).toFixed(1) + 'px,0)';
       });
       el.addEventListener('pointerleave', function () { el.style.transition = 'transform .45s cubic-bezier(.2,.7,.2,1)'; el.style.transform = ''; });
     });
     $('#cards').addEventListener('pointermove', function (e) {
       var c = e.target.closest('[data-tilt]'); if (!c) return;
       var r = c.getBoundingClientRect(), px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
-      c.style.transition = 'transform .12s ease-out,border-color .25s,box-shadow .25s'; c.style.transform = 'rotateX(' + (-py * 7).toFixed(2) + 'deg) rotateY(' + (px * 9).toFixed(2) + 'deg) translateZ(0)';
+      c.style.transition = 'transform .12s ease-out,border-color .25s,box-shadow .25s'; c.style.transform = 'rotateX(' + (-py * 3).toFixed(2) + 'deg) rotateY(' + (px * 4).toFixed(2) + 'deg) translateZ(0)';
     });
     $('#cards').addEventListener('pointerout', function (e) { var c = e.target.closest('[data-tilt]'); if (c && !c.contains(e.relatedTarget)) { c.style.transition = ''; c.style.transform = ''; } });
   }

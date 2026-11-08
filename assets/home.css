@@ -92,7 +92,7 @@ h1,h2,h3,p{margin:0}
 @keyframes cue{0%{transform:scaleY(0)}60%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
 
 /* Featured project: 화면 고정 구간 */
-.pin{position:relative;z-index:1;height:640vh}
+.pin{position:relative;z-index:1;height:900vh}
 .pin-sticky{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
 .step{position:absolute;opacity:0;will-change:opacity,transform}
 .s-intro{left:max(24px,calc((100vw - 1180px)/2));bottom:clamp(40px,10vh,100px);max-width:min(560px,86vw)}
@@ -167,7 +167,7 @@ h1,h2,h3,p{margin:0}
   .brand{padding-right:6px;font-size:13px}
   .nav ul a{padding:10px 9px;font-size:12px}
   .theme-btn{width:38px;height:38px}
-  .pin{height:560vh}
+  .pin{height:760vh}
   .s-intro{left:16px;right:16px;bottom:max(28px,env(safe-area-inset-bottom))}
   .panel-step{left:16px!important;right:16px!important;top:auto;bottom:max(16px,env(safe-area-inset-bottom));width:auto;margin:0}
   .panel-step.center{margin-left:0}
