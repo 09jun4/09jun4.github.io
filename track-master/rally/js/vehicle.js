@@ -485,7 +485,7 @@
     tube(0.42, yt, -0.64, 0.42, yt, 0.64); tube(-1.05, yt, -0.64, -1.05, yt, 0.64); tube(-1.05, yt, -0.64, 0.42, yt, 0.64);
 
     // driver's eye: low in the bucket seat, clear of the roof rail
-    parts.cockpitMount = at(new THREE.Object3D(), -0.22, floorY + 0.95, -0.34); body.add(parts.cockpitMount);
+    parts.cockpitMount = at(new THREE.Object3D(), -0.24, floorY + 1.03, -0.34); body.add(parts.cockpitMount);
     parts.cockpitMount.rotation.z = -0.06;
     parts.hoodMount = at(new THREE.Object3D(), 1.05, floorY + 0.78, 0); body.add(parts.hoodMount);
 

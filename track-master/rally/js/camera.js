@@ -6,7 +6,7 @@
   'use strict';
   var RL = G.RL = G.RL || {};
   var MODES = ['cockpit', 'hood', 'chase'], NAMES = { cockpit: '운전석', hood: '보닛', chase: '3인칭' };
-  var v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), q1 = new THREE.Quaternion(), look = new THREE.Vector3();
+  var eul = new THREE.Euler(), v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), q1 = new THREE.Quaternion(), look = new THREE.Vector3();
   var TURN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
 
   function Cam(aspect) {
@@ -31,6 +31,12 @@
       var mount = this.mode === 'cockpit' ? V.parts.cockpitMount : V.parts.hoodMount;
       mount.getWorldPosition(v1); mount.getWorldQuaternion(q1);
       q1.multiply(TURN);
+      if (this.mode === 'cockpit') {
+        // the driver's head stays steadier than the body: only part of the
+        // body pitch (nose lifting under power) and roll reach the view, and
+        // the eyes look slightly down the road
+        eul.setFromQuaternion(q1, 'YXZ'); eul.x = eul.x * 0.4 - 0.12; eul.z *= 0.6; q1.setFromEuler(eul);
+      }
       var sh = this.shake * (this.mode === 'cockpit' ? 0.012 : 0.008);
       v1.y += (Math.random() - 0.5) * sh; v1.x += (Math.random() - 0.5) * sh * 0.5;
       c.position.copy(v1); c.quaternion.copy(q1);

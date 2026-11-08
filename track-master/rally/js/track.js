@@ -373,13 +373,16 @@
     for (var hz = 0; hz < hzCount * 4 && features.filter(function (f) { return f.type === 'rockfall'; }).length < hzCount; hz++) {
       var sh = hr.range(startS + 300, finishS - 150);
       if (features.some(function (f) { return (f.type === 'jump' || f.type === 'crest' || f.type === 'rockfall') && sh > f.s0 - 80 && sh < f.s1 + 80; })) continue;
-      var ih = Math.floor(sh / SP), side = SIDE[ih] >= 0 ? 1 : -1, cnt = hr.int(2, 4), sp = sh;
+      // small fallen stones scattered over the road on the uphill side:
+      // they only make the surface rough (bumps under the tyres), they
+      // never stop the car
+      var ih = Math.floor(sh / SP), side = SIDE[ih] >= 0 ? 1 : -1, cnt = hr.int(6, 11), sp = sh;
       for (var r = 0; r < cnt; r++) {
-        var ii = Math.min(n - 1, Math.floor(sp / SP)), rr = hr.range(0.45, 0.85);
-        var lat = side * (W[ii] / 2 - hr.range(0.6, 1.6));
+        var ii = Math.min(n - 1, Math.floor(sp / SP)), rr = hr.range(0.1, 0.22);
+        var lat = side * (W[ii] / 2 - hr.range(0.3, 2.6));
         var nx = -Math.sin(H[ii]), nz = Math.cos(H[ii]);
         hazards.push({ x: X[ii] + nx * lat, z: Z[ii] + nz * lat, r: rr, s: sp });
-        sp += hr.range(5, 14);
+        sp += hr.range(1.5, 5);
       }
       features.push({ type: 'rockfall', s0: sh, s1: sp, side: side });
     }
@@ -579,12 +582,22 @@
 
   // Ground height + surface under a point. On the road it is the road
   // itself (flat across, slight crown); off it, the terrain.
+  // a stone under the tyre: a small rounded bump (about half its size)
+  function stoneBump(route, x, z) {
+    if (!route.bumpHash) return 0;
+    var b = 0;
+    route.bumpHash.near(x, z, 0.3, function (o) {
+      var dx = o.x - x, dz = o.z - z, d2 = dx * dx + dz * dz, r2 = o.r * o.r;
+      if (d2 < r2) b = Math.max(b, o.r * 0.5 * (1 - d2 / r2));
+    });
+    return b;
+  }
   function ground(route, x, z, hint) {
     var L = locate(route, x, z, hint, 24), e = Math.abs(L.lat) - L.w / 2;
     var crown = 0.02 * (1 - Math.min(1, Math.abs(L.lat) / (L.w / 2)));
-    if (e <= 0) return { y: L.y + crown, surf: L.surf ? 'mud' : 'gravel', loc: L, onRoad: true };
+    if (e <= 0) return { y: L.y + crown + stoneBump(route, x, z), surf: L.surf ? 'mud' : 'gravel', loc: L, onRoad: true };
     var t = smooth(e / 3), th = terrainHeight(route, x, z);
-    return { y: L.y + (th - L.y) * t, surf: e < 1.2 ? (L.surf ? 'mud' : 'gravel') : 'grass', loc: L, onRoad: false };
+    return { y: L.y + (th - L.y) * t + stoneBump(route, x, z), surf: e < 1.2 ? (L.surf ? 'mud' : 'gravel') : 'grass', loc: L, onRoad: false };
   }
 
   // ---------------------------------------------------------------------
@@ -606,7 +619,7 @@
           var u = r.next(), sc = r.range(0.75, 1.35), kind = r.chance(0.18) ? 1 : 0, rot = r.range(0, 6.28);
           var near = locate(route, x, z, null);
           if (Math.abs(near.lat) < near.w / 2 + 3.6) continue; // another leg of the road
-          if (r.chance(0.07)) rocks.push({ x: x, z: z, y: 0, r: r.range(0.5, 1.6), rot: rot, u: u });
+          if (r.chance(0.07)) rocks.push({ x: x, z: z, y: 0, r: r.range(0.15, 0.4), rot: rot, u: u }); // small stones: bumps, not walls
           else trees.push({ x: x, z: z, y: 0, s: sc, kind: kind, rot: rot, u: u });
         }
       }
@@ -622,14 +635,16 @@
       if (Math.abs(L.lat) - L.w / 2 > 45) return;
       var c = { x: o.x, z: o.z, r: 0.35 * o.s + 0.15, kind: 'tree' }; route.obstacles.push(c); ob.add(o.x, o.z, c);
     });
-    rocks.forEach(function (o) { var c = { x: o.x, z: o.z, r: o.r * 0.8, kind: 'rock' }; route.obstacles.push(c); ob.add(o.x, o.z, c); });
+    // stones are not obstacles: the tyres ride over them (see ground())
+    var bh = route.bumpHash = new Hash(4);
+    rocks.forEach(function (o) { bh.add(o.x, o.z, o); });
     route.bales.forEach(function (o) {
       o.y = ground(route, o.x, o.z, null).y;
       var c = { x: o.x, z: o.z, r: o.r, kind: 'bale' }; route.obstacles.push(c); ob.add(o.x, o.z, c);
     });
     route.hazards.forEach(function (o) {
       o.y = ground(route, o.x, o.z, null).y;
-      var c = { x: o.x, z: o.z, r: o.r, kind: 'rock' }; route.obstacles.push(c); ob.add(o.x, o.z, c);
+      bh.add(o.x, o.z, o);
     });
   }
 
