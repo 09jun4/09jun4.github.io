@@ -54,6 +54,7 @@ export const KF21 = {
   // 고도 한계: 허용 피치 범위를 부드럽게 좁힌다(지면 충돌 없음)
   altitude: {
     start: 3000,
+    showcase: 2750, // 메뉴 배경 비행 고도
     floorHard: 600, // 이 아래로는 내려가지 않는다
     floorSoft: 1300, // 여기서부터 기수를 들어 올리기 시작
     floorPitch: 6, // 하한에서 강제되는 최소 피치(°)

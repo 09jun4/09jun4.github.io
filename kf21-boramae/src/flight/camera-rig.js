@@ -131,8 +131,9 @@ export class CameraRig {
     this.shakeAmp *= Math.exp(-s.decay * dt);
   }
 
-  _fixedView(t) {
+  _fixedView(player) {
     const f = this.fixed;
+    const t = f.target || player;
     const cam = this.camera;
     const cp = Math.cos(f.pitch * DEG);
     _v.set(Math.sin(f.yaw * DEG) * cp, Math.sin(f.pitch * DEG), Math.cos(f.yaw * DEG) * cp).multiplyScalar(f.dist).applyQuaternion(t.quat).add(t.pos);

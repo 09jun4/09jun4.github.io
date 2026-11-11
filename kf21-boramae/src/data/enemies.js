@@ -1,0 +1,68 @@
+// 적기 데이터. 기체 수치와 AI 수치를 나눠 둔다(기종 추가 시 항목만 늘리면 된다).
+export const ENEMIES = {
+  raider: {
+    id: 'raider',
+    name: '적 전투기',
+    hp: 40,
+    hitRadius: 11,
+    modelScale: 1.35, // 멀리서도 보이도록 실물보다 조금 크게
+    outlinePixels: 1.5, // 붉은 외곽선 두께(화면 픽셀)
+    collisionDamage: 30, // 플레이어가 받는 충돌 피해
+    collisionRadius: 9,
+
+    flight: {
+      speed: 150, // 순항
+      speedMax: 245, // 멀리서 복귀할 때 최대(플레이어 최대 속도보다 빨라야 도망칠 수 없다)
+      speedMin: 125,
+      catchUpFrom: 650, // 이 거리부터 가속 시작
+      catchUpFull: 1500,
+      yawMax: 40, // 도/초
+      pitchMax: 32,
+      pitchLimit: 55,
+      rollMax: 62,
+      steerGain: 2.6, // 방향 오차 → 각속도
+      rateTau: 0.28, // 각속도 관성
+      rollTau: 0.35,
+      speedTau: 1.4,
+      altMin: 900,
+      altMax: 9000,
+    },
+
+    ai: {
+      keepMin: 300, // 이보다 가까워지면 이탈
+      keepMax: 500, // 이탈 후 이 거리까지 벌어지면 다시 공격
+      orbitRadius: 620, // 공격 차례가 아닐 때 선회 대기 거리
+      returnDistance: 2200, // 이보다 멀면 곧장 복귀
+      leadTime: 0.9, // 플레이어 예측 위치(초)
+      breakTime: [2.2, 3.6], // 이탈 유지 시간
+      attackTimeMax: 9, // 공격이 너무 길어지면 스스로 이탈
+      evadeTime: [1.1, 1.9], // 피격 회피 유지 시간
+      evadeCooldown: 2.5, // 회피를 연달아 하지 않게
+      minStateTime: 0.6, // 상태 떨림 방지
+      separationRadius: 150,
+      separationWeight: 1.6,
+      tokenCooldown: 1.5, // 공격을 마친 뒤 다시 차례를 받기까지
+    },
+
+    weapon: {
+      interval: 1.2, // 연발 사이 간격
+      burst: 3, // 한 번에 쏘는 발 수(짧은 연발)
+      burstGap: 0.11,
+      range: 850,
+      cone: 11, // 기수와 조준 방향이 이 각도 안일 때만 발사(도)
+      bulletSpeed: 520,
+      bulletLife: 2.4,
+      damage: 5,
+      accuracy: 0.35, // 플레이어 근처로 향하는 탄의 비율
+      nearSpread: 6, // 정확한 탄의 조준 오차(m)
+      wideSpread: [22, 60], // 나머지 탄의 조준 오차(m)
+      firstShotDelay: [1.2, 2.4], // 등장 직후에는 쏘지 않는다
+    },
+
+    fx: { smokeBelow: 0.5, smokeEvery: 0.07 },
+  },
+};
+
+export const DEFAULT_ENEMY = 'raider';
+/** 동시에 존재할 수 있는 적기 수(풀 크기) */
+export const ENEMY_POOL_SIZE = 8;
