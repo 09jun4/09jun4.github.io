@@ -32,6 +32,7 @@ import { createSettingsDialog } from './ui/settings-panel.js';
 import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
+import { PostFX } from './world/post.js';
 
 const appEl = document.getElementById('app');
 const stage = document.getElementById('stage');
@@ -69,8 +70,12 @@ function resize() {
   camera.updateProjectionMatrix();
   session.resize(w, h);
   hud.resize(w, h);
+  if (post) post.setSize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
 }
 const loading = createLoading(appEl);
+let post = null; // 후처리(높음·최고에서만 존재)
+const sunScreen = new THREE.Vector3();
+const _sunWorld = new THREE.Vector3();
 /** 프리셋 적용: tier가 바뀌면 모델·재질을 통째로 다시 만들고(로딩 화면), 구름·파티클 양을 맞춘다. */
 async function applyPreset(name, cfg) {
   if (visuals.tier !== cfg.tier) {
@@ -84,6 +89,9 @@ async function applyPreset(name, cfg) {
       quality.busy = false;
     }
   }
+  if (post) { post.dispose(); post = null; }
+  if (cfg.post) post = new PostFX(renderer, cfg.post, WORLD.post);
+  world.setShadows(renderer, cfg.shadowMap);
   world.setCloudFraction(cfg.clouds);
   session.fx.setParticleFraction(cfg.particles);
   session.simpleTakeoff = cfg.tier === 'low';
@@ -187,6 +195,7 @@ input.onKey((code) => {
 });
 
 // ── 루프 ─────────────────────────────────────────────────────────────────
+const postFrame = { sun: sunScreen, flash: 0, turn: 0, particleLayer: 0 };
 const loop = new GameLoop({
   ...LOOP,
   step(dt) {
@@ -197,7 +206,17 @@ const loop = new GameLoop({
     const paused = fsm.name === STATE.PAUSED;
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     renderer.info.reset();
-    renderer.render(scene, camera);
+    world.followLight(player.renderPos);
+    if (post) {
+      // 해의 화면 위치(렌즈 플레어용): 화면 안쪽일수록 강하다
+      _sunWorld.copy(camera.position).addScaledVector(world.sunDirection, 10000).project(camera);
+      const inFront = _sunWorld.z < 1 ? 1 : 0;
+      sunScreen.set(_sunWorld.x * 0.5 + 0.5, _sunWorld.y * 0.5 + 0.5, inFront * Math.max(0, 1 - Math.max(Math.abs(_sunWorld.x), Math.abs(_sunWorld.y)) * 0.85));
+      postFrame.flash = session.feedback.flash;
+      postFrame.turn = Math.min(1, Math.abs(player.flight.yawRate) * 1.4 + Math.abs(player.flight.pitchRate) * 0.9);
+      post.render(scene, camera, postFrame);
+      renderer.setRenderTarget(null);
+    } else renderer.render(scene, camera);
     hud.render(session, camera, paused ? 0 : frameDt);
     quality.frame(frameDt, !paused && !document.hidden && !loading.visible);
     if (debugPanel) debugPanel(frameDt);

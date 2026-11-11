@@ -50,6 +50,32 @@ export class World {
     this.airbase.group.position.set(this.base.x - this.origin.x, this.base.height, this.base.z - this.origin.z);
   }
 
+  /** 기체 그림자: size가 0이면 끈다. 그림자 카메라는 플레이어만 좁게 덮는다. */
+  setShadows(renderer, size) {
+    const sun = this.lights.sun;
+    renderer.shadowMap.enabled = size > 0;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    sun.castShadow = size > 0;
+    if (size > 0) {
+      const s = this.cfg.shadow;
+      sun.shadow.mapSize.set(size, size);
+      if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+      const c = sun.shadow.camera;
+      c.left = c.bottom = -s.extent; c.right = c.top = s.extent; c.near = 1; c.far = s.distance * 2;
+      c.updateProjectionMatrix();
+      sun.shadow.bias = s.bias;
+      sun.shadow.normalBias = s.normalBias;
+    }
+  }
+
+  /** 해(그림자 광원)를 플레이어 위에 둔다. */
+  followLight(pos) {
+    const sun = this.lights.sun;
+    sun.position.copy(pos).addScaledVector(this.sunDirection, this.cfg.shadow.distance);
+    sun.target.position.copy(pos);
+    sun.target.updateMatrixWorld();
+  }
+
   setCloudFraction(f) {
     this.clouds.setFraction(f);
   }

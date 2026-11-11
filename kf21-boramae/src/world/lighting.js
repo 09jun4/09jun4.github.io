@@ -5,6 +5,6 @@ export function createLighting(scene, cfg, sunDirection) {
   const hemi = new THREE.HemisphereLight(cfg.skyColor, cfg.groundColor, cfg.hemiIntensity);
   const sun = new THREE.DirectionalLight(cfg.sunColor, cfg.sunIntensity);
   sun.position.copy(sunDirection);
-  scene.add(hemi, sun);
+  scene.add(hemi, sun, sun.target);
   return { hemi, sun };
 }

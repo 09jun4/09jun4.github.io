@@ -4,7 +4,7 @@ const { startServer, launch, openGame, shot, sleep } = require('./lib/harness.cj
 const VIEWS = {
   front: { yaw: 180, pitch: 4, dist: 46 }, side: { yaw: 90, pitch: 2, dist: 46 }, top: { yaw: 0, pitch: 89.9, dist: 50 },
   rear: { yaw: 0, pitch: 8, dist: 46 }, quarter: { yaw: 140, pitch: 22, dist: 40 }, rearquarter: { yaw: 35, pitch: 24, dist: 40 },
-  bottom: { yaw: 0, pitch: -89.9, dist: 50 }, close: { yaw: 120, pitch: 14, dist: 16, fov: 40 }, nozzle: { yaw: 22, pitch: 12, dist: 7, fov: 40, at: [0, 0, 7.4] }, gear: { yaw: 150, pitch: -6, dist: 13, fov: 40, at: [0, -1, -1] }, cockpit: { yaw: 150, pitch: 20, dist: 6, fov: 40, at: [0, 0.9, -3.4] },
+  bottom: { yaw: 0, pitch: -89.9, dist: 50 }, close: { yaw: 120, pitch: 14, dist: 16, fov: 40 }, nozzle: { yaw: 22, pitch: 12, dist: 7, fov: 40, at: [0, 0, 7.4] }, flame: { yaw: 62, pitch: 8, dist: 15, fov: 40, at: [0, 0, 10] }, flamerear: { yaw: 14, pitch: 10, dist: 12, fov: 40, at: [0, 0, 9] }, gear: { yaw: 150, pitch: -6, dist: 13, fov: 40, at: [0, -1, -1] }, cockpit: { yaw: 150, pitch: 20, dist: 6, fov: 40, at: [0, 0.9, -3.4] },
   low45: { yaw: 135, pitch: -18, dist: 34 },
 };
 (async () => {

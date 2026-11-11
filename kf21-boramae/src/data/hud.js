@@ -27,6 +27,7 @@ export const HUD = {
 /** 순간 표시 타이머(초) */
 export const HUD_FEEDBACK = {
   hitWarn: 1.1,
+  flashFade: 2.6, // 폭발 섬광이 사라지는 속도(1/s)
   hitFade: 1.8, // 피격 붉은 효과가 사라지는 속도(1/s)
   killNotice: 1.6,
   waveNotice: 2.4,

@@ -9,6 +9,9 @@ import { createGear } from '../entities/gear.js';
 import { createKF21Hi } from '../entities/hi/kf21-hi.js';
 import { createPilot } from '../entities/hi/pilot.js';
 import { createCockpitHi } from '../entities/hi/cockpit-hi.js';
+import { createFlame } from '../entities/hi/flame.js';
+import { NOZZLE, Z } from '../entities/kf21-shape.js';
+import { FX } from '../data/fx.js';
 import { createAircraftTextures, PAINT_SCHEMES } from '../entities/hi/textures.js';
 import { PALETTE } from '../data/palette.js';
 
@@ -94,9 +97,11 @@ export class Visuals {
       await step(0.45, '기체 외형을 만드는 중');
       const pilot = createPilot(cfg.detail);
       const model = createKF21Hi({ detail: cfg.detail, tuning: this.tuning.model, textures, pilot });
+      const flame = createFlame({ nozzles: [[-NOZZLE.x, NOZZLE.y], [NOZZLE.x, NOZZLE.y]], z: Z(NOZZLE.s1), radius: NOZZLE.r, segments: cfg.detail >= 2 ? 28 : 18, cfg: FX.flame, colors: FX.flameColors.player });
+      model.attachFlame(flame);
       await step(0.8, '조종석을 만드는 중');
       const cockpit = createCockpitHi(KF21_POINTS.eye, cfg.detail);
-      this.current = { model, cockpit, textures, pilot, extras: [] };
+      this.current = { model, cockpit, textures, pilot, extras: [flame] };
     }
     this.player.setModel(this.current.model, this.current.cockpit);
     for (const fn of this.listeners) fn(this.current, cfg);

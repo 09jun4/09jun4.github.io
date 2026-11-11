@@ -58,7 +58,7 @@ export class MissionSession {
 
     this.stats = { kills: 0, gunShots: 0, gunHits: 0, missilesFired: 0, hitsTaken: 0, time: 0, clearTime: 0, weaponsUsed: [] };
     // HUD가 읽는 순간 연출 값(초 단위 타이머 / 0~1 세기)
-    this.feedback = { hit: 0, hitWarn: 0, kill: 0, wave: 0, switched: 0 };
+    this.feedback = { hit: 0, hitWarn: 0, kill: 0, wave: 0, switched: 0, flash: 0 }; // flash: 폭발 섬광(화면 가장자리)
     this.cursor = { x: this.viewport.w / 2, y: this.viewport.h / 2 };
     this.aim = { origin: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1) };
     this.aimLocal = new THREE.Vector3(0, 0, -1); // 기체 기준 조준 방향(둘러보는 동안 고정)
@@ -134,7 +134,7 @@ export class MissionSession {
     s.kills = 0; s.gunShots = 0; s.gunHits = 0; s.missilesFired = 0; s.hitsTaken = 0; s.time = 0; s.clearTime = 0;
     s.weaponsUsed.length = 0;
     const f = this.feedback;
-    f.hit = 0; f.hitWarn = 0; f.kill = 0; f.wave = 0; f.switched = 0;
+    f.hit = 0; f.hitWarn = 0; f.kill = 0; f.wave = 0; f.switched = 0; f.flash = 0;
     this.endTimer = 0;
     this.success = false;
   }
@@ -304,8 +304,10 @@ export class MissionSession {
     if (source !== 'collision') this.director.onHit(enemy);
   }
 
-  _onEnemyKilled() {
+  _onEnemyKilled(enemy) {
     this.stats.kills++;
+    // 가까운 폭발일수록 화면 가장자리가 밝게 번쩍인다
+    this.feedback.flash = Math.max(this.feedback.flash, clamp01(1.15 - enemy.pos.distanceTo(this.player.flight.pos) / 900));
     this.feedback.kill = HUD_FEEDBACK.killNotice;
     this._checkCleared();
   }
@@ -553,6 +555,7 @@ export class MissionSession {
     this._renderProjectiles(alpha);
     this.fx.endBolts();
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
+    if (this.feedback.flash > 0) this.feedback.flash = Math.max(0, this.feedback.flash - frameDt * HUD_FEEDBACK.flashFade);
   }
 
   _renderProjectiles(alpha) {

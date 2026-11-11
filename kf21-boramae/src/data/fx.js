@@ -18,4 +18,10 @@ export const FX = {
   damageSmoke: { life: [0.7, 1.3], size: [2.4, 4.8] },
   muzzleFlash: { life: 0.045, size: 1.6 },
   drag: 1.4, // 파티클 감속(1/s)
+  // 엔진 불꽃(높음·최고). 길이는 m
+  flame: { lengthIdle: 0.9, lengthMil: 2.6, lengthAb: 8.5, diamonds: 5.5, tau: 0.4, igniteTau: 0.12, fadeTau: 0.7 },
+  flameColors: {
+    player: { core: 0xcfe2ff, mid: 0xffc27a, edge: 0xff5a1e },
+    enemy: { core: 0xffd9c9, mid: 0xff6a4a, edge: 0xd61f14 },
+  },
 };
