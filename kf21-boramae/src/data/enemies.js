@@ -16,8 +16,8 @@ export const ENEMIES = {
       speedMin: 125,
       catchUpFrom: 650, // 이 거리부터 가속 시작
       catchUpFull: 1500,
-      yawMax: 40, // 도/초
-      pitchMax: 32,
+      yawMax: 44, // 도/초
+      pitchMax: 36,
       pitchLimit: 55,
       rollMax: 62,
       steerGain: 2.6, // 방향 오차 → 각속도
@@ -31,34 +31,34 @@ export const ENEMIES = {
     ai: {
       keepMin: 300, // 이보다 가까워지면 이탈
       keepMax: 500, // 이탈 후 이 거리까지 벌어지면 다시 공격
-      orbitRadius: 620, // 공격 차례가 아닐 때 선회 대기 거리
+      orbitRadius: 540, // 공격 차례가 아닐 때 선회 대기 거리
       returnDistance: 2200, // 이보다 멀면 곧장 복귀
       leadTime: 0.9, // 플레이어 예측 위치(초)
-      breakTime: [2.2, 3.6], // 이탈 유지 시간
+      breakTime: [1.4, 2.4], // 이탈 유지 시간
       attackClosing: 30, // 공격 중 플레이어 대비 접근 속도(m/s)
       attackTimeMax: 9, // 공격이 너무 길어지면 스스로 이탈
       evadeTime: [1.1, 1.9], // 피격 회피 유지 시간
-      evadeCooldown: 2.5, // 회피를 연달아 하지 않게
+      evadeCooldown: 1.8, // 회피를 연달아 하지 않게
       minStateTime: 0.6, // 상태 떨림 방지
       separationRadius: 150,
       separationWeight: 1.6,
-      tokenCooldown: 1.5, // 공격을 마친 뒤 다시 차례를 받기까지
+      tokenCooldown: 0.8, // 공격을 마친 뒤 다시 차례를 받기까지
     },
 
     weapon: {
       interval: 1.2, // 연발 사이 간격
       burst: 3, // 한 번에 쏘는 발 수(짧은 연발)
       burstGap: 0.11,
-      range: 850,
-      cone: 11, // 기수와 조준 방향이 이 각도 안일 때만 발사(도)
+      range: 950,
+      cone: 14, // 기수와 조준 방향이 이 각도 안일 때만 발사(도)
       bulletSpeed: 520,
       bulletLife: 2.4,
       damage: 5,
       accuracy: 0.35, // 플레이어 근처로 향하는 탄의 비율
       nearSpread: 6, // 정확한 탄의 조준 오차(m)
       wideSpread: [22, 60], // 나머지 탄의 조준 오차(m)
-      firstShotDelay: [1.2, 2.4], // 등장 직후에는 쏘지 않는다
-      leadAccel: 0.85, // 선회 중인 플레이어의 가속도를 조준에 반영하는 비율
+      firstShotDelay: [0.8, 1.6], // 등장 직후에는 쏘지 않는다
+      leadAccel: 1.0, // 선회 중인 플레이어의 가속도를 조준에 반영하는 비율
       tracer: { length: 30, width: 0.5 },
     },
 

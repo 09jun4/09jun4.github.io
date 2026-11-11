@@ -50,7 +50,7 @@ export const MISSIONS = [
     summary: '적 주력 편대 5대를 전부 격추하라.',
     briefing: '적 주력 5대가 세 편대로 밀려온다. 수적으로 불리하다. 한 대씩 확실히 끊어 내고, 등 뒤를 내주지 마라. 체력은 회복되지 않는다.',
     parTime: 150,
-    maxAttackers: 2,
+    maxAttackers: 3,
     waves: [
       { count: 2, trigger: { type: 'start' } },
       { count: 2, trigger: { type: 'remaining', value: 1 } },

@@ -9,4 +9,5 @@ window.WORKS = [
   { title: 'Shoot to Survive', url: '/shoot-to-survive/', thumb: 'assets/thumbs/shoot-to-survive.jpg', date: '2026-11-05',
     desc: '무작위 미로에서 유령 10마리를 처리하는 로우폴리 공포 FPS' },
   { title: '선호의 여정', url: '/journey-of-sunho/', thumb: 'assets/thumbs/journey-of-sunho.jpg', date: '2026-11-05', desc: '학원 끝! 날씨와 돌발 상황을 뚫고 자전거로 귀가하는 3D 어드벤처' },
+  { title: 'KF-21 BORAMAE', url: '/kf21-boramae/', thumb: 'assets/thumbs/kf21-boramae.jpg', date: '2026-11-11', desc: '보라매를 몰고 적기를 격추하는 로우폴리 3D 전투기 슈팅' },
 ];

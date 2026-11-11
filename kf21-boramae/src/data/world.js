@@ -17,10 +17,10 @@ export const WORLD = {
 
   lighting: {
     sunColor: 0xfff2dc,
-    sunIntensity: 2.3,
+    sunIntensity: 2.1,
     skyColor: 0xd9ecff,
-    groundColor: 0x8fa3b3,
-    hemiIntensity: 1.55,
+    groundColor: 0xb4c6d4, // 바다·구름에서 올라오는 반사광: 기체 아랫면이 검게 죽지 않게 밝게
+    hemiIntensity: 2.3,
   },
 
   fog: { color: 0xc4e2f4, near: 2500, far: 34000 },
