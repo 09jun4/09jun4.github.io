@@ -15,6 +15,7 @@ export const debugState = {
   invincible: false,
   showFps: false,
   freezeEnemies: false,
+  passiveEnemies: false,
 };
 
 /**
@@ -33,6 +34,8 @@ export function installDebug(api) {
     showFps: (on = true) => { debugState.showFps = !!on; api.onShowFps(debugState.showFps); return debugState.showFps; },
     /** 적기 정지(모델·조준 확인용) */
     freezeEnemies: (on = true) => { debugState.freezeEnemies = !!on; return debugState.freezeEnemies; },
+    /** 적기 AI 끄기(직진만 한다): 락온·사격 시험용 */
+    passiveEnemies: (on = true) => { debugState.passiveEnemies = !!on; return debugState.passiveEnemies; },
     ...api.extra,
   };
   window.__debug = hook;

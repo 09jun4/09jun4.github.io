@@ -1,4 +1,4 @@
-// KF-21 BORAMAE — 조립 지점. (마일스톤 5: 적 AI + 편대 + 충돌/피격)
+// KF-21 BORAMAE — 조립 지점. (마일스톤 6: 미사일)
 import * as THREE from 'three';
 import { GameLoop } from './core/game-loop.js';
 import { StateMachine } from './core/state-machine.js';
@@ -12,6 +12,7 @@ import { PLAYER_AIRCRAFT } from './data/aircraft.js';
 import { CAMERA } from './data/camera.js';
 import { WORLD } from './data/world.js';
 import { MISSIONS } from './data/missions.js';
+import { LOADOUT } from './data/weapons.js';
 import { createKF21, KF21_POINTS } from './entities/kf21-model.js';
 import { createCockpit } from './entities/cockpit.js';
 import { Player } from './entities/player.js';
@@ -37,7 +38,7 @@ const rig = new CameraRig(camera, CAMERA, KF21_POINTS.eye);
 
 const input = new Input();
 input.attach(stage);
-const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: ['gun'] });
+const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 session.startShowcase();
 
 const fsm = new StateMachine(TRANSITIONS);
@@ -89,7 +90,7 @@ if (isDebugEnabled()) {
     extra: {
       state: () => ({
         state: fsm.name, mode: session.mode, phase: session.phase, tick: loop.tick, frame: loop.frame, view: session.view,
-        hp: player.hp, stats: { ...session.stats }, weapon: { ...session.weapons.uiState() }, alive: session.enemies.aliveCount,
+        hp: player.hp, stats: { ...session.stats }, weapon: { ...session.weapons.uiState(), target: undefined }, alive: session.enemies.aliveCount,
         particles: session.fx.activeParticles, info: { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries },
       }),
       flight: () => { const f = player.flight; return { x: f.pos.x, y: f.pos.y, z: f.pos.z, yaw: f.yaw, pitch: f.pitch, roll: f.roll, speed: f.speed }; },

@@ -40,6 +40,8 @@ export const WEAPONS = {
     },
     smokeEvery: 0.022,
     dropOffset: 1.3, // 기체 아래로 떨어뜨려 발사
+    pool: 6, // 동시에 날아다닐 수 있는 발 수
+    visual: { length: 5.2, radius: 0.24 }, // 눈에 띄도록 실물보다 크게
   },
 };
 

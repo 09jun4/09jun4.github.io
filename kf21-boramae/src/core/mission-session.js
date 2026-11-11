@@ -12,6 +12,7 @@ import { Effects } from '../entities/effects.js';
 import { KF21_POINTS } from '../entities/kf21-model.js';
 import { WeaponSystem } from '../combat/weapon-system.js';
 import '../combat/gun.js';
+import '../combat/missile.js';
 import { Projectiles } from '../combat/projectiles.js';
 import { damageEnemy, damagePlayer } from '../combat/damage.js';
 import { EnemyDirector } from '../ai/enemy-ai.js';
@@ -82,6 +83,7 @@ export class MissionSession {
     this.ctx = {
       player,
       enemies: this.enemies.list,
+      scene,
       fx: this.fx,
       projectiles: this.projectiles,
       rig,
@@ -103,6 +105,7 @@ export class MissionSession {
       onPlayerHit(amount, kind) { self._onPlayerHit(amount, kind); },
       onPlayerKilled() { self._onPlayerKilled(); },
     };
+    this.weapons.init(this.ctx);
     this.resize(this.viewport.w, this.viewport.h);
   }
 
@@ -286,7 +289,7 @@ export class MissionSession {
       this._updateAim();
       const trigger = active && player.alive && (this.triggerOverride ?? this.input.mouse.down);
       this.weapons.update(dt, this.ctx, trigger);
-      if (!debugState.freezeEnemies) this.director.step(dt, this.ctx);
+      if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);
       this.projectiles.step(dt, this.ctx);
       if (active) {
@@ -368,6 +371,7 @@ export class MissionSession {
     this.fx.shift(dx, dz);
     for (const e of this.enemies.list) e.shift(dx, dz);
     this.projectiles.shift(dx, dz);
+    this.weapons.shift(dx, dz);
   }
 
   // ── 렌더 프레임 ─────────────────────────────────────────────────────────
@@ -387,6 +391,7 @@ export class MissionSession {
 
   _renderProjectiles(alpha) {
     this.projectiles.render(alpha, this.fx.bolts);
+    this.weapons.render(alpha);
   }
 
   // ── 디버그 ──────────────────────────────────────────────────────────────
