@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 
 export function createTerrain(cfg, sky, sunDirection) {
-  const geo = buildGrid(cfg.size, cfg.segments);
+  let geo = buildGrid(cfg.size, cfg.segments);
+  let segments = cfg.segments;
   const c = cfg.colors;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -16,6 +17,7 @@ export function createTerrain(cfg, sky, sunDirection) {
       uBase: { value: new THREE.Vector2(1e9, 1e9) }, // 격자 기준 공군기지 위치
       uBaseH: { value: 0 },
       uBaseR: { value: new THREE.Vector2(1, 2) },
+      uDetail: { value: 0 }, // 1이면 잔굴곡·색 변화·바다 반짝임을 더한다(높음·최고)
       uSunDir: { value: sunDirection.clone() },
       uFogColor: { value: new THREE.Color(sky.horizon) },
       uFog: { value: new THREE.Vector2(cfg.fogNear, cfg.fogFar) },
@@ -27,7 +29,8 @@ export function createTerrain(cfg, sky, sunDirection) {
     },
     vertexShader: /* glsl */ `
       uniform vec2 uOffset;
-      uniform float uCell, uPeriod, uHeight, uSea, uBaseH;
+      uniform float uCell, uPeriod, uHeight, uSea, uBaseH, uDetail;
+      varying float vSeaK;
       uniform vec2 uBase, uBaseR;
       uniform vec3 uSeaColor, uShore, uLow, uMid, uHigh;
       attribute vec2 aCenter;
@@ -50,6 +53,7 @@ export function createTerrain(cfg, sky, sunDirection) {
       }
       float landAt(vec2 w) {
         float n = vnoise(w, uPeriod) * 0.56 + vnoise(w * 2.0 + 17.0, uPeriod * 2.0) * 0.29 + vnoise(w * 4.0 + 41.0, uPeriod * 4.0) * 0.15;
+        n += uDetail * (vnoise(w * 9.0 + 3.0, uPeriod * 9.0) - 0.5) * 0.05 * step(uSea, n);
         return max(n - uSea, 0.0) / (1.0 - uSea);
       }
       void main() {
@@ -69,7 +73,10 @@ export function createTerrain(cfg, sky, sunDirection) {
           col = mix(col, uMid, smoothstep(0.1, 0.32, lc));
           col = mix(col, uHigh, smoothstep(0.34, 0.6, lc));
           col *= 0.86 + 0.28 * jitter;
+          // 숲·밭처럼 보이는 큰 얼룩
+          col = mix(col, col * vec3(0.78, 0.9, 0.74), uDetail * smoothstep(0.45, 0.7, vnoise(wc * 6.0 + 9.0, uPeriod * 6.0)) * 0.6);
         }
+        vSeaK = lc > 0.0 ? 0.0 : 1.0;
         vColor = col;
         vWorld = pos;
         gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
@@ -77,12 +84,18 @@ export function createTerrain(cfg, sky, sunDirection) {
     fragmentShader: /* glsl */ `
       uniform vec3 uSunDir, uFogColor;
       uniform vec2 uFog;
+      uniform float uDetail;
+      varying float vSeaK;
       varying vec3 vColor;
       varying vec3 vWorld;
       void main() {
         vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
         float light = 0.5 + 0.6 * max(dot(n, uSunDir), 0.0);
         vec3 col = vColor * light;
+        // 바다: 해 쪽으로 반짝이고 먼 곳은 하늘빛을 띤다
+        vec3 vd = normalize(cameraPosition - vWorld);
+        float glint = pow(max(dot(reflect(-uSunDir, vec3(0.0, 1.0, 0.0)), vd), 0.0), 48.0);
+        col += uDetail * vSeaK * (vec3(1.0, 0.95, 0.8) * glint * 1.6 + vec3(0.25, 0.4, 0.55) * pow(1.0 - max(vd.y, 0.0), 4.0) * 0.5);
         float fog = smoothstep(uFog.x, uFog.y, distance(vWorld, cameraPosition));
         gl_FragColor = vec4(mix(col, uFogColor, fog), 1.0);
         #include <colorspace_fragment>
@@ -92,7 +105,7 @@ export function createTerrain(cfg, sky, sunDirection) {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   mesh.name = 'terrain';
-  const cell = cfg.size / cfg.segments;
+  let cell = cfg.size / cfg.segments;
   const worldPeriod = cfg.noiseCell * cfg.noisePeriod;
 
   /**
@@ -107,8 +120,18 @@ export function createTerrain(cfg, sky, sunDirection) {
     mat.uniforms.uOffset.value.set(((tx % worldPeriod) + worldPeriod) % worldPeriod, ((tz % worldPeriod) + worldPeriod) % worldPeriod);
   }
   /** 기지 주변을 평평하게 만들 범위 */
+  /** 격자 분할 수를 바꾼다(프리셋 전환). 지오메트리를 버리고 다시 만든다. */
+  function setSegments(n) {
+    mat.uniforms.uDetail.value = n > cfg.segments ? 1 : 0;
+    if (n === segments) return;
+    segments = n;
+    geo.dispose();
+    geo = buildGrid(cfg.size, n);
+    mesh.geometry = geo;
+    cell = cfg.size / n;
+  }
   function setBase(height, r0, r1) { mat.uniforms.uBaseH.value = height; mat.uniforms.uBaseR.value.set(r0, r1); }
-  return { mesh, update, setBase, triangles: cfg.segments * cfg.segments * 2 };
+  return { mesh, update, setBase, setSegments, get triangles() { return segments * segments * 2; } };
 }
 
 /**

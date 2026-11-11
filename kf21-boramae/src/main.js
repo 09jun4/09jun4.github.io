@@ -97,6 +97,8 @@ async function applyPreset(name, cfg) {
   if (post) { post.dispose(); post = null; }
   if (cfg.post) post = new PostFX(renderer, cfg.post, WORLD.post);
   world.setShadows(renderer, cfg.shadowMap);
+  world.setCloudStyle(cfg.cloudStyle === 'soft' ? 'soft' : 'lowpoly', cfg.cloudLayers);
+  world.setTerrainDetail(cfg.terrainSegments);
   // 파티클: 낮음은 CPU 인스턴싱, 높음·최고는 GPU 셰이더(소프트 파티클)
   session.fx.setBackend(cfg.particleCapacity ? new GpuParticles(cfg.particleCapacity, world.sunDirection) : null, cfg.particleScale);
   postFrame.particleLayer = cfg.particleCapacity ? PARTICLE_LAYER : 0;

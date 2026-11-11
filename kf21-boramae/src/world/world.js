@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createSky } from './sky.js';
 import { createClouds } from './clouds.js';
+import { createSoftClouds } from './clouds-soft.js';
 import { createTerrain } from './backdrop-terrain.js';
 import { createLighting } from './lighting.js';
 import { createAirbase } from './airbase.js';
@@ -11,6 +12,8 @@ export class World {
   /** @param {THREE.Scene} scene @param {object} cfg data/world.js 의 WORLD */
   constructor(scene, cfg) {
     this.cfg = cfg;
+    this.scene = scene;
+    this.softClouds = null;
     this.sunDirection = new THREE.Vector3().fromArray(cfg.sky.sunDirection).normalize();
     // 실제 좌표 = 렌더 좌표 + origin. 배정밀도로 누적하므로 얼마든지 멀리 갈 수 있다.
     this.origin = { x: 0, z: 0 };
@@ -45,7 +48,7 @@ export class World {
 
   /** 렌더 프레임마다: 카메라 기준으로 유니폼 갱신 */
   update(camera) {
-    this.clouds.update(camera.position, this.origin);
+    if (this.softClouds) this.softClouds.update(camera.position, this.origin); else this.clouds.update(camera.position, this.origin);
     this.terrain.update(camera.position, this.origin, this.base);
     this.airbase.group.position.set(this.base.x - this.origin.x, this.base.height, this.base.z - this.origin.z);
   }
@@ -76,11 +79,27 @@ export class World {
     sun.target.updateMatrixWorld();
   }
 
+  /** 구름 방식 전환: 'lowpoly'(낮음) | 'soft'(높음·최고, sprites = 덩이당 판 수) */
+  setCloudStyle(style, sprites) {
+    if (this.softClouds) { this.scene.remove(this.softClouds.group); this.softClouds.dispose(); this.softClouds = null; }
+    if (style === 'soft') {
+      this.softClouds = createSoftClouds(this.cfg.clouds, this.cfg.sky, this.sunDirection, sprites);
+      this.scene.add(this.softClouds.group);
+    }
+    this.clouds.group.visible = style !== 'soft';
+  }
+
+  /** 지형 격자 분할 수(프리셋에 따라) */
+  setTerrainDetail(segments) {
+    this.terrain.setSegments(segments);
+  }
+
   setCloudFraction(f) {
+    if (this.softClouds) this.softClouds.setFraction(f);
     this.clouds.setFraction(f);
   }
 
   get triangles() {
-    return this.clouds.triangles + this.terrain.triangles + 1280;
+    return (this.softClouds ? this.softClouds.triangles : this.clouds.triangles) + this.terrain.triangles + 1280;
   }
 }

@@ -34,6 +34,8 @@ export const WORLD = {
     lit: 0xffffff,
     shade: 0xb9cbdc,
     under: 0x93aac0,
+    // 부드러운 구름(높음·최고)의 색: 햇빛 받은 쪽, 그늘, 밑면, 해를 등진 가장자리의 림
+    soft: { lit: 0xffffff, shade: 0xb4c6d8, under: 0xa9bacb, rim: 0xfff0cf, opacity: 0.92 },
     fogNear: 5000,
     fogFar: 26000,
     // 큰 구름층: 여러 높이·거리에 불규칙 배치. period 안에서 순환하므로 끝없이 이어진다.
