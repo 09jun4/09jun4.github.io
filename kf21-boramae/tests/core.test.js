@@ -71,3 +71,24 @@ describe('math', () => {
     expect(r1()).toBe(r2());
   });
 });
+
+import { recommendPreset } from '../src/core/benchmark.js';
+import { PRESETS, PRESET_ORDER, BUDGET, BENCHMARK } from '../src/data/quality.js';
+describe('그래픽 프리셋', () => {
+  it('벤치마크 결과 → 추천 프리셋', () => {
+    expect(recommendPreset(2, 'ANGLE (NVIDIA GeForce RTX 4070)')).toBe('ultra');
+    expect(recommendPreset(8, 'ANGLE (NVIDIA GeForce GTX 1650)')).toBe('high');
+    expect(recommendPreset(25, 'ANGLE (Intel UHD Graphics)')).toBe('low');
+    expect(recommendPreset(1, 'Google SwiftShader')).toBe('low'); // 소프트웨어 렌더러
+    expect(recommendPreset(Infinity, '')).toBe('low');
+    expect(BENCHMARK.ultraBelowMs).toBeLessThan(BENCHMARK.highBelowMs);
+  });
+  it('프리셋 정의: 낮음은 후처리 없음, 자동 조절 순서는 최고→높음→낮음→min', () => {
+    expect(PRESET_ORDER).toEqual(['ultra', 'high', 'low', 'min']);
+    expect(PRESETS.low.post).toBe(null);
+    expect(PRESETS.min.post).toBe(null);
+    expect(PRESETS.high.post).toBeTruthy();
+    expect(PRESETS.ultra.detail).toBeGreaterThan(PRESETS.high.detail);
+    expect(BUDGET.low.triangles).toBe(100000);
+  });
+});

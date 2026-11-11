@@ -203,3 +203,14 @@ input[type="text"] { width: 100%; padding: 11px 12px; min-height: 44px; border: 
 .dialog > .hint, .dialog form > .hint, .dialog .hint[data-foot], .dialog .hint[data-lead] { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--ink-dim); }
 .dialog .hint[data-foot] { margin: 12px 0 0; }
 .dialog .hint b { color: var(--accent); }
+
+.seg.three { grid-template-columns: 1fr 1fr 1fr; }
+/* ── 로딩(고폴리 모델·텍스처 생성 중) ───────────────────────────────── */
+.loading { position: absolute; inset: 0; z-index: 80; display: grid; place-items: center; background: #06101a; color: var(--ink); }
+.loading-box { width: min(520px, 84vw); }
+.loading-title { margin: 0 0 14px; font: 600 14px var(--mono); letter-spacing: 0.16em; color: var(--accent); }
+.loading-bar { height: 6px; border: 1px solid var(--line-strong); border-radius: 3px; overflow: hidden; }
+.loading-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
+.loading-step { margin: 10px 0 0; min-height: 18px; font: 500 12px var(--mono); color: var(--ink-faint); }
+.loading-tip { margin: 26px 0 0; font-size: 15px; line-height: 1.6; color: var(--ink-dim); }
+.loading-tip b { display: block; margin-bottom: 4px; font: 600 11px var(--mono); letter-spacing: 0.14em; color: var(--ink-faint); }

@@ -33,7 +33,7 @@ const INAPP_UA = require('./lib/inapp-ua.cjs');
 
   // B) 가짜 SDK
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  await ctx.addInitScript(() => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ autoQuality: false })); } catch (e) { /* */ } });
+  await ctx.addInitScript(() => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ v: 2, autoQuality: false, benchmarked: true, quality: 'low', skipTakeoff: true })); } catch (e) { /* */ } });
   await ctx.addInitScript({ path: FAKE });
   g = await openGame(browser, origin, { context: ctx });
   const p = g.page;

@@ -84,7 +84,10 @@ describe('진행도 저장', () => {
 
 describe('설정', () => {
   it('기본값·범위 보정·저장', () => {
-    expect(normalizeSettings({ mouseSensitivity: 99, quality: 'ultra', view: 'x' })).toMatchObject({ mouseSensitivity: 2, quality: 'high', view: 'chase' });
+    expect(normalizeSettings({ v: 2, mouseSensitivity: 99, quality: 'weird', view: 'x', paint: 'pink' })).toMatchObject({ mouseSensitivity: 2, quality: 'low', view: 'chase', paint: 'grey' });
+    // v1의 품질 값은 의미가 달라서 버리고 벤치마크를 다시 하게 한다
+    expect(normalizeSettings({ v: 1, quality: 'high', mouseSensitivity: 1.3 })).toMatchObject({ quality: 'low', benchmarked: false, mouseSensitivity: 1.3 });
+    expect(normalizeSettings({ v: 2, quality: 'ultra', benchmarked: true, paint: 'urban', skipTakeoff: true })).toMatchObject({ quality: 'ultra', benchmarked: true, paint: 'urban', skipTakeoff: true });
     const st = memStorage();
     const s = new Settings(st);
     expect(s.values).toEqual(DEFAULT_SETTINGS);

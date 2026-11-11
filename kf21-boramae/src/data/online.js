@@ -20,4 +20,4 @@ export const RANKING = {
 
 export const SETTINGS_SYNC_DELAY = 1500; // 설정 변경 후 계정에 올리기까지(ms)
 /** 기기마다 다른 게 자연스러운 설정은 계정에 올리지 않는다 */
-export const DEVICE_ONLY_SETTINGS = ['quality', 'qualityStep', 'autoQuality'];
+export const DEVICE_ONLY_SETTINGS = ['quality', 'autoQuality', 'benchmarked'];

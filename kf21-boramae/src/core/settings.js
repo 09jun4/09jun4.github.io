@@ -1,5 +1,5 @@
 // 사용자 설정: localStorage에 저장(진행도와는 별도 키). 형식이 바뀌어도 기본값으로 메워서 읽는다.
-import { DEFAULT_SETTINGS, SETTINGS_VERSION, SETTING_RANGES } from '../data/settings.js';
+import { DEFAULT_SETTINGS, SETTINGS_VERSION, SETTING_RANGES, PAINTS } from '../data/settings.js';
 import { STORAGE_PREFIX } from '../data/app.js';
 import { clamp } from './math.js';
 
@@ -11,11 +11,16 @@ export function normalizeSettings(raw) {
   if (raw && typeof raw === 'object') {
     const r = SETTING_RANGES.mouseSensitivity;
     if (Number.isFinite(raw.mouseSensitivity)) s.mouseSensitivity = clamp(raw.mouseSensitivity, r.min, r.max);
-    if (raw.quality === 'high' || raw.quality === 'low') s.quality = raw.quality;
     if (typeof raw.autoQuality === 'boolean') s.autoQuality = raw.autoQuality;
-    if (Number.isInteger(raw.qualityStep) && raw.qualityStep >= 0) s.qualityStep = raw.qualityStep;
     if (typeof raw.cameraShake === 'boolean') s.cameraShake = raw.cameraShake;
     if (raw.view === 'chase' || raw.view === 'cockpit') s.view = raw.view;
+    // v1의 quality('high'|'low')는 의미가 달랐다(둘 다 로우폴리). v2부터만 그대로 읽고, 옛 값이면 벤치마크로 다시 고른다.
+    if (raw.v >= 2) {
+      if (['low', 'high', 'ultra', 'min'].includes(raw.quality)) s.quality = raw.quality;
+      if (typeof raw.benchmarked === 'boolean') s.benchmarked = raw.benchmarked;
+      if (PAINTS.some((p) => p.id === raw.paint)) s.paint = raw.paint;
+      if (typeof raw.skipTakeoff === 'boolean') s.skipTakeoff = raw.skipTakeoff;
+    }
   }
   s.v = SETTINGS_VERSION;
   return s;

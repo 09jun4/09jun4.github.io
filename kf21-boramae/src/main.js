@@ -30,6 +30,8 @@ import { createPause } from './ui/pause.js';
 import { createResult } from './ui/result.js';
 import { createSettingsDialog } from './ui/settings-panel.js';
 import { createOnline } from './auth/online.js';
+import { createLoading } from './ui/loading.js';
+import { runBenchmark } from './core/benchmark.js';
 
 const appEl = document.getElementById('app');
 const stage = document.getElementById('stage');
@@ -37,6 +39,7 @@ const uiEl = document.getElementById('ui');
 
 // ── 렌더러·월드·기체 ─────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.info.autoReset = false; // 후처리처럼 여러 번 그리는 프레임도 합계로 재기 위해 직접 초기화한다
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, CAMERA.far);
@@ -67,10 +70,17 @@ function resize() {
   session.resize(w, h);
   hud.resize(w, h);
 }
+const loading = createLoading(appEl);
+/** 프리셋 적용: 구름·파티클 양을 맞춘다(모델 교체는 이후 단계에서 visuals가 맡는다). */
+function applyPreset(name, cfg) {
+  world.setCloudFraction(cfg.clouds);
+  session.fx.setParticleFraction(cfg.particles);
+  resize();
+}
 const quality = new QualityManager({
-  renderer, world, fx: session.fx, settings,
-  onResize: resize,
-  onLowered: () => toast('화면이 느려서 그래픽 품질을 한 단계 낮췄어요. 설정에서 바꿀 수 있어요.'),
+  renderer, settings,
+  onApply: applyPreset,
+  onLowered: (name) => toast(`화면이 느려서 그래픽 품질을 낮췄어요(${quality.cfg.label}). 설정에서 바꿀 수 있어요.`),
 });
 window.addEventListener('resize', resize);
 settings.onChange((key, value) => {
@@ -172,9 +182,10 @@ const loop = new GameLoop({
   render(alpha, frameDt) {
     const paused = fsm.name === STATE.PAUSED;
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
+    renderer.info.reset();
     renderer.render(scene, camera);
     hud.render(session, camera, paused ? 0 : frameDt);
-    quality.frame(frameDt, !paused && !document.hidden);
+    quality.frame(frameDt, !paused && !document.hidden && !loading.visible);
     if (debugPanel) debugPanel(frameDt);
   },
 });
@@ -190,13 +201,23 @@ if (isDebugEnabled()) {
   let acc = 0;
   let frames = 0;
   let fps = 0;
+  let lastFrame = performance.now();
+  let sampler = null; // measure() 진행 중이면 프레임 시간을 모은다
   debugPanel = (dt) => {
+    const now = performance.now();
+    if (sampler) {
+      sampler.ms.push(now - lastFrame);
+      sampler.calls = Math.max(sampler.calls, renderer.info.render.calls);
+      sampler.tris = Math.max(sampler.tris, renderer.info.render.triangles);
+      if (now >= sampler.until) { const done = sampler; sampler = null; done.finish(); }
+    }
+    lastFrame = now;
     acc += dt; frames++;
     if (acc < 0.5) return;
     fps = frames / acc; acc = 0; frames = 0;
     if (debugState.showFps) {
       const i = renderer.info;
-      panel.textContent = `FPS ${fps.toFixed(0)}  step ${quality.step}\ncalls ${i.render.calls}  tris ${i.render.triangles}\ngeo ${i.memory.geometries}  tex ${i.memory.textures}\nparticles ${session.fx.activeParticles}  state ${fsm.name}`;
+      panel.textContent = `FPS ${fps.toFixed(0)}  preset ${quality.name}\ncalls ${i.render.calls}  tris ${i.render.triangles}\ngeo ${i.memory.geometries}  tex ${i.memory.textures}\nparticles ${session.fx.activeParticles}  state ${fsm.name}`;
     }
   };
   installDebug({
@@ -207,7 +228,7 @@ if (isDebugEnabled()) {
       state: () => ({
         state: fsm.name, mode: session.mode, phase: session.phase, tick: loop.tick, frame: loop.frame, view: session.view, fps,
         hp: player.hp, stats: { ...session.stats }, weapon: { ...session.weapons.uiState(), target: undefined }, alive: session.enemies.aliveCount,
-        total: session.total, mission: session.mission && session.mission.id, quality: quality.step, busy: screens.busy,
+        total: session.total, mission: session.mission && session.mission.id, quality: quality.name, busy: screens.busy,
         particles: session.fx.activeParticles,
         info: { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length },
       }),
@@ -244,11 +265,42 @@ if (isDebugEnabled()) {
       save: () => save,
       settings: () => settings,
       quality: () => quality,
+      /** seconds 동안 FPS(평균·최저)·드로우콜·삼각형 수를 잰다. */
+      measure: (seconds = 3) => new Promise((resolve) => {
+        sampler = {
+          ms: [], calls: 0, tris: 0, until: performance.now() + seconds * 1000,
+          finish() {
+            const ms = this.ms.slice(1).sort((x, y) => x - y);
+            const avg = ms.reduce((x, y) => x + y, 0) / Math.max(1, ms.length);
+            const worst = ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] || 0; // 하위 1% 프레임
+            resolve({ preset: quality.name, frames: ms.length, fpsAvg: +(1000 / avg).toFixed(1), fpsMin: +(1000 / worst).toFixed(1), drawCalls: this.calls, triangles: this.tris, pixelRatio: renderer.getPixelRatio() });
+          },
+        };
+      }),
+      benchmark: (force) => runBenchmark(renderer, null, force),
+      setQuality: (name) => quality.setQuality(name, true),
       online: () => online,
     },
   });
 }
 
+// ── 시작: 첫 실행이면 벤치마크로 프리셋을 고른 뒤 적용한다 ───────────────
 resize();
+if (!settings.get('benchmarked')) {
+  loading.show('그래픽 성능 확인 중');
+  loading.progress(0, '이 기기에 맞는 그래픽 품질을 고르고 있어요');
+  await new Promise((r) => requestAnimationFrame(r));
+  let pick = 'low';
+  try {
+    const result = await runBenchmark(renderer, (f) => loading.progress(f * 0.9));
+    pick = result.preset;
+    if (debugState.enabled) console.info('[KF21] benchmark', result);
+  } catch (e) { console.warn('[KF21] 벤치마크 실패, 낮음으로 시작해요', e); }
+  quality.name = pick;
+  settings.set('quality', pick);
+  settings.set('benchmarked', true);
+  loading.hide();
+}
+await quality.apply();
 loop.start();
 window.__kf21Ready = true;
