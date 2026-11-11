@@ -1,0 +1,37 @@
+/* KF-21 BORAMAE — 화면 스타일. 팔레트: 하늘 청색 + 기체 회색 + 적색 포인트, HUD는 청록 단색. */
+:root {
+  --ink: #e8f1f8;
+  --ink-dim: #9fb4c6;
+  --ink-faint: #6b8296;
+  --panel: rgba(9, 20, 32, 0.78);
+  --panel-solid: #0c1a28;
+  --line: rgba(160, 200, 230, 0.26);
+  --line-strong: rgba(180, 220, 245, 0.6);
+  --accent: #6fe3d2;
+  --accent-ink: #062822;
+  --danger: #ff5a4d;
+  --warn: #ffb347;
+  --ok: #7dffa0;
+  --sky: #5aa7e6;
+  --font: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'D2Coding', 'Consolas', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b1622; color: var(--ink); font-family: var(--font); overflow: hidden; }
+#app { position: fixed; inset: 0; overflow: hidden; user-select: none; -webkit-user-select: none; }
+#stage, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+#damage { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 40, 30, 0) 52%, rgba(255, 40, 30, 0.55) 100%); }
+#ui { position: absolute; inset: 0; pointer-events: none; }
+#ui > * { pointer-events: auto; }
+#fade { position: absolute; inset: 0; background: #06101a; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 50; }
+#fade.on { opacity: 1; pointer-events: auto; }
+#app.playing #stage { cursor: none; }
+.noscript { position: fixed; inset: 0; display: grid; place-items: center; }
+#toast { position: absolute; left: 50%; bottom: 6%; transform: translate(-50%, 12px); max-width: min(560px, 86vw);
+  padding: 10px 16px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 4px;
+  font-size: 14px; line-height: 1.5; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60; }
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+.debug-panel { position: absolute; left: 8px; top: 8px; padding: 6px 8px; font: 12px/1.45 var(--mono); color: #d7ffe9;
+  background: rgba(0, 0, 0, 0.55); border-radius: 3px; white-space: pre; pointer-events: none; z-index: 70; }

@@ -1,0 +1,20 @@
+{
+  "name": "kf21-boramae",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "KF-21 BORAMAE — 3D 전투기 슈팅 (Three.js + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "vendor": "node scripts/vendor.mjs",
+    "test": "vitest run",
+    "smoke": "node tests/smoke.cjs"
+  },
+  "devDependencies": {
+    "three": "^0.187.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

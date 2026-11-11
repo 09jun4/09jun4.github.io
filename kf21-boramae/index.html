@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KF-21 BORAMAE</title>
+<meta name="description" content="KF-21 보라매를 몰고 적기를 격추하는 3D 전투기 슈팅 게임">
+<meta name="theme-color" content="#0b1622">
+<link rel="stylesheet" href="./src/ui/style.css">
+<script type="importmap">
+{ "imports": { "three": "./js/vendor/three.min.js" } }
+</script>
+<link rel="modulepreload" href="./js/vendor/three.min.js">
+</head>
+<body>
+<div id="app">
+  <div id="stage" aria-hidden="true"></div>
+  <canvas id="hud" aria-hidden="true"></canvas>
+  <div id="damage" aria-hidden="true"></div>
+  <div id="ui"></div>
+  <div id="fade" aria-hidden="true"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+<noscript><p class="noscript">이 게임은 자바스크립트가 켜져 있어야 실행돼요.</p></noscript>
+<script src="./js/firebase-config.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
