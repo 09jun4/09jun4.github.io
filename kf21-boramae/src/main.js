@@ -15,8 +15,8 @@ import { CAMERA } from './data/camera.js';
 import { WORLD } from './data/world.js';
 import { MISSIONS } from './data/missions.js';
 import { LOADOUT } from './data/weapons.js';
-import { createKF21, KF21_POINTS } from './entities/kf21-model.js';
-import { createCockpit } from './entities/cockpit.js';
+import { KF21_POINTS } from './entities/kf21-shape.js';
+import { Visuals } from './core/visuals.js';
 import { Player } from './entities/player.js';
 import { CameraRig } from './flight/camera-rig.js';
 import { World } from './world/world.js';
@@ -49,10 +49,9 @@ const storage = safeStorage();
 const settings = new Settings(storage);
 const save = new SaveData(storage);
 
-const model = createKF21(PLAYER_AIRCRAFT.model);
-const cockpit = createCockpit(KF21_POINTS.eye);
-const player = new Player(PLAYER_AIRCRAFT, model, cockpit);
-scene.add(model.group);
+const player = new Player(PLAYER_AIRCRAFT);
+scene.add(player.root);
+const visuals = new Visuals({ renderer, scene, world, player, settings, tuning: PLAYER_AIRCRAFT });
 const rig = new CameraRig(camera, CAMERA, KF21_POINTS.eye);
 rig.shakeEnabled = settings.get('cameraShake');
 
@@ -71,8 +70,19 @@ function resize() {
   hud.resize(w, h);
 }
 const loading = createLoading(appEl);
-/** 프리셋 적용: 구름·파티클 양을 맞춘다(모델 교체는 이후 단계에서 visuals가 맡는다). */
-function applyPreset(name, cfg) {
+/** 프리셋 적용: tier가 바뀌면 모델·재질을 통째로 다시 만들고(로딩 화면), 구름·파티클 양을 맞춘다. */
+async function applyPreset(name, cfg) {
+  if (visuals.tier !== cfg.tier) {
+    quality.busy = true;
+    const showBar = cfg.tier !== 'low'; // 낮음은 로딩 바 없이 바로
+    if (showBar) loading.show(`그래픽 준비 중 · ${cfg.label}`);
+    try {
+      await visuals.build(cfg, showBar ? (f, text) => loading.progress(f, text) : null);
+    } finally {
+      loading.hide();
+      quality.busy = false;
+    }
+  }
   world.setCloudFraction(cfg.clouds);
   session.fx.setParticleFraction(cfg.particles);
   resize();
@@ -85,6 +95,7 @@ const quality = new QualityManager({
 window.addEventListener('resize', resize);
 settings.onChange((key, value) => {
   if (key === 'cameraShake' || key === '*') rig.shakeEnabled = settings.get('cameraShake');
+  if (key === 'paint' || key === '*') visuals.setPaint(settings.get('paint'));
   void value;
 });
 
@@ -260,7 +271,8 @@ if (isDebugEnabled()) {
       origin: () => ({ ...world.origin }),
       setOrigin: (x, z) => { world.origin.x = x; world.origin.z = z; },
       teleport: (x, y, z, yaw = 0) => { player.reset({ x, y, z, yaw }); rig.snap = true; },
-      controls: (p, t) => { model.setControls(p, t, 10); },
+      controls: (p, t) => { visuals.current.model.setControls(p, t, 10); },
+      visuals: () => visuals,
       session: () => session,
       save: () => save,
       settings: () => settings,

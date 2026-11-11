@@ -7,6 +7,7 @@ const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 const _q = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 const _up = new THREE.Vector3();
+const _at = new THREE.Vector3();
 
 export const VIEW = { CHASE: 'chase', COCKPIT: 'cockpit', ORBIT: 'orbit' };
 
@@ -137,10 +138,14 @@ export class CameraRig {
     const cam = this.camera;
     const cp = Math.cos(f.pitch * DEG);
     _v.set(Math.sin(f.yaw * DEG) * cp, Math.sin(f.pitch * DEG), Math.cos(f.yaw * DEG) * cp).multiplyScalar(f.dist).applyQuaternion(t.quat).add(t.pos);
-    cam.position.copy(_v);
+    // at: 기체 좌표계에서 바라볼 지점(기본은 원점)
+    _at.set(0, 0, 0);
+    if (f.at) _at.fromArray(f.at).applyQuaternion(t.quat);
+    _at.add(t.pos);
+    cam.position.copy(_v).add(_at).sub(t.pos);
     _up.set(0, Math.abs(f.pitch) > 80 ? 0 : 1, Math.abs(f.pitch) > 80 ? -1 : 0).applyQuaternion(t.quat);
     cam.up.copy(_up);
-    cam.lookAt(t.pos);
+    cam.lookAt(_at);
     cam.up.set(0, 1, 0);
     this._setFov(f.fov || 30);
   }

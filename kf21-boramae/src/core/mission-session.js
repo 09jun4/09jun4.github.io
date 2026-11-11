@@ -59,7 +59,7 @@ export class MissionSession {
     this.aim = { origin: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1) };
 
     this.fx = new Effects(scene, FX);
-    player.model.group.add(this.fx.muzzle);
+    player.root.add(this.fx.muzzle);
     this.fx.muzzle.position.copy(KF21_POINTS.muzzle);
     this.fx.muzzle.position.z -= 0.6;
 
@@ -218,7 +218,7 @@ export class MissionSession {
   }
 
   _onPlayerKilled() {
-    this.player.model.group.visible = false;
+    this.player.root.visible = false;
     if (this.phase !== PHASE.ACTIVE) return;
     this.phase = PHASE.ENDING;
     this.success = false;

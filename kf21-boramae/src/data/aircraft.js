@@ -71,6 +71,8 @@ export const KF21 = {
   // 모델 연출
   model: {
     surfaces: { tau: 0.09, elevator: 22, aileron: 24, rudder: 22, stabRollMix: 0.35 },
+    // 하이폴리 모델의 작동 부품
+    hi: { flapAngle: 24, flapTau: 0.7, brakeAngle: 48, brakeTau: 0.35, canopyAngle: 36, nozzleClosed: 0.24, nozzleOpen: 0.02, strobePeriod: 1.1, strobeOn: 0.09 },
     exhaust: { tau: 0.5, lengthMin: 2.4, lengthMax: 6.5, powerMin: 0.5, powerMax: 0.95, flickerHz: 31, flicker: 0.05 },
   },
 };
