@@ -8,6 +8,7 @@ import { createCockpit } from '../entities/cockpit.js';
 import { createGear } from '../entities/gear.js';
 import { createKF21Hi } from '../entities/hi/kf21-hi.js';
 import { createPilot } from '../entities/hi/pilot.js';
+import { createCockpitHi } from '../entities/hi/cockpit-hi.js';
 import { createAircraftTextures, PAINT_SCHEMES } from '../entities/hi/textures.js';
 import { PALETTE } from '../data/palette.js';
 
@@ -94,7 +95,7 @@ export class Visuals {
       const pilot = createPilot(cfg.detail);
       const model = createKF21Hi({ detail: cfg.detail, tuning: this.tuning.model, textures, pilot });
       await step(0.8, '조종석을 만드는 중');
-      const cockpit = createCockpit(KF21_POINTS.eye);
+      const cockpit = createCockpitHi(KF21_POINTS.eye, cfg.detail);
       this.current = { model, cockpit, textures, pilot, extras: [] };
     }
     this.player.setModel(this.current.model, this.current.cockpit);

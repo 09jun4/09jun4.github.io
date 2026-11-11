@@ -129,8 +129,12 @@ export class Hud {
     this._setDamage(Math.max(fb.hit * 0.9, low ? 0.22 + 0.12 * Math.sin(this.time * 5) : 0));
 
     if (player.alive) {
-      this._attitude(camera);
-      this._tapes(view, player, W, H, blink);
+      const cockpit = player.cockpit;
+      if (player.cockpitView && cockpit && cockpit.hudCanvas) this._glass(cockpit, view, player, W, H, blink);
+      else {
+        this._attitude(camera.matrixWorld.elements, 1);
+        this._tapes(view, player, W, H, blink, Math.min(HUD.tape.offsetX, W - 120), 1);
+      }
     }
     this._enemies(session, camera, W, H);
     if (player.alive && session.phase === PHASE.ACTIVE) this._weaponAim(session, camera, W, H);
@@ -139,16 +143,36 @@ export class Hud {
   }
 
   /** 수평선·피치 사다리(기체 롤만큼 기울어진다) */
-  _attitude(camera) {
+  /**
+   * 1인칭(하이폴리 조종석): 자세·속도·고도 기호를 2D 오버레이가 아니라 HUD 유리판 뒤의 가상 면 텍스처에 그린다.
+   * 기체에 고정된 면이라 머리가 움직이면 기호가 조종석 틀에 대해 미세하게 어긋나 보인다(시차).
+   */
+  _glass(cockpit, view, player, W, H, blink) {
+    const cv = cockpit.hudCanvas;
+    if (!this._glassCtx || this._glassCanvas !== cv) { this._glassCanvas = cv; this._glassCtx = cv.getContext('2d'); }
+    const main = this.g;
+    const gg = this._glassCtx;
+    this.g = gg;
+    gg.setTransform(1, 0, 0, 1, 0, 0);
+    gg.clearRect(0, 0, cv.width, cv.height);
+    const f = cv.width / (HUD.glass.spanDeg * HUD.ladder.pxPerDeg); // 기준 단위 1 = 1/pxPerDeg 도
+    gg.setTransform(f, 0, 0, f, cv.width / 2, cv.height / 2);
+    this._attitude(player.root.matrixWorld.elements, HUD.glass.ladderScale);
+    this._tapes(view, player, W, H, blink, HUD.glass.tapeX, HUD.glass.tapeScale);
+    this.g = main;
+    cockpit.hudTexture.needsUpdate = true;
+  }
+
+  _attitude(m, widthScale) {
     const g = this.g;
     const L = HUD.ladder;
-    // 카메라 기준으로 그려서 실제 수평선과 겹치게 한다(1인칭에서는 곧 기체 자세)
-    const m = camera.matrixWorld.elements;
+    const halfWidth = L.halfWidth * widthScale;
+    // 기준 축(3인칭은 카메라, 1인칭은 기체)으로 그려서 실제 수평선과 겹치게 한다
     const pitchDeg = Math.asin(clamp(-m[9], -1, 1)) * RAD; // 카메라 전방(-z축)의 y
     const camRoll = Math.atan2(m[1], m[5]); // 카메라 오른쪽·위쪽 축의 y 성분
     g.save();
     g.beginPath();
-    g.rect(-L.halfWidth - 60, -150, (L.halfWidth + 60) * 2, 300);
+    g.rect(-halfWidth - 60, -150 * Math.max(0.7, widthScale), (halfWidth + 60) * 2, 300 * Math.max(0.7, widthScale));
     g.clip();
     g.rotate(camRoll);
     const first = Math.ceil((pitchDeg - L.range) / L.stepDeg) * L.stepDeg;
@@ -156,18 +180,18 @@ export class Hud {
       const y = (pitchDeg - d) * L.pxPerDeg;
       g.beginPath();
       if (d === 0) {
-        g.moveTo(-L.halfWidth - 46, y); g.lineTo(-L.gap, y);
-        g.moveTo(L.gap, y); g.lineTo(L.halfWidth + 46, y);
+        g.moveTo(-halfWidth - 46 * widthScale, y); g.lineTo(-L.gap, y);
+        g.moveTo(L.gap, y); g.lineTo(halfWidth + 46 * widthScale, y);
         this._line(HUD.color);
       } else {
         const tick = d > 0 ? 7 : -7;
         if (d < 0) g.setLineDash([7, 5]);
-        g.moveTo(-L.halfWidth, y + tick); g.lineTo(-L.halfWidth, y); g.lineTo(-L.gap, y);
-        g.moveTo(L.halfWidth, y + tick); g.lineTo(L.halfWidth, y); g.lineTo(L.gap, y);
+        g.moveTo(-halfWidth, y + tick); g.lineTo(-halfWidth, y); g.lineTo(-L.gap, y);
+        g.moveTo(halfWidth, y + tick); g.lineTo(halfWidth, y); g.lineTo(L.gap, y);
         this._line(HUD.dim);
         g.setLineDash([]);
-        this._text(String(Math.abs(d)), -L.halfWidth - 8, y, 11, HUD.dim, 'right');
-        this._text(String(Math.abs(d)), L.halfWidth + 8, y, 11, HUD.dim, 'left');
+        this._text(String(Math.abs(d)), -halfWidth - 8, y, 11, HUD.dim, 'right');
+        this._text(String(Math.abs(d)), halfWidth + 8, y, 11, HUD.dim, 'left');
       }
     }
     g.restore();
@@ -178,12 +202,14 @@ export class Hud {
   }
 
   /** 속도(왼쪽)·고도(오른쪽) */
-  _tapes(view, player, W, H, blink) {
+  _tapes(view, player, W, H, blink, x, scale) {
     const g = this.g;
     const T = HUD.tape;
-    const x = Math.min(T.offsetX, W - 120);
     const draw = (sign, value, unit, label, warn) => {
-      const cx = sign * x;
+      g.save();
+      g.translate(sign * x, 0);
+      g.scale(scale, scale);
+      const cx = 0;
       const color = warn ? (blink ? HUD.warn : HUD.dim) : HUD.color;
       // 눈금 띠
       g.beginPath();
@@ -205,6 +231,7 @@ export class Hud {
       this._line(color);
       this._text(String(Math.round(value)), cx, 1, 16, color, 'center', false, 600);
       this._text(label, cx, -26, 10, HUD.dim, 'center');
+      g.restore();
     };
     const sp = player.cfg.speed;
     draw(-1, view.speed, 10, TEXT.speed, view.speed < sp.min + 6);

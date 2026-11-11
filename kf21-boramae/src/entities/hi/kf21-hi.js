@@ -9,6 +9,7 @@ import { hingeFrame, deflect } from '../kf21-model.js';
 import { createGear } from '../gear.js';
 import { PALETTE } from '../../data/palette.js';
 import { DEG, damp, lerp, clamp01 } from '../../core/math.js';
+import { COCKPIT_DIM } from './cockpit-hi.js';
 
 const P = PALETTE.kf21;
 const TAU = Math.PI * 2;
@@ -402,6 +403,17 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
   // ── 배기(6단계에서 불꽃 셰이더로 교체) ──
   const flame = { mesh: null, set() {} };
 
+  // ── 1인칭용 잘라내기: 동체 외피가 조종석 안을 가리지 않게, 조종석 상자 안쪽만 그리지 않는다 ──
+  const eye = KF21_POINTS.eye;
+  const cut = COCKPIT_DIM.cut;
+  const localPlanes = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), -(eye.x + cut.max[0])), new THREE.Plane(new THREE.Vector3(-1, 0, 0), eye.x + cut.min[0]),
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), -(eye.y + cut.max[1])), new THREE.Plane(new THREE.Vector3(0, -1, 0), eye.y + cut.min[1]),
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), -(eye.z + cut.max[2])), new THREE.Plane(new THREE.Vector3(0, 0, -1), eye.z + cut.min[2]),
+  ];
+  const worldPlanes = localPlanes.map((p) => p.clone());
+  let cockpitView = false;
+
   // ── 상태 ──
   const st = { elevator: 0, aileron: 0, rudder: 0, flap: 0, brake: 0, canopy: 0, gear: 0, power: 0.3, heat: 0.2 };
   const lim = tuning.surfaces;
@@ -449,6 +461,10 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
     // 충돌방지등: 1초에 한 번 짧게 번쩍
     const blink = (o.time % h.strobePeriod) < h.strobeOn;
     for (const s of strobes) s.visible = blink;
+    if (cockpitView) {
+      group.updateWorldMatrix(true, false);
+      for (let i = 0; i < 6; i++) worldPlanes[i].copy(localPlanes[i]).applyMatrix4(group.matrixWorld);
+    }
     if (pilot) pilot.setHead(o.headYaw || 0, o.dt);
     flame.set(st.power, o.boost, o.time, o.dt);
   }
@@ -471,9 +487,13 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
     materials: { bodyMat, glassMat, nozMat },
     /** 1인칭: 유리 바깥면·조종사 머리를 숨긴다(날개·기수는 보이게 둔다) */
     setCockpitView(on) {
+      cockpitView = on;
       glass.visible = !on;
       frame.visible = !on;
       if (pilot) pilot.group.visible = !on;
+      bodyMat.clippingPlanes = on ? worldPlanes : null;
+      bodyMat.clipIntersection = true;
+      bodyMat.needsUpdate = true;
     },
     attachFlame(f) { flame.mesh = f.mesh; flame.set = f.set; exterior.add(f.mesh); },
     dispose() {

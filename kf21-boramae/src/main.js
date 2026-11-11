@@ -39,6 +39,7 @@ const uiEl = document.getElementById('ui');
 
 // ── 렌더러·월드·기체 ─────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.localClippingEnabled = true; // 1인칭에서 조종석 자리의 동체 외피를 잘라낸다
 renderer.info.autoReset = false; // 후처리처럼 여러 번 그리는 프레임도 합계로 재기 위해 직접 초기화한다
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();

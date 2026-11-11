@@ -27,6 +27,7 @@ import { HUD_FEEDBACK } from '../data/hud.js';
 
 const _v = new THREE.Vector3();
 const _shift = { x: 0, z: 0 };
+const _q = new THREE.Quaternion();
 
 export const PHASE = { ACTIVE: 'active', ENDING: 'ending', DONE: 'done' };
 
@@ -57,6 +58,11 @@ export class MissionSession {
     this.feedback = { hit: 0, hitWarn: 0, kill: 0, wave: 0, switched: 0 };
     this.cursor = { x: this.viewport.w / 2, y: this.viewport.h / 2 };
     this.aim = { origin: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1) };
+    this.aimLocal = new THREE.Vector3(0, 0, -1); // 기체 기준 조준 방향(둘러보는 동안 고정)
+    this.looking = false; // C키 둘러보기 중
+    // 조종석 MFD에 보일 값
+    this.mfd = { speed: 0, alt: 0, yaw: 0, pitch: 0, roll: 0, g: 1, px: 0, pz: 0, contacts: new Float32Array(ENEMY_POOL_SIZE * 2), contactCount: 0, ammo: 0, heat: 0, hp: 1, weapon: '' };
+    player.cockpitData.data = this.mfd;
 
     this.fx = new Effects(scene, FX);
     player.root.add(this.fx.muzzle);
@@ -262,11 +268,59 @@ export class MissionSession {
   }
 
   _updateAim() {
-    this.updateCursor();
     const { w, h } = this.viewport;
-    _v.set((this.cursor.x / w) * 2 - 1, -((this.cursor.y / h) * 2 - 1), 0.5).unproject(this.camera);
     this.aim.origin.copy(this.camera.position);
+    if (this.looking) {
+      // 둘러보는 동안에는 조준을 멈춘다: 기체 기준 방향을 그대로 유지하고, 조준점 표시는 그 방향을 화면에 투영한다
+      this.aim.dir.copy(this.aimLocal).applyQuaternion(this.player.flight.quat);
+      _v.copy(this.aim.origin).addScaledVector(this.aim.dir, 1000).project(this.camera);
+      this.cursor.x = _v.z < 1 ? (_v.x * 0.5 + 0.5) * w : -9999;
+      this.cursor.y = (-_v.y * 0.5 + 0.5) * h;
+      return;
+    }
+    this.updateCursor();
+    _v.set((this.cursor.x / w) * 2 - 1, -((this.cursor.y / h) * 2 - 1), 0.5).unproject(this.camera);
     this.aim.dir.copy(_v).sub(this.camera.position).normalize();
+    this.aimLocal.copy(this.aim.dir).applyQuaternion(_q.copy(this.player.flight.quat).invert());
+  }
+
+  /** C키 둘러보기(1인칭): 누른 채 마우스로 시선을 돌린다 */
+  _updateLook() {
+    const want = this.mode === 'mission' && this.view === VIEW.COCKPIT && this.player.alive && this.input.isDown('KeyC');
+    const lk = this.rig.look;
+    if (want) {
+      const c = CAMERA.cockpit.look;
+      const { w, h } = this.viewport;
+      const nx = clamp((this.input.mouse.x / w) * 2 - 1, -1, 1), ny = clamp((this.input.mouse.y / h) * 2 - 1, -1, 1);
+      lk.yaw = -nx * c.yawMax * (Math.PI / 180);
+      lk.pitch = (ny < 0 ? -ny * c.pitchUp : -ny * c.pitchDown) * (Math.PI / 180);
+    }
+    lk.active = want;
+    this.looking = want;
+  }
+
+  _updateMfd() {
+    const d = this.mfd;
+    const f = this.player.flight;
+    d.speed = f.speed; d.alt = f.pos.y; d.yaw = f.yaw; d.pitch = f.pitch; d.roll = f.roll;
+    d.g = 1 + (Math.abs(f.yawRate) + Math.max(0, f.pitchRate)) * f.speed / 9.81 * 0.55; // 표시용 근사값
+    d.px = f.pos.x + this.world.origin.x; d.pz = f.pos.z + this.world.origin.z;
+    const cy = Math.cos(f.yaw), sy = Math.sin(f.yaw);
+    let n = 0;
+    for (const e of this.enemies.list) {
+      if (!e.alive) continue;
+      const dx = e.pos.x - f.pos.x, dz = e.pos.z - f.pos.z;
+      d.contacts[n * 2] = dx * cy - dz * sy; // 기수 기준 오른쪽
+      d.contacts[n * 2 + 1] = dx * sy + dz * cy; // 기수 기준 뒤쪽(+) / 앞쪽(-)
+      n++;
+    }
+    d.contactCount = n;
+    const gun = this.weapons.byId('gun'), msl = this.weapons.byId('missile');
+    d.heat = gun ? gun.heat : 0;
+    d.ammo = msl ? msl.ammo : 0;
+    d.hp = this.player.hp / this.player.cfg.hp;
+    d.weapon = this.weapons.current.cfg.short;
+    this.player.visual.ammo = d.ammo;
   }
 
   // ── 고정 스텝 ───────────────────────────────────────────────────────────
@@ -287,7 +341,7 @@ export class MissionSession {
     if (mission) {
       const active = this.phase === PHASE.ACTIVE;
       this._updateAim();
-      const trigger = active && player.alive && (this.triggerOverride ?? this.input.mouse.down);
+      const trigger = active && player.alive && !this.looking && (this.triggerOverride ?? this.input.mouse.down);
       this.weapons.update(dt, this.ctx, trigger);
       if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);
@@ -380,9 +434,11 @@ export class MissionSession {
     player.interpolate(alpha);
     player.animate(frameDt);
     for (const e of this.enemies.list) if (e.alive) e.interpolate(alpha);
+    this._updateLook();
+    this._updateMfd();
     this.rig.update(player.view, frameDt);
     this.world.update(this.camera);
-    this.updateCursor();
+    if (!this.looking) this.updateCursor();
     this.fx.update(frameDt, WEAPONS.gun.tracer);
     this._renderProjectiles(alpha);
     this.fx.endBolts();

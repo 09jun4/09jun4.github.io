@@ -17,6 +17,8 @@ export class Player {
     this.root.name = 'player';
     this.cockpitView = false;
     // 모델 연출 상태(세션이 채운다): 기어·캐노피·에어브레이크·플랩·남은 미사일·애프터버너
+    // 조종석(MFD)이 읽는 값. data는 세션이 채운다
+    this.cockpitData = { pitch: 0, turn: 0, power: 0.5, dt: 0, time: 0, data: null };
     this.visual = { gear: 0, canopy: 0, airbrake: 0, flap: 0, ammo: 5, boost: 0, power: 0.4, time: 0, dt: 0, headYaw: 0 };
     this.flight = createFlightState();
     this.prevPos = new THREE.Vector3();
@@ -102,6 +104,8 @@ export class Player {
     v.speed = p.speed + (f.speed - p.speed) * alpha;
     v.inPitch = this.input.pitch;
     v.inTurn = this.input.turn;
+    v.turnLoad = f.yawRate / (this.cfg.rates.yawMax * (Math.PI / 180));
+    v.pitchLoad = f.pitchRate / (this.cfg.rates.pitchMax * (Math.PI / 180));
   }
 
   /** 조종면·배기·작동 부품·조종간 연출(렌더 프레임마다) */
@@ -118,7 +122,14 @@ export class Player {
       v.headYaw = this.input.turn;
       m.setState(v);
     }
-    if (this.cockpit && this.cockpit.group.visible) this.cockpit.setStick(this.input.pitch, this.input.turn, frameDt);
+    const c = this.cockpit;
+    if (c && c.group.visible) {
+      if (c.update) {
+        const d = this.cockpitData;
+        d.pitch = this.input.pitch; d.turn = this.input.turn; d.power = this.flight.throttle; d.dt = frameDt; d.time = this.time;
+        c.update(d);
+      } else c.setStick(this.input.pitch, this.input.turn, frameDt);
+    }
   }
 
   /** 1인칭 전환. 낮음은 외형을 숨기고, 하이폴리는 날개·기수가 보이도록 유리와 조종사만 숨긴다. */

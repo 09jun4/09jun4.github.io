@@ -21,6 +21,10 @@ export const CAMERA = {
     headPitch: 3, // 피치 입력 방향으로 고개 숙임/들기(°)
     headRoll: 0.12, // 기체 롤을 일부 상쇄(수평선 쪽으로 머리를 세움)
     sway: 0.035, // 가속에 따른 머리 흔들림(m)
+    // G 쏠림: 선회·당김 때 머리가 처졌다가 복귀한다(감쇠가 부족한 스프링)
+    g: { drop: 0.05, lean: 0.035, stiffness: 46, damping: 6.5, pitchDown: 2.2 },
+    // C키 둘러보기
+    look: { yawMax: 135, pitchUp: 55, pitchDown: 40, tau: 0.1, returnTau: 0.22 },
   },
 
   orbit: {

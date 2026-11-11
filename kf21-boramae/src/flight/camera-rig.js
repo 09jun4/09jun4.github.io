@@ -33,6 +33,10 @@ export class CameraRig {
     this.headPitch = 0;
     this.fov = 0;
     this.fixed = null; // 디버그: {yaw, pitch, dist} 고정 시점
+    // 1인칭: 둘러보기(C키) 목표·현재 각도, G 쏠림 스프링
+    this.look = { active: false, yaw: 0, pitch: 0, curYaw: 0, curPitch: 0 };
+    this.g = { y: 0, vy: 0, x: 0, vx: 0 };
+    this.headOffset = new THREE.Vector3(); // 눈 기준 머리 이동량(HUD 시차 계산용)
     this.setMode(VIEW.ORBIT);
   }
 
@@ -94,11 +98,26 @@ export class CameraRig {
         this.headYaw = damp(this.headYaw, yawTarget, c.headTau, dt);
         this.headPitch = damp(this.headPitch, pitchTarget, c.headTau, dt);
       }
-      _euler.set(this.headPitch, this.headYaw, t.roll * c.headRoll, 'YXZ');
+      // 둘러보기: 누르고 있는 동안 목표 각도로, 놓으면 정면으로 부드럽게 복귀
+      const lk = this.look;
+      const lt = lk.active ? c.look.tau : c.look.returnTau;
+      lk.curYaw = damp(lk.curYaw, lk.active ? lk.yaw : 0, lt, dt);
+      lk.curPitch = damp(lk.curPitch, lk.active ? lk.pitch : 0, lt, dt);
+      // G 쏠림: 하중(선회율·피치율)만큼 머리가 아래·바깥으로 처졌다가 돌아온다
+      const gs = this.g;
+      const loadY = Math.abs(t.turnLoad || 0) * 0.7 + Math.max(0, t.pitchLoad || 0) * 0.6;
+      const targetY = -c.g.drop * Math.min(1.4, loadY);
+      const targetX = -c.g.lean * (t.turnLoad || 0);
+      if (this.snap) { gs.y = targetY; gs.x = targetX; gs.vy = gs.vx = 0; } else {
+        const h = Math.min(dt, 0.05);
+        gs.vy += ((targetY - gs.y) * c.g.stiffness - gs.vy * c.g.damping) * h; gs.y += gs.vy * h;
+        gs.vx += ((targetX - gs.x) * c.g.stiffness - gs.vx * c.g.damping) * h; gs.x += gs.vx * h;
+      }
+      _euler.set(this.headPitch + lk.curPitch + gs.y * c.g.pitchDown, this.headYaw + lk.curYaw, t.roll * c.headRoll, 'YXZ');
       _q.setFromEuler(_euler);
       cam.quaternion.copy(t.quat).multiply(_q);
-      // 가속 방향 반대로 머리가 아주 조금 쏠린다
-      _v.set(this.eye.x + t.inTurn * c.sway * -0.6, this.eye.y - Math.abs(t.inPitch) * c.sway * 0.4, this.eye.z);
+      this.headOffset.set(t.inTurn * c.sway * -0.6 + gs.x, -Math.abs(t.inPitch) * c.sway * 0.4 + gs.y, 0);
+      _v.copy(this.eye).add(this.headOffset);
       cam.position.copy(_v.applyQuaternion(t.quat)).add(t.pos);
       this.pos.copy(cam.position);
       this.quat.copy(cam.quaternion);
