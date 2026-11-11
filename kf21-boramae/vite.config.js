@@ -9,7 +9,9 @@ export default defineConfig({
   build: { outDir: 'dist', target: 'es2022', chunkSizeWarningLimit: 900 },
   plugins: [{
     name: 'copy-runtime-config',
+    apply: 'build',
     closeBundle() {
+      if (process.env.VITEST) return;
       // firebase-config.js는 번들에 넣지 않고 그대로 둔다(값만 바꿔도 되게).
       mkdirSync('dist/js', { recursive: true });
       copyFileSync('js/firebase-config.js', 'dist/js/firebase-config.js');

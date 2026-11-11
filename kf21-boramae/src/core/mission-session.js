@@ -12,9 +12,14 @@ import { Effects } from '../entities/effects.js';
 import { KF21_POINTS } from '../entities/kf21-model.js';
 import { WeaponSystem } from '../combat/weapon-system.js';
 import '../combat/gun.js';
+import { Projectiles } from '../combat/projectiles.js';
+import { damageEnemy, damagePlayer } from '../combat/damage.js';
+import { EnemyDirector } from '../ai/enemy-ai.js';
+import { WaveSpawner } from '../ai/wave-spawner.js';
 import { WEAPONS } from '../data/weapons.js';
-import { ENEMIES, DEFAULT_ENEMY, ENEMY_POOL_SIZE } from '../data/enemies.js';
-import { MISSION_FLOW, missionEnemyCount } from '../data/missions.js';
+import { ENEMIES, DEFAULT_ENEMY, ENEMY_POOL_SIZE, ENEMY_BULLET_POOL } from '../data/enemies.js';
+import { MISSION_FLOW, SPAWN, missionEnemyCount } from '../data/missions.js';
+import { PALETTE } from '../data/palette.js';
 import { CAMERA } from '../data/camera.js';
 import { FX } from '../data/fx.js';
 import { HUD_FEEDBACK } from '../data/hud.js';
@@ -60,12 +65,25 @@ export class MissionSession {
     this.enemyCfg = ENEMIES[DEFAULT_ENEMY];
     this.enemies = new EnemyPool(scene, this.enemyCfg, ENEMY_POOL_SIZE);
     this.weapons = new WeaponSystem(loadout, WEAPONS);
+    this.projectiles = new Projectiles(ENEMY_BULLET_POOL, this.enemyCfg.weapon.tracer);
+    this.director = new EnemyDirector(this.enemies.list);
+    this.spawner = new WaveSpawner(SPAWN);
+    this.collisionCooldown = 0;
+    this._spawnArgs = {
+      aliveCount: 0, time: 0, flight: player.flight, limits: this.enemyCfg.flight,
+      spawn: (x, y, z, yaw, slot) => {
+        const e = this.enemies.spawn(x, y, z, yaw);
+        if (e) this.director.onSpawn(e, slot);
+        return !!e;
+      },
+    };
 
     const self = this;
     this.ctx = {
       player,
       enemies: this.enemies.list,
       fx: this.fx,
+      projectiles: this.projectiles,
       rig,
       audio,
       stats: this.stats,
@@ -91,6 +109,8 @@ export class MissionSession {
   // ── 시작 ────────────────────────────────────────────────────────────────
   _resetWorld() {
     this.enemies.clear();
+    this.projectiles.clear();
+    this.collisionCooldown = 0;
     this.fx.clear();
     this.weapons.reset();
     this.world.resetOrigin();
@@ -126,7 +146,10 @@ export class MissionSession {
     this._onMissionStart();
   }
 
-  _onMissionStart() { /* 편대 스포너·AI 초기화(마일스톤 5) */ }
+  _onMissionStart() {
+    this.director.reset(this.mission.maxAttackers, this.rng);
+    this.spawner.reset(this.mission, this.rng);
+  }
 
   _applyView() {
     const mode = this.mode === 'mission' ? this.view : VIEW.ORBIT;
@@ -160,7 +183,9 @@ export class MissionSession {
   }
 
   // ── 이벤트 ──────────────────────────────────────────────────────────────
-  _onEnemyHit(enemy, source) { void enemy; void source; }
+  _onEnemyHit(enemy, source) {
+    if (source !== 'collision') this.director.onHit(enemy);
+  }
 
   _onEnemyKilled() {
     this.stats.kills++;
@@ -169,7 +194,7 @@ export class MissionSession {
   }
 
   _checkCleared() {
-    if (this.phase !== PHASE.ACTIVE) return;
+    if (this.phase !== PHASE.ACTIVE || !this.player.alive) return;
     if (this.stats.kills >= this.total && this.enemies.aliveCount === 0 && this._allSpawned()) {
       this.phase = PHASE.ENDING;
       this.success = true;
@@ -179,7 +204,9 @@ export class MissionSession {
     }
   }
 
-  _allSpawned() { return true; }
+  _allSpawned() {
+    return this.spawner.allSpawned;
+  }
 
   _onPlayerHit() {
     this.stats.hitsTaken++;
@@ -259,7 +286,9 @@ export class MissionSession {
       this._updateAim();
       const trigger = active && player.alive && (this.triggerOverride ?? this.input.mouse.down);
       this.weapons.update(dt, this.ctx, trigger);
+      if (!debugState.freezeEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);
+      this.projectiles.step(dt, this.ctx);
       if (active) {
         this.stats.time += dt;
         this._stepMission(dt);
@@ -279,19 +308,66 @@ export class MissionSession {
 
   _stepEnemies(dt) {
     const frozen = debugState.freezeEnemies;
+    const fxc = this.enemyCfg.fx;
     for (const e of this.enemies.list) {
       if (!e.alive) continue;
       e.step(dt, frozen);
+      // 손상된 적기는 연기를 끌고 다닌다
+      if (e.hp < e.cfg.hp * fxc.smokeBelow) {
+        e.smokeTimer -= dt;
+        if (e.smokeTimer <= 0) {
+          e.smokeTimer = fxc.smokeEvery;
+          this.fx.smoke(e.pos, FX.damageSmoke, PALETTE.fx.smokeB);
+        }
+      }
     }
   }
 
-  _stepMission() { /* 편대 등장·충돌(마일스톤 5) */ }
+  _stepMission(dt) {
+    // 편대 등장
+    const a = this._spawnArgs;
+    a.aliveCount = this.enemies.aliveCount;
+    a.time = this.stats.time;
+    if (this.spawner.step(dt, a) > 0) {
+      this.feedback.wave = HUD_FEEDBACK.waveNotice;
+      this._updateOutline();
+    }
+    this._collisions(dt);
+    this._checkCleared();
+  }
+
+  /** 플레이어-적기 충돌: 양쪽 피해 + 밀림 */
+  _collisions(dt) {
+    if (this.collisionCooldown > 0) { this.collisionCooldown -= dt; return; }
+    const player = this.player;
+    if (!player.alive) return;
+    const f = player.flight;
+    for (const e of this.enemies.list) {
+      if (!e.alive) continue;
+      const r = player.cfg.hitRadius * 0.6 + e.cfg.collisionRadius;
+      if (e.pos.distanceToSquared(f.pos) > r * r) continue;
+      const k = player.cfg.collision;
+      // 적기 반대쪽으로 밀려난다
+      _v.subVectors(f.pos, e.pos);
+      if (_v.lengthSq() < 1e-4) _v.set(0, 1, 0);
+      _v.normalize();
+      f.pos.addScaledVector(_v, k.push);
+      f.speed = Math.max(player.cfg.speed.min, f.speed - k.speedLoss);
+      f.pitchRate += Math.sign(_v.y || 1) * k.pitchKick * (Math.PI / 180);
+      f.yawRate += (this.rng() < 0.5 ? -1 : 1) * k.yawKick * (Math.PI / 180);
+      this.collisionCooldown = k.cooldown;
+      damageEnemy(this.ctx, e, e.cfg.hp * 10, 'collision'); // 적기는 즉사급
+      damagePlayer(this.ctx, e.cfg.collisionDamage, 'collision');
+      break;
+    }
+  }
 
   _shiftAll(dx, dz) {
     this.player.shift(dx, dz);
     this.rig.shift(dx, dz);
     this.fx.shift(dx, dz);
     for (const e of this.enemies.list) e.shift(dx, dz);
+    this.projectiles.shift(dx, dz);
   }
 
   // ── 렌더 프레임 ─────────────────────────────────────────────────────────
@@ -309,7 +385,9 @@ export class MissionSession {
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
   }
 
-  _renderProjectiles() { /* 적 탄·미사일(마일스톤 5·6) */ }
+  _renderProjectiles(alpha) {
+    this.projectiles.render(alpha, this.fx.bolts);
+  }
 
   // ── 디버그 ──────────────────────────────────────────────────────────────
   /** 플레이어 앞에 적기를 즉시 만든다. */
@@ -321,7 +399,7 @@ export class MissionSession {
       const side = (i - (n - 1) / 2) * spread;
       _v.set(side, 12 + (i % 2) * 14, -distance).applyAxisAngle(THREE.Object3D.DEFAULT_UP, f.yaw).add(f.pos);
       const e = this.enemies.spawn(_v.x, _v.y, _v.z, facing === 'toward' ? f.yaw + Math.PI : f.yaw);
-      if (e) { made++; this.total = Math.max(this.total, this.stats.kills + this.enemies.aliveCount); }
+      if (e) { made++; this.director.onSpawn(e, i); this.total = Math.max(this.total, this.stats.kills + this.enemies.aliveCount); }
     }
     return made;
   }

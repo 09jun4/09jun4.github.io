@@ -35,6 +35,7 @@ export const ENEMIES = {
       returnDistance: 2200, // 이보다 멀면 곧장 복귀
       leadTime: 0.9, // 플레이어 예측 위치(초)
       breakTime: [2.2, 3.6], // 이탈 유지 시간
+      attackClosing: 30, // 공격 중 플레이어 대비 접근 속도(m/s)
       attackTimeMax: 9, // 공격이 너무 길어지면 스스로 이탈
       evadeTime: [1.1, 1.9], // 피격 회피 유지 시간
       evadeCooldown: 2.5, // 회피를 연달아 하지 않게
@@ -57,6 +58,8 @@ export const ENEMIES = {
       nearSpread: 6, // 정확한 탄의 조준 오차(m)
       wideSpread: [22, 60], // 나머지 탄의 조준 오차(m)
       firstShotDelay: [1.2, 2.4], // 등장 직후에는 쏘지 않는다
+      leadAccel: 0.85, // 선회 중인 플레이어의 가속도를 조준에 반영하는 비율
+      tracer: { length: 30, width: 0.5 },
     },
 
     fx: { smokeBelow: 0.5, smokeEvery: 0.07 },
@@ -66,3 +69,5 @@ export const ENEMIES = {
 export const DEFAULT_ENEMY = 'raider';
 /** 동시에 존재할 수 있는 적기 수(풀 크기) */
 export const ENEMY_POOL_SIZE = 8;
+/** 동시에 날아다닐 수 있는 적 탄 수(풀 크기) */
+export const ENEMY_BULLET_POOL = 72;

@@ -1,4 +1,4 @@
-// KF-21 BORAMAE — 조립 지점. (마일스톤 4: 기관포 + 적기 + 격추)
+// KF-21 BORAMAE — 조립 지점. (마일스톤 5: 적 AI + 편대 + 충돌/피격)
 import * as THREE from 'three';
 import { GameLoop } from './core/game-loop.js';
 import { StateMachine } from './core/state-machine.js';

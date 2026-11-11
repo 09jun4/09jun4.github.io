@@ -65,6 +65,9 @@ export const KF21 = {
     warnBelow: 1100, // HUD 고도 경고
   },
 
+  // 적기와 충돌했을 때 밀림
+  collision: { speedLoss: 28, push: 7, pitchKick: 28, yawKick: 24, cooldown: 0.8 },
+
   // 모델 연출
   model: {
     surfaces: { tau: 0.09, elevator: 22, aileron: 24, rudder: 22, stabRollMix: 0.35 },

@@ -17,6 +17,7 @@ export class Player {
     this.prevQuat = new THREE.Quaternion();
     this.renderPos = new THREE.Vector3();
     this.renderQuat = new THREE.Quaternion();
+    this.velocity = new THREE.Vector3();
     this.input = { pitch: 0, turn: 0 };
     this.hp = cfg.hp;
     this.alive = true;
@@ -39,6 +40,7 @@ export class Player {
     this.input.turn = 0;
     this.hp = this.cfg.hp;
     this.alive = true;
+    this.velocity.copy(this.flight.forward).multiplyScalar(this.flight.speed);
     this.model.group.visible = true;
     this._capture();
     this.interpolate(1);
@@ -58,6 +60,7 @@ export class Player {
     this._capture();
     this.time += dt;
     if (this.alive) stepFlight(this.flight, this.input, this.cfg, dt);
+    this.velocity.copy(this.flight.forward).multiplyScalar(this.alive ? this.flight.speed : 0);
   }
 
   /** 원점 재배치 */
