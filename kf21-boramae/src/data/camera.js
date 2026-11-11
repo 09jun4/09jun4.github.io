@@ -28,7 +28,7 @@ export const CAMERA = {
     distance: 30,
     height: 5.5,
     speed: 0.16, // 메뉴 배경 회전 속도(rad/s)
-    lookShift: 0.0, // 기체를 화면 중앙에서 옆으로 옮기는 정도(m)
+    lookShift: 7.5, // 기체를 화면 중앙에서 옆으로 옮기는 정도(m): 메뉴 글자와 겹치지 않게 오른쪽으로
     lookUp: 0.6,
   },
 

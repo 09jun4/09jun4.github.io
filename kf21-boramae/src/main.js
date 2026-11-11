@@ -1,9 +1,11 @@
-// KF-21 BORAMAE — 조립 지점. (마일스톤 7: HUD)
+// KF-21 BORAMAE — 조립 지점: 렌더러·월드·세션·UI·상태 머신을 만들고 연결한다.
 import * as THREE from 'three';
 import { GameLoop } from './core/game-loop.js';
 import { StateMachine } from './core/state-machine.js';
 import { Input } from './core/input.js';
 import { Settings, safeStorage } from './core/settings.js';
+import { SaveData } from './core/save.js';
+import { QualityManager } from './core/quality.js';
 import { audio } from './core/audio-stub.js';
 import { isDebugEnabled, installDebug, debugState } from './core/debug.js';
 import { MissionSession } from './core/mission-session.js';
@@ -19,104 +21,214 @@ import { Player } from './entities/player.js';
 import { CameraRig } from './flight/camera-rig.js';
 import { World } from './world/world.js';
 import { Hud } from './ui/hud.js';
+import { Screens } from './ui/screens.js';
+import { toast } from './ui/toast.js';
+import { createMenu } from './ui/menu.js';
+import { createMissionSelect } from './ui/mission-select.js';
+import { createBriefing } from './ui/briefing.js';
+import { createPause } from './ui/pause.js';
+import { createResult } from './ui/result.js';
+import { createSettingsDialog } from './ui/settings-panel.js';
+import { createOnline } from './auth/online.js';
 
+const appEl = document.getElementById('app');
 const stage = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-stage.appendChild(renderer.domElement);
+const uiEl = document.getElementById('ui');
 
+// ── 렌더러·월드·기체 ─────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 60000);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, CAMERA.far);
 const world = new World(scene, WORLD);
-const settings = new Settings(safeStorage());
+
+const storage = safeStorage();
+const settings = new Settings(storage);
+const save = new SaveData(storage);
 
 const model = createKF21(PLAYER_AIRCRAFT.model);
 const cockpit = createCockpit(KF21_POINTS.eye);
 const player = new Player(PLAYER_AIRCRAFT, model, cockpit);
 scene.add(model.group);
 const rig = new CameraRig(camera, CAMERA, KF21_POINTS.eye);
+rig.shakeEnabled = settings.get('cameraShake');
 
 const input = new Input();
 input.attach(stage);
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
-session.startShowcase();
 const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
-const appEl = document.getElementById('app');
 
+function resize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  session.resize(w, h);
+  hud.resize(w, h);
+}
+const quality = new QualityManager({
+  renderer, world, fx: session.fx, settings,
+  onResize: resize,
+  onLowered: () => toast('화면이 느려서 그래픽 품질을 한 단계 낮췄어요. 설정에서 바꿀 수 있어요.'),
+});
+window.addEventListener('resize', resize);
+settings.onChange((key, value) => {
+  if (key === 'cameraShake' || key === '*') rig.shakeEnabled = settings.get('cameraShake');
+  void value;
+});
+
+// ── 화면 흐름 ────────────────────────────────────────────────────────────
 const fsm = new StateMachine(TRANSITIONS);
-fsm.add(STATE.MENU, { enter: () => session.startShowcase() });
-fsm.add(STATE.SELECT, {});
-fsm.add(STATE.BRIEFING, {});
-fsm.add(STATE.PLAYING, { enter: (payload, prev) => { if (prev !== STATE.PAUSED) session.startMission((payload && payload.mission) || MISSIONS[0]); } });
-fsm.add(STATE.PAUSED, {});
-fsm.add(STATE.RESULT, {});
+const screens = new Screens(document.getElementById('fade'));
+/** 페이드와 함께 상태 전환 */
+const goto = (state, payload) => screens.fade(() => fsm.go(state, payload));
+
+const online = createOnline({ save, settings, uiEl, toast });
+const settingsDialog = createSettingsDialog(settings, quality);
+let currentMission = MISSIONS[0];
+
+const ui = {
+  menu: createMenu({ start: () => goto(STATE.SELECT), settings: () => settingsDialog.open() }),
+  select: createMissionSelect({
+    back: () => goto(STATE.MENU),
+    brief: (mission) => goto(STATE.BRIEFING, { mission }),
+    ranking: (mission) => online.openRanking(mission),
+  }, save),
+  briefing: createBriefing({
+    back: (mission) => goto(STATE.SELECT, { missionId: mission.id }),
+    launch: (mission) => goto(STATE.PLAYING, { mission }),
+  }),
+  pause: createPause({
+    resume: () => fsm.go(STATE.PLAYING), // 3-2-1 없이 즉시 재개
+    restart: () => goto(STATE.PLAYING, { mission: currentMission, restart: true }),
+    menu: () => goto(STATE.MENU),
+  }, settings, quality),
+  result: createResult({
+    next: (mission) => goto(STATE.BRIEFING, { mission }),
+    retry: (mission) => goto(STATE.PLAYING, { mission }),
+    menu: () => goto(STATE.MENU),
+    ranking: (mission) => online.openRanking(mission),
+  }),
+};
+for (const [name, screen] of Object.entries(ui)) { uiEl.appendChild(screen.el); screens.add(name, screen); }
+uiEl.appendChild(settingsDialog.el);
+online.mount(ui.menu.el.querySelector('#account'));
+
+const backdrop = () => { if (session.mode !== 'showcase') session.startShowcase(); };
+fsm.add(STATE.MENU, { enter: () => { backdrop(); screens.show('menu'); } });
+fsm.add(STATE.SELECT, { enter: (payload) => { backdrop(); screens.show('select', payload); } });
+fsm.add(STATE.BRIEFING, { enter: (payload) => { backdrop(); currentMission = payload.mission; screens.show('briefing', payload); } });
+fsm.add(STATE.PLAYING, {
+  enter: (payload, prev) => {
+    if (prev !== STATE.PAUSED || (payload && payload.restart)) {
+      currentMission = (payload && payload.mission) || currentMission;
+      session.startMission(currentMission);
+    }
+    input.reset();
+    screens.show(null);
+  },
+});
+fsm.add(STATE.PAUSED, { enter: () => { input.reset(); screens.show('pause'); } });
+fsm.add(STATE.RESULT, { enter: (payload) => screens.show('result', payload) });
 fsm.onChange((name) => {
-  const inPlay = name === STATE.PLAYING || name === STATE.PAUSED;
-  hud.setVisible(inPlay);
+  hud.setVisible(name === STATE.PLAYING || name === STATE.PAUSED);
   appEl.classList.toggle('playing', name === STATE.PLAYING);
+  appEl.dataset.state = name;
 });
 fsm.go(STATE.MENU);
-session.onFinished = (result) => { lastResult = result; fsm.go(STATE.RESULT, result); };
-let lastResult = null;
 
+session.onFinished = (result) => {
+  const saved = save.applyResult(result);
+  goto(STATE.RESULT, { result, saved });
+  online.submitResult(result, (note) => ui.result.setNote(note));
+};
+
+const pause = () => { if (fsm.name === STATE.PLAYING && !screens.busy) fsm.go(STATE.PAUSED); };
+input.onBlur(pause); // 창 포커스가 사라지면 자동 일시정지
 input.onKey((code) => {
+  if (screens.busy) return;
+  if (code === 'Escape') {
+    if (online.closeTop()) return;
+    if (settingsDialog.isOpen) settingsDialog.close();
+    else if (fsm.name === STATE.PLAYING) pause();
+    else if (fsm.name === STATE.PAUSED) fsm.go(STATE.PLAYING);
+    else if (fsm.name === STATE.BRIEFING) goto(STATE.SELECT, { missionId: currentMission.id });
+    else if (fsm.name === STATE.SELECT) goto(STATE.MENU);
+    return;
+  }
   if (fsm.name !== STATE.PLAYING) return;
   if (code === 'KeyV') session.toggleView();
   else if (code === 'KeyF') session.switchWeapon();
 });
 
+// ── 루프 ─────────────────────────────────────────────────────────────────
 const loop = new GameLoop({
   ...LOOP,
   step(dt) {
-    if (fsm.name === STATE.PAUSED) return;
+    if (fsm.name === STATE.PAUSED) return; // 일시정지 중에는 게임 시간이 완전히 멈춘다
     session.step(dt);
   },
   render(alpha, frameDt) {
-    session.render(fsm.name === STATE.PAUSED ? 1 : alpha, fsm.name === STATE.PAUSED ? 0 : frameDt);
+    const paused = fsm.name === STATE.PAUSED;
+    session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     renderer.render(scene, camera);
-    hud.render(session, camera, frameDt);
+    hud.render(session, camera, paused ? 0 : frameDt);
+    quality.frame(frameDt, !paused && !document.hidden);
+    if (debugPanel) debugPanel(frameDt);
   },
 });
 
-window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  session.resize(window.innerWidth, window.innerHeight);
-  hud.resize(window.innerWidth, window.innerHeight);
-});
-
+// ── 디버그 훅(?debug=1 또는 개발 서버에서만) ─────────────────────────────
+let debugPanel = null;
 if (isDebugEnabled()) {
   const panel = document.createElement('div');
   panel.className = 'debug-panel';
   panel.hidden = true;
-  document.getElementById('app').appendChild(panel);
+  appEl.appendChild(panel);
   const proj = new THREE.Vector3();
+  let acc = 0;
+  let frames = 0;
+  let fps = 0;
+  debugPanel = (dt) => {
+    acc += dt; frames++;
+    if (acc < 0.5) return;
+    fps = frames / acc; acc = 0; frames = 0;
+    if (debugState.showFps) {
+      const i = renderer.info;
+      panel.textContent = `FPS ${fps.toFixed(0)}  step ${quality.step}\ncalls ${i.render.calls}  tris ${i.render.triangles}\ngeo ${i.memory.geometries}  tex ${i.memory.textures}\nparticles ${session.fx.activeParticles}  state ${fsm.name}`;
+    }
+  };
   installDebug({
     skipMission: (success) => session.debugSkip(success),
     spawnEnemy: (n, opts) => session.debugSpawn(n, opts),
     onShowFps: (on) => { panel.hidden = !on; },
     extra: {
       state: () => ({
-        state: fsm.name, mode: session.mode, phase: session.phase, tick: loop.tick, frame: loop.frame, view: session.view,
+        state: fsm.name, mode: session.mode, phase: session.phase, tick: loop.tick, frame: loop.frame, view: session.view, fps,
         hp: player.hp, stats: { ...session.stats }, weapon: { ...session.weapons.uiState(), target: undefined }, alive: session.enemies.aliveCount,
-        particles: session.fx.activeParticles, info: { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries },
+        total: session.total, mission: session.mission && session.mission.id, quality: quality.step, busy: screens.busy,
+        particles: session.fx.activeParticles,
+        info: { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length },
       }),
       flight: () => { const f = player.flight; return { x: f.pos.x, y: f.pos.y, z: f.pos.z, yaw: f.yaw, pitch: f.pitch, roll: f.roll, speed: f.speed }; },
-      /** 살아 있는 적기와 화면 좌표(자동 플레이 테스트용) */
+      /** 살아 있는 적기와 화면 좌표·기체 기준 방향(자동 플레이 테스트용) */
       enemies: () => session.enemies.list.filter((e) => e.alive).map((e) => {
         proj.copy(e.group.position).project(camera);
-        return { id: e.index, hp: e.hp, dist: e.pos.distanceTo(player.flight.pos), sx: (proj.x * 0.5 + 0.5) * window.innerWidth, sy: (-proj.y * 0.5 + 0.5) * window.innerHeight, front: proj.z < 1, state: e.ai.state };
+        const front = proj.z < 1;
+        const rel = e.pos.clone().sub(player.flight.pos);
+        const dist = rel.length();
+        const local = rel.applyQuaternion(player.flight.quat.clone().invert());
+        return { id: e.index, hp: e.hp, dist, sx: (proj.x * 0.5 + 0.5) * window.innerWidth, sy: (-proj.y * 0.5 + 0.5) * window.innerHeight, front, state: e.ai.state,
+          bearing: Math.atan2(local.x, -local.z), elevation: Math.asin(Math.max(-1, Math.min(1, rel.clone().applyQuaternion(player.flight.quat).y / Math.max(dist, 1)))), dy: e.pos.y - player.flight.pos.y };
       }),
-      result: () => lastResult,
       go: (name, payload) => fsm.go(name, payload),
+      startMission: (id) => { const m = MISSIONS.find((x) => x.id === id); if (fsm.name === STATE.PLAYING) { currentMission = m; session.startMission(m); } else { if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT); if (fsm.name !== STATE.BRIEFING) fsm.go(STATE.BRIEFING, { mission: m }); fsm.go(STATE.PLAYING, { mission: m }); } },
       advance: (seconds) => loop.advance(seconds),
       timeScale: (s) => { loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },
       setTrigger: (v) => { session.triggerOverride = v; },
       inspect: (f) => { rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
-      /** 적기 모델 확인: 적기 한 대를 세워 두고 고정 시점으로 본다 */
       inspectEnemy: (f) => {
         debugState.freezeEnemies = true;
         let e = session.enemies.list.find((x) => x.alive);
@@ -129,12 +241,14 @@ if (isDebugEnabled()) {
       teleport: (x, y, z, yaw = 0) => { player.reset({ x, y, z, yaw }); rig.snap = true; },
       controls: (p, t) => { model.setControls(p, t, 10); },
       session: () => session,
+      save: () => save,
+      settings: () => settings,
+      quality: () => quality,
+      online: () => online,
     },
   });
-  setInterval(() => {
-    if (debugState.showFps) panel.textContent = `state ${fsm.name}\ntick ${loop.tick}\ncalls ${renderer.info.render.calls} tris ${renderer.info.render.triangles}`;
-  }, 250);
 }
 
+resize();
 loop.start();
 window.__kf21Ready = true;

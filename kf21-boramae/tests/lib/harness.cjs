@@ -35,8 +35,10 @@ async function launch() {
 }
 
 /** 게임 페이지를 열고 콘솔 오류를 모은다. */
-async function openGame(browser, origin, { query = '?debug=1', width = 1280, height = 720, scale = 1, initScript, userAgent } = {}) {
-  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, userAgent });
+async function openGame(browser, origin, { query = '?debug=1', width = 1280, height = 720, scale = 1, initScript, userAgent, autoQuality = false, context: reuse } = {}) {
+  const context = reuse || await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, userAgent });
+  // 헤드리스(소프트웨어 렌더링)는 느리므로, 따로 요청하지 않으면 자동 품질 조절을 꺼 둔다
+  if (!autoQuality && !reuse) await context.addInitScript(() => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ autoQuality: false })); } catch (e) { /* 무시 */ } });
   if (initScript) await context.addInitScript(initScript);
   const page = await context.newPage();
   const errors = [];
