@@ -20,6 +20,7 @@ export function createFlightState() {
     throttle: 0.5, // 배기 연출용(0~1)
     slow: 0, // 실속 영역 진입 정도(0~1)
     limit: 0, // 고도 한계가 개입 중이면 -1(하한) / +1(상한)
+    floor: 0, // 지금 적용되는 고도 하한(이륙 직후에는 낮게 시작해 올라가는 만큼 따라 올라간다)
   };
 }
 
@@ -34,6 +35,7 @@ export function resetFlight(s, cfg, { x = 0, y = cfg.altitude.start, z = 0, yaw 
   s.throttle = 0.5;
   s.slow = 0;
   s.limit = 0;
+  s.floor = Math.min(cfg.altitude.floorHard, y - 40);
   updateOrientation(s);
   return s;
 }
@@ -70,7 +72,8 @@ export function stepFlight(s, input, cfg, dt) {
 
   // 고도 한계: 허용 피치 범위를 좁혀서 부드럽게 되돌린다
   const al = cfg.altitude;
-  const minPitch = remapClamped(s.pos.y, al.floorHard, al.floorSoft, al.floorPitch * DEG, -pitchLimit);
+  if (s.floor < al.floorHard) s.floor = Math.min(al.floorHard, Math.max(s.floor, s.pos.y - al.floorFollow));
+  const minPitch = remapClamped(s.pos.y, s.floor, s.floor + (al.floorSoft - al.floorHard), al.floorPitch * DEG, -pitchLimit);
   const maxPitch = remapClamped(s.pos.y, al.ceilSoft, al.ceilHard, pitchLimit, al.ceilPitch * DEG);
   s.limit = 0;
   if (s.pitch < minPitch) {
@@ -109,7 +112,7 @@ export function stepFlight(s, input, cfg, dt) {
 
   updateOrientation(s);
   s.pos.addScaledVector(s.forward, s.speed * dt);
-  if (s.pos.y < al.floorHard) s.pos.y = al.floorHard;
+  if (s.pos.y < s.floor) s.pos.y = s.floor;
   if (s.pos.y > al.ceilHard) s.pos.y = al.ceilHard;
   return s;
 }

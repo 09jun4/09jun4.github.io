@@ -86,6 +86,7 @@ async function applyPreset(name, cfg) {
   }
   world.setCloudFraction(cfg.clouds);
   session.fx.setParticleFraction(cfg.particles);
+  session.simpleTakeoff = cfg.tier === 'low';
   resize();
 }
 const quality = new QualityManager({
@@ -180,6 +181,7 @@ input.onKey((code) => {
     return;
   }
   if (fsm.name !== STATE.PLAYING) return;
+  if (code === 'Enter' || code === 'Space') { session.skipTakeoff(); return; }
   if (code === 'KeyV') session.toggleView();
   else if (code === 'KeyF') session.switchWeapon();
 });

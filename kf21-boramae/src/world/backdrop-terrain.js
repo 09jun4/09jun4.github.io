@@ -13,6 +13,9 @@ export function createTerrain(cfg, sky, sunDirection) {
       uPeriod: { value: cfg.noisePeriod },
       uHeight: { value: cfg.heightMax },
       uSea: { value: cfg.seaLevel },
+      uBase: { value: new THREE.Vector2(1e9, 1e9) }, // 격자 기준 공군기지 위치
+      uBaseH: { value: 0 },
+      uBaseR: { value: new THREE.Vector2(1, 2) },
       uSunDir: { value: sunDirection.clone() },
       uFogColor: { value: new THREE.Color(sky.horizon) },
       uFog: { value: new THREE.Vector2(cfg.fogNear, cfg.fogFar) },
@@ -24,7 +27,8 @@ export function createTerrain(cfg, sky, sunDirection) {
     },
     vertexShader: /* glsl */ `
       uniform vec2 uOffset;
-      uniform float uCell, uPeriod, uHeight, uSea;
+      uniform float uCell, uPeriod, uHeight, uSea, uBaseH;
+      uniform vec2 uBase, uBaseR;
       uniform vec3 uSeaColor, uShore, uLow, uMid, uHigh;
       attribute vec2 aCenter;
       varying vec3 vColor;
@@ -52,9 +56,12 @@ export function createTerrain(cfg, sky, sunDirection) {
         vec3 pos = (modelMatrix * vec4(position, 1.0)).xyz;
         float land = landAt((position.xz + uOffset) / uCell);
         pos.y = land * land * 2.2 * uHeight;
+        // 공군기지 주변은 평평한 땅으로
+        pos.y = mix(pos.y, uBaseH, 1.0 - smoothstep(uBaseR.x, uBaseR.y, distance(position.xz, uBase)));
         // 색은 삼각형 무게중심에서 정한다(세 정점이 같은 값 → 면 단색)
         vec2 wc = (aCenter + uOffset) / uCell;
         float lc = landAt(wc);
+        lc = max(lc, 0.13 * (1.0 - smoothstep(uBaseR.x, uBaseR.y * 0.85, distance(aCenter, uBase))));
         float jitter = hash(floor(wc * 40.0));
         vec3 col = uSeaColor * (0.9 + 0.16 * jitter);
         if (lc > 0.0) {
@@ -92,13 +99,16 @@ export function createTerrain(cfg, sky, sunDirection) {
    * @param {THREE.Vector3} camPos 카메라 위치(렌더 좌표)
    * @param {{x:number,z:number}} origin 누적 원점 오프셋(실제 좌표 = 렌더 좌표 + origin)
    */
-  function update(camPos, origin) {
+  function update(camPos, origin, base) {
     const tx = Math.round((camPos.x + origin.x) / cell) * cell;
     const tz = Math.round((camPos.z + origin.z) / cell) * cell;
     mesh.position.set(tx - origin.x, 0, tz - origin.z);
+    if (base) mat.uniforms.uBase.value.set(base.x - origin.x - mesh.position.x, base.z - origin.z - mesh.position.z);
     mat.uniforms.uOffset.value.set(((tx % worldPeriod) + worldPeriod) % worldPeriod, ((tz % worldPeriod) + worldPeriod) % worldPeriod);
   }
-  return { mesh, update, triangles: cfg.segments * cfg.segments * 2 };
+  /** 기지 주변을 평평하게 만들 범위 */
+  function setBase(height, r0, r1) { mat.uniforms.uBaseH.value = height; mat.uniforms.uBaseR.value.set(r0, r1); }
+  return { mesh, update, setBase, triangles: cfg.segments * cfg.segments * 2 };
 }
 
 /**

@@ -16,6 +16,7 @@ export class Player {
     this.root = new THREE.Group();
     this.root.name = 'player';
     this.cockpitView = false;
+    this.manual = false;
     // 모델 연출 상태(세션이 채운다): 기어·캐노피·에어브레이크·플랩·남은 미사일·애프터버너
     // 조종석(MFD)이 읽는 값. data는 세션이 채운다
     this.cockpitData = { pitch: 0, turn: 0, power: 0.5, dt: 0, time: 0, data: null };
@@ -55,6 +56,7 @@ export class Player {
     this.input.turn = 0;
     this.hp = this.cfg.hp;
     this.alive = true;
+    this.manual = false;
     this.velocity.copy(this.flight.forward).multiplyScalar(this.flight.speed);
     this.root.visible = true;
     this._capture();
@@ -74,7 +76,7 @@ export class Player {
     this.prevQuat.copy(this.flight.quat);
     this._capture();
     this.time += dt;
-    if (this.alive) stepFlight(this.flight, this.input, this.cfg, dt);
+    if (this.alive && !this.manual) stepFlight(this.flight, this.input, this.cfg, dt); // manual: 이륙 연출 중에는 세션이 직접 움직인다
     this.velocity.copy(this.flight.forward).multiplyScalar(this.alive ? this.flight.speed : 0);
   }
 

@@ -4,6 +4,8 @@ import { createSky } from './sky.js';
 import { createClouds } from './clouds.js';
 import { createTerrain } from './backdrop-terrain.js';
 import { createLighting } from './lighting.js';
+import { createAirbase } from './airbase.js';
+import { AIRBASE } from '../data/takeoff.js';
 
 export class World {
   /** @param {THREE.Scene} scene @param {object} cfg data/world.js 의 WORLD */
@@ -18,7 +20,11 @@ export class World {
     this.lights = createLighting(scene, cfg.lighting, this.sunDirection);
     scene.fog = new THREE.Fog(cfg.fog.color, cfg.fog.near, cfg.fog.far);
     scene.background = new THREE.Color(cfg.sky.mid);
-    scene.add(this.sky, this.terrain.mesh, this.clouds.group);
+    // 공군기지: 미션 시작점(실제 좌표 0,0)이 활주로 출발 위치가 되게 놓는다. 활주 방향은 -z
+    this.base = { x: 0, z: -(AIRBASE.runway.length / 2 - AIRBASE.runway.startOffset), height: AIRBASE.height };
+    this.airbase = createAirbase(AIRBASE);
+    this.terrain.setBase(AIRBASE.height, AIRBASE.flattenRadius, AIRBASE.blendRadius);
+    scene.add(this.sky, this.terrain.mesh, this.clouds.group, this.airbase.group);
   }
 
   /** 플레이어가 멀어졌으면 되돌릴 이동량을 돌려준다(없으면 null). */
@@ -40,7 +46,8 @@ export class World {
   /** 렌더 프레임마다: 카메라 기준으로 유니폼 갱신 */
   update(camera) {
     this.clouds.update(camera.position, this.origin);
-    this.terrain.update(camera.position, this.origin);
+    this.terrain.update(camera.position, this.origin, this.base);
+    this.airbase.group.position.set(this.base.x - this.origin.x, this.base.height, this.base.z - this.origin.z);
   }
 
   setCloudFraction(f) {

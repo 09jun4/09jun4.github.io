@@ -8,7 +8,7 @@ import { PHASE } from '../core/mission-session.js';
 
 const _v = new THREE.Vector3();
 const TEXT = {
-  speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
+  speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', takeoff: '이륙 활주', rotate: 'W 또는 S — 기수 들기', climb: '상승 중 · 기어 접는 중', skip: 'Enter / Space  건너뛰기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
   ceiling: '상승 한계', overheat: '과열', kill: '격추', wave: '적 편대 접근', lock: 'LOCK', noAmmo: '미사일 없음',
   clear: '임무 완수', down: '격추당함', time: 'TIME',
 };
@@ -234,9 +234,9 @@ export class Hud {
       g.restore();
     };
     const sp = player.cfg.speed;
-    draw(-1, view.speed, 10, TEXT.speed, view.speed < sp.min + 6);
+    draw(-1, view.speed, 10, TEXT.speed, !player.manual && view.speed < sp.min + 6);
     const alt = view.pos.y;
-    draw(1, alt, 100, TEXT.alt, alt < player.cfg.altitude.warnBelow);
+    draw(1, alt, 100, TEXT.alt, player.flight.limit < 0 && player.flight.pitch < 0.03);
     void H;
   }
 
@@ -393,6 +393,12 @@ export class Hud {
   _notices(session, player, fb, low, W, H, blink) {
     let y = -H * 0.36;
     const put = (str, color, size = 15) => { this._text(str, 0, y, size, color, 'center', true, 700); y += size + 9; };
+    if (session.phase === PHASE.TAKEOFF) {
+      const st = session.takeoff.state;
+      if (st === 'rotate') { if (blink) put(TEXT.rotate, HUD.ok, 20); else y += 29; } else put(st === 'roll' ? TEXT.takeoff : TEXT.climb, HUD.color, 16);
+      this._text(TEXT.skip, 0, H * 0.4, 12, HUD.dim, 'center', true, 600);
+      return;
+    }
     if (session.phase === PHASE.ENDING || session.phase === PHASE.DONE) {
       put(session.success ? TEXT.clear : TEXT.down, session.success ? HUD.ok : HUD.danger, 26);
       return;
@@ -400,7 +406,7 @@ export class Hud {
     if (fb.wave > 0) put(TEXT.wave, HUD.warn);
     if (fb.kill > 0) put(TEXT.kill, HUD.ok);
     const lim = player.flight.limit;
-    if (lim < 0 || player.view.pos.y < player.cfg.altitude.warnBelow) { if (blink) put(TEXT.pullUp, HUD.warn); else y += 24; } else if (lim > 0 && blink) put(TEXT.ceiling, HUD.warn);
+    if (lim < 0 && player.flight.pitch < 0.03) { if (blink) put(TEXT.pullUp, HUD.warn); else y += 24; } else if (lim > 0 && blink) put(TEXT.ceiling, HUD.warn);
     // 피격·체력 경고는 아래쪽 가운데
     let wy = H * 0.3;
     if (fb.hitWarn > 0) { this._text(TEXT.hit, 0, wy, 16, HUD.danger, 'center', true, 700); wy += 26; }
