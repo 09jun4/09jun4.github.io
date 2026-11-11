@@ -1,4 +1,4 @@
-// KF-21 BORAMAE — 조립 지점. (마일스톤 2: 기체 모델 + 비행 + 카메라)
+// KF-21 BORAMAE — 조립 지점. (마일스톤 3: 하늘·구름·지형 추가)
 import * as THREE from 'three';
 import { GameLoop } from './core/game-loop.js';
 import { StateMachine } from './core/state-machine.js';
@@ -11,6 +11,8 @@ import { createKF21, KF21_POINTS } from './entities/kf21-model.js';
 import { createCockpit } from './entities/cockpit.js';
 import { Player } from './entities/player.js';
 import { CameraRig, VIEW } from './flight/camera-rig.js';
+import { World } from './world/world.js';
+import { WORLD } from './data/world.js';
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -19,12 +21,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x5aa7e6);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 60000);
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x56708a, 1.5));
-const sun = new THREE.DirectionalLight(0xfff4e0, 2.2);
-sun.position.set(0.5, 0.8, 0.35);
-scene.add(sun);
+const world = new World(scene, WORLD);
+const shift = { x: 0, z: 0 };
 
 const model = createKF21(PLAYER_AIRCRAFT.model);
 const cockpit = createCockpit(KF21_POINTS.eye);
@@ -64,11 +63,16 @@ const loop = new GameLoop({
       player.input.turn = 0;
     }
     player.step(dt);
+    if (world.rebaseShift(player.flight.pos, shift)) {
+      player.shift(shift.x, shift.z);
+      rig.shift(shift.x, shift.z);
+    }
   },
   render(alpha, frameDt) {
     player.interpolate(alpha);
     player.animate(frameDt);
     rig.update(player.view, frameDt);
+    world.update(camera);
     renderer.render(scene, camera);
   },
 });
@@ -97,7 +101,10 @@ if (isDebugEnabled()) {
       setInput: (o) => { inputOverride = o; },
       /** 모델 확인용 고정 시점. null이면 해제 */
       inspect: (f) => { rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; applyView(); } },
-      background: (hex) => { scene.background.setHex(hex); },
+      background: (hex) => { scene.background.setHex(hex); world.sky.visible = false; world.clouds.group.visible = false; world.terrain.mesh.visible = false; },
+      origin: () => ({ ...world.origin }),
+      setOrigin: (x, z) => { world.origin.x = x; world.origin.z = z; },
+      teleport: (x, y, z, yaw = 0) => { player.reset({ x, y, z, yaw }); rig.snap = true; },
       controls: (p, t) => { model.setControls(p, t, 10); },
     },
   });
