@@ -61,6 +61,7 @@ rig.shakeEnabled = settings.get('cameraShake');
 const input = new Input();
 input.attach(stage);
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
+visuals.enemies = session.enemies;
 const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
 
 function resize() {
@@ -214,6 +215,7 @@ const loop = new GameLoop({
   render(alpha, frameDt) {
     const paused = fsm.name === STATE.PAUSED;
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
+    visuals.animate(player.time, paused ? 0 : frameDt);
     renderer.info.reset();
     world.followLight(player.renderPos);
     if (post) {

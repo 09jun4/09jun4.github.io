@@ -12,6 +12,8 @@ import { createCockpitHi } from '../entities/hi/cockpit-hi.js';
 import { createFlame } from '../entities/hi/flame.js';
 import { NOZZLE, Z } from '../entities/kf21-shape.js';
 import { FX } from '../data/fx.js';
+import { fillEnemyVisual } from '../entities/enemy-model.js';
+import { addEnemyHiMeshes, disposeEnemyHi, ENEMY_NOZZLE_Z } from '../entities/hi/enemy-hi.js';
 import { createAircraftTextures, PAINT_SCHEMES } from '../entities/hi/textures.js';
 import { PALETTE } from '../data/palette.js';
 
@@ -30,6 +32,13 @@ export class Visuals {
     this.env = null;
     this.buildMs = 0;
     this.listeners = [];
+    this.enemies = null; // 적기 풀(세션이 만든 뒤 main이 넣어 준다)
+    this.enemyFlames = [];
+  }
+
+  /** 적기 불꽃 일렁임(최고 프리셋) */
+  animate(time, dt) {
+    for (const f of this.enemyFlames) f.set(0.8, 0.55, time, dt);
   }
 
   /** 모델이 바뀐 뒤 불린다(세션이 총구 섬광 등을 다시 붙인다). */
@@ -102,6 +111,23 @@ export class Visuals {
       await step(0.8, '조종석을 만드는 중');
       const cockpit = createCockpitHi(KF21_POINTS.eye, cfg.detail);
       this.current = { model, cockpit, textures, pilot, extras: [flame] };
+    }
+    // 적기: 프리셋에 맞는 모델로 교체. 최고에서만 플레이어 수준의 불꽃을 단다(색은 붉은 계열)
+    await step(0.9, '적기를 만드는 중');
+    for (const f of this.enemyFlames) { if (f.mesh.parent) f.mesh.parent.remove(f.mesh); f.dispose(); }
+    this.enemyFlames = [];
+    disposeEnemyHi(cfg.enemyDetail);
+    if (this.enemies) {
+      this.enemies.rebuildVisuals((group) => {
+        const tris = fillEnemyVisual(group, cfg.enemyDetail, addEnemyHiMeshes);
+        if (cfg.enemyFlames) {
+          const flame = createFlame({ nozzles: [[0, 0]], z: ENEMY_NOZZLE_Z, radius: 0.42, segments: 14, cfg: FX.flame, colors: FX.flameColors.enemy });
+          flame.set(0.8, 0.55, 0, 10);
+          group.add(flame.mesh);
+          this.enemyFlames.push(flame);
+        }
+        return tris;
+      });
     }
     this.player.setModel(this.current.model, this.current.cockpit);
     for (const fn of this.listeners) fn(this.current, cfg);

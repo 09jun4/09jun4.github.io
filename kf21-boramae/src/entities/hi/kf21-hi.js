@@ -49,7 +49,7 @@ const alongSpan = (a, b, span) => {
  * 날개 판 한 구간(익형 단면 로프트). from~to: 코드 방향 범위(조종면을 떼어낼 때).
  * 좌표: [span, y, z]. matrix를 걸면 수직미익처럼 세울 수 있다.
  */
-function wingPanel(S, a, b, y, { from = 0, to = 1, nC, nS, capA = true, capB = true, thick = 1 }) {
+export function wingPanel(S, a, b, y, { from = 0, to = 1, nC, nS, capA = true, capB = true, thick = 1 }) {
   const cols = 2 * nC + 1;
   const pt = (k, v) => {
     const upper = k <= nC;

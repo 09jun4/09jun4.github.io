@@ -135,4 +135,9 @@ export class EnemyPool {
   clear() {
     for (const e of this.list) e.despawn();
   }
+
+  /** 프리셋 전환: 모든 적기의 메시를 바꾼다. fill(group) → 삼각형 수 */
+  rebuildVisuals(fill) {
+    for (const e of this.list) e.visual.triangles = fill(e.group);
+  }
 }

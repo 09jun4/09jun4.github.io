@@ -141,14 +141,27 @@ export function setEnemyOutlinePixels(pixels, fovDeg, viewportHeight) {
   s.outlineMat.uniforms.uPerDepth.value = (pixels * 2 * Math.tan((fovDeg * Math.PI) / 360)) / viewportHeight;
 }
 
-export function createEnemyVisual(scale) {
+/**
+ * 적기 메시를 group에 채운다(프리셋 전환 때 다시 부른다).
+ * 붉은 외곽선은 항상 로우폴리 껍데기를 쓴다(식별용 테두리라 촘촘할 필요가 없고 삼각형을 아낀다).
+ * @param {number} detail 0(낮음: 로우폴리) | 1(높음) | 2(최고)
+ * @param {(group:THREE.Group, detail:number)=>number} [addHi] 하이폴리 메시를 넣는 함수
+ * @returns {number} 삼각형 수
+ */
+export function fillEnemyVisual(group, detail, addHi) {
   const s = getShared();
+  group.clear();
+  group.add(new THREE.Mesh(s.geo, s.outlineMat));
+  if (detail > 0 && addHi) return s.triangles + addHi(group, detail);
+  group.add(new THREE.Mesh(s.geo, s.bodyMat));
+  return s.triangles * 2;
+}
+
+export function createEnemyVisual(scale) {
   const group = new THREE.Group();
   group.name = 'enemy';
-  const body = new THREE.Mesh(s.geo, s.bodyMat);
-  const outline = new THREE.Mesh(s.geo, s.outlineMat);
-  group.add(outline, body);
+  const triangles = fillEnemyVisual(group, 0);
   group.scale.setScalar(scale);
   group.visible = false;
-  return { group, triangles: s.triangles * 2 };
+  return { group, triangles };
 }
