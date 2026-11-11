@@ -24,7 +24,7 @@ export const WORLD = {
   },
 
   // 후처리 색감(높음·최고)
-  post: { exposure: 0.92, bloomThreshold: 1.05, flareColor: 0xfff1d0, flashColor: 0xffc27a },
+  post: { exposure: 0.98, bloomThreshold: 1.05, flareColor: 0xfff1d0, flashColor: 0xffc27a },
   // 기체 그림자(높음·최고): 플레이어 주변만 덮는 좁은 그림자 맵
   shadow: { extent: 11, distance: 60, bias: -0.0015, normalBias: 0.03 },
 

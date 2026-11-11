@@ -91,6 +91,7 @@ export function createGun(cfg) {
         _end.x += (ctx.random() - 0.5) * cfg.spread * cfg.range;
         _end.y += (ctx.random() - 0.5) * cfg.spread * cfg.range;
       }
+      if (ctx.onGunFired) ctx.onGunFired(_muzzle); // 탄피·화약 연기
       ctx.fx.tracer(_muzzle, _end);
       ctx.fx.muzzleFlash();
       ctx.rig.addShake(cfg.shake);

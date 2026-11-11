@@ -166,6 +166,22 @@ export class Effects {
   constructor(scene, cfg) {
     this.cfg = cfg;
     this.particles = new Particles(cfg.particles.capacity);
+    this.p = this.particles; // 지금 쓰는 파티클 백엔드(낮음: CPU 인스턴싱, 높음·최고: GPU 셰이더)
+    this.gpu = null;
+    this.countScale = 1; // 프리셋에 따른 파티클 수 배율
+    this.sizeScale = 1; // GPU 파티클은 가장자리가 부드러워 조금 크게 그린다
+    this.scene = scene;
+    // 충격파 링(격추 순간 퍼지는 고리)
+    this.rings = [];
+    const ringGeo = new THREE.RingGeometry(0.95, 1, 64);
+    for (let i = 0; i < 3; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: PALETTE.fx.flash, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+      const mesh = new THREE.Mesh(ringGeo, mat);
+      mesh.visible = false;
+      mesh.renderOrder = 6;
+      scene.add(mesh);
+      this.rings.push({ mesh, mat, life: 0, max: 0, size: 0 });
+    }
     this.bolts = new BoltBatch(cfg.bolts.capacity);
     scene.add(this.particles.mesh, this.bolts.mesh);
 
@@ -203,11 +219,29 @@ export class Effects {
     this.particles.limit = Math.max(40, Math.floor(this.particles.capacity * f));
   }
 
-  _count(n) {
-    return Math.max(1, Math.round(n * this.particleFraction));
+  /**
+   * 파티클 백엔드를 바꾼다(프리셋 전환). gpu가 null이면 CPU 인스턴싱으로 돌아간다.
+   * @param {import('./gpu-particles.js').GpuParticles|null} gpu
+   */
+  setBackend(gpu, countScale = 1) {
+    if (this.gpu) { this.scene.remove(this.gpu.mesh); this.gpu.dispose(); }
+    this.gpu = gpu;
+    this.particles.clear();
+    if (this.gpu) this.gpu.clear();
+    for (const r of this.rings) { r.mesh.visible = false; r.life = r.max = 0; }
+    this.particles.mesh.visible = !gpu;
+    this.p = gpu || this.particles;
+    this.countScale = countScale;
+    this.sizeScale = gpu ? 1.7 : 1;
+    if (gpu) this.scene.add(gpu.mesh);
   }
 
-  _burst(pos, vel, inherit, spec, colors, sizeScale, gravity = 0) {
+  _count(n) {
+    return Math.max(1, Math.round(n * this.particleFraction * this.countScale));
+  }
+
+  _burst(pos, vel, inherit, spec, colors, sizeScale, kind = 0, gravity = 0) {
+    const big = this.sizeScale;
     const n = this._count(spec.count);
     for (let i = 0; i < n; i++) {
       // 구 위의 고른 무작위 방향
@@ -216,10 +250,10 @@ export class Effects {
       const r = Math.sqrt(1 - u * u);
       const sp = rr(spec.speed) * sizeScale;
       const s = rr(spec.size) * sizeScale;
-      this.particles.spawn(
+      this.p.spawn(
         pos.x, pos.y, pos.z,
         vel.x * inherit + Math.cos(a) * r * sp, vel.y * inherit + u * sp, vel.z * inherit + Math.sin(a) * r * sp,
-        rr(spec.life), s * 0.35, s, colors[i % colors.length], spec.gravity || gravity, this.cfg.drag,
+        rr(spec.life), s * 0.35 * big, s * big, colors[i % colors.length], spec.gravity || gravity, this.cfg.drag, kind,
       );
     }
   }
@@ -227,26 +261,55 @@ export class Effects {
   /** 격추 폭발: 구형 파편 + 섬광 + 연기 */
   explosion(pos, vel, scale = 1) {
     const e = this.cfg.explosion;
-    this._burst(pos, vel, e.inherit, e.fire, COLORS_FIRE, scale);
-    this._burst(pos, vel, e.inherit, e.smoke, COLORS_SMOKE, scale);
-    this._burst(pos, vel, e.inherit, e.debris, COLORS_DEBRIS, scale);
+    this._burst(pos, vel, e.inherit, e.fire, COLORS_FIRE, scale, 1);
+    this._burst(pos, vel, e.inherit, e.smoke, COLORS_SMOKE, scale, 0);
+    this._burst(pos, vel, e.inherit, e.debris, COLORS_DEBRIS, scale, 2);
     this.flash(pos, e.flash.size * scale, e.flash.life);
+    this.shockRing(pos, e.ring.size * scale, e.ring.life);
+  }
+
+  /** 충격파 링: 카메라를 향한 고리가 빠르게 퍼지며 사라진다 */
+  shockRing(pos, size, life) {
+    let best = this.rings[0];
+    for (const r of this.rings) if (r.life >= r.max) { best = r; break; }
+    best.mesh.position.copy(pos);
+    best.life = 0; best.max = life; best.size = size;
+    best.mesh.visible = true;
+  }
+
+  /** 불꽃 한 덩이(손상 화재, 추락하는 잔해의 불길) */
+  fire(pos, vel, spec) {
+    const s = rr(spec.size) * this.sizeScale;
+    this.p.spawn(pos.x, pos.y, pos.z, vel.x * 0.7 + (rnd() - 0.5) * 6, vel.y * 0.7 + (rnd() - 0.5) * 6 + 2, vel.z * 0.7 + (rnd() - 0.5) * 6, rr(spec.life), s * 0.5, s, rnd() < 0.5 ? FXC.fireA : FXC.fireB, 0, 1.2, 1);
+  }
+
+  /** 기관포 탄피: 옆으로 튀어나와 떨어진다 */
+  casing(pos, vel, side) {
+    const c = this.cfg.casing;
+    this.p.spawn(pos.x, pos.y, pos.z, vel.x + side.x * c.speed + (rnd() - 0.5) * 3, vel.y + side.y * c.speed + 2, vel.z + side.z * c.speed + (rnd() - 0.5) * 3, c.life, c.size, c.size, FXC.casing, c.gravity, 0.2, 2);
+  }
+
+  /** 기관포 화약 연기 */
+  gunSmoke(pos, vel) {
+    const c = this.cfg.gunSmoke;
+    const s = rr(c.size) * this.sizeScale;
+    this.p.spawn(pos.x, pos.y, pos.z, vel.x * 0.92, vel.y * 0.92 + 1, vel.z * 0.92, rr(c.life), s * 0.4, s, FXC.gunSmoke, 0, 2.2, 0);
   }
 
   missileBlast(pos, vel) {
-    this._burst(pos, vel, 0.3, this._blastFire, COLORS_BLAST, 0.7);
-    this._burst(pos, vel, 0.3, this._blastSmoke, COLORS_BLAST_SMOKE, 0.7);
+    this._burst(pos, vel, 0.3, this._blastFire, COLORS_BLAST, 0.7, 1);
+    this._burst(pos, vel, 0.3, this._blastSmoke, COLORS_BLAST_SMOKE, 0.7, 0);
     this.flash(pos, this.cfg.missileHit.flash, 0.16);
   }
 
   spark(pos, vel) {
-    this._burst(pos, vel, 1, this.cfg.spark, COLORS_SPARK, 1);
+    this._burst(pos, vel, 1, this.cfg.spark, COLORS_SPARK, 1 / this.sizeScale, 2);
   }
 
   /** 연기 한 덩이(미사일 꼬리, 손상된 적기) */
   smoke(pos, spec, colorHex) {
-    const s = rr(spec.size);
-    this.particles.spawn(pos.x, pos.y, pos.z, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3 + 1.5, (rnd() - 0.5) * 3, rr(spec.life), s * 0.5, s, colorHex, 0, 0.6);
+    const s = rr(spec.size) * this.sizeScale;
+    this.p.spawn(pos.x, pos.y, pos.z, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3 + 1.5, (rnd() - 0.5) * 3, rr(spec.life), s * 0.5, s, colorHex, 0, 0.6, 0);
   }
 
   flash(pos, size, life) {
@@ -284,8 +347,17 @@ export class Effects {
    * 렌더 프레임마다. 볼트 배치는 여기서 begin 하고, 호출자가 적 탄을 더한 뒤 endBolts()를 부른다.
    * @param {object} tracerCfg 기관포 예광탄 설정
    */
-  update(dt, tracerCfg) {
+  update(dt, tracerCfg, camera) {
     this.particles.update(dt);
+    for (const r of this.rings) {
+      if (!r.mesh.visible) continue;
+      r.life += dt;
+      const t = r.life / r.max;
+      if (t >= 1) { r.mesh.visible = false; continue; }
+      r.mesh.scale.setScalar(r.size * (0.15 + 0.85 * (1 - (1 - t) * (1 - t))));
+      r.mat.opacity = (1 - t) * (1 - t) * 0.5;
+      if (camera) r.mesh.quaternion.copy(camera.quaternion);
+    }
     for (const f of this.flashes) {
       if (!f.mesh.visible) continue;
       f.life += dt;
@@ -317,6 +389,7 @@ export class Effects {
 
   shift(dx, dz) {
     this.particles.shift(dx, dz);
+    for (const r of this.rings) { r.mesh.position.x += dx; r.mesh.position.z += dz; }
     for (const p of this.tracers.pos) { p.x += dx; p.z += dz; }
     for (const f of this.flashes) { f.mesh.position.x += dx; f.mesh.position.z += dz; }
   }

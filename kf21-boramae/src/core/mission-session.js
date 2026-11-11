@@ -10,7 +10,7 @@ import { debugState } from './debug.js';
 import { computeScore, gradeFor } from './scoring.js';
 import { VIEW } from '../flight/camera-rig.js';
 import { EnemyPool } from '../entities/enemy.js';
-import { setEnemyOutlinePixels } from '../entities/enemy-model.js';
+import { setEnemyOutlinePixels, createEnemyVisual } from '../entities/enemy-model.js';
 import { Effects } from '../entities/effects.js';
 import { KF21_POINTS } from '../entities/kf21-model.js';
 import { WeaponSystem } from '../combat/weapon-system.js';
@@ -31,6 +31,8 @@ import { HUD_FEEDBACK } from '../data/hud.js';
 const _v = new THREE.Vector3();
 const _shift = { x: 0, z: 0 };
 const _q = new THREE.Quaternion();
+const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
 
 export const PHASE = { TAKEOFF: 'takeoff', ACTIVE: 'active', ENDING: 'ending', DONE: 'done' };
 
@@ -79,6 +81,15 @@ export class MissionSession {
     this.director = new EnemyDirector(this.enemies.list);
     this.spawner = new WaveSpawner(SPAWN);
     this.collisionCooldown = 0;
+    // 추락하는 잔해(격추된 적기가 불타며 떨어진다)
+    this.wrecks = [];
+    for (let i = 0; i < FX.wreck.pool; i++) {
+      const visual = createEnemyVisual(this.enemyCfg.modelScale);
+      scene.add(visual.group);
+      this.wrecks.push({ group: visual.group, active: false, vel: new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), life: 0, timer: 0 });
+    }
+    this.damageTimer = 0;
+    this.gpuFrame = { depth: null, w: 1, h: 1 }; // 소프트 파티클용 장면 깊이(후처리가 있을 때 main이 채운다)
     // 이륙 연출 상태. state: 'roll' 활주 → 'rotate' 기수 들기 대기 → 'climb' 상승
     this.takeoff = { state: 'roll', speed: 0, pitch: 0, wait: 0, assisted: false, time: 0 };
     this.simpleTakeoff = false; // 낮음 프리셋: 막 떠오른 순간부터 시작
@@ -117,6 +128,19 @@ export class MissionSession {
       onEnemyKilled(enemy, source) { self._onEnemyKilled(enemy, source); },
       onPlayerHit(amount, kind) { self._onPlayerHit(amount, kind); },
       onPlayerKilled() { self._onPlayerKilled(); },
+      onGunFired(muzzle) {
+        _v2.set(-1, 0.2, 0).applyQuaternion(player.flight.quat); // 탄피는 기체 왼쪽으로 튄다
+        self.fx.casing(muzzle, player.velocity, _v2);
+        self.fx.gunSmoke(muzzle, player.velocity);
+      },
+      onMissileFired(pos) { self.fx.flash(pos, FX.missileIgnite.size, FX.missileIgnite.life); },
+      /** 미사일이 달려 있던 파일런 위치(하이폴리 모델에만 있다). 없으면 false */
+      missileMount(index, out) {
+        const m = player.model;
+        if (!m || !m.missileMount) return false;
+        m.missileMount(index, out).applyQuaternion(player.flight.quat).add(player.flight.pos);
+        return true;
+      },
     };
     this.weapons.init(this.ctx);
     this.resize(this.viewport.w, this.viewport.h);
@@ -125,6 +149,7 @@ export class MissionSession {
   // ── 시작 ────────────────────────────────────────────────────────────────
   _resetWorld() {
     this.enemies.clear();
+    for (const w of this.wrecks) { w.active = false; w.group.visible = false; }
     this.projectiles.clear();
     this.collisionCooldown = 0;
     this.fx.clear();
@@ -308,6 +333,16 @@ export class MissionSession {
     this.stats.kills++;
     // 가까운 폭발일수록 화면 가장자리가 밝게 번쩍인다
     this.feedback.flash = Math.max(this.feedback.flash, clamp01(1.15 - enemy.pos.distanceTo(this.player.flight.pos) / 900));
+    // 잔해: 격추된 자리에서 속도를 이어받아 돌면서 떨어진다
+    const w = this.wrecks.find((x) => !x.active) || this.wrecks[0];
+    w.active = true;
+    w.life = FX.wreck.life;
+    w.timer = 0;
+    w.group.position.copy(enemy.pos);
+    w.group.quaternion.copy(enemy.quat);
+    w.vel.copy(enemy.velocity).multiplyScalar(0.8);
+    w.axis.set(this.rng() - 0.5, this.rng() - 0.5, this.rng() - 0.5).normalize();
+    w.group.visible = true;
     this.feedback.kill = HUD_FEEDBACK.killNotice;
     this._checkCleared();
   }
@@ -449,6 +484,7 @@ export class MissionSession {
     player.step(dt);
     if (mission && this.phase === PHASE.TAKEOFF) this._stepTakeoff(dt);
     this._stepVisual(dt);
+    this._stepDamageFx(dt);
 
     if (mission) {
       const active = this.phase === PHASE.ACTIVE;
@@ -536,6 +572,7 @@ export class MissionSession {
     this.rig.shift(dx, dz);
     this.fx.shift(dx, dz);
     for (const e of this.enemies.list) e.shift(dx, dz);
+    for (const w of this.wrecks) { w.group.position.x += dx; w.group.position.z += dz; }
     this.projectiles.shift(dx, dz);
     this.weapons.shift(dx, dz);
   }
@@ -551,11 +588,47 @@ export class MissionSession {
     this.rig.update(player.view, frameDt);
     this.world.update(this.camera);
     if (!this.looking) this.updateCursor();
-    this.fx.update(frameDt, WEAPONS.gun.tracer);
+    this._renderWrecks(frameDt);
+    this.fx.update(frameDt, WEAPONS.gun.tracer, this.camera);
+    if (this.fx.gpu) this.fx.gpu.update(frameDt, this.camera, this.world.origin, this.gpuFrame.depth, this.gpuFrame.w, this.gpuFrame.h);
     this._renderProjectiles(alpha);
     this.fx.endBolts();
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
     if (this.feedback.flash > 0) this.feedback.flash = Math.max(0, this.feedback.flash - frameDt * HUD_FEEDBACK.flashFade);
+  }
+
+  /** 잔해: 중력으로 떨어지며 불과 연기를 끈다(연출 전용이라 렌더 프레임에서 움직인다) */
+  _renderWrecks(dt) {
+    const c = FX.wreck;
+    for (const w of this.wrecks) {
+      if (!w.active) continue;
+      w.life -= dt;
+      if (w.life <= 0) { w.active = false; w.group.visible = false; this.fx.missileBlast(w.group.position, w.vel); continue; }
+      w.vel.multiplyScalar(Math.max(0, 1 - c.drag * dt));
+      w.vel.y -= c.gravity * dt;
+      w.group.position.addScaledVector(w.vel, dt);
+      w.group.rotateOnAxis(w.axis, c.spin * dt);
+      w.timer -= dt;
+      if (w.timer <= 0 && dt > 0) {
+        w.timer = c.every;
+        this.fx.fire(w.group.position, w.vel, c.fire);
+        this.fx.smoke(w.group.position, c.smoke, PALETTE.fx.smokeB);
+      }
+    }
+  }
+
+  /** 플레이어 손상 표시: 체력이 낮으면 엔진에서 연기, 위급하면 불길 */
+  _stepDamageFx(dt) {
+    const p = this.player;
+    const c = FX.playerDamage;
+    const ratio = p.hp / p.cfg.hp;
+    if (!p.alive || this.mode !== 'mission' || ratio >= c.smokeBelow) return;
+    this.damageTimer -= dt;
+    if (this.damageTimer > 0) return;
+    this.damageTimer = c.every;
+    _v3.set((this.rng() < 0.5 ? -1 : 1) * 0.66, 0, KF21_POINTS.nozzleEnd).applyQuaternion(p.flight.quat).add(p.flight.pos);
+    this.fx.smoke(_v3, c.smoke, ratio < c.fireBelow ? PALETTE.fx.smokeB : PALETTE.fx.smokeA);
+    if (ratio < c.fireBelow) this.fx.fire(_v3, p.velocity, c.fire);
   }
 
   _renderProjectiles(alpha) {

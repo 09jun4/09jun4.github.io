@@ -52,5 +52,7 @@ export const PALETTE = {
     missileSmoke: 0xdde3e8,
     flash: 0xfff4d0,
     debris: 0x2b2e33,
+    casing: 0xd9b45a,
+    gunSmoke: 0xb9bcc0,
   },
 };

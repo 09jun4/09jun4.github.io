@@ -114,6 +114,7 @@ export function createMissile(cfg) {
       const s = shots.find((x) => !x.active);
       if (!s) return;
       const f = ctx.player.flight;
+      const shot = cfg.ammo - this.ammo; // 몇 번째 발인지(0부터): 그 자리의 파일런에서 떨어져 나간다
       this.ammo--;
       this.cooldown = cfg.cooldown;
       ctx.stats.missilesFired++;
@@ -121,7 +122,8 @@ export function createMissile(cfg) {
       s.active = true;
       s.target = lock.target;
       s.dir.copy(f.forward);
-      s.pos.set(0, -cfg.dropOffset, 0).applyQuaternion(f.quat).add(f.pos);
+      if (!ctx.missileMount || !ctx.missileMount(shot, s.pos)) s.pos.set(0, -cfg.dropOffset, 0).applyQuaternion(f.quat).add(f.pos);
+      if (ctx.onMissileFired) ctx.onMissileFired(s.pos); // 점화 섬광
       s.prev.copy(s.pos);
       s.speed = Math.max(cfg.launchSpeed, f.speed);
       s.life = cfg.life;

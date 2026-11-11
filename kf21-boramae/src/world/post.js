@@ -1,6 +1,7 @@
 // 후처리(높음·최고 프리셋 전용). 낮음에서는 이 파일을 아예 쓰지 않는다.
 //   1) 장면을 HDR(HalfFloat) + MSAA 렌더 타깃에 그린다(깊이 텍스처 포함)
-//   2) 같은 타깃에 파티클 층을 이어 그린다(1에서 풀린 깊이 텍스처를 읽어 가장자리를 부드럽게 = 소프트 파티클)
+//   2) 장면 색을 두 번째 HDR 타깃에 복사하고 그 위에 파티클 층을 그린다. 파티클은 1의 깊이 텍스처를 읽어
+//      가려진 부분은 버리고 맞닿는 가장자리는 부드럽게 한다(소프트 파티클). MSAA 타깃은 해상 뒤 내용이 버려져서 이어 그릴 수 없다.
 //   3) 블룸: 밝은 부분만 뽑아 절반씩 줄였다가 다시 키우며 더한다(불꽃·항법등·계기판처럼 밝은 것만 번진다)
 //   4) 합성: 블룸 + 렌즈 플레어(해가 가려지지 않았을 때) + ACES 톤매핑 + 색보정 + 폭발 가장자리 섬광
 //   5) (최고) 약한 모션 블러: 화면이 빨리 돌 때만 이전 프레임을 조금 섞는다
@@ -58,15 +59,18 @@ const COMPOSITE = /* glsl */ `
     vec2 q = vUv - 0.5;
     float edge = smoothstep(0.25, 0.75, length(q * vec2(1.0, 0.8)));
     col += uFlashColor * uFlash * edge * 1.6;
-    col = aces(col * uExposure);
+    // ACES는 밝은 파랑·초록을 과하게 틀어서, 원래 색과 섞어 낮 하늘 색을 지킨다
+    col = mix(aces(col * uExposure), clamp(col * uExposure, 0.0, 1.0), 0.4);
     // 색보정: 채도·대비를 살짝 올리고 가장자리를 아주 약하게 어둡게
     float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    col = mix(vec3(l), col, 1.22);
-    col = (col - 0.5) * 1.1 + 0.5;
+    col = mix(vec3(l), col, 1.04);
+    col = (col - 0.5) * 1.06 + 0.5;
     col *= 1.0 - edge * 0.16;
     gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
     #include <colorspace_fragment>
   }`;
+
+const COPY = /* glsl */ `uniform sampler2D tSrc; varying vec2 vUv; void main() { gl_FragColor = texture2D(tSrc, vUv); }`;
 
 const BLEND = /* glsl */ `
   uniform sampler2D tCur; uniform sampler2D tPrev; uniform float uMix; varying vec2 vUv;
@@ -95,8 +99,10 @@ export class PostFX {
       uSun: { value: new THREE.Vector3() }, uSunColor: { value: new THREE.Color(look.flareColor) },
       uFlash: { value: 0 }, uFlashColor: { value: new THREE.Color(look.flashColor) },
     });
+    this.mCopy = sm(COPY, { tSrc: { value: null } });
     this.mBlend = sm(BLEND, { tCur: { value: null }, tPrev: { value: null }, uMix: { value: 0 } });
     this.scene = null;
+    this.hdr = null; // 장면 + 파티클
     this.down = [];
     this.up = [];
     this.ldr = [];
@@ -119,6 +125,7 @@ export class PostFX {
     const depth = new THREE.DepthTexture(w, h);
     depth.type = THREE.UnsignedIntType;
     this.scene = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: this.cfg.msaa, depthTexture: depth });
+    this.hdr = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false });
     const half = (ww, hh) => new THREE.WebGLRenderTarget(Math.max(2, ww), Math.max(2, hh), { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
     let cw = w >> 1, ch = h >> 1;
     for (let i = 0; i < this.cfg.bloomLevels; i++) { this.down.push(half(cw, ch)); if (i < this.cfg.bloomLevels - 1) this.up.push(half(cw, ch)); cw >>= 1; ch >>= 1; }
@@ -144,17 +151,24 @@ export class PostFX {
     camera.layers.set(0);
     r.setRenderTarget(this.scene);
     r.render(scene, camera);
-    // 2) 파티클 층(깊이 텍스처는 1에서 풀린 것을 읽는다)
+    // 2) 장면 색을 복사한 뒤 그 위에 파티클 층을 그린다
+    let sceneTex = this.scene.texture;
     if (f.particleLayer) {
-      const auto = r.autoClear;
+      this.mCopy.uniforms.tSrc.value = this.scene.texture;
+      this._pass(this.mCopy, this.hdr);
+      const auto = r.autoClear, bg = scene.background;
       r.autoClear = false;
+      scene.background = null;
       camera.layers.set(f.particleLayer);
+      r.setRenderTarget(this.hdr);
       r.render(scene, camera);
       camera.layers.set(0);
+      scene.background = bg;
       r.autoClear = auto;
+      sceneTex = this.hdr.texture;
     }
     // 3) 블룸
-    let src = this.scene.texture, sw = this.w, sh = this.h;
+    let src = sceneTex, sw = this.w, sh = this.h;
     for (let i = 0; i < this.down.length; i++) {
       const u = this.mDown.uniforms;
       u.tSrc.value = src; u.uTexel.value.set(0.5 / sw, 0.5 / sh); u.uThreshold.value = i === 0 ? this.look.bloomThreshold : 0;
@@ -169,7 +183,7 @@ export class PostFX {
     }
     // 4) 합성
     const c = this.mComp.uniforms;
-    c.tScene.value = this.scene.texture; c.tBloom.value = src; c.tDepth.value = this.scene.depthTexture;
+    c.tScene.value = sceneTex; c.tBloom.value = src; c.tDepth.value = this.scene.depthTexture;
     c.uSun.value.copy(f.sun); c.uFlash.value = f.flash;
     const blur = this.cfg.motionBlur > 0 ? Math.min(this.cfg.motionBlur, this.cfg.motionBlur * f.turn) : 0;
     if (this.ldr.length === 0) { this._pass(this.mComp, null); return; }
@@ -185,16 +199,17 @@ export class PostFX {
 
   _disposeTargets() {
     if (this.scene) { this.scene.depthTexture.dispose(); this.scene.dispose(); }
+    if (this.hdr) this.hdr.dispose();
     for (const t of this.down) t.dispose();
     for (const t of this.up) t.dispose();
     for (const t of this.ldr) t.dispose();
-    this.scene = null; this.down = []; this.up = []; this.ldr = [];
+    this.scene = null; this.hdr = null; this.down = []; this.up = []; this.ldr = [];
   }
 
   dispose() {
     this._disposeTargets();
     this.renderer.setRenderTarget(null);
-    for (const m of [this.mDown, this.mUp, this.mComp, this.mBlend]) m.dispose();
+    for (const m of [this.mDown, this.mUp, this.mComp, this.mBlend, this.mCopy]) m.dispose();
     this.quad.geometry.dispose();
   }
 }

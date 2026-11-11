@@ -33,6 +33,7 @@ import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
 import { PostFX } from './world/post.js';
+import { GpuParticles, PARTICLE_LAYER } from './entities/gpu-particles.js';
 
 const appEl = document.getElementById('app');
 const stage = document.getElementById('stage');
@@ -71,11 +72,15 @@ function resize() {
   session.resize(w, h);
   hud.resize(w, h);
   if (post) post.setSize(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
+  session.gpuFrame.depth = post ? post.depthTexture : null;
+  session.gpuFrame.w = post ? post.w : w;
+  session.gpuFrame.h = post ? post.h : h;
 }
 const loading = createLoading(appEl);
 let post = null; // 후처리(높음·최고에서만 존재)
 const sunScreen = new THREE.Vector3();
 const _sunWorld = new THREE.Vector3();
+const postFrame = { sun: sunScreen, flash: 0, turn: 0, particleLayer: 0 };
 /** 프리셋 적용: tier가 바뀌면 모델·재질을 통째로 다시 만들고(로딩 화면), 구름·파티클 양을 맞춘다. */
 async function applyPreset(name, cfg) {
   if (visuals.tier !== cfg.tier) {
@@ -92,6 +97,9 @@ async function applyPreset(name, cfg) {
   if (post) { post.dispose(); post = null; }
   if (cfg.post) post = new PostFX(renderer, cfg.post, WORLD.post);
   world.setShadows(renderer, cfg.shadowMap);
+  // 파티클: 낮음은 CPU 인스턴싱, 높음·최고는 GPU 셰이더(소프트 파티클)
+  session.fx.setBackend(cfg.particleCapacity ? new GpuParticles(cfg.particleCapacity, world.sunDirection) : null, cfg.particleScale);
+  postFrame.particleLayer = cfg.particleCapacity ? PARTICLE_LAYER : 0;
   world.setCloudFraction(cfg.clouds);
   session.fx.setParticleFraction(cfg.particles);
   session.simpleTakeoff = cfg.tier === 'low';
@@ -195,7 +203,6 @@ input.onKey((code) => {
 });
 
 // ── 루프 ─────────────────────────────────────────────────────────────────
-const postFrame = { sun: sunScreen, flash: 0, turn: 0, particleLayer: 0 };
 const loop = new GameLoop({
   ...LOOP,
   step(dt) {

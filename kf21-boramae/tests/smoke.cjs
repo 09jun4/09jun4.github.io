@@ -16,7 +16,7 @@ const { startServer, launch, openGame, sleep } = require('./lib/harness.cjs');
   check('메인 메뉴 버튼은 두 개(게임 시작, 설정)', (await g.page.$$eval('.menu-buttons .btn', (b) => b.map((x) => x.textContent.trim()).join(','))) === '게임 시작,설정');
   await g.page.click('[data-act="start"]'); await sleep(800);
   await g.page.click('[data-act="brief"]'); await sleep(800);
-  await g.page.click('[data-act="launch"]'); await sleep(1500);
+  await g.page.click('[data-act="launch"]'); await sleep(3000); // 페이드가 끝날 때까지 넉넉히
   check('출격하면 HUD가 보인다', await g.page.$eval('#hud', (c) => getComputedStyle(c).display !== 'none'));
   await g.page.keyboard.press('Escape'); await sleep(300);
   check('ESC로 일시정지', await g.page.$eval('.pause', (e) => !e.hidden));
