@@ -11,15 +11,27 @@ KF-21 보라매를 몰고 적기를 격추하는 3D 전투기 슈팅(싱글 플�
 | 마우스 · 좌클릭 | 무장 조준 · 발사 |
 | F | 기관포 ↔ 미사일 |
 | V | 3인칭 ↔ 조종석 |
+| C (누른 채 마우스) | 조종석에서 둘러보기 |
+| Enter / Space | 이륙 연출 건너뛰기 |
 | ESC | 일시정지 |
+
+## 그래픽 품질
+
+설정에서 **낮음 / 높음 / 최고**를 고른다. 처음 실행하면 약 2초 동안 성능을 재서 자동으로 고르고, 느려지면 한 칸씩 자동으로 내린다(끌 수 있음).
+
+- 낮음: 가벼운 로우폴리(내장 그래픽 노트북용), 후처리 없음
+- 높음: 하이폴리 기체·조종석, PBR, 블룸·렌즈 플레어, GPU 파티클
+- 최고: 기체 20만 삼각형 이상, 모션 블러, 파티클 최대
+
+도색(회색 / 어두운 회색 / 도심 위장)과 이륙 연출 건너뛰기도 설정에 있다.
 
 ## 실행 · 배포
 
 - **배포**: 빌드가 필요 없다. 이 폴더를 그대로 `main`에 올리면 된다(`index.html`의 importmap이 `js/vendor/three.min.js`를 불러온다).
 - **개발**: `npm install` 후 `npm run dev`.
-- **테스트**: `npm test`(단위 테스트), `npm run smoke`(브라우저 스모크), `node tests/playthrough.cjs`(미션 1~3 자동 완주), `node tests/perf.cjs`(성능·메모리).
+- **테스트**: `npm test`(단위 테스트), `npm run smoke`(브라우저 스모크), `node tests/playthrough.cjs`(미션 1~3 자동 완주), `node tests/perf.cjs`(프리셋별 성능·메모리), `node tests/v2-model.cjs high`(기체 캡처) 등 `tests/v*.cjs`(비주얼 단계별 검증).
 - 구조·알고리즘·튜닝 값 위치·알려진 한계는 [DESIGN.md](DESIGN.md).
-- 디버그: 주소 뒤에 `?debug=1`을 붙이면 콘솔에서 `__debug.skipMission()`, `__debug.invincible()`, `__debug.spawnEnemy(3)`, `__debug.showFps()`를 쓸 수 있다.
+- 디버그: 주소 뒤에 `?debug=1`을 붙이면 콘솔에서 `__debug.skipMission()`, `__debug.invincible()`, `__debug.spawnEnemy(3)`, `__debug.showFps()`, `__debug.measure(3)`(FPS 평균·하위 1%·드로우콜·삼각형), `__debug.benchmark(true)`를 쓸 수 있다.
 
 ## 온라인 기능 (구글 로그인 · 계정 저장 · 랭킹)
 

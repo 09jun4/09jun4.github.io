@@ -17,6 +17,15 @@ import { addEnemyHiMeshes, disposeEnemyHi, ENEMY_NOZZLE_Z } from '../entities/hi
 import { createAircraftTextures, PAINT_SCHEMES } from '../entities/hi/textures.js';
 import { PALETTE } from '../data/palette.js';
 
+/** 그룹 아래 모든 메시의 지오메트리·재질을 버린다(전용 dispose가 없는 로우폴리 모델·조종석용). */
+function disposeTree(group) {
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry.dispose();
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+  });
+}
+
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export class Visuals {
@@ -65,8 +74,8 @@ export class Visuals {
     const c = this.current;
     if (!c) return;
     this.player.setModel(null, null);
-    c.model.dispose();
-    if (c.cockpit && c.cockpit.dispose) c.cockpit.dispose();
+    if (c.model.dispose) c.model.dispose(); else disposeTree(c.model.group);
+    if (c.cockpit) { if (c.cockpit.dispose) c.cockpit.dispose(); else disposeTree(c.cockpit.group); }
     if (c.textures) c.textures.dispose();
     if (c.pilot) c.pilot.dispose();
     for (const d of c.extras) d.dispose();
