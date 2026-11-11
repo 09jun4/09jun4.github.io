@@ -91,7 +91,7 @@ export function createFlame({ nozzles, z, radius, segments, cfg, colors }) {
         // 출력이 낮으면 푸르스름하고 옅게, 애프터버너면 주황빛으로 밝게
         col = mix(col * vec3(0.45, 0.6, 1.0), col, uBoost);
         float a = fade * body * (0.5 + 0.6 * n) * mix(0.3, 0.62, uBoost) * (0.4 + uPower * 0.6);
-        vec3 outc = col * a * mix(0.9, 1.5, uBoost) + (uCore * 0.6 + vec3(0.25)) * dia;
+        vec3 outc = col * a * mix(0.9, 1.5, uBoost) + (uCore * 0.6 + vec3(0.25)) * dia * (0.3 + 0.7 * facing);
         // 밝은 낮 하늘 위에서도 불꽃 색이 살도록, 순수 가산이 아니라 뒤를 조금 가리며 더한다
         gl_FragColor = vec4(outc, clamp(a * 0.75 + dia * 0.3, 0.0, 0.9));
         #include <colorspace_fragment>

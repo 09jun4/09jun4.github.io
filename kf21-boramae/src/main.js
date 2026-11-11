@@ -84,6 +84,7 @@ const _sunWorld = new THREE.Vector3();
 const postFrame = { sun: sunScreen, flash: 0, turn: 0, particleLayer: 0 };
 /** 프리셋 적용: tier가 바뀌면 모델·재질을 통째로 다시 만들고(로딩 화면), 구름·파티클 양을 맞춘다. */
 async function applyPreset(name, cfg) {
+  const tierChanged = visuals.tier !== cfg.tier;
   if (visuals.tier !== cfg.tier) {
     quality.busy = true;
     const showBar = cfg.tier !== 'low'; // 낮음은 로딩 바 없이 바로
@@ -106,6 +107,8 @@ async function applyPreset(name, cfg) {
   world.setCloudFraction(cfg.clouds);
   session.fx.setParticleFraction(cfg.particles);
   session.simpleTakeoff = cfg.tier === 'low';
+  // 메뉴 화면에서 프리셋을 바꿨으면 배경(시네마틱 ↔ 회전)도 바로 바꾼다
+  if (tierChanged && session.mode === 'showcase' && typeof fsm !== 'undefined' && fsm.name) session.startShowcase();
   resize();
 }
 const quality = new QualityManager({
@@ -293,7 +296,7 @@ if (isDebugEnabled()) {
       timeScale: (s) => { loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },
       setTrigger: (v) => { session.triggerOverride = v; },
-      inspect: (f) => { rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
+      inspect: (f) => { session.showcaseHold = !!f; rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
       inspectEnemy: (f) => {
         debugState.freezeEnemies = true;
         let e = session.enemies.list.find((x) => x.alive);

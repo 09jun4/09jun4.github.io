@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { clamp, clamp01, makeRng, moveToward, DEG } from './math.js';
 import { updateOrientation } from '../flight/flight-model.js';
 import { TAKEOFF, AIRBASE } from '../data/takeoff.js';
+import { CINEMATIC } from '../data/cinematic.js';
 import { GEAR_HEIGHT } from '../entities/gear.js';
 import { debugState } from './debug.js';
 import { computeScore, gradeFor } from './scoring.js';
@@ -93,7 +94,11 @@ export class MissionSession {
     // 이륙 연출 상태. state: 'roll' 활주 → 'rotate' 기수 들기 대기 → 'climb' 상승
     this.takeoff = { state: 'roll', speed: 0, pitch: 0, wait: 0, assisted: false, time: 0 };
     this.simpleTakeoff = false; // 낮음 프리셋: 막 떠오른 순간부터 시작
+    // 메인 메뉴 시네마틱(높음·최고): 몇 번째 장면의 몇 초인지
+    this.cine = { on: false, shot: 0, t: 0, view: { yaw: 0, pitch: 0, dist: 20, at: [0, 0, 0], shift: 0, fov: 40, level: true } };
+    this.showcaseHold = false; // 디버그: 고정 시점으로 모델을 볼 때 시네마틱 카메라를 멈춘다
     this.gearTarget = 0;
+    this.cineAmmo = 5;
     this._spawnArgs = {
       aliveCount: 0, time: 0, flight: player.flight, limits: this.enemyCfg.flight,
       spawn: (x, y, z, yaw, slot) => {
@@ -176,12 +181,77 @@ export class MissionSession {
     this.mission = null;
     this._resetWorld();
     this.player.reset({ y: this.player.cfg.altitude.showcase });
+    this.cine.on = !this.simpleTakeoff;
+    this.cine.shot = -1;
+    this.rig.fixed = null;
+    if (this.cine.on) this._cineStart(0);
     this._applyView();
+  }
+
+  // ── 메인 메뉴 시네마틱 ──────────────────────────────────────────────────
+  _cineStart(index) {
+    const c = this.cine;
+    const shot = CINEMATIC[index];
+    c.shot = index;
+    c.t = 0;
+    const ground = AIRBASE.height + GEAR_HEIGHT;
+    this.player.reset({ yaw: 0, y: shot.ground ? ground : ground + shot.altitude });
+    this.world.resetOrigin();
+    this.player.manual = shot.ground;
+    const f = this.player.flight;
+    if (shot.ground) { f.speed = 0; this.player.velocity.set(0, 0, 0); } else { f.pitch = shot.pitch; f.floor = Math.min(f.floor, f.pos.y - 200); }
+    updateOrientation(f);
+    this.player.prevQuat.copy(f.quat);
+    this.fx.clear();
+    this.rig.snap = true;
+  }
+
+  /** 장면 값 읽기: 숫자면 그대로, 배열이면 진행도 k(0~1)에 따라 구간 보간 */
+  _cineValue(v, k) {
+    if (typeof v === 'number') return v;
+    const n = v.length - 1;
+    const x = Math.min(n - 1e-6, k * n), i = Math.floor(x), t = x - i;
+    const e = t * t * (3 - 2 * t);
+    return v[i] + (v[i + 1] - v[i]) * e;
+  }
+
+  _stepCinematic(dt) {
+    const c = this.cine;
+    let shot = CINEMATIC[c.shot];
+    c.t += dt;
+    if (c.t >= shot.duration) { this._cineStart((c.shot + 1) % CINEMATIC.length); shot = CINEMATIC[c.shot]; }
+    const k = c.t / shot.duration;
+    const v = this.player.visual;
+    v.canopy = this._cineValue(shot.canopy, k);
+    v.boost = this._cineValue(shot.boost, k);
+    this.gearTarget = this._cineValue(shot.gear, k) > 0.5 ? 1 : 0;
+    if (shot.ground) { v.gear = 1; this.player.flight.throttle = this._cineValue(shot.power, k); } else this.player.input.turn = this._cineValue(shot.turn, k);
+    this.cineAmmo = Math.round(this._cineValue(shot.ammo, k));
+  }
+
+  /** 시네마틱 카메라(렌더 프레임마다): 장면 안에서 부드럽게 이동한다 */
+  _cineCamera() {
+    const c = this.cine;
+    const shot = CINEMATIC[c.shot];
+    const k = Math.min(1, c.t / shot.duration);
+    const e = k * k * (3 - 2 * k);
+    const view = c.view;
+    const cam = shot.cam;
+    view.yaw = cam.yaw[0] + (cam.yaw[1] - cam.yaw[0]) * e;
+    view.pitch = cam.pitch[0] + (cam.pitch[1] - cam.pitch[0]) * e;
+    view.dist = cam.dist[0] + (cam.dist[1] - cam.dist[0]) * e;
+    view.at = cam.at;
+    view.shift = cam.shift * Math.min(1.6, this.viewport.w / this.viewport.h / 1.78); // 좁은 화면에서는 덜 민다
+    view.fov = shot.fov;
+    this.rig.fixed = view;
+    this.player.visual.ammo = this.cineAmmo;
   }
 
   /** @param {object} mission data/missions.js 의 미션 */
   startMission(mission, seed = (Date.now() & 0xffffff) + 1) {
     this.mode = 'mission';
+    this.cine.on = false;
+    this.rig.fixed = null;
     this.phase = PHASE.ACTIVE;
     this.mission = mission;
     this.total = missionEnemyCount(mission);
@@ -479,8 +549,9 @@ export class MissionSession {
       player.input.turn = o ? o.turn : this.input.axis('KeyA', 'KeyD');
     } else {
       player.input.pitch = 0;
-      player.input.turn = 0;
+      if (!(this.mode === 'showcase' && this.cine.on)) player.input.turn = 0;
     }
+    if (!mission && this.cine.on) this._stepCinematic(dt);
     player.step(dt);
     if (mission && this.phase === PHASE.TAKEOFF) this._stepTakeoff(dt);
     this._stepVisual(dt);
@@ -585,6 +656,7 @@ export class MissionSession {
     for (const e of this.enemies.list) if (e.alive) e.interpolate(alpha);
     this._updateLook();
     this._updateMfd();
+    if (this.mode === 'showcase' && this.cine.on && !this.showcaseHold) this._cineCamera();
     this.rig.update(player.view, frameDt);
     this.world.update(this.camera);
     if (!this.looking) this.updateCursor();

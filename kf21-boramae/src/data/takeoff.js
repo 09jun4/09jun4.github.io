@@ -17,9 +17,9 @@ export const TAKEOFF = {
 
 export const AIRBASE = {
   height: 42, // 활주로 표고(m)
-  runway: { length: 2800, width: 46, startOffset: 170 }, // 출발 위치는 활주로 끝에서 startOffset 안쪽
+  runway: { length: 2800, width: 46, startOffset: 250 }, // 출발 위치는 활주로 끝에서 startOffset 안쪽
   flattenRadius: 2300, // 이 반경 안의 지형은 평평하게
   blendRadius: 5600, // 여기까지 자연 지형으로 이어진다
   lightSpacing: 60,
-  colors: { asphalt: '#3a3d41', mark: '#e9ecef', apron: 0x8a8d8f, hangar: 0x7d858c, roof: 0x5c646b, tower: 0xb9bfc4, glass: 0x2a3a48, grass: 0x5f8f62 },
+  colors: { asphalt: '#3a3d41', mark: '#c4c8cc', apron: 0x8a8d8f, hangar: 0x7d858c, roof: 0x5c646b, tower: 0xb9bfc4, glass: 0x2a3a48, grass: 0x5f8f62 },
 };

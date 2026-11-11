@@ -371,7 +371,7 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
   const lightGeo = keep(new THREE.SphereGeometry(0.045, 10, 8));
   const mkLight = (color, x, y, z) => {
     const m = new THREE.Mesh(lightGeo, mat(new THREE.MeshBasicMaterial({ color })));
-    m.material.color.multiplyScalar(4); // 블룸에 걸리도록 밝게(HDR)
+    m.material.color.multiplyScalar(2.2); // 블룸에 걸리도록 밝게(HDR)
     m.position.set(x, y, z);
     exterior.add(m);
     return m;
