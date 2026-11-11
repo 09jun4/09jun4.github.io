@@ -18,7 +18,7 @@ export class Input {
     this.mouse.y = window.innerHeight / 2;
 
     window.addEventListener('keydown', (e) => {
-      if (isTyping(e.target)) return;
+      if (isTyping(e.target) && e.code !== 'Escape') return; // 입력칸에서도 ESC는 창 닫기로 동작
       if (GAME_KEYS.has(e.code)) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);

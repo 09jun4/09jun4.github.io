@@ -141,7 +141,7 @@ fsm.go(STATE.MENU);
 session.onFinished = (result) => {
   const saved = save.applyResult(result);
   goto(STATE.RESULT, { result, saved });
-  online.submitResult(result, (note) => ui.result.setNote(note));
+  online.submitResult(result, (note) => ui.result.setNote(note, result));
 };
 
 const pause = () => { if (fsm.name === STATE.PLAYING && !screens.busy) fsm.go(STATE.PAUSED); };

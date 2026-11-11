@@ -199,3 +199,7 @@ input[type="text"] { width: 100%; padding: 11px 12px; min-height: 44px; border: 
 @media (prefers-reduced-motion: reduce) {
   #fade, .btn, .grade.big { transition-duration: 0.01s; }
 }
+
+.dialog > .hint, .dialog form > .hint, .dialog .hint[data-foot], .dialog .hint[data-lead] { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--ink-dim); }
+.dialog .hint[data-foot] { margin: 12px 0 0; }
+.dialog .hint b { color: var(--accent); }

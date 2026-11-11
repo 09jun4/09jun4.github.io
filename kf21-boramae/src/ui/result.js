@@ -11,6 +11,7 @@ export function createResult(actions) {
   const panel = root.querySelector('.result-panel');
   let raf = 0;
   let current = null;
+  let note = { result: null, text: '' }; // 화면이 그려지기 전에 도착한 안내도 잃지 않게 보관
   root.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]');
     if (!act || !current) return;
@@ -71,11 +72,15 @@ export function createResult(actions) {
         else { scoreEl.textContent = fmtScore(r.score); gradeEl.classList.add('show'); }
       };
       raf = requestAnimationFrame(tick);
-      if (r.success && !next) this.setNote('모든 미션을 완수했어요. 더 높은 등급에 도전해 보세요.');
+      const base = r.success && !next ? '모든 미션을 완수했어요. 더 높은 등급에 도전해 보세요. ' : '';
+      panel.querySelector('[data-note]').dataset.base = base;
+      this.setNote(note.result === r ? note.text : '', r);
     },
-    setNote(text) {
+    /** 결과 화면 아래 한 줄 안내(랭킹 기록 여부 등). result는 어느 결과에 대한 안내인지. */
+    setNote(text, result) {
+      note = { result: result || current, text };
       const n = panel.querySelector('[data-note]');
-      if (n) n.textContent = text;
+      if (n && note.result === current) n.textContent = (n.dataset.base || '') + text;
     },
   };
 }

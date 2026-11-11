@@ -1,0 +1,69 @@
+rules_version = '2';
+// KF-21 BORAMAE — Firestore 보안 규칙.
+// Firebase 콘솔 > Firestore Database > 규칙 탭에 이 내용을 통째로 붙여 넣고 "게시"하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    // 관리자: 이메일 인증된 구글 계정 중, 소문자 이메일의 SHA-256이 아래 값과 같은 계정(주소 자체는 적지 않는다)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && hashing.sha256(request.auth.token.email.lower()).toHexString() == 'c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991';
+    }
+    function validName(n) {
+      return n is string && n.size() >= 2 && n.size() <= 12 && n.matches('^[^\\s<>"\'`\\\\/]+$');
+    }
+    // 미션별 적기 수와 기준 시간(src/data/missions.js 와 같아야 한다)
+    function enemies(mission) { return mission == 'm1' ? 3 : (mission == 'm2' ? 4 : 5); }
+    function parTime(mission) { return mission == 'm1' ? 90 : (mission == 'm2' ? 120 : 150); }
+    // 점수식: 1000 × 적기 수 + max(0, 기준시간 − 클리어시간) × 10  (오차 1점 허용)
+    function validScore(mission, score, time) {
+      return score is int && time is number
+        && time >= 8 && time < 3600
+        && score >= 1000 * enemies(mission)
+        && score <= 1000 * enemies(mission) + math.max(0, parTime(mission) - time) * 10 + 1;
+    }
+
+    // 개인 저장(진행도·설정·닉네임): 본인만 읽고 쓴다.
+    match /users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['progress', 'settings', 'nickname', 'nickKey', 'updatedAt'])
+        && (!('progress' in request.resource.data) || (request.resource.data.progress is string && request.resource.data.progress.size() < 20000))
+        && (!('settings' in request.resource.data) || (request.resource.data.settings is string && request.resource.data.settings.size() < 5000))
+        && (!('nickname' in request.resource.data) || validName(request.resource.data.nickname))
+        && (!('nickKey' in request.resource.data) || (request.resource.data.nickKey is string && request.resource.data.nickKey.size() <= 40));
+    }
+
+    // 닉네임 중복 방지: 문서 id = 닉네임(소문자). 누구나 읽고, 비어 있을 때만 본인 것으로 만들고, 본인 것만 지운다.
+    match /nicknames/{key} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && key.size() >= 2 && key.size() <= 40;
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if (request.auth != null && resource.data.uid == request.auth.uid) || isAdmin();
+    }
+
+    // 미션별 랭킹: 누구나 읽고, 본인 기록만 쓴다. 점수는 타입·범위·점수식으로 검증한다.
+    // 관리자는 부정 기록을 지울 수 있다.
+    match /rankings/{mission}/scores/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid) || isAdmin();
+      allow create, update: if signedIn(uid)
+        && mission in ['m1', 'm2', 'm3']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'score', 'time', 'at'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && validScore(mission, request.resource.data.score, request.resource.data.time)
+        && request.resource.data.at == request.time;
+    }
+  }
+}
