@@ -1,4 +1,4 @@
-// KF-21 BORAMAE — 조립 지점. (마일스톤 6: 미사일)
+// KF-21 BORAMAE — 조립 지점. (마일스톤 7: HUD)
 import * as THREE from 'three';
 import { GameLoop } from './core/game-loop.js';
 import { StateMachine } from './core/state-machine.js';
@@ -18,6 +18,7 @@ import { createCockpit } from './entities/cockpit.js';
 import { Player } from './entities/player.js';
 import { CameraRig } from './flight/camera-rig.js';
 import { World } from './world/world.js';
+import { Hud } from './ui/hud.js';
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -40,6 +41,8 @@ const input = new Input();
 input.attach(stage);
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 session.startShowcase();
+const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
+const appEl = document.getElementById('app');
 
 const fsm = new StateMachine(TRANSITIONS);
 fsm.add(STATE.MENU, { enter: () => session.startShowcase() });
@@ -48,6 +51,11 @@ fsm.add(STATE.BRIEFING, {});
 fsm.add(STATE.PLAYING, { enter: (payload, prev) => { if (prev !== STATE.PAUSED) session.startMission((payload && payload.mission) || MISSIONS[0]); } });
 fsm.add(STATE.PAUSED, {});
 fsm.add(STATE.RESULT, {});
+fsm.onChange((name) => {
+  const inPlay = name === STATE.PLAYING || name === STATE.PAUSED;
+  hud.setVisible(inPlay);
+  appEl.classList.toggle('playing', name === STATE.PLAYING);
+});
 fsm.go(STATE.MENU);
 session.onFinished = (result) => { lastResult = result; fsm.go(STATE.RESULT, result); };
 let lastResult = null;
@@ -67,6 +75,7 @@ const loop = new GameLoop({
   render(alpha, frameDt) {
     session.render(fsm.name === STATE.PAUSED ? 1 : alpha, fsm.name === STATE.PAUSED ? 0 : frameDt);
     renderer.render(scene, camera);
+    hud.render(session, camera, frameDt);
   },
 });
 
@@ -75,6 +84,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   session.resize(window.innerWidth, window.innerHeight);
+  hud.resize(window.innerWidth, window.innerHeight);
 });
 
 if (isDebugEnabled()) {

@@ -18,7 +18,7 @@ export const HUD = {
   lineWidth: 1.5,
   ladder: { stepDeg: 10, pxPerDeg: 9, halfWidth: 78, gap: 26, range: 26 },
   tape: { height: 220, offsetX: 300, tick: 9 },
-  arrow: { margin: 46, size: 14 },
+  arrow: { margin: 46, size: 14, keepOut: 96 }, // keepOut: 위·아래 상태 표시 줄을 가리지 않게
   lowHp: 0.3,
 };
 
