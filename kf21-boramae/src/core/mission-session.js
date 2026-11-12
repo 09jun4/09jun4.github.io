@@ -211,6 +211,7 @@ export class MissionSession {
 
   /** 메뉴 배경: 수평 비행 + 회전 카메라 */
   startShowcase() {
+    this._setEnvironment('day', 'inland');
     this.gearTarget = 0;
     this.player.visual.gear = 0;
     this.player.visual.canopy = 0;
@@ -295,6 +296,7 @@ export class MissionSession {
     this.phase = PHASE.ACTIVE;
     this.mission = mission;
     this.engine = new MissionEngine(mission); // 목표 진행·승패·점수(순수 로직)
+    this._setEnvironment(mission.timeOfDay, mission.terrain);
     this.total = missionEnemyCount(mission);
     this.rng = makeRng(seed);
     this._resetWorld();
@@ -321,6 +323,11 @@ export class MissionSession {
     }
     if (this.tutorialEnabled && mission.id === TUTORIAL.missionId && !this.settings.get('tutorialDone') && !(this.autopilot && this.autopilot.enabled)) this.tutorial.start(this, this.input.touchMode);
     this._applyView();
+  }
+
+  /** 시간대·지형 적용. 시간대가 바뀌었으면 main이 환경맵을 다시 굽는다 */
+  _setEnvironment(timeOfDay, terrain) {
+    if (this.world.setEnvironment(timeOfDay, terrain) && this.onEnvironment) this.onEnvironment();
   }
 
   /** Enter/Space/건너뛰기 버튼: 이륙 → 킬캠 → 튜토리얼 순으로 하나를 넘긴다 */

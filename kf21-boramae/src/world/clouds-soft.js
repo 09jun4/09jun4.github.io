@@ -127,6 +127,8 @@ export function createSoftClouds(cfg, sky, sunDirection, sprites) {
   return {
     group,
     setFraction(f) { for (const l of layers) l.geo.instanceCount = Math.max(1, Math.floor(l.total * f)); },
+    /** 시간대: 구름 색·해 방향·안개색 */
+    setLook(c, sunDir, fog) { for (const l of layers) { const u = l.mat.uniforms; u.uLit.value.set(c.lit); u.uShade.value.set(c.shade); u.uUnder.value.set(c.under); if (u.uRim) u.uRim.value.set(c.rim); u.uSunDir.value.copy(sunDir); u.uFogColor.value.set(fog); } },
     update(camPos, origin) {
       for (const l of layers) { const p = l.period; l.mat.uniforms.uCam.value.set((((camPos.x + origin.x) % p) + p) % p, camPos.y, (((camPos.z + origin.z) % p) + p) % p); }
     },

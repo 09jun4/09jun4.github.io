@@ -13,6 +13,7 @@ export function createSky(cfg, sunDirection) {
       uSunDir: { value: sunDirection.clone() },
       uSunSize: { value: cfg.sunSize },
       uSunGlow: { value: cfg.sunGlow },
+      uStars: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -23,7 +24,8 @@ export function createSky(cfg, sunDirection) {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uZenith, uMid, uHorizon, uBelow, uSunColor, uSunDir;
-      uniform float uSunSize, uSunGlow;
+      uniform float uSunSize, uSunGlow, uStars;
+      float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
       varying vec3 vDir;
       void main() {
         vec3 d = normalize(vDir);
@@ -31,6 +33,11 @@ export function createSky(cfg, sunDirection) {
         vec3 col = h > 0.0
           ? mix(mix(uHorizon, uMid, smoothstep(0.0, 0.22, h)), uZenith, smoothstep(0.18, 0.85, h))
           : mix(uHorizon, uBelow, smoothstep(0.0, -0.12, h));
+        if (uStars > 0.0 && h > 0.0) { // 별: 방향을 칸으로 나눠 일부 칸에만 점을 찍는다
+          vec3 q = d * 190.0; vec3 cell = floor(q); float r = hash3(cell);
+          float star = step(0.992, r) * smoothstep(0.42, 0.0, length(fract(q) - 0.5)) * (0.5 + 0.5 * hash3(cell + 3.1));
+          col += vec3(0.9, 0.95, 1.0) * star * uStars * smoothstep(0.0, 0.25, h);
+        }
         float s = max(dot(d, uSunDir), 0.0);
         col += uSunColor * (smoothstep(uSunSize, uSunSize + 0.0002, s) + pow(s, 28.0) * uSunGlow + pow(s, 6.0) * uSunGlow * 0.25);
         gl_FragColor = vec4(col, 1.0);

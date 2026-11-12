@@ -71,6 +71,14 @@ export class Visuals {
     return rt;
   }
 
+  /** 시간대가 바뀌면 하늘 반사(환경맵)를 한 번 다시 굽는다(높음·최고만 환경맵이 있다) */
+  refreshEnv() {
+    if (!this.env) return;
+    this.env.dispose();
+    this.env = this._buildEnv();
+    this.scene.environment = this.env.texture;
+  }
+
   _disposeCurrent() {
     const c = this.current;
     if (!c) return;

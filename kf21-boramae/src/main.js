@@ -235,6 +235,7 @@ session.onReplayEnd = () => {
 stage.addEventListener('pointerdown', () => { if (session.replay.on) session.stopReplay(); });
 
 let lastResult = null; // 가장 최근 미션 결과(자동플레이가 다음 미션을 고르는 데 쓴다)
+session.onEnvironment = () => visuals.refreshEnv(); // 시간대가 바뀌면 하늘 반사를 다시 굽는다(미션 로드 때 한 번)
 session.onFinished = (result) => {
   lastResult = result;
   if (autoPanel) autoPanel.record(result);
@@ -343,6 +344,7 @@ const loop = new GameLoop({
       const inFront = _sunWorld.z < 1 ? 1 : 0;
       sunScreen.set(_sunWorld.x * 0.5 + 0.5, _sunWorld.y * 0.5 + 0.5, inFront * Math.max(0, 1 - Math.max(Math.abs(_sunWorld.x), Math.abs(_sunWorld.y)) * 0.85));
       postFrame.flash = session.feedback.flash;
+      postFrame.exposure = world.look.exposure;
       postFrame.turn = Math.min(1, Math.abs(player.flight.yawRate) * 1.4 + Math.abs(player.flight.pitchRate) * 0.9);
       post.render(scene, camera, postFrame);
       renderer.setRenderTarget(null);
@@ -414,6 +416,7 @@ if (isDebugEnabled()) {
       setTrigger: (v) => { session.triggerOverride = v; },
       autopilot: () => autopilot,
       killEnemy: () => session.debugKill(),
+      env: (tod, terrain) => session._setEnvironment(tod, terrain),
       hitPlayer: (n = 1) => { for (let i = 0; i < n; i++) session._onPlayerHit(1, 'bullet'); },
       inspect: (f) => { session.showcaseHold = !!f; rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
       inspectEnemy: (f) => {

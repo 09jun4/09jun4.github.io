@@ -130,8 +130,12 @@ export function createTerrain(cfg, sky, sunDirection) {
     mesh.geometry = geo;
     cell = cfg.size / n;
   }
+  const baseColors = {};
+  for (const k of ['uSeaColor', 'uShore', 'uLow', 'uMid', 'uHigh']) baseColors[k] = mat.uniforms[k].value.clone();
+  /** 시간대: 해 방향·안개색·지형 색조 */
+  function setLook(sunDir, fog, tint) { mat.uniforms.uSunDir.value.copy(sunDir); mat.uniforms.uFogColor.value.set(fog); for (const k in baseColors) mat.uniforms[k].value.copy(baseColors[k]).multiply(tint); }
   function setBase(height, r0, r1) { mat.uniforms.uBaseH.value = height; mat.uniforms.uBaseR.value.set(r0, r1); }
-  return { mesh, update, setBase, setSegments, get triangles() { return segments * segments * 2; } };
+  return { mesh, update, setBase, setLook, setSegments, get triangles() { return segments * segments * 2; } };
 }
 
 /**

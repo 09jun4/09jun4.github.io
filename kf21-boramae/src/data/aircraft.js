@@ -55,15 +55,15 @@ export const KF21 = {
   altitude: {
     start: 3000,
     showcase: 2750, // 메뉴 배경 비행 고도
-    floorHard: 600, // 이 아래로는 내려가지 않는다
-    floorSoft: 1300, // 여기서부터 기수를 들어 올리기 시작
+    floorHard: 142, // 지면(표고 42m) 기준 100m. 이 아래로는 내려가지 않는다 ← // 이 아래로는 내려가지 않는다
+    floorSoft: 560, // 여기서부터 기수를 들어 올리기 시작
     floorPitch: 6, // 하한에서 강제되는 최소 피치(°)
     floorFollow: 60, // 이륙 직후: 하한이 현재 고도 − 이 값을 따라 올라간다(floorHard까지)
     ceilSoft: 6000, // 소프트 실링: 여기서부터 기수가 눌리기 시작한다
     ceilHard: 6800, // 이 위로는 올라가지 않는다
     ceilPitch: -4,
     gain: 2.4, // 범위를 벗어난 피치를 되돌리는 세기(1/s)
-    warnBelow: 1100, // HUD 고도 경고
+    warnBelow: 330, // HUD 고도 경고
   },
 
   // 적기와 충돌했을 때 밀림

@@ -147,7 +147,11 @@ export function createClouds(cfg, sky, sunDirection) {
     }
   }
 
+  /** 시간대: 구름 색·해 방향·안개색 */
+  function setLook(c, sunDir, fog) { for (const l of layers) { const u = l.mat.uniforms; u.uLit.value.set(c.lit); u.uShade.value.set(c.shade); u.uUnder.value.set(c.under); u.uSunDir.value.copy(sunDir); u.uFogColor.value.set(fog); } }
+
   return {
+    setLook,
     group, update, setFraction,
     get triangles() { return layers.reduce((s, l, i) => s + l.geo.instanceCount * puffTris[i], 0); },
   };

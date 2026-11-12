@@ -24,7 +24,7 @@ export const ENEMIES = {
       rateTau: 0.28, // 각속도 관성
       rollTau: 0.35,
       speedTau: 1.4,
-      altMin: 900,
+      altMin: 420,
       altMax: 5600, // 플레이어 상승 한계(6000m)보다 낮게
     },
 
