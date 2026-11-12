@@ -45,7 +45,7 @@ export function validateMissions(missions, campaigns, refs = {}) {
       if (!OBJ_TYPES.has(o.type)) errs.push(`${oa}: 유형 ${o.type} 없음`);
       if (!(o.points > 0)) errs.push(`${oa}: points 필요`);
       if (o.required !== false) required++;
-      if (o.after && !m.objectives.some((x) => x.id === o.after)) errs.push(`${oa}: after ${o.after} 없음`);
+      for (const pre of [].concat(o.after || [])) if (!m.objectives.some((x) => x.id === pre)) errs.push(`${oa}: after ${pre} 없음`);
       const count = o.count || 1;
       if (o.type === OBJ.DESTROY) {
         const have = o.targetType ? targetTypes.get(o.targetType) || 0 : [...targetTypes.values()].reduce((a, b) => a + b, 0);

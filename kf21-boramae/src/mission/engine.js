@@ -20,7 +20,7 @@ const AIR_TYPES = new Set([OBJ.KILL_AIR, OBJ.TIMED_KILL, OBJ.INTERCEPT, OBJ.BOSS
 const DEFAULT_ROLE = { killAir: 'fighter', timedKill: 'fighter', boss: 'boss', intercept: 'transport' };
 
 /** 목표의 공중 역할(어떤 격추가 이 목표에 쌓이는가) */
-export const objectiveRole = (o) => (AIR_TYPES.has(o.type) ? o.role || DEFAULT_ROLE[o.type] : null);
+export const objectiveRole = (o) => (AIR_TYPES.has(o.type) ? (o.def ? o.def.role : o.role) || DEFAULT_ROLE[o.type] : null); // 데이터 항목과 엔진 내부 항목(def를 감싼 것) 둘 다 받는다
 
 /** 기준 점수(등급 계산의 분모) */
 export function referenceScore(mission) {
@@ -55,8 +55,8 @@ export class MissionEngine {
   _activate() {
     for (const o of this.objectives) {
       if (o.active || o.done || o.failed) continue;
-      const pre = o.def.after ? this.byId.get(o.def.after) : null;
-      if (!pre || pre.done) { o.active = true; o.activeTime = 0; this.version++; }
+      const pre = [].concat(o.def.after || []).map((id) => this.byId.get(id)); // after는 하나 또는 여러 개
+      if (pre.every((x) => !x || x.done)) { o.active = true; o.activeTime = 0; this.version++; }
     }
   }
 

@@ -5,6 +5,9 @@ import { CAMPAIGNS } from '../src/data/campaigns.js';
 import { validateMissions } from '../src/mission/schema.js';
 import { MissionEngine, OBJ, OUTCOME, LOSS, objectiveRole, referenceScore } from '../src/mission/engine.js';
 import { gradeFor } from '../src/core/scoring.js';
+import { TARGETS } from '../src/data/targets.js';
+import { PERSONALITIES } from '../src/data/enemies.js';
+import { TIME_OF_DAY } from '../src/data/timeOfDay.js';
 
 /** 헤드리스 봇: 활성 목표를 순서대로 처리한다. pace = 목표 하나(수량 1)를 처리하는 데 걸리는 시간(초) */
 export function playMission(mission, { pace = 8, stopAfter = Infinity } = {}) {
@@ -25,7 +28,9 @@ export function playMission(mission, { pace = 8, stopAfter = Infinity } = {}) {
 
 describe('미션 데이터', () => {
   it('스키마: 모든 참조가 유효하고 빠진 값이 없다', () => {
-    expect(validateMissions(MISSIONS, CAMPAIGNS.filter((c) => MISSIONS.some((m) => m.campaign === c.id)))).toEqual([]);
+    expect(validateMissions(MISSIONS, CAMPAIGNS, { targets: TARGETS, personalities: PERSONALITIES, timeOfDay: TIME_OF_DAY })).toEqual([]);
+    expect(MISSIONS.length).toBe(18);
+    expect(CAMPAIGNS.map((c) => MISSIONS.filter((m) => m.campaign === c.id).length)).toEqual([4, 3, 4, 4, 3]);
   });
   it('검증기가 실제로 잘못을 잡는다', () => {
     const bad = [{ id: 'x1', campaign: 'c1', title: 't', brief: 'b', refTime: 60, waves: [{ count: 1 }], groundTargets: [{ type: 'radar', near: 'nope' }],
@@ -114,6 +119,12 @@ describe('미션 엔진', () => {
     e = new MissionEngine({ ...base, timeLimit: 240, objectives: [{ id: 'a', type: 'destroy', count: 4, points: 3000 }] });
     e.tick(241);
     expect(e.reason).toBe(LOSS.TIMEOUT);
+    // 폭격기: 역할이 맞는 격추만 쌓이고, 도달하면 실패
+    e = new MissionEngine({ ...base, objectives: [{ id: 'a', type: 'intercept', role: 'bomber', count: 2, points: 1800 }, { id: 'b', type: 'killAir', count: 1, points: 1000, required: false }] });
+    e.airKill('fighter'); e.airKill('bomber');
+    expect(e.summary().map((o) => o.progress)).toEqual([1, 1]);
+    e.escaped('bomber');
+    expect(e.reason).toBe(LOSS.ESCAPED);
     // 보스 + 호위(선택)
     e = new MissionEngine({ ...base, objectives: [{ id: 'a', type: 'boss', points: 3000 }, { id: 'b', type: 'killAir', count: 2, points: 2000, required: false }] });
     e.airKill('fighter'); e.airKill('boss');

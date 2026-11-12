@@ -133,6 +133,7 @@ export class Enemy {
   shift(dx, dz) {
     this.pos.x += dx; this.pos.z += dz;
     this.prevPos.x += dx; this.prevPos.z += dz;
+    this.goal.x += dx; this.goal.z += dz;
   }
 
   interpolate(alpha) {
