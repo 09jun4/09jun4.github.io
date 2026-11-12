@@ -1,8 +1,8 @@
 // 브리핑: 목표, 적기 수, 상황 설명, "출격" 버튼. 튜토리얼 대신 조작 키 요약을 함께 보여 준다.
 import { el, esc, controlsBothHtml } from './dom.js';
-import { missionEnemyCount } from '../data/missions.js';
+import { missionType, objectiveText, targetSummary, airSummary, weaponsText, timeLabel } from './mission-info.js';
+import { TARGETS } from '../data/targets.js';
 import { CONTROLS, CONTROLS_MOBILE, TIPS } from '../data/controls.js';
-import { WEAPONS, LOADOUT } from '../data/weapons.js';
 
 export function createBriefing(actions) {
   const root = el(`
@@ -28,16 +28,23 @@ export function createBriefing(actions) {
     show(payload) {
       mission = payload.mission;
       const m = mission;
+      const type = missionType(m), air = airSummary(m), ground = targetSummary(m);
+      const kinds = [...new Set((m.groundTargets || []).map((t) => t.type))];
+      const lose = ['체력 0(회복 없음)'];
+      if (m.objectives.some((o) => o.type === 'intercept')) lose.push('수송기·폭격기가 한 대라도 도달');
+      if (m.timeLimit || m.objectives.some((o) => o.timeLimit && o.required !== false)) lose.push('제한시간 초과');
       main.innerHTML = `
         <p class="eyebrow">BRIEFING · ${esc(m.codename)}</p>
-        <h2 class="brief-title"><span>MISSION ${String(m.order).padStart(2, '0')}</span>${esc(m.title)}</h2>
+        <h2 class="brief-title"><span>${m.campaign.toUpperCase()} · MISSION ${String(m.order).padStart(2, '0')}</span>${esc(m.title)}</h2>
         <p class="brief-text">${esc(m.briefing)}</p>
         <dl class="facts">
-          <div><dt>목표</dt><dd>등장하는 적기 ${missionEnemyCount(m)}대 전부 격추</dd></div>
-          <div><dt>적 전력</dt><dd>전투기 ${missionEnemyCount(m)}대 (편대 ${m.waves.length}개로 나뉘어 등장)</dd></div>
-          <div><dt>기준 시간</dt><dd>${m.parTime}초 — 빨리 끝낼수록 점수가 높아요</dd></div>
-          <div><dt>무장</dt><dd>${LOADOUT.map((id) => (WEAPONS[id].ammo ? `${WEAPONS[id].name} ${WEAPONS[id].ammo}발` : `${WEAPONS[id].name}(무제한·과열)`)).join(' · ')}</dd></div>
-          <div><dt>패배 조건</dt><dd>체력 0 (회복 없음)</dd></div>
+          <div><dt>유형</dt><dd>${esc(type.label)} · ${timeLabel(m)}${m.terrain === 'coast' ? ' · 해안' : ''}</dd></div>
+          <div><dt>목표</dt><dd><ul class="obj-list">${m.objectives.map((o) => `<li class="${o.required === false ? 'opt' : 'req'}"><b>${o.required === false ? '선택' : '필수'}</b>${esc(objectiveText(o))} <small>${o.points.toLocaleString()}점</small></li>`).join('')}</ul></dd></div>
+          ${air ? `<div><dt>공중 전력</dt><dd>${esc(air)}</dd></div>` : ''}
+          ${ground ? `<div><dt>지상 목표</dt><dd>${esc(ground)}<br><small>${kinds.map((k) => `${TARGETS[k].short} ${TARGETS[k].armor === 'hard' ? '폭탄만 통함' : '기관포도 통함'}`).join(' · ')}</small></dd></div>` : ''}
+          <div><dt>무장</dt><dd>${esc(weaponsText(m))}</dd></div>
+          <div><dt>기준 시간</dt><dd>${m.refTime}초 — 빨리 끝낼수록 점수가 높아요</dd></div>
+          <div><dt>패배 조건</dt><dd>${lose.join(' · ')}</dd></div>
         </dl>
         <div class="card-actions">
           <button class="btn primary big" data-act="launch" data-autofocus>출격</button>

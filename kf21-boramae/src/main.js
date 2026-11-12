@@ -173,6 +173,7 @@ const ui = {
   }, settings, quality, inputHooks),
   result: createResult({
     next: (mission) => goto(STATE.BRIEFING, { mission }),
+    select: (mission) => goto(STATE.SELECT, { missionId: mission.id }),
     retry: (mission) => goto(STATE.PLAYING, { mission }),
     replay: () => startReplay(),
     menu: () => goto(STATE.MENU),

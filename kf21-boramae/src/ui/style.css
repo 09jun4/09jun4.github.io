@@ -317,3 +317,31 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 .keys[data-keys="mobile"] kbd { white-space: nowrap; }
 
 #app.touch .btn kbd, #app.touch .field[data-keys-only="pc"] { display: none; }
+
+/* ── 캠페인 선택 · 목표 목록 ── */
+.campaign-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.campaign { width: 100%; display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 12px; padding: 8px 12px 8px 8px; min-height: 60px; cursor: pointer; text-align: left; color: var(--ink); background: rgba(10, 24, 38, 0.5); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.campaign:hover { border-color: var(--line-strong); }
+.campaign.on { border-color: var(--accent); background: rgba(111, 227, 210, 0.12); }
+.campaign .sky { width: 54px; height: 44px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.18); }
+.campaign .cm { display: grid; gap: 2px; min-width: 0; }
+.campaign .cm b { font-size: 15px; }
+.campaign .cm small { font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.campaign .cp { font: 600 13px var(--mono); color: var(--ink-dim); white-space: nowrap; }
+.select .map-panel { display: block; overflow: auto; }
+.select .card { overflow: auto; padding: 16px 18px; }
+.select .card .mission-list { grid-template-columns: 1fr; margin: 6px 0 14px; gap: 6px; }
+.mission-row .tag { margin-left: 6px; padding: 1px 6px; font: 600 10px var(--mono); font-style: normal; letter-spacing: 0.08em; color: var(--accent); border: 1px solid rgba(111, 227, 210, 0.4); border-radius: 3px; }
+.mission-row .st { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.obj-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.obj-list b { display: inline-block; margin-right: 8px; padding: 0 6px; font-size: 11px; border-radius: 3px; border: 1px solid var(--line-strong); color: var(--ink-dim); }
+.obj-list .req b { color: var(--accent); border-color: rgba(111, 227, 210, 0.5); }
+.facts .obj.done dt { color: var(--ok); } .facts .obj.fail dt { color: var(--danger); } .facts .obj.part dt { color: var(--ink-faint); }
+@media (max-height: 480px) and (orientation: landscape) {
+  .campaign { min-height: 48px; padding: 4px 8px 4px 4px; gap: 8px; grid-template-columns: 40px 1fr auto; }
+  .campaign .sky { width: 40px; height: 34px; }
+  .campaign .cm small { display: none; }
+  .select .card { padding: 8px 10px; }
+}
+
+.select .card .card-actions { position: sticky; bottom: -16px; margin: 14px -18px -16px; padding: 10px 18px 14px; background: rgba(9, 20, 32, 0.96); border-top: 1px solid var(--line); }

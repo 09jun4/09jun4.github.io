@@ -1,33 +1,9 @@
-// 미션 선택: 작전 지도(왼쪽) + 미션 카드(오른쪽) + 조작 키 안내(항상 표시).
+// 미션 선택: 캠페인 카드(왼쪽) → 그 캠페인의 미션 목록과 상세(오른쪽). 잠금은 없고 권장 문구만 보여 준다.
 import { el, esc, fmtScore, fmtTime, controlsBothHtml } from './dom.js';
-import { MISSIONS, missionEnemyCount } from '../data/missions.js';
+import { MISSIONS, missionById, missionsOf } from '../data/missions.js';
+import { CAMPAIGNS } from '../data/campaigns.js';
 import { CONTROLS, CONTROLS_MOBILE } from '../data/controls.js';
-
-// 단순화한 작전 지도(400×300). 가운데 땅덩이를 두고 동·남·서쪽 바다에 작전 구역이 있다.
-const LAND = '176,22 214,30 236,58 250,96 246,128 262,160 252,196 228,226 196,236 170,222 160,190 142,170 150,138 136,110 148,74 160,44';
-
-function mapSvg() {
-  const pts = MISSIONS.map((m) => ({ x: m.map.x * 400, y: m.map.y * 300 }));
-  const route = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(0)},${p.y.toFixed(0)}`).join(' ');
-  let grid = '';
-  for (let x = 40; x < 400; x += 40) grid += `<line x1="${x}" y1="0" x2="${x}" y2="300"/>`;
-  for (let y = 30; y < 300; y += 30) grid += `<line x1="0" y1="${y}" x2="400" y2="${y}"/>`;
-  return `
-    <svg class="opmap" viewBox="0 0 400 300" role="img" aria-label="작전 지도">
-      <g class="grid">${grid}</g>
-      <polygon class="land" points="${LAND}"/>
-      <polygon class="land-inner" points="${LAND}" transform="translate(200 130) scale(0.82) translate(-200 -130)"/>
-      <path class="route" d="${route}"/>
-      <g class="rings"><circle cx="200" cy="130" r="118"/><circle cx="200" cy="130" r="176"/></g>
-      ${MISSIONS.map((m, i) => `
-        <g class="node" data-id="${m.id}" transform="translate(${pts[i].x.toFixed(0)} ${pts[i].y.toFixed(0)})" tabindex="0" role="button" aria-label="미션 ${m.order} ${esc(m.title)}">
-          <circle class="hit" r="26"/><circle class="halo" r="17"/><path class="mark" d="M0,-10 L9,7 L0,3 L-9,7 Z"/>
-          <text class="num" y="-22">${String(m.order).padStart(2, '0')}</text>
-          <text class="lbl" y="34">${esc(m.area)}</text>
-        </g>`).join('')}
-      <text class="compass" x="372" y="24">N</text><path class="compass-arrow" d="M372,30 L372,52 M366,38 L372,30 L378,38"/>
-    </svg>`;
-}
+import { missionType, objectiveText, targetSummary, airSummary, weaponsText, timeLabel, skyGradient, campaignProgress } from './mission-info.js';
 
 export function createMissionSelect(actions, save) {
   const root = el(`
@@ -35,73 +11,80 @@ export function createMissionSelect(actions, save) {
       <header class="bar">
         <button class="btn ghost" data-act="back">← 메인 메뉴</button>
         <h2>작전 선택</h2>
-        <span class="bar-note">미션은 순서대로 열려요</span>
+        <span class="bar-note">모든 작전을 바로 고를 수 있어요</span>
       </header>
       <div class="select-body">
-        <div class="panel map-panel">${mapSvg()}<ol class="mission-list"></ol></div>
+        <div class="panel map-panel"><ol class="campaign-list"></ol></div>
         <div class="panel card"></div>
       </div>
       <div class="panel controls"><h3>조작</h3>${controlsBothHtml(CONTROLS, CONTROLS_MOBILE)}</div>
     </section>`);
   const card = root.querySelector('.card');
-  const list = root.querySelector('.mission-list');
+  const list = root.querySelector('.campaign-list');
   let selected = MISSIONS[0].id;
 
   function render() {
-    list.innerHTML = MISSIONS.map((m) => {
-      const rec = save.record(m.id);
-      const open = save.isUnlocked(m.id);
-      return `<li><button class="mission-row${m.id === selected ? ' on' : ''}${open ? '' : ' locked'}" data-id="${m.id}">
-        <span class="no">${String(m.order).padStart(2, '0')}</span><span class="nm">${esc(m.title)}</span>
-        <span class="st">${!open ? '잠김' : rec && rec.grade ? `<b class="grade g-${rec.grade}">${rec.grade}</b>` : '미완료'}</span></button></li>`;
+    const m = missionById(selected) || MISSIONS[0];
+    list.innerHTML = CAMPAIGNS.map((c) => {
+      const p = campaignProgress(save, c.id);
+      return `<li><button class="campaign${c.id === m.campaign ? ' on' : ''}" data-campaign="${c.id}">
+        <span class="sky" style="background:${skyGradient(c.timeOfDay)}" aria-hidden="true"></span>
+        <span class="cm"><b>${String(c.order).padStart(2, '0')} ${esc(c.title)}</b><small>${esc(c.recommended)}</small></span>
+        <span class="cp">${p.cleared}/${p.total}${p.avgGrade ? ` <b class="grade g-${p.avgGrade}">${p.avgGrade}</b>` : ''}</span></button></li>`;
     }).join('');
-    for (const n of root.querySelectorAll('.node')) {
-      const id = n.dataset.id;
-      n.classList.toggle('on', id === selected);
-      n.classList.toggle('locked', !save.isUnlocked(id));
-      n.classList.toggle('done', !!(save.record(id) && save.record(id).clears));
-    }
-    const m = MISSIONS.find((x) => x.id === selected);
+    const camp = CAMPAIGNS.find((c) => c.id === m.campaign);
     const rec = save.record(m.id);
-    const open = save.isUnlocked(m.id);
+    const type = missionType(m);
+    const ground = targetSummary(m), air = airSummary(m);
     card.innerHTML = `
-      <p class="eyebrow">${esc(m.codename)}</p>
-      <h3 class="card-title"><span>MISSION ${String(m.order).padStart(2, '0')}</span>${esc(m.title)}</h3>
+      <p class="eyebrow">${esc(camp.codename)} · ${esc(camp.summary)}</p>
+      <ol class="mission-list">${missionsOf(m.campaign).map((x) => {
+        const r = save.record(x.id), t = missionType(x);
+        return `<li><button class="mission-row${x.id === m.id ? ' on' : ''}" data-id="${x.id}">
+          <span class="no">${String(x.order).padStart(2, '0')}</span><span class="nm">${esc(x.title)} <i class="tag">${t.tag}</i></span>
+          <span class="st">${r && r.grade ? `${fmtScore(r.bestScore)} <b class="grade g-${r.grade}">${r.grade}</b>` : '미완료'}</span></button></li>`;
+      }).join('')}</ol>
+      <h3 class="card-title"><span>${esc(type.label)} · ${timeLabel(m)}</span>${esc(m.title)}</h3>
       <p class="card-sum">${esc(m.summary)}</p>
       <dl class="facts">
-        <div><dt>작전 구역</dt><dd>${esc(m.area)}</dd></div>
-        <div><dt>적기</dt><dd>${missionEnemyCount(m)}대 · 편대 ${m.waves.length}개</dd></div>
-        <div><dt>기준 시간</dt><dd>${m.parTime}초</dd></div>
+        <div><dt>목표</dt><dd>${m.objectives.map((o) => esc(objectiveText(o)) + (o.required === false ? ' <small>선택</small>' : '')).join('<br>')}</dd></div>
+        ${air ? `<div><dt>공중</dt><dd>${esc(air)}</dd></div>` : ''}
+        ${ground ? `<div><dt>지상</dt><dd>${esc(ground)}</dd></div>` : ''}
+        <div><dt>무장</dt><dd>${esc(weaponsText(m))}</dd></div>
+        <div><dt>기준 시간</dt><dd>${m.refTime}초${m.timeLimit ? ` · 제한 ${m.timeLimit}초` : ''}</dd></div>
         <div><dt>최고 기록</dt><dd>${rec && rec.clears ? `${fmtScore(rec.bestScore)}점 · ${fmtTime(rec.bestTime)} <b class="grade g-${rec.grade}">${rec.grade}</b>` : '없음'}</dd></div>
       </dl>
       <div class="card-actions">
-        <button class="btn primary" data-act="brief" ${open ? '' : 'disabled'} data-autofocus>${open ? '브리핑' : '이전 미션을 먼저 완수하세요'}</button>
+        <button class="btn primary" data-act="brief" data-autofocus>브리핑</button>
         <button class="btn" data-act="rank">랭킹 보기</button>
       </div>`;
   }
 
   root.addEventListener('click', (e) => {
+    const camp = e.target.closest('[data-campaign]');
+    if (camp) {
+      const first = missionsOf(camp.dataset.campaign);
+      // 그 캠페인에서 아직 안 깬 첫 미션(다 깼으면 첫 미션)
+      selected = (first.find((x) => !(save.record(x.id) && save.record(x.id).clears)) || first[0]).id;
+      render();
+      return;
+    }
     const row = e.target.closest('[data-id]');
     if (row) { selected = row.dataset.id; render(); return; }
     const act = e.target.closest('[data-act]');
     if (!act) return;
     if (act.dataset.act === 'back') actions.back();
-    else if (act.dataset.act === 'brief') actions.brief(MISSIONS.find((m) => m.id === selected));
-    else if (act.dataset.act === 'rank') actions.ranking(MISSIONS.find((m) => m.id === selected));
-  });
-  root.addEventListener('keydown', (e) => {
-    const node = e.target.closest && e.target.closest('.node');
-    if (node && (e.key === 'Enter' || e.key === ' ')) { selected = node.dataset.id; render(); }
+    else if (act.dataset.act === 'brief') actions.brief(missionById(selected));
+    else if (act.dataset.act === 'rank') actions.ranking(missionById(selected));
   });
   save.onChange(() => { if (!root.hidden) render(); });
 
   return {
     el: root,
     show(payload) {
-      if (payload && payload.missionId) selected = payload.missionId;
+      if (payload && payload.missionId && missionById(payload.missionId)) selected = missionById(payload.missionId).id;
       else {
-        // 아직 안 깬 첫 미션을 기본 선택
-        const next = MISSIONS.find((m) => save.isUnlocked(m.id) && !(save.record(m.id) && save.record(m.id).clears));
+        const next = MISSIONS.find((m) => !(save.record(m.id) && save.record(m.id).clears)); // 아직 안 깬 첫 미션
         if (next) selected = next.id;
       }
       render();

@@ -19,6 +19,7 @@ export function createResult(actions) {
     if (act.dataset.act === 'next') actions.next(nextMission(current.missionId));
     else if (act.dataset.act === 'retry') actions.retry(mission);
     else if (act.dataset.act === 'menu') actions.menu();
+    else if (act.dataset.act === 'select' && actions.select) actions.select(mission);
     else if (act.dataset.act === 'rank') actions.ranking(mission);
     else if (act.dataset.act === 'replay' && actions.replay) actions.replay();
   });
@@ -38,7 +39,8 @@ export function createResult(actions) {
         <h2 class="result-title ${r.success ? 'ok' : 'fail'}">${r.success ? '임무 완수' : '임무 실패'}</h2>
         <div class="result-body">
           <dl class="facts stats">
-            <div><dt>격추</dt><dd>${r.kills} / ${r.total}</dd></div>
+            ${(r.objectives || []).map((o) => `<div class="obj ${o.failed ? 'fail' : o.done ? 'done' : 'part'}"><dt>${o.failed ? '실패' : o.done ? '완료' : o.required ? '미완' : '선택'}</dt><dd>${esc(o.label || o.type)}${o.count > 1 ? ` ${o.progress}/${o.count}` : ''} <small>+${o.earned.toLocaleString()}</small></dd></div>`).join('')}
+            <div><dt>시간 점수</dt><dd>+${(r.timeBonus || 0).toLocaleString()}</dd></div>
             <div><dt>기관포 명중</dt><dd>${r.gunHits}발${acc}</dd></div>
             <div><dt>피격</dt><dd>${r.hitsTaken}회</dd></div>
             <div><dt>${r.success ? '클리어 시간' : '생존 시간'}</dt><dd>${fmtTime(r.time)} <small>기준 ${mission.parTime}초</small></dd></div>
@@ -55,7 +57,8 @@ export function createResult(actions) {
         <p class="result-note" data-note></p>
         <div class="card-actions">
           ${next ? '<button class="btn primary" data-act="next" data-autofocus>다음 미션</button>' : ''}
-          <button class="btn${next ? '' : ' primary'}" data-act="retry" ${next ? '' : 'data-autofocus'}>재시작</button>
+          ${r.success && !next ? '<button class="btn primary" data-act="select" data-autofocus>캠페인 선택</button>' : ''}
+          <button class="btn${next || r.success ? '' : ' primary'}" data-act="retry" ${next || r.success ? '' : 'data-autofocus'}>재시작</button>
           <button class="btn" data-act="menu">메인 메뉴</button>
           ${r.success ? '<button class="btn ghost" data-act="rank">랭킹 보기</button>' : ''}
           ${r.success && payload.canReplay ? '<button class="btn ghost" data-act="replay">마지막 격추 다시 보기</button>' : ''}
@@ -74,7 +77,8 @@ export function createResult(actions) {
         else { scoreEl.textContent = fmtScore(r.score); gradeEl.classList.add('show'); }
       };
       raf = requestAnimationFrame(tick);
-      const base = r.success && !next ? '모든 미션을 완수했어요. 더 높은 등급에 도전해 보세요. ' : '';
+      const REASON = { escaped: '목표가 빠져나갔어요. ', timeout: '제한시간을 넘겼어요. ', dead: '', objective: '필수 목표에 실패했어요. ' };
+      const base = r.success && !next ? '이 캠페인의 마지막 미션을 완수했어요. ' : !r.success ? REASON[r.failReason] || '' : '';
       panel.querySelector('[data-note]').dataset.base = base;
       this.setNote(note.result === r ? note.text : '', r);
     },
