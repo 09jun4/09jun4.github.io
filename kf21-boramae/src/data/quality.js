@@ -42,6 +42,15 @@ export const BUDGET = {
   ultra: { triangles: 1200000, drawCalls: 400, fps: 60 },
 };
 
+/** 모바일: 낮음이 기본이고 최고 프리셋은 없다. 높음은 첫 실행 벤치마크를 통과한 기기에서만 고를 수 있다. */
+export const MOBILE = {
+  pixelRatioCap: { low: 1.5, high: 2 }, // devicePixelRatio 상한
+  minFps: 30, // 이보다 낮게 지속되면 프리셋·해상도 배율을 낮춘다
+  cloudScale: 0.7, // 구름·파티클 수를 줄인다(낮음)
+  particleScale: 0.7,
+  budget: { triangles: 80000, drawCalls: 70 },
+};
+
 export const AUTO_QUALITY = {
   window: 2, // 최근 몇 초 평균으로 판단
   minFps: 45, // 이보다 낮으면 한 칸 낮춘다

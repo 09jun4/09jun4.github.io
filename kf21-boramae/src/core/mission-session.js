@@ -142,7 +142,7 @@ export class MissionSession {
         self.fx.casing(muzzle, player.velocity, _v2);
         self.fx.gunSmoke(muzzle, player.velocity);
       },
-      onMissileFired(pos) { self.fx.flash(pos, FX.missileIgnite.size, FX.missileIgnite.life); },
+      onMissileFired(pos) { self.fx.flash(pos, FX.missileIgnite.size, FX.missileIgnite.life); player.visual.firePulse = 1; },
       /** 미사일이 달려 있던 파일런 위치(하이폴리 모델에만 있다). 없으면 false */
       missileMount(index, out) {
         const m = player.model;

@@ -19,7 +19,7 @@ export const COCKPIT_DIM = {
   hudPlane: { distance: 6, halfAngle: 12 }, // HUD 기호가 맺히는 가상 면(무한 원점 흉내): 눈앞 6m, ±12°
   stick: { base: [0, -0.74, -0.52], length: 0.36, throw: 11 },
   throttle: { base: [-0.41, -0.5, -0.36], travel: 0.13 },
-  pedals: { y: -1.02, z: -1.02, x: 0.17, travel: 0.07 },
+  pedals: { y: -1.0, z: -0.8, x: 0.17, travel: 0.07 }, // z: 조종사 다리가 닿을 수 있는 거리
   seat: { backZ: 0.2, panY: -0.98 },
   arch: { halfW: 0.56, rise: 0.98, z0: -0.46, rake: 0.36 },
   // 1인칭에서 동체 외피가 조종석 안을 가리지 않도록 잘라내는 상자(눈 기준)
@@ -324,33 +324,8 @@ export function createCockpitHi(eye, detail) {
     pedals.push(pd);
   }
 
-  // ── 조종사 몸(1인칭에서 보이는 부분): 다리, 팔, 장갑 ──
-  const limbGeo = keep(new THREE.CylinderGeometry(1, 0.86, 1, n, 1));
-  const handGeo = keep(new THREE.SphereGeometry(1, n, Math.round(n * 0.7)));
-  const limb = (material) => { const m = new THREE.Mesh(limbGeo, material); m.castShadow = true; m.frustumCulled = false; group.add(m); return m; };
-  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), _yAxis = new THREE.Vector3(0, 1, 0);
-  /** 원통을 a→b 사이에 놓는다 */
-  const span = (m, ax, ay, az, bx, by, bz, r) => {
-    _a.set(ax, ay, az); _b.set(bx, by, bz); _d.subVectors(_b, _a);
-    const len = _d.length();
-    m.position.copy(_a).addScaledVector(_d, 0.5);
-    m.quaternion.setFromUnitVectors(_yAxis, _d.multiplyScalar(1 / len));
-    m.scale.set(r, len, r);
-  };
-  const arms = { ru: limb(suitMat), rf: limb(suitMat), lu: limb(suitMat), lf: limb(suitMat) };
-  const hands = [new THREE.Mesh(handGeo, gloveMat), new THREE.Mesh(handGeo, gloveMat)];
-  for (const hmesh of hands) { hmesh.scale.set(0.045, 0.05, 0.055); hmesh.frustumCulled = false; hmesh.castShadow = true; group.add(hmesh); }
-  const legs = [];
-  for (const side of [-1, 1]) {
-    const thigh = limb(suitMat), shin = limb(suitMat);
-    legs.push({ side, thigh, shin });
-  }
-  const torso = new Surf();
-  torso.sphere([0, -0.55, 0.06], 0.24, n, Math.round(n * 0.6), [1, 1.25, 0.72]);
-  mesh(torso, suitMat);
-
+  // 조종사의 팔·다리·손은 pilot-rig.js(스켈레톤 + IK)가 맡는다. 여기서는 조종간·스로틀·페달 같은 기계 부분만 움직인다.
   const state = { pitch: 0, turn: 0, power: 0.5 };
-  const _grip = new THREE.Vector3();
   /**
    * @param {object} o pitch(-1~1, +당김), turn(-1~1), power(0~1), dt, time, data(MFD에 보일 값)
    */
@@ -364,20 +339,6 @@ export function createCockpitHi(eye, detail) {
     pedals[0].position.z = D.pedals.z + state.turn * D.pedals.travel; // 왼발
     pedals[1].position.z = D.pedals.z - state.turn * D.pedals.travel;
     // 오른손은 조종간, 왼손은 스로틀을 잡는다
-    _grip.set(0, D.stick.length * 0.86, -0.012).applyEuler(stick.rotation).add(stick.position);
-    hands[0].position.copy(_grip);
-    span(arms.ru, 0.21, -0.36, 0.1, 0.27, -0.66, -0.16, 0.058);
-    span(arms.rf, 0.27, -0.66, -0.16, _grip.x + 0.02, _grip.y - 0.02, _grip.z + 0.03, 0.046);
-    const tz = throttle.position.z;
-    hands[1].position.set(D.throttle.base[0], D.throttle.base[1] + 0.1, tz - 0.01);
-    span(arms.lu, -0.21, -0.36, 0.1, -0.36, -0.62, -0.06, 0.058);
-    span(arms.lf, -0.36, -0.62, -0.06, D.throttle.base[0] + 0.01, D.throttle.base[1] + 0.085, tz + 0.05, 0.046);
-    for (const leg of legs) {
-      const foot = pedals[leg.side < 0 ? 0 : 1].position;
-      const kx = leg.side * 0.17, ky = -0.72, kz = -0.52 + (foot.z - D.pedals.z) * 0.5;
-      span(leg.thigh, leg.side * 0.12, -0.9, 0.0, kx, ky, kz, 0.085);
-      span(leg.shin, kx, ky, kz, foot.x, foot.y + 0.04, foot.z + 0.05, 0.065);
-    }
     mfd.update(o.time, o.dt, o.data);
     glow.intensity = 0.45 + mfd.flicker * 0.1;
   }
@@ -387,7 +348,7 @@ export function createCockpitHi(eye, detail) {
   group.traverse((o) => { if (o.isMesh) triangles += ((o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1); });
 
   return {
-    group, update, triangles, hi: true,
+    group, update, triangles, hi: true, state,
     hudCanvas, hudTexture, hudPlane,
     setStick(pitch, turn, dt) { void pitch; void turn; void dt; }, // update()가 맡는다(낮음 조종석과 인터페이스 맞춤)
     dispose() {

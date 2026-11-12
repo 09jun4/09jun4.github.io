@@ -20,7 +20,7 @@ export class Player {
     // 모델 연출 상태(세션이 채운다): 기어·캐노피·에어브레이크·플랩·남은 미사일·애프터버너
     // 조종석(MFD)이 읽는 값. data는 세션이 채운다
     this.cockpitData = { pitch: 0, turn: 0, power: 0.5, dt: 0, time: 0, data: null };
-    this.visual = { gear: 0, canopy: 0, airbrake: 0, flap: 0, ammo: 5, boost: 0, power: 0.4, time: 0, dt: 0, headYaw: 0 };
+    this.visual = { pitchIn: 0, turnLoad: 0, pitchLoad: 0, firePulse: 0, stick: null, gear: 0, canopy: 0, airbrake: 0, flap: 0, ammo: 5, boost: 0, power: 0.4, time: 0, dt: 0, headYaw: 0 };
     this.flight = createFlightState();
     this.prevPos = new THREE.Vector3();
     this.prevQuat = new THREE.Quaternion();
@@ -122,6 +122,10 @@ export class Player {
       v.time = this.time;
       v.dt = frameDt;
       v.headYaw = this.input.turn;
+      v.pitchIn = this.input.pitch;
+      v.turnLoad = this.view.turnLoad;
+      v.pitchLoad = this.view.pitchLoad;
+      v.stick = this.cockpit && this.cockpit.group.visible && this.cockpit.state ? this.cockpit.state : null; // 1인칭에서는 보이는 조종간에 손을 맞춘다
       m.setState(v);
     }
     const c = this.cockpit;

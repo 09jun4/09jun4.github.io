@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = {
   gyro: false,
   gyroSens: 1,
   gyroInvert: false,
+  mobileHighOk: false, // 모바일 벤치마크를 통과해 높음을 고를 수 있는지(기기별 값)
   tutorialDone: false, // 튜토리얼을 마치거나 건너뛰었는지
   view: 'chase', // 마지막으로 쓴 시점
 };

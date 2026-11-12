@@ -465,7 +465,8 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
       group.updateWorldMatrix(true, false);
       for (let i = 0; i < 6; i++) worldPlanes[i].copy(localPlanes[i]).applyMatrix4(group.matrixWorld);
     }
-    if (pilot) pilot.setHead(o.headYaw || 0, o.dt);
+    if (pilot) pilot.update({ pitch: o.pitchIn || 0, turn: o.headYaw || 0, power: o.power, turnLoad: o.turnLoad || 0, pitchLoad: o.pitchLoad || 0, firePulse: o.firePulse || 0, dt: o.dt, stick: o.stick || null });
+    if (o.firePulse) o.firePulse = 0;
     flame.set(st.power, o.boost, o.time, o.dt);
   }
 
@@ -490,7 +491,7 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
       cockpitView = on;
       glass.visible = !on;
       frame.visible = !on;
-      if (pilot) pilot.group.visible = !on;
+      if (pilot) pilot.setFirstPerson(on);
       bodyMat.clippingPlanes = on ? worldPlanes : null;
       bodyMat.clipIntersection = true;
       bodyMat.needsUpdate = true;

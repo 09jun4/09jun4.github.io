@@ -93,7 +93,8 @@ export function bindSettings(root, settings, quality, hooks = {}) {
       const on = b.dataset.quality === cur;
       b.classList.toggle('on', on);
       b.setAttribute('aria-checked', String(on));
-      b.hidden = !!(hooks.mobileQualityLimit && isMobileMode(settings.get('inputMode')) && b.dataset.quality === 'ultra'); // 모바일에는 최고 프리셋이 없다
+      // 모바일에는 최고 프리셋이 없고, 높음은 벤치마크를 통과한 기기만 고를 수 있다
+      b.hidden = !!(hooks.mobileQualityLimit && isMobileMode(settings.get('inputMode')) && (b.dataset.quality === 'ultra' || (b.dataset.quality === 'high' && !settings.get('mobileHighOk'))));
     }
     for (const c of root.querySelectorAll('input[type="checkbox"][data-set]')) c.checked = !!settings.get(c.dataset.set);
     if (stepOut) stepOut.textContent = quality.describe();

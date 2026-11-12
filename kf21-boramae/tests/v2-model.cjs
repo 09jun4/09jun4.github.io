@@ -4,7 +4,7 @@ const { startServer, launch, openGame, shot, sleep } = require('./lib/harness.cj
 const VIEWS = {
   front: { yaw: 180, pitch: 4, dist: 46 }, side: { yaw: 90, pitch: 2, dist: 46 }, top: { yaw: 0, pitch: 89.9, dist: 50 },
   rear: { yaw: 0, pitch: 8, dist: 46 }, quarter: { yaw: 140, pitch: 22, dist: 40 }, rearquarter: { yaw: 35, pitch: 24, dist: 40 },
-  bottom: { yaw: 0, pitch: -89.9, dist: 50 }, close: { yaw: 120, pitch: 14, dist: 16, fov: 40 }, nozzle: { yaw: 22, pitch: 12, dist: 7, fov: 40, at: [0, 0, 7.4] }, flame: { yaw: 62, pitch: 8, dist: 15, fov: 40, at: [0, 0, 10] }, flamerear: { yaw: 14, pitch: 10, dist: 12, fov: 40, at: [0, 0, 9] }, gear: { yaw: 150, pitch: -6, dist: 13, fov: 40, at: [0, -1, -1] }, cockpit: { yaw: 150, pitch: 20, dist: 6, fov: 40, at: [0, 0.9, -3.4] },
+  bottom: { yaw: 0, pitch: -89.9, dist: 50 }, close: { yaw: 120, pitch: 14, dist: 16, fov: 40 }, nozzle: { yaw: 22, pitch: 12, dist: 7, fov: 40, at: [0, 0, 7.4] }, flame: { yaw: 62, pitch: 8, dist: 15, fov: 40, at: [0, 0, 10] }, flamerear: { yaw: 14, pitch: 10, dist: 12, fov: 40, at: [0, 0, 9] }, pilot: { yaw: 70, pitch: 16, dist: 1.9, fov: 38, at: [0, 0.78, -3.5] }, pilotfront: { yaw: 150, pitch: 8, dist: 1.8, fov: 38, at: [0, 0.8, -3.55] }, gear: { yaw: 150, pitch: -6, dist: 13, fov: 40, at: [0, -1, -1] }, cockpit: { yaw: 150, pitch: 20, dist: 6, fov: 40, at: [0, 0.9, -3.4] },
   low45: { yaw: 135, pitch: -18, dist: 34 },
 };
 (async () => {
@@ -19,6 +19,7 @@ const VIEWS = {
   const loadMs = Date.now() - t0;
   await page.evaluate(() => { window.__debug.timeScale(0); window.__debug.background(0x9fc6e8); });
   if (state) await page.evaluate((s) => { Object.assign(window.__debug.session().player.visual, s); window.__debug.session().showcaseHold = true; }, state);
+  await page.evaluate(() => { const m = window.__debug.visuals().current.model; if (m.canopy) m.canopy.visible = false; });
   for (const [name, v] of Object.entries(VIEWS)) {
     if (only && !only.includes(name)) continue;
     await page.evaluate((f) => window.__debug.inspect(f), v);

@@ -1,6 +1,6 @@
 // 품질 관리: 프리셋(낮음/높음/최고)을 적용하고, FPS가 낮으면 프리셋을 한 칸씩 내린다.
 // 모델·재질을 실제로 바꾸는 일은 onApply 콜백(core/visuals.js)이 맡는다.
-import { PRESETS, PRESET_ORDER, AUTO_QUALITY } from '../data/quality.js';
+import { PRESETS, PRESET_ORDER, AUTO_QUALITY, MOBILE } from '../data/quality.js';
 
 export class QualityManager {
   /**
@@ -10,7 +10,8 @@ export class QualityManager {
    * @param {(name:string, cfg:object, prev:string|null)=>void} o.onApply 프리셋이 바뀌었을 때(같은 tier 안의 변화 포함)
    * @param {(name:string)=>void} [o.onLowered] 자동으로 낮췄을 때
    */
-  constructor({ renderer, settings, onApply, onLowered }) {
+  constructor({ renderer, settings, onApply, onLowered, isMobile = () => false }) {
+    this.isMobile = isMobile;
     this.renderer = renderer;
     this.settings = settings;
     this.onApply = onApply;
@@ -33,7 +34,8 @@ export class QualityManager {
 
   pixelRatio() {
     const dpr = window.devicePixelRatio || 1;
-    const p = this.cfg.pixelRatio;
+    let p = this.cfg.pixelRatio;
+    if (this.isMobile()) p = Math.min(p, MOBILE.pixelRatioCap[this.tier === 'high' ? 'high' : 'low']); // 모바일 해상도 배율 상한
     return p >= 1 ? Math.min(dpr, p) : p;
   }
 
@@ -50,6 +52,8 @@ export class QualityManager {
    * @param {boolean} manual 사용자가 직접 골랐으면 true → 자동 선택(벤치마크)을 끈다
    */
   setQuality(name, manual = true) {
+    // 모바일에는 최고가 없고, 높음은 벤치마크를 통과한 기기만
+    if (this.isMobile() && (name === 'ultra' || (name === 'high' && !this.settings.get('mobileHighOk')))) name = 'low';
     if (!PRESETS[name] || name === this.name) {
       if (manual) this.settings.set('benchmarked', true);
       return Promise.resolve();
@@ -81,7 +85,7 @@ export class QualityManager {
     this._frames++;
     if (this._time < AUTO_QUALITY.window) return;
     this.fps = this._frames / this._time;
-    const low = this.fps < AUTO_QUALITY.minFps;
+    const low = this.fps < (this.isMobile() ? MOBILE.minFps : AUTO_QUALITY.minFps);
     this._resetWindow(0);
     const i = PRESET_ORDER.indexOf(this.name);
     if (low && this.settings.get('autoQuality') && i < PRESET_ORDER.length - 1) {

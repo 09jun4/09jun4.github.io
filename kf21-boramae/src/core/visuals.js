@@ -7,7 +7,8 @@ import { KF21_POINTS } from '../entities/kf21-shape.js';
 import { createCockpit } from '../entities/cockpit.js';
 import { createGear } from '../entities/gear.js';
 import { createKF21Hi } from '../entities/hi/kf21-hi.js';
-import { createPilot } from '../entities/hi/pilot.js';
+import { createPilotRig } from '../entities/hi/pilot-rig.js';
+import { createPilotLow } from '../entities/pilot-low.js';
 import { createCockpitHi } from '../entities/hi/cockpit-hi.js';
 import { createFlame } from '../entities/hi/flame.js';
 import { NOZZLE, Z } from '../entities/kf21-shape.js';
@@ -102,10 +103,13 @@ export class Visuals {
       const gear = createGear({ sides: 6, metal, tire, door: model.materials.bodyMat });
       model.exterior.add(gear.group);
       model.gear = gear;
-      model.setState = (o) => gear.setDown(o.gear);
+      const lowPilot = createPilotLow();
+      model.exterior.add(lowPilot.group);
+      model.setState = (o) => { gear.setDown(o.gear); lowPilot.update({ turn: o.headYaw || 0, dt: o.dt }); };
+      model.setCockpitView = (on) => lowPilot.setFirstPerson(on);
       model.materials.bodyMat.color.setHex(PAINT_SCHEMES[paint].tint);
       const cockpit = createCockpit(KF21_POINTS.eye);
-      this.current = { model, cockpit, textures: null, pilot: null, extras: [gear, { dispose() { metal.dispose(); tire.dispose(); } }] };
+      this.current = { model, cockpit, textures: null, pilot: null, extras: [gear, lowPilot, { dispose() { metal.dispose(); tire.dispose(); } }] };
     } else {
       await step(0.05, '도색·패널 라인 텍스처를 그리는 중');
       const textures = createAircraftTextures(cfg.textureSize, paint, Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
@@ -113,7 +117,7 @@ export class Visuals {
       this.env = this._buildEnv();
       this.scene.environment = this.env.texture;
       await step(0.45, '기체 외형을 만드는 중');
-      const pilot = createPilot(cfg.detail);
+      const pilot = createPilotRig({ detail: cfg.detail, eye: KF21_POINTS.eye });
       const model = createKF21Hi({ detail: cfg.detail, tuning: this.tuning.model, textures, pilot });
       const flame = createFlame({ nozzles: [[-NOZZLE.x, NOZZLE.y], [NOZZLE.x, NOZZLE.y]], z: Z(NOZZLE.s1), radius: NOZZLE.r, segments: cfg.detail >= 2 ? 28 : 18, cfg: FX.flame, colors: FX.flameColors.player });
       model.attachFlame(flame);

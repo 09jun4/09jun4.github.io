@@ -33,6 +33,7 @@ import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
 import { isMobileMode } from './core/device.js';
+import { MOBILE } from './data/quality.js';
 import { createTouchControls } from './ui/touch-controls.js';
 import { PostFX } from './world/post.js';
 import { Autopilot } from './core/autopilot.js';
@@ -119,8 +120,9 @@ async function applyPreset(name, cfg) {
   // 파티클: 낮음은 CPU 인스턴싱, 높음·최고는 GPU 셰이더(소프트 파티클)
   session.fx.setBackend(cfg.particleCapacity ? new GpuParticles(cfg.particleCapacity, world.sunDirection) : null, cfg.particleScale);
   postFrame.particleLayer = cfg.particleCapacity ? PARTICLE_LAYER : 0;
-  world.setCloudFraction(cfg.clouds);
-  session.fx.setParticleFraction(cfg.particles);
+  const m = input.touchMode && cfg.tier === 'low' ? MOBILE : null; // 모바일 낮음은 구름·파티클을 더 줄인다
+  world.setCloudFraction(cfg.clouds * (m ? m.cloudScale : 1));
+  session.fx.setParticleFraction(cfg.particles * (m ? m.particleScale : 1));
   session.simpleTakeoff = cfg.tier === 'low';
   // 메뉴 화면에서 프리셋을 바꿨으면 배경(시네마틱 ↔ 회전)도 바로 바꾼다
   if (tierChanged && session.mode === 'showcase' && typeof fsm !== 'undefined' && fsm.name) session.startShowcase();
@@ -129,6 +131,7 @@ async function applyPreset(name, cfg) {
 const quality = new QualityManager({
   renderer, settings,
   onApply: applyPreset,
+  isMobile: () => input.touchMode,
   onLowered: (name) => toast(`화면이 느려서 그래픽 품질을 낮췄어요(${quality.cfg.label}). 설정에서 바꿀 수 있어요.`),
 });
 window.addEventListener('resize', resize);
@@ -429,6 +432,7 @@ if (!settings.get('benchmarked')) {
   try {
     const result = await runBenchmark(renderer, (f) => loading.progress(f * 0.9));
     pick = result.preset;
+    if (input.touchMode) { settings.set('mobileHighOk', result.preset !== 'low'); pick = 'low'; } // 모바일은 낮음으로 시작, 높음은 통과한 기기에서만 선택 가능
     if (debugState.enabled) console.info('[KF21] benchmark', result);
   } catch (e) { console.warn('[KF21] 벤치마크 실패, 낮음으로 시작해요', e); }
   quality.name = pick;
