@@ -34,7 +34,7 @@ const { startServer, launch, openGame, sleep } = require('./lib/harness.cjs');
     await g.page.evaluate(() => { window.__debug.go('menu'); });
   }
   const save = await g.page.evaluate(() => JSON.parse(localStorage.getItem('kf21.progress.guest')));
-  check('미션 3개 기록이 localStorage에 저장된다', save.v === 1 && ['m1', 'm2', 'm3'].every((m) => save.missions[m] && save.missions[m].grade));
+  check('미션 3개 기록이 localStorage에 저장된다', save.v === 2 && ['c1m1', 'c1m2', 'c1m3'].every((m) => save.missions[m] && save.missions[m].grade));
   check('콘솔 오류 0건(디버그 접속)', g.errors.length === 0);
   if (g.errors.length) console.log(g.errors);
   await browser.close(); server.close();
