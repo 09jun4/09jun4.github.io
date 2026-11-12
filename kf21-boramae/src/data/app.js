@@ -27,4 +27,4 @@ export const TRANSITIONS = {
 };
 
 export const STORAGE_PREFIX = 'kf21';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2; // 2: 미션 ID가 캠페인 형식(c1m1)으로 바뀜

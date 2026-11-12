@@ -249,7 +249,8 @@ session.onFinished = (result) => {
 const q = new URLSearchParams(location.search);
 const autopilot = new Autopilot(session);
 session.autopilot = autopilot;
-const autoOpts = { mission: missionById(q.get('mission')) ? q.get('mission') : MISSIONS[0].id, loop: q.get('loop') !== '0' };
+const autoOpts = { mission: (missionById(q.get('mission')) || MISSIONS[0]).id, // 예전 주소의 m1~m3도 받는다
+  loop: q.get('loop') !== '0' };
 let autoPanel = null;
 let autoResultAt = 0;
 function autoSyncUrl() {
@@ -406,7 +407,7 @@ if (isDebugEnabled()) {
           bearing: Math.atan2(local.x, -local.z), elevation: Math.asin(Math.max(-1, Math.min(1, rel.clone().applyQuaternion(player.flight.quat).y / Math.max(dist, 1)))), dy: e.pos.y - player.flight.pos.y };
       }),
       go: (name, payload) => fsm.go(name, payload),
-      startMission: (id) => { const m = MISSIONS.find((x) => x.id === id); if (fsm.name === STATE.PLAYING) { currentMission = m; session.startMission(m); } else { if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT); if (fsm.name !== STATE.BRIEFING) fsm.go(STATE.BRIEFING, { mission: m }); fsm.go(STATE.PLAYING, { mission: m }); } },
+      startMission: (id) => { const m = missionById(id); if (fsm.name === STATE.PLAYING) { currentMission = m; session.startMission(m); } else { if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT); if (fsm.name !== STATE.BRIEFING) fsm.go(STATE.BRIEFING, { mission: m }); fsm.go(STATE.PLAYING, { mission: m }); } },
       advance: (seconds) => loop.advance(seconds),
       timeScale: (s) => { baseTimeScale = s; loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },

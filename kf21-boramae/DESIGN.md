@@ -329,8 +329,8 @@ GPU 파티클은 생성할 때만 CPU가 값을 쓰고(링 버퍼), 움직임은
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | 1 | 기체 수정(구멍, 캐노피) + 열린 모서리 검사 | 완료 |
-| 2 | 미션 엔진 + 데이터 스키마 + 기존 미션 3개 이식 + 저장 마이그레이션 + 스모크 테스트 골격 | **다음** |
-| 3 | 지상 패치, 바다, 시간대 4종 | 대기 |
+| 2 | 미션 엔진 + 데이터 스키마 + 기존 미션 3개 이식 + 저장 마이그레이션 + 스모크 테스트 골격 | 완료 |
+| 3 | 지상 패치, 바다, 시간대 4종 | **다음** |
 | 4 | 지상 목표 모델, 대공포·SAM, 미사일 경고 | 대기 |
 | 5 | 폭탄 무장, 무장 순환, CCIP, 모바일 대응 | 대기 |
 | 6 | 목표 유형(파괴, 수송기·폭격기, 정찰, 시간제한, 보스) | 대기 |
@@ -352,3 +352,8 @@ GPU 파티클은 생성할 때만 CPU가 값을 쓰고(링 버퍼), 움직임은
 - **모바일 프리셋 제한 해제**(사용자 요청): 모바일에서도 높음·최고를 직접 고를 수 있다. 기본은 여전히 낮음이고, 해상도 배율 상한은 낮음 1.5·그 외 2.0, 자동 품질 조절이 켜져 있으면 30FPS 아래에서 한 칸씩 내려간다. 21절의 "최고는 없다"는 이제 맞지 않는다.
 - **배포**(사용자 요청): 단계가 끝날 때마다 `main`에도 바로 푸시한다.
 - 근접 확인용 시점: `node tests/v2-model.cjs high intakefront,enginerear,under,canopyrear,canopyside,canopytop` (조종사만 볼 때는 `HIDE_CANOPY=1`).
+- **검증 최소화**(사용자 요청): 단계마다 `npm test`와 `node tests/smoke.cjs` 정도만 돌린다. 스크린샷·성능 측정은 꼭 필요할 때만.
+- **2단계 구조**: `src/mission/engine.js`(순수 로직: 목표 진행·승패·점수), `src/mission/schema.js`(데이터 검증), `src/data/campaigns.js`, `src/data/missions.js`(새 스키마, `define()`이 order·parTime·summary 같은 이전 이름을 채운다). 세션은 `engine.airKill(role)` / `groundDestroyed(type)` / `escaped(role)` / `checkpoint(i)` / `playerDead()` / `tick(dt)`만 부르고 `engine.outcome`으로 승패를 본다. 결과에는 `objectives`(체크리스트), `timeBonus`, `failReason`이 들어간다.
+- 수량 목표는 부분 점수(points × 진행/수량)를 준다. 그래서 이식한 c1m1~3의 점수가 예전(격추당 1000 + 남은 시간 × 10)과 같다(`tests/missions.test.js`).
+- 미션 ID: `m1~m3` → `c1m1~c1m3`. `missionById`는 옛 ID도 받는다(자동플레이 주소·테스트). 저장은 v2로 올렸고 `normalizeProgress`가 기기·계정 저장을 읽을 때 변환한다. 잠금은 없앴다(`isUnlocked`는 항상 참).
+- 편대는 아직 기존 `WaveSpawner`(조건: start / remaining / time)를 쓴다. 미션 데이터의 `at`은 time 조건으로 바뀐다. 역할(`role`)·성격(`personality`)은 6·7단계에서 스포너가 읽게 한다.

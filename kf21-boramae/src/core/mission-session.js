@@ -8,7 +8,7 @@ import { TAKEOFF, AIRBASE } from '../data/takeoff.js';
 import { CINEMATIC } from '../data/cinematic.js';
 import { GEAR_HEIGHT } from '../entities/gear.js';
 import { debugState } from './debug.js';
-import { computeScore, gradeFor } from './scoring.js';
+import { gradeFor } from './scoring.js';
 import { VIEW } from '../flight/camera-rig.js';
 import { EnemyPool } from '../entities/enemy.js';
 import { setEnemyOutlinePixels, createEnemyVisual } from '../entities/enemy-model.js';
@@ -34,6 +34,7 @@ import { createDecals } from '../entities/decals.js';
 import { Recorder } from './replay.js';
 import { Tutorial } from './tutorial.js';
 import { PHASE_NAMES } from './phase.js';
+import { MissionEngine, OUTCOME } from '../mission/engine.js';
 
 const _v = new THREE.Vector3();
 const _shift = { x: 0, z: 0 };
@@ -293,6 +294,7 @@ export class MissionSession {
     this.rig.fixed = null;
     this.phase = PHASE.ACTIVE;
     this.mission = mission;
+    this.engine = new MissionEngine(mission); // 목표 진행·승패·점수(순수 로직)
     this.total = missionEnemyCount(mission);
     this.rng = makeRng(seed);
     this._resetWorld();
@@ -350,6 +352,7 @@ export class MissionSession {
     this.gearTarget = 0;
     this.phase = PHASE.ACTIVE;
     this.stats.time = 0;
+    this.engine.time = 0;
   }
 
   /** Enter/Space: 이륙 연출 건너뛰기 */
@@ -452,6 +455,7 @@ export class MissionSession {
 
   _onEnemyKilled(enemy) {
     this.stats.kills++;
+    if (!this._debugSkipped) this.engine.airKill(enemy.role || 'fighter');
     // 가까운 폭발일수록 화면 가장자리가 밝게 번쩍인다
     this.feedback.flash = Math.max(this.feedback.flash, clamp01(1.15 - enemy.pos.distanceTo(this.player.flight.pos) / 900));
     // 잔해: 격추된 자리에서 속도를 이어받아 돌면서 떨어진다
@@ -472,7 +476,18 @@ export class MissionSession {
 
   _checkCleared() {
     if (this.phase !== PHASE.ACTIVE || !this.player.alive) return;
-    if (this.stats.kills >= this.total && this.enemies.aliveCount === 0 && this._allSpawned()) {
+    const e = this.engine;
+    if (e.outcome === OUTCOME.LOST) { // 필수 목표 실패·제한시간 초과(체력 0은 _onPlayerKilled가 맡는다)
+      this.phase = PHASE.ENDING;
+      this.success = false;
+      this.failReason = e.reason;
+      this.stats.clearTime = this.stats.time;
+      this.endTimer = MISSION_FLOW.failDelay;
+      this.audio.play('mission_fail');
+      this.tutorial.stop();
+      return;
+    }
+    if (e.outcome === OUTCOME.WON) {
       this.phase = PHASE.ENDING;
       this.success = true;
       this.stats.clearTime = this.stats.time;
@@ -499,6 +514,8 @@ export class MissionSession {
     if (this.phase !== PHASE.ACTIVE) return;
     this.phase = PHASE.ENDING;
     this.success = false;
+    this.engine.playerDead();
+    this.failReason = this.engine.reason;
     this.stats.clearTime = this.stats.time;
     this.endTimer = MISSION_FLOW.failDelay;
     this.tutorial.stop();
@@ -508,7 +525,7 @@ export class MissionSession {
   /** 미션 결과(결과 화면·저장·랭킹이 사용) */
   result() {
     const s = this.stats;
-    const score = computeScore(this.mission, s.kills, s.clearTime, this.success);
+    const score = this.engine.score(s.clearTime);
     return {
       missionId: this.mission.id,
       success: this.success,
@@ -522,6 +539,9 @@ export class MissionSession {
       weaponsUsed: s.weaponsUsed.slice(),
       score,
       grade: gradeFor(this.mission, score, this.success),
+      objectives: this.engine.summary(),
+      timeBonus: this.engine.timeBonus(s.clearTime),
+      failReason: this.success ? null : this.failReason || null,
     };
   }
 
@@ -784,7 +804,7 @@ export class MissionSession {
       this.threat.update(player);
       if (this.phase === PHASE.ACTIVE || this.phase === PHASE.ENDING) this.rec.step(dt, player, this.enemies.list);
       if (active) {
-        if (!this.tutorial.active) this.stats.time += dt; // 튜토리얼 중에는 시간이 흐르지 않는다
+        if (!this.tutorial.active) { this.stats.time += dt; this.engine.tick(dt); } // 튜토리얼 중에는 시간이 흐르지 않는다
         if (!this.tutorial.holding) this._stepMission(dt); // 마지막 단계 전까지 적이 나오지 않는다
       } else if (this.phase === PHASE.ENDING) {
         if (!this.killcam.active) this.endTimer -= dt; // 킬캠이 끝난 뒤부터 센다
@@ -961,6 +981,7 @@ export class MissionSession {
       for (const e of this.enemies.list) if (e.alive) e.despawn();
       this.stats.kills = this.total;
       this._debugSkipped = true;
+      for (const o of this.engine.objectives) if (o.required) this.engine._credit(o, o.count);
       this.phase = PHASE.ENDING;
       this.success = true;
       this.stats.clearTime = this.stats.time;

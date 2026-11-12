@@ -28,7 +28,7 @@ export const REPLAY = {
 
 /** 튜토리얼(미션 1). 문구는 기기별로 다르다. 적은 마지막 단계에서야 등장하고, 점수·시간은 튜토리얼이 끝난 뒤부터 잰다. */
 export const TUTORIAL = {
-  missionId: 'm1',
+  missionId: 'c1m1',
   flightHold: 0.7, // 피치·선회를 각각 이만큼 입력하면 통과(초)
   gunShots: 10,
   doneHold: 1.4, // 단계 완료 표시 유지(초)

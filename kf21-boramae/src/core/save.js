@@ -3,7 +3,7 @@
 // - 로그인: 계정 저장(Firestore)이 원본이고, localStorage `kf21.progress.<uid>` 는 오프라인 대비 사본
 // - 첫 로그인 때 게스트 진행을 계정으로 옮긴다(충돌 시 더 진행된 쪽). 로그아웃하면 게스트 상태로 돌아간다.
 import { SAVE_VERSION, STORAGE_PREFIX } from '../data/app.js';
-import { MISSIONS } from '../data/missions.js';
+import { MISSIONS, LEGACY_MISSION_IDS } from '../data/missions.js';
 import { betterGrade } from './scoring.js';
 import { GRADE_ORDER } from '../data/grades.js';
 
@@ -17,7 +17,14 @@ export function emptyProgress() {
 export function normalizeProgress(raw) {
   const p = emptyProgress();
   if (!raw || typeof raw !== 'object') return p;
-  const src = raw.missions && typeof raw.missions === 'object' ? raw.missions : {};
+  const old = raw.missions && typeof raw.missions === 'object' ? raw.missions : {};
+  // v1 → v2: 미션 ID가 'm1' → 'c1m1' 식으로 바뀌었다. 같은 미션의 기록이 양쪽에 있으면 점수가 높은 쪽을 남긴다
+  const src = {};
+  for (const [id, r] of Object.entries(old)) {
+    const to = LEGACY_MISSION_IDS[id] || id;
+    if (!r || typeof r !== 'object') continue;
+    if (!src[to] || (Number(r.bestScore) || 0) > (Number(src[to].bestScore) || 0)) src[to] = r;
+  }
   for (const m of MISSIONS) {
     const r = src[m.id];
     if (!r || typeof r !== 'object') continue;
@@ -97,12 +104,9 @@ export class SaveData {
     return this.progress.missions[missionId] || null;
   }
 
-  /** 미션은 순서대로 열린다: 첫 미션은 항상, 나머지는 앞 미션을 클리어해야 */
+  /** 잠금은 없다: 모든 캠페인·미션을 처음부터 고를 수 있다(권장 등급은 표시만) */
   isUnlocked(missionId) {
-    const i = MISSIONS.findIndex((m) => m.id === missionId);
-    if (i <= 0) return i === 0;
-    const prev = this.progress.missions[MISSIONS[i - 1].id];
-    return !!prev && prev.clears > 0;
+    return MISSIONS.some((m) => m.id === missionId);
   }
 
   /**

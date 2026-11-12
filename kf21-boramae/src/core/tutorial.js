@@ -88,7 +88,7 @@ export class Tutorial {
     if (!this.active) return false;
     this.active = false;
     this.version++;
-    if (s.phase === PHASE_NAMES.ACTIVE) s.stats.time = 0;
+    if (s.phase === PHASE_NAMES.ACTIVE) { s.stats.time = 0; if (s.engine) s.engine.time = 0; }
     if (this.onFinish) this.onFinish();
     return true;
   }
