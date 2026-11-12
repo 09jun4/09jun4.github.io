@@ -185,7 +185,8 @@ export class PostFX {
     const c = this.mComp.uniforms;
     c.tScene.value = sceneTex; c.tBloom.value = src; c.tDepth.value = this.scene.depthTexture;
     c.uSun.value.copy(f.sun); c.uFlash.value = f.flash;
-    c.uExposure.value = look.exposure * (f.exposure || 1); // 시간대별 노출
+    if (this._baseExposure == null) this._baseExposure = c.uExposure.value; // 만들 때 넣은 기본 노출
+    c.uExposure.value = this._baseExposure * (f.exposure || 1); // 시간대별 노출
     const blur = this.cfg.motionBlur > 0 ? Math.min(this.cfg.motionBlur, this.cfg.motionBlur * f.turn) : 0;
     if (this.ldr.length === 0) { this._pass(this.mComp, null); return; }
     // 5) 모션 블러(이전 프레임과 섞기)

@@ -2,8 +2,20 @@
 
 https://09jun4.github.io/kf21-boramae/
 
-KF-21 보라매를 몰고 적기를 격추하는 3D 전투기 슈팅(싱글 플레이, 미션 3개). PC(키보드+마우스)와 모바일(가로 화면, 터치)에서 된다.
+KF-21 보라매를 몰고 싸우는 3D 전투기 슈팅(싱글 플레이, 캠페인 5개·미션 18개: 요격, 지상 타격, 차단, 정찰, 시간제한 요격, 에이스 결전). PC(키보드+마우스)와 모바일(가로 화면, 터치)에서 된다.
 
+
+## 캠페인
+
+| 캠페인 | 시간대 | 미션 |
+|---|---|---|
+| 01 제공권 확보 | 낮 | 요격 3 + 시간제한 요격 1 |
+| 02 새벽 타격 | 새벽 | 레이더·기지국 폭격, 호송대 차단 |
+| 03 해상 방어 | 저녁·해안 | 수송기 차단, 초계함 격침, 폭격기 요격, 해안 정찰 |
+| 04 야간 침투 | 야간 | 저고도 정찰, SAM 제압, 제한시간 타격, 폭격기 요격 |
+| 05 최종 작전 | 저녁·야간 | 단계형 방공망 제압, 대규모 요격, 에이스 결전 |
+
+모든 캠페인·미션을 처음부터 고를 수 있다(권장 문구만 표시). 무장은 기관포·미사일·폭탄 3종이고 F로 순환한다. 기지국·레이더·함정은 폭탄만 통하고, 대공포·SAM·트럭은 기관포로도 부술 수 있다. 미션 콘텐츠는 전부 `src/data/missions.js`에 있다.
 
 ## 조작
 
@@ -16,7 +28,7 @@ KF-21 보라매를 몰고 적기를 격추하는 3D 전투기 슈팅(싱글 플�
 | 마우스 | 조준점 이동 |
 | 좌클릭 | 발사(기관포는 누르고 있기, 미사일은 락온 뒤) |
 | 우클릭 누른 채 이동 | 마우스로 조향(움직이는 속도에 비례, 멈추면 0으로) |
-| F / V / C | 무기 전환 / 시점 전환 / 누른 채 둘러보기 |
+| F / V / C | 무장 전환(기관포 → 미사일 → 폭탄) / 시점 전환 / 누른 채 둘러보기 |
 | Enter · Space | 이륙·킬캠·튜토리얼 건너뛰기 |
 
 **모바일(가로 전용)** — 왼쪽 조이스틱으로 조종, 오른쪽 화면을 누르면 그 자리로 조준하고 누르는 동안 기관포를 쏜다. 미사일은 적기를 누르고 있다가 락온되면 손을 뗀다. 버튼은 무장·시점·정지 3개. 자이로 조종은 설정에서 켠다(기본 꺼짐). 세로로 들면 돌려 달라는 안내와 함께 멈춘다.
@@ -57,7 +69,7 @@ KF-21 보라매를 몰고 적기를 격추하는 3D 전투기 슈팅(싱글 플�
 
 - **배포**: 빌드가 필요 없다. 이 폴더를 그대로 `main`에 올리면 된다(`index.html`의 importmap이 `js/vendor/three.min.js`를 불러온다).
 - **개발**: `npm install` 후 `npm run dev`.
-- **테스트**: `npm test`(단위 테스트), `npm run smoke`(브라우저 스모크), `node tests/playthrough.cjs`(미션 1~3 자동 완주), `node tests/perf.cjs`(프리셋별 성능·메모리), `node tests/p1-input.cjs`·`p3-mobile.cjs`·`p7-extras.cjs`·`p9-mobile.cjs`(조작·모바일·킬캠·튜토리얼·모바일 예산), `node tests/p9-balance.cjs`(락온 시간 비교), `node tests/v2-model.cjs high`(기체 캡처) 등 `tests/v*.cjs`(비주얼 단계별 검증).
+- **테스트**: `npm test`(단위 테스트), `npm run smoke`(브라우저 스모크), `node tests/playthrough.cjs`(미션 1~3 자동 완주), `node tests/perf.cjs`(프리셋별 성능·메모리), `node tests/p1-input.cjs`·`p3-mobile.cjs`·`p7-extras.cjs`·`p9-mobile.cjs`(조작·모바일·킬캠·튜토리얼·모바일 예산), `node tests/p9-balance.cjs`(락온 시간 비교), `node tests/open-edges.cjs`(기체 열린 모서리), `node tests/e3-env.cjs`·`e4-ground.cjs`·`e6-types.cjs`·`e9-ui.cjs`·`e11-perf.cjs`(시간대·지상전·미션 유형·UI·성능), `node tests/v2-model.cjs high`(기체 캡처) 등 `tests/v*.cjs`(비주얼 단계별 검증).
 - 구조·알고리즘·튜닝 값 위치·알려진 한계는 [DESIGN.md](DESIGN.md).
 - 디버그: 주소 뒤에 `?debug=1`을 붙이면 콘솔에서 `__debug.skipMission()`, `__debug.invincible()`, `__debug.spawnEnemy(3)`, `__debug.showFps()`, `__debug.measure(3)`(FPS 평균·하위 1%·드로우콜·삼각형), `__debug.benchmark(true)`를 쓸 수 있다.
 
