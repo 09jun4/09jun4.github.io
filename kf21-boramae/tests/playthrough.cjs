@@ -65,11 +65,11 @@ async function fly(page, label, maxSeconds = 240) {
     await sleep(800);
     await page.click('[data-act="start"]'); await sleep(800);
     const results = [];
-    for (const id of ['m1', 'm2', 'm3']) {
+    for (const id of ['c1m1', 'c1m2', 'c1m3']) {
       let attempt = 0;
       for (;;) {
         attempt++;
-        if (attempt === 1 && id === 'm1') { await page.click(`.mission-row[data-id="${id}"]`); await sleep(200); await page.click('[data-act="brief"]'); await sleep(800); }
+        if (attempt === 1 && id === 'c1m1') { await page.click(`.mission-row[data-id="${id}"]`); await sleep(200); await page.click('[data-act="brief"]'); await sleep(800); }
         await page.click('[data-act="launch"]'); await sleep(900);
         const r = await fly(page, `${id}-run${run}`);
         if (r.last.st.state === 'playing') { results.push({ id, attempt, title: '시간 초과(테스트 중단)', score: '-', grade: '-', stats: [`${r.last.st.stats.kills}`, `${r.last.st.stats.gunHits}/${r.last.st.stats.gunShots}`, `${r.last.st.stats.hitsTaken}`, `${r.last.st.stats.time.toFixed(0)}s`, ''], hpLeft: r.last.st.hp, peak: r.peak }); attempt = 99; break; }
