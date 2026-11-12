@@ -296,6 +296,7 @@ export class MissionSession {
     this.total = missionEnemyCount(mission);
     this.rng = makeRng(seed);
     this._resetWorld();
+    this.player.visual.canopy = 0; // 메뉴 시네마틱에서 열려 있던 캐노피를 닫는다
     const ground = AIRBASE.height + GEAR_HEIGHT + 0.5;
     this.player.reset({ yaw: 0, y: ground });
     this._onMissionStart();
@@ -398,6 +399,7 @@ export class MissionSession {
     v.gear = moveToward(v.gear, this.gearTarget, dt / TAKEOFF.gearTime);
     v.flap = v.gear > 0.5 ? 1 : 0;
     if (this.mode !== 'mission') return;
+    v.canopy = 0; // 이륙·비행·미션 중 캐노피는 항상 닫힘(열리는 것은 메뉴 시네마틱뿐)
     const taking = this.phase === PHASE.TAKEOFF;
     // 에어브레이크: 순항보다 많이 빠를 때(급강하) 펼친다
     v.airbrake = taking ? 0 : clamp01((f.speed - cfg.speed.cruise - cfg.model.hi.brakeFrom) / cfg.model.hi.brakeRange);

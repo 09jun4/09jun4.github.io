@@ -3,6 +3,7 @@
 // - 닫힌 고리의 이음매는 UV 때문에 정점을 따로 두되, 법선은 평균해서 이음매가 보이지 않게 한다.
 // - 좌우 대칭 부품은 mirror()로 한 번만 정의한다.
 import * as THREE from 'three';
+import { capOpenLoops } from '../close-loops.js';
 
 const _v = new THREE.Vector3();
 
@@ -14,6 +15,8 @@ export class Surf {
     this.weld = []; // 법선을 평균할 정점 쌍
     this.matrix = null;
     this.mx = 1; // -1이면 x 대칭
+    this.capSkip = null; // (중심, 변 수) => true면 그 고리는 막지 않는다(다른 부품이 덮는 자리)
+    this.closeLoops = true; // build 때 평평한 열린 고리를 막는다(끄려면 false)
     this.uvFn = (x, y, z) => [0.94, 0.5 + z / 18]; // 기본: 아틀라스의 민무늬 영역
   }
 
@@ -60,6 +63,7 @@ export class Surf {
    * @param {boolean} [o.inward] 안쪽을 향하게(덕트 안쪽 등)
    */
   grid(nu, nv, fn, o = {}) {
+    nu = Math.max(1, Math.round(nu)); nv = Math.max(1, Math.round(nv)); // 분할 수가 소수면 이음매가 어긋난다
     const base = this.pos.length / 3;
     const cols = nu + 1;
     for (let j = 0; j <= nv; j++) {
@@ -182,6 +186,7 @@ export class Surf {
 
   /** @param {THREE.Matrix4} [bake] 힌지 좌표계 등으로 옮길 변환 */
   build(bake) {
+    if (this.closeLoops) capOpenLoops(this.pos, this.idx, [{ array: this.uv, size: 2 }], { skip: this.capSkip }); // 열린 관 끝·얇은 판 뒷면을 막는다
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));

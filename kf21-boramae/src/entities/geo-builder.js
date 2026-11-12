@@ -3,6 +3,7 @@
 // 정점 색이 들어간 비인덱스 BufferGeometry 하나로 만든다(플랫 셰이딩, 드로우콜 1개).
 // 삼각형 방향(winding)은 기준점에서 바깥을 보도록 자동으로 맞춘다.
 import * as THREE from 'three';
+import { capOpenLoops } from './close-loops.js';
 
 const _c = new THREE.Color();
 const _v = new THREE.Vector3();
@@ -160,6 +161,15 @@ export class GeoBuilder {
 
   /** @param {THREE.Matrix4} [bake] 최종 지오메트리에 한 번 적용할 변환(힌지 좌표계로 옮길 때) */
   build(bake) {
+    // 열린 관 끝·얇은 판 뒷면을 막는다(막는 면은 뒤에 덧붙고, 비인덱스로 다시 편다)
+    const n0 = this.pos.length / 3;
+    const idx = Array.from({ length: n0 }, (_, i) => i);
+    capOpenLoops(this.pos, idx, [{ array: this.col, size: 3 }]);
+    if (idx.length > n0) {
+      const pos = this.pos.slice(0, n0 * 3), col = this.col.slice(0, n0 * 3);
+      for (let i = n0; i < idx.length; i++) { const v = idx[i]; pos.push(this.pos[v * 3], this.pos[v * 3 + 1], this.pos[v * 3 + 2]); col.push(this.col[v * 3], this.col[v * 3 + 1], this.col[v * 3 + 2]); }
+      this.pos = pos; this.col = col;
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));

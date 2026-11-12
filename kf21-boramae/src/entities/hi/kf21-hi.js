@@ -201,13 +201,16 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
   const missileMat = mat(new THREE.MeshStandardMaterial({ color: 0xd9dde1, roughness: 0.5, metalness: 0.25, envMapIntensity: ENV }));
   const sensorMat = mat(new THREE.MeshStandardMaterial({ color: 0x14181c, roughness: 0.08, metalness: 0.95, envMapIntensity: 1.6 }));
   // 캐노피 유리: 푸른 반사. 비스듬히 볼수록 반사가 강해진다(프레넬)
-  const glassMat = mat(new THREE.MeshStandardMaterial({ color: 0x5f9cc4, roughness: 0.04, metalness: 0.92, transparent: true, opacity: 0.4, envMapIntensity: 2.2, depthWrite: false, side: THREE.DoubleSide }));
+  const glassMat = mat(new THREE.MeshStandardMaterial({ color: 0x4f86ad, roughness: 0.04, metalness: 0.92, transparent: true, opacity: 0.4, envMapIntensity: 2.2, depthWrite: false, side: THREE.DoubleSide }));
   glassMat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'float fres = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 3.0);\ndiffuseColor.a = mix(0.2, 0.92, fres);\noutgoingLight += vec3(0.05, 0.1, 0.18) * fres;\n#include <opaque_fragment>');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'float fres = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 3.0);\ndiffuseColor.a = mix(0.36, 0.95, fres);\noutgoingLight += vec3(0.05, 0.1, 0.18) * fres;\n#include <opaque_fragment>');
   };
   const nozMat = mat(nozzleMaterial(ENV));
 
+  // 엔진 뒤쪽 끝은 노즐과 안쪽 어두운 통이 덮는다. 여기까지 막으면 막는 면이 노즐 안으로 비쳐 보인다
+  const aftSkip = (c) => c[2] > Z(NOZZLE.s0) - 0.75 && Math.abs(c[0]) < 1.5;
   const add = (S, material, parent = exterior, shadow = true) => {
+    if (!S.capSkip) S.capSkip = aftSkip;
     const mesh = new THREE.Mesh(keep(S.build()), material);
     mesh.castShadow = shadow;
     mesh.receiveShadow = shadow;
@@ -293,6 +296,11 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
   B.box([0, -fus.bot(6.4) - 0.09, Z(6.4)], [0.02, 0.18, 0.3]);
   B.tube([[0, fus.cy(0), Z(0.04)], [0, fus.cy(0) - 0.01, Z(-0.62)]], (v) => 0.02 - v * 0.012, 8);
   for (const side of [-1, 1]) B.tube([[side * 0.5, -0.2, Z(2.3)], [side * 0.62, -0.22, Z(2.15)], [side * 0.63, -0.22, Z(1.8)]], 0.012, 6); // AOA 프로브
+  // 엔진 베이와 노즐 사이 이음 링: 동체 끝과 꽃잎 뿌리 사이의 틈을 덮는다
+  for (const side of [-1, 1]) {
+    const cx = side * NOZZLE.x;
+    B.loft(N(28), 3, (u, v) => { const r = lerp(0.6, 0.538, v * v); return [cx + Math.cos(u * TAU) * r, NOZZLE.y + Math.sin(u * TAU) * r, Z(NOZZLE.s0 - 0.7 + v * 0.62)]; });
+  }
   // 노즐 안쪽: 어두운 통과 화염 유지기(뒤에서 들여다보면 보인다)
   for (const side of [-1, 1]) {
     const cx = side * NOZZLE.x, zc = Z(NOZZLE.s0 + 0.5);
