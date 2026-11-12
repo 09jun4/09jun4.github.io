@@ -71,7 +71,7 @@ const check = (name, ok, info) => { out[name] = info === undefined ? ok : info; 
     check('replayButton', after.btn);
     // 리플레이
     await page.click('[data-act="replay"]');
-    await sleep(700);
+    await page.waitForFunction(() => !document.querySelector('.replay-tag').hidden, null, { timeout: 60000 }).catch(() => {}); // 느린 환경: 첫 프레임이 그려질 때까지
     const rp = await d(() => { const s = window.__debug.session(); return { on: s.replay.on, mode: s.mode, pass: s.replay.pass, tag: !document.querySelector('.replay-tag').hidden, enemiesVisible: s.enemies.list.filter((e) => e.group.visible).length }; });
     check('replayRuns', rp.on && rp.mode === 'replay' && rp.tag, rp);
     await shot(page, `p7-${preset}-replay1`);

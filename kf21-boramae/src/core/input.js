@@ -85,6 +85,8 @@ export class Input {
 
     document.addEventListener('pointerlockchange', () => {
       const now = document.pointerLockElement === surface;
+      // 잠금 요청은 비동기라, 그 사이 메뉴·일시정지로 넘어갔으면 뒤늦게 걸린 잠금을 바로 푼다
+      if (now && !this.lockWanted) { document.exitPointerLock(); return; }
       const was = this.locked;
       this.locked = now;
       if (now) { this._last.has = false; this._acc.x = this._acc.y = 0; }

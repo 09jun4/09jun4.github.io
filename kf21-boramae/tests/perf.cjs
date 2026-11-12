@@ -1,5 +1,6 @@
 // 프리셋별 성능·메모리 점검: node tests/perf.cjs
 //  - 낮음/높음/최고 각각: 전투 최고 부하(미션 3 + 적기 8대 + 연사 + 폭발)에서 FPS 평균·하위 1%, 드로우콜, 삼각형 수
+//  - 인자: node tests/perf.cjs [프리셋 목록=low,high,ultra] [leak|noleak]. 메모리가 빠듯한 환경에서는 프리셋을 하나씩, 누수 점검은 따로 돌린다
 //  - 프리셋 전환 12회 + 미션 재시작 12회 전후의 GPU 리소스 수·JS 힙 비교
 // 주의: 이 스크립트를 GPU 없는 환경(소프트웨어 렌더링)에서 돌리면 FPS 값은 실제 기기 성능과 무관하다. 드로우콜·삼각형 수는 어디서나 같다.
 const { startServer, openGame, sleep } = require('./lib/harness.cjs');
@@ -14,7 +15,8 @@ const BUDGET = { low: [100000, 80], high: [600000, 250], ultra: [1200000, 400] }
   const out = { presets: {} };
   const battle = async (preset) => {
     await d((p) => window.__debug.setQuality(p), preset);
-    await d(() => { const g = window.__debug; g.startMission('m3'); g.invincible(true); });
+    // 헤드리스에서는 포인터락이 걸려 있는 동안 브라우저 쪽 부하로 프레임이 크게 떨어진다(게임 코드와 무관). 잠금 없이 잰다
+    await d(() => { const g = window.__debug; g.startMission('m3'); g.invincible(true); g.session().input.setLockWanted(false); });
     await sleep(800);
     await d(() => { window.__debug.spawnEnemy(6, { distance: 300, spread: 70 }); window.__debug.setTrigger(true); });
     await sleep(1500);
@@ -24,7 +26,11 @@ const BUDGET = { low: [100000, 80], high: [600000, 250], ultra: [1200000, 400] }
     await d(() => { window.__debug.session().toggleView(); window.__debug.setTrigger(null); });
     return { fpsAvg: m.fpsAvg, fpsMin: m.fpsMin, drawCalls: Math.max(m.drawCalls, view.drawCalls), triangles: Math.max(m.triangles, view.triangles), playerTris: await d(() => window.__debug.visuals().triangles), enemyTris: await d(() => window.__debug.session().enemies.list[0].visual.triangles), buildMs: await d(() => Math.round(window.__debug.visuals().buildMs)), pixelRatio: m.pixelRatio };
   };
-  for (const p of ['low', 'high', 'ultra']) out.presets[p] = await battle(p);
+  const LIST = (process.argv[2] || 'low,high,ultra').split(',').filter(Boolean);
+  const LEAK = (process.argv[3] || 'leak') === 'leak';
+  const TOP = LIST.includes('ultra') || !process.argv[2] ? 'ultra' : 'high'; // 누수 점검에서 오갈 가장 높은 프리셋
+  for (const p of LIST) out.presets[p] = await battle(p);
+  if (!LEAK) { out.errors = errors; console.log(JSON.stringify(out, null, 1)); await browser.close(); server.close(); process.exit(errors.length ? 1 : 0); }
 
   const mem = async () => { await d(() => { if (window.gc) { window.gc(); window.gc(); } }); await sleep(400); return d(() => ({ heapMB: +(performance.memory.usedJSHeapSize / 1048576).toFixed(2), ...window.__debug.state().info })); };
   const cycle = async (id) => {
@@ -40,9 +46,9 @@ const BUDGET = { low: [100000, 80], high: [600000, 250], ultra: [1200000, 400] }
   await d(() => { window.__debug.skipMission(true); });
   await page.waitForFunction(() => window.__debug.state().state === 'result' && !window.__debug.state().busy, null, { timeout: 60000 });
   await d(() => { window.__debug.go('menu'); });
-  for (const p of ['low', 'high', 'ultra', 'high']) await d((q) => window.__debug.setQuality(q), p);
+  for (const p of ['low', 'high', TOP, 'high']) await d((q) => window.__debug.setQuality(q), p);
   const sBefore = await mem();
-  for (let i = 0; i < 4; i++) for (const p of ['low', 'ultra', 'high']) await d((q) => window.__debug.setQuality(q), p);
+  for (let i = 0; i < 4; i++) for (const p of ['low', TOP, 'high']) await d((q) => window.__debug.setQuality(q), p);
   const sAfter = await mem();
   out.presetSwitch = { times: 12, before: sBefore, after: sAfter, heapGrowthMB: +(sAfter.heapMB - sBefore.heapMB).toFixed(2) };
   // 2) 미션 재시작 반복(높음)
