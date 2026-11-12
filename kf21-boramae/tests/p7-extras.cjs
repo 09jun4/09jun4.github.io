@@ -53,6 +53,7 @@ const check = (name, ok, info) => { out[name] = info === undefined ? ok : info; 
       const s = window.__debug.session();
       // 편대가 모두 나올 때까지 기다리지 않도록: 남은 수를 맞춘다
       s.stats.kills = s.total - 1;
+      s.engine.objectives[0].progress = s.engine.objectives[0].count - 1; // 엔진의 목표도 한 대 남긴다
       Object.defineProperty(s.spawner, 'allSpawned', { get: () => true, configurable: true });
       window.__debug.spawnEnemy(1, { distance: 260 });
       await new Promise((r) => setTimeout(r, 900));
