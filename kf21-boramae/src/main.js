@@ -32,6 +32,7 @@ import { createSettingsDialog } from './ui/settings-panel.js';
 import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
+import { isMobileMode } from './core/device.js';
 import { PostFX } from './world/post.js';
 import { Autopilot } from './core/autopilot.js';
 import { createAutoplayPanel } from './ui/autoplay-panel.js';
@@ -62,7 +63,15 @@ const rig = new CameraRig(camera, CAMERA, KF21_POINTS.eye);
 rig.shakeEnabled = settings.get('cameraShake');
 
 const input = new Input();
+input.setSettings(settings);
+input.touchMode = isMobileMode(settings.get('inputMode'));
 input.attach(stage);
+const inputHooks = {
+  onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); },
+  onRecalibrate: () => { if (window.__kf21Touch) window.__kf21Touch.recalibrate(); },
+  onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작할 때 튜토리얼이 나와요.'); },
+  mobileQualityLimit: true,
+};
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 visuals.enemies = session.enemies;
 const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
@@ -133,7 +142,7 @@ const screens = new Screens(document.getElementById('fade'));
 const goto = (state, payload) => screens.fade(() => fsm.go(state, payload));
 
 const online = createOnline({ save, settings, uiEl, toast });
-const settingsDialog = createSettingsDialog(settings, quality);
+const settingsDialog = createSettingsDialog(settings, quality, inputHooks);
 let currentMission = MISSIONS[0];
 
 const ui = {
@@ -151,7 +160,7 @@ const ui = {
     resume: () => fsm.go(STATE.PLAYING), // 3-2-1 없이 즉시 재개
     restart: () => goto(STATE.PLAYING, { mission: currentMission, restart: true }),
     menu: () => goto(STATE.MENU),
-  }, settings, quality),
+  }, settings, quality, inputHooks),
   result: createResult({
     next: (mission) => goto(STATE.BRIEFING, { mission }),
     retry: (mission) => goto(STATE.PLAYING, { mission }),
@@ -163,7 +172,7 @@ for (const [name, screen] of Object.entries(ui)) { uiEl.appendChild(screen.el); 
 uiEl.appendChild(settingsDialog.el);
 online.mount(ui.menu.el.querySelector('#account'));
 
-const backdrop = () => { if (session.mode !== 'showcase') session.startShowcase(); };
+const backdrop = () => { input.setLockWanted(false); if (session.mode !== 'showcase') session.startShowcase(); };
 fsm.add(STATE.MENU, { enter: () => { backdrop(); screens.show('menu'); } });
 fsm.add(STATE.SELECT, { enter: (payload) => { backdrop(); screens.show('select', payload); } });
 fsm.add(STATE.BRIEFING, { enter: (payload) => { backdrop(); currentMission = payload.mission; screens.show('briefing', payload); } });
@@ -174,11 +183,14 @@ fsm.add(STATE.PLAYING, {
       session.startMission(currentMission);
     }
     input.reset();
+    input.centerCursor();
+    // 미션 중에는 포인터락(PC). 자동플레이·모바일에서는 쓰지 않는다. 잠글 수 없으면 일반 커서 조준으로 폴백한다
+    input.setLockWanted(!autopilot.enabled && !input.touchMode);
     screens.show(null);
   },
 });
-fsm.add(STATE.PAUSED, { enter: () => { input.reset(); screens.show('pause'); } });
-fsm.add(STATE.RESULT, { enter: (payload) => screens.show('result', payload) });
+fsm.add(STATE.PAUSED, { enter: () => { input.reset(); input.setLockWanted(false); screens.show('pause'); } });
+fsm.add(STATE.RESULT, { enter: (payload) => { input.setLockWanted(false); screens.show('result', payload); } });
 fsm.onChange((name) => {
   hud.setVisible(name === STATE.PLAYING || name === STATE.PAUSED);
   appEl.classList.toggle('playing', name === STATE.PLAYING);
@@ -247,6 +259,7 @@ if (q.get('auto') === '1') {
 }
 
 const pause = () => { if (fsm.name === STATE.PLAYING && !screens.busy) fsm.go(STATE.PAUSED); };
+input.onLockChange((locked) => { if (!locked && fsm.name === STATE.PLAYING && input.lockWanted && !autopilot.enabled) pause(); }); // 잠금이 풀리면(ESC 포함) 자동 일시정지
 input.onBlur(() => { if (!autopilot.enabled) pause(); }); // 자동플레이 중에는 포커스가 패널로 옮겨 가도 멈추지 않는다 // 창 포커스가 사라지면 자동 일시정지
 input.onKey((code) => {
   if (screens.busy) return;
@@ -274,6 +287,7 @@ const loop = new GameLoop({
   },
   render(alpha, frameDt) {
     const paused = fsm.name === STATE.PAUSED;
+    input.poll(frameDt);
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     visuals.animate(player.time, paused ? 0 : frameDt);
     renderer.info.reset();

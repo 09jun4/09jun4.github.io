@@ -9,7 +9,7 @@ const mk = (angle) => ({ alive: true, angle });
 const angleOf = (e) => e.angle;
 
 describe('미사일 락온', () => {
-  it('탐색 → 추적 → 2.0초 유지 시 락온 완료', () => {
+  it('탐색 → 추적 → 0.5초 유지 시 락온 완료', () => {
     const lock = new LockOn(R, WEAPONS.missile.lock.time);
     const e = mk(3 * DEG);
     expect(lock.state).toBe(LOCK.SEARCH);
@@ -17,8 +17,9 @@ describe('미사일 락온', () => {
     expect(lock.state).toBe(LOCK.TRACKING);
     let t = DT, ev = '';
     while (ev !== 'locked' && t < 5) { ev = lock.update(DT, true, [e], angleOf); t += DT; }
-    expect(t).toBeGreaterThan(1.95);
-    expect(t).toBeLessThan(2.1);
+    expect(t).toBeGreaterThan(0.45);
+    expect(t).toBeLessThan(0.6);
+    expect(WEAPONS.missile.lock.time).toBe(0.5);
     expect(lock.state).toBe(LOCK.LOCKED);
     expect(lock.progress).toBe(1);
   });

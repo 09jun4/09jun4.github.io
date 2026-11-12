@@ -2,6 +2,7 @@
 import { el } from './dom.js';
 import { SETTING_RANGES, QUALITY_CHOICES, PAINTS } from '../data/settings.js';
 import { PRESETS } from '../data/quality.js';
+import { isMobileMode } from '../core/device.js';
 
 /** 설정 조작부 HTML(값 채우기는 bind에서) */
 export function settingsFields() {
@@ -25,11 +26,39 @@ export function settingsFields() {
         ${PAINTS.map((p) => `<button type="button" role="radio" data-paint="${p.id}">${p.label}</button>`).join('')}
       </div>
     </div>
+    <div class="field" data-device="pc">
+      <label for="set-steer">우클릭 조향 감도 <output data-out="steerSens"></output></label>
+      <input id="set-steer" type="range" min="0.5" max="2" step="0.05" data-set="steerSens">
+      <div class="field row">
+        <label><input type="checkbox" data-set="steerEnabled"> 우클릭 조향 사용 (누른 채 마우스를 움직이면 그쪽으로 선회)</label>
+        <label><input type="checkbox" data-set="steerInvertY"> 조향 상하 반전</label>
+      </div>
+    </div>
+    <div class="field" data-device="mobile">
+      <label for="set-stick">조이스틱 감도 <output data-out="stickSens"></output></label>
+      <input id="set-stick" type="range" min="0.5" max="2" step="0.05" data-set="stickSens">
+      <div class="field row">
+        <label><input type="checkbox" data-set="gyro"> 자이로(기울기) 조종</label>
+        <label><input type="checkbox" data-set="gyroInvert"> 자이로 상하 반전</label>
+      </div>
+      <label for="set-gyro">자이로 감도 <output data-out="gyroSens"></output></label>
+      <input id="set-gyro" type="range" min="0.5" max="2" step="0.05" data-set="gyroSens">
+      <button type="button" class="btn" data-act="recalibrate">자이로 재보정</button>
+    </div>
+    <div class="field">
+      <span class="label">입력 방식</span>
+      <div class="seg three" role="radiogroup" aria-label="입력 방식">
+        <button type="button" role="radio" data-mode="auto">자동</button>
+        <button type="button" role="radio" data-mode="pc">PC</button>
+        <button type="button" role="radio" data-mode="mobile">모바일</button>
+      </div>
+    </div>
     <div class="field row">
       <label><input type="checkbox" data-set="autoQuality"> 느려지면 자동으로 품질 낮추기</label>
       <label><input type="checkbox" data-set="skipTakeoff"> 이륙 연출 건너뛰기</label>
       <label><input type="checkbox" data-set="cameraShake"> 카메라 흔들림</label>
-    </div>`;
+    </div>
+    <button type="button" class="btn" data-act="tutorial">튜토리얼 다시 보기</button>`;
 }
 
 /**
@@ -38,32 +67,48 @@ export function settingsFields() {
  * @param {import('../core/settings.js').Settings} settings
  * @param {{setQuality:(q:string)=>void, describe:()=>string}} quality
  */
-export function bindSettings(root, settings, quality) {
-  const sens = root.querySelector('[data-set="mouseSensitivity"]');
-  const out = root.querySelector('[data-out="sens"]');
+export function bindSettings(root, settings, quality, hooks = {}) {
   const stepOut = root.querySelector('[data-out="step"]');
+  const sliders = [...root.querySelectorAll('input[type="range"][data-set]')];
   function refresh() {
-    sens.value = settings.get('mouseSensitivity');
-    out.textContent = `×${Number(settings.get('mouseSensitivity')).toFixed(2)}`;
+    const mobile = isMobileMode(settings.get('inputMode'));
+    for (const el of root.querySelectorAll('[data-device]')) el.hidden = (el.dataset.device === 'mobile') !== mobile;
+    for (const sl of sliders) {
+      sl.value = settings.get(sl.dataset.set);
+      const out = root.querySelector(`[data-out="${sl.dataset.set}"]`);
+      if (out) out.textContent = `×${Number(settings.get(sl.dataset.set)).toFixed(2)}`;
+    }
     for (const b of root.querySelectorAll('[data-paint]')) {
       const on = b.dataset.paint === settings.get('paint');
       b.classList.toggle('on', on);
       b.setAttribute('aria-checked', String(on));
     }
-    for (const b of root.querySelectorAll('[data-quality]')) {
-      const on = b.dataset.quality === (settings.get('quality') === 'min' ? 'low' : settings.get('quality'));
+    for (const b of root.querySelectorAll('[data-mode]')) {
+      const on = b.dataset.mode === settings.get('inputMode');
       b.classList.toggle('on', on);
       b.setAttribute('aria-checked', String(on));
     }
+    for (const b of root.querySelectorAll('[data-quality]')) {
+      const cur = settings.get('quality') === 'min' ? 'low' : settings.get('quality');
+      const on = b.dataset.quality === cur;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+      b.hidden = !!(hooks.mobileQualityLimit && isMobileMode(settings.get('inputMode')) && b.dataset.quality === 'ultra'); // 모바일에는 최고 프리셋이 없다
+    }
     for (const c of root.querySelectorAll('input[type="checkbox"][data-set]')) c.checked = !!settings.get(c.dataset.set);
-    stepOut.textContent = quality.describe();
+    if (stepOut) stepOut.textContent = quality.describe();
   }
-  sens.addEventListener('input', () => settings.set('mouseSensitivity', Number(sens.value)));
+  for (const sl of sliders) sl.addEventListener('input', () => settings.set(sl.dataset.set, Number(sl.value)));
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-quality]');
     if (b) quality.setQuality(b.dataset.quality, true);
     const p = e.target.closest('[data-paint]');
     if (p) settings.set('paint', p.dataset.paint);
+    const m = e.target.closest('[data-mode]');
+    if (m) { settings.set('inputMode', m.dataset.mode); if (hooks.onMode) hooks.onMode(); }
+    const a = e.target.closest('[data-act]');
+    if (a && a.dataset.act === 'recalibrate' && hooks.onRecalibrate) hooks.onRecalibrate();
+    if (a && a.dataset.act === 'tutorial' && hooks.onTutorial) hooks.onTutorial();
   });
   root.addEventListener('change', (e) => {
     const c = e.target.closest('input[type="checkbox"][data-set]');
@@ -75,7 +120,7 @@ export function bindSettings(root, settings, quality) {
 }
 
 /** 메인 메뉴에서 여는 설정 창 */
-export function createSettingsDialog(settings, quality) {
+export function createSettingsDialog(settings, quality, hooks) {
   const root = el(`
     <div class="modal" hidden>
       <div class="panel dialog" role="dialog" aria-modal="true" aria-label="설정">
@@ -84,7 +129,7 @@ export function createSettingsDialog(settings, quality) {
         <div class="card-actions"><button class="btn primary" data-act="close">닫기</button></div>
       </div>
     </div>`);
-  const refresh = bindSettings(root, settings, quality);
+  const refresh = bindSettings(root, settings, quality, hooks);
   const close = () => { root.hidden = true; };
   root.addEventListener('click', (e) => { if (e.target === root || e.target.closest('[data-act="close"]')) close(); });
   return { el: root, open() { refresh(); root.hidden = false; root.querySelector('[data-act="close"]').focus(); }, close, get isOpen() { return !root.hidden; } };

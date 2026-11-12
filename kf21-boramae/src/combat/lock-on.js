@@ -12,12 +12,14 @@ export class LockOn {
     this.state = LOCK.SEARCH;
     this.target = null;
     this.progress = 0; // 0~1
+    this.lockedFor = 0; // 락온이 완료된 뒤 흐른 시간(초): HUD의 짧은 펄스용
   }
 
   reset() {
     this.state = LOCK.SEARCH;
     this.target = null;
     this.progress = 0;
+    this.lockedFor = 0;
   }
 
   /**
@@ -62,6 +64,7 @@ export class LockOn {
         return 'locked';
       }
     }
+    if (this.state === LOCK.LOCKED) this.lockedFor += dt;
     return '';
   }
 }

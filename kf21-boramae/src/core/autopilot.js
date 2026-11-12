@@ -149,8 +149,6 @@ export class Autopilot {
     const bearing = wrapAngle(Math.atan2(-_v.x, -_v.z) - f.yaw);
     let elev = Math.asin(clamp(_v.y / Math.max(dist, 1), -1, 1));
     const wantMissile = this._wantMissile(dist, bearing);
-    // 락온 원은 카메라 중심이다. 3인칭 카메라는 기수보다 (5° + 피치의 8%)만큼 아래를 보므로 그만큼 기수를 표적 위로 든다
-    if (wantMissile && s.view !== 'cockpit') elev += 5 * DEG + 0.08 * f.pitch;
     // 선회: 표적 쪽으로. 충돌이 가까우면 비껴 간다
     let turn;
     if (dist < p.minDist && Math.abs(bearing) < 0.6) turn = bearing >= 0 ? 1 : -1; // 정면 충돌 직전: 반대쪽으로 꺾는다
@@ -186,7 +184,10 @@ export class Autopilot {
       if (wantMissile && cur !== 'missile') { s.switchWeapon(); this.lastSwitch = this.time; } else if (!wantMissile && cur !== 'gun') { s.switchWeapon(); this.lastSwitch = this.time; }
     }
     if (s.weapons.current.id === 'missile') {
-      s.cursorOverride = null;
+      // 락온 원은 가상 조준점을 따라가므로 조준점을 표적에 올려 둔다
+      _v.copy(e.group.position).project(s.camera);
+      const { w: vw, h: vh } = s.viewport;
+      s.cursorOverride = _v.z < 1 ? { x: (_v.x * 0.5 + 0.5) * vw + this.jx * 0.3, y: (-_v.y * 0.5 + 0.5) * vh + this.jy * 0.3 } : null;
       // 락온이 끝나면 쏜다. 이미 날아가는 미사일로 충분히 떨어뜨릴 수 있으면(피해 30) 더 쏘지 않는다
       const inFlight = missile.shots.filter((x) => x.active && x.target === e).length;
       s.triggerOverride = !!s.weapons.uiState().ready && e.hp > missile.cfg.damage * inFlight;

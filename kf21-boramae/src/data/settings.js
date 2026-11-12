@@ -1,5 +1,5 @@
 // 사용자 설정의 기본값과 범위.
-export const SETTINGS_VERSION = 2; // v2: 그래픽 프리셋 3단계(낮음/높음/최고), 도색, 이륙 연출 스킵
+export const SETTINGS_VERSION = 3; // v2: 그래픽 프리셋 3단계, 도색, 이륙 스킵 / v3: 우클릭 조향, 모바일 입력, 튜토리얼
 
 export const DEFAULT_SETTINGS = {
   v: SETTINGS_VERSION,
@@ -10,11 +10,25 @@ export const DEFAULT_SETTINGS = {
   paint: 'grey', // 도색: 'grey' | 'dark' | 'urban'
   skipTakeoff: false, // 이륙 연출 기본 스킵
   cameraShake: true,
+  // PC: 우클릭 조향
+  steerEnabled: true,
+  steerSens: 1,
+  steerInvertY: false,
+  // 모바일
+  inputMode: 'auto', // 'auto' | 'pc' | 'mobile'
+  stickSens: 1,
+  gyro: false,
+  gyroSens: 1,
+  gyroInvert: false,
+  tutorialDone: false, // 튜토리얼을 마치거나 건너뛰었는지
   view: 'chase', // 마지막으로 쓴 시점
 };
 
 export const SETTING_RANGES = {
   mouseSensitivity: { min: 0.5, max: 2, step: 0.05 },
+  steerSens: { min: 0.5, max: 2, step: 0.05 },
+  stickSens: { min: 0.5, max: 2, step: 0.05 },
+  gyroSens: { min: 0.5, max: 2, step: 0.05 },
 };
 
 export const QUALITY_CHOICES = ['low', 'high', 'ultra'];

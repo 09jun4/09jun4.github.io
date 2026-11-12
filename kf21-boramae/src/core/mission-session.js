@@ -32,6 +32,7 @@ import { HUD_FEEDBACK } from '../data/hud.js';
 const _v = new THREE.Vector3();
 const _shift = { x: 0, z: 0 };
 const _q = new THREE.Quaternion();
+const _ax = { pitch: 0, turn: 0 };
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 
@@ -325,7 +326,7 @@ export class MissionSession {
       tk.speed += T.accel * 0.45 * dt;
       tk.wait += dt;
       // W 또는 S로 기수를 든다. 누르지 않아도 잠시 뒤 자동으로 든다(이륙 실패 없음)
-      const pressed = this.inputOverride ? this.inputOverride.pitch !== 0 : (this.input.isDown('KeyW') || this.input.isDown('KeyS'));
+      const pressed = this.inputOverride ? this.inputOverride.pitch !== 0 : Math.abs(this.input.flightAxes(_ax).pitch) > 0.3;
       if (pressed || tk.wait >= T.assistDelay) { tk.assisted = !pressed; tk.state = 'climb'; }
     } else {
       tk.pitch = moveToward(tk.pitch, T.climbPitch * DEG, T.pitchRate * DEG * dt);
@@ -485,7 +486,14 @@ export class MissionSession {
       this.cursor.y = clamp(this.cursorOverride.y, 0, h);
       return;
     }
-    const k = this.settings.get('mouseSensitivity');
+    if (this.input.touchMode) { // 터치: 조준 영역을 누르고 있으면 그 지점, 아니면 화면 중앙
+      const t = this.input.touchAim;
+      this.cursor.x = t.active ? t.x : w / 2;
+      this.cursor.y = t.active ? t.y : h / 2;
+      return;
+    }
+    // 포인터락이면 입력 계층이 이동량으로 이미 가상 조준점을 옮겨 놓았다. 잠금이 없을 때는 중앙 기준 배율
+    const k = this.input.locked ? 1 : this.settings.get('mouseSensitivity');
     this.cursor.x = clamp(w / 2 + (this.input.mouse.x - w / 2) * k, 0, w);
     this.cursor.y = clamp(h / 2 + (this.input.mouse.y - h / 2) * k, 0, h);
   }
@@ -505,6 +513,23 @@ export class MissionSession {
     _v.set((this.cursor.x / w) * 2 - 1, -((this.cursor.y / h) * 2 - 1), 0.5).unproject(this.camera);
     this.aim.dir.copy(_v).sub(this.camera.position).normalize();
     this.aimLocal.copy(this.aim.dir).applyQuaternion(_q.copy(this.player.flight.quat).invert());
+  }
+
+  /**
+   * 발사 버튼. PC는 좌클릭, 모바일은 조준 영역을 누르는 동안(기관포) / 누른 채 락온을 마치고 뗀 순간 한 번(미사일).
+   */
+  _manualTrigger() {
+    const inp = this.input;
+    if (!inp.touchMode) return inp.mouse.down;
+    const t = inp.touchAim;
+    if (this.weapons.current.id === 'missile') {
+      // 락온 완료 상태에서 손가락을 떼면 발사: 뗀 프레임에 true를 한 스텝 준다
+      const ml = this.weapons.byId('missile').lock;
+      if (t.released) { t.released = false; const ok = this.weapons.uiState().ready; if (!ok) ml.reset(); return ok; }
+      if (!t.active) ml.reset(); // 누르고 있지 않으면 락온하지 않는다
+      return false;
+    }
+    return t.active;
   }
 
   /** C키 둘러보기(1인칭): 누른 채 마우스로 시선을 돌린다 */
@@ -554,8 +579,11 @@ export class MissionSession {
     const controllable = mission && player.alive && this.phase !== PHASE.DONE && this.phase !== PHASE.TAKEOFF;
     if (controllable) {
       const o = this.inputOverride;
-      player.input.pitch = o ? o.pitch : this.input.axis('KeyW', 'KeyS');
-      player.input.turn = o ? o.turn : this.input.axis('KeyA', 'KeyD');
+      if (o) { player.input.pitch = o.pitch; player.input.turn = o.turn; } else {
+        this.input.flightAxes(_ax);
+        player.input.pitch = _ax.pitch;
+        player.input.turn = _ax.turn;
+      }
     } else {
       player.input.pitch = 0;
       if (!(this.mode === 'showcase' && this.cine.on)) player.input.turn = 0;
@@ -569,7 +597,7 @@ export class MissionSession {
     if (mission) {
       const active = this.phase === PHASE.ACTIVE;
       this._updateAim();
-      const trigger = active && player.alive && !this.looking && (this.triggerOverride ?? this.input.mouse.down);
+      const trigger = active && player.alive && !this.looking && (this.triggerOverride ?? this._manualTrigger());
       this.weapons.update(dt, this.ctx, trigger);
       if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);

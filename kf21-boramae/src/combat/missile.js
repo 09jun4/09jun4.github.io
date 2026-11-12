@@ -90,7 +90,7 @@ export function createMissile(cfg) {
       for (const s of shots) { s.active = false; s.mesh.visible = false; s.target = null; }
     },
 
-    /** 화면 중심에서 적기까지의 각거리(rad). 사거리 밖이면 Infinity */
+    /** 조준 방향에서 적기까지의 각거리(rad). 사거리 밖이면 Infinity */
     _angleOf(e, ctx) {
       if (e.pos.distanceToSquared(ctx.player.flight.pos) > cfg.lock.range * cfg.lock.range) return Infinity;
       _to.subVectors(e.pos, camera.position).normalize();
@@ -100,7 +100,7 @@ export function createMissile(cfg) {
 
     update(dt, ctx, active, trigger) {
       if (this.cooldown > 0) this.cooldown -= dt;
-      camera.getWorldDirection(_camFwd);
+      _camFwd.copy(ctx.aim.dir); // 락온 원은 가상 조준점(마우스·터치 위치)을 따라간다
       const event = lock.update(dt, active && ctx.player.alive, ctx.enemies, (e) => this._angleOf(e, ctx));
       if (event === 'acquired') ctx.audio.play('lock_tracking');
       else if (event === 'locked') ctx.audio.play('lock_on');
@@ -205,6 +205,7 @@ export function createMissile(cfg) {
       const u = this._ui;
       u.ammo = this.ammo;
       u.lockState = lock.state;
+      u.lockedFor = lock.lockedFor;
       u.lockProgress = lock.progress;
       u.target = lock.target;
       u.ready = lock.state === LOCK.LOCKED && this.ammo > 0 && this.cooldown <= 0;

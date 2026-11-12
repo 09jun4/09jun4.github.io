@@ -3,7 +3,7 @@ import { el, controlsHtml } from './dom.js';
 import { settingsFields, bindSettings } from './settings-panel.js';
 import { CONTROLS } from '../data/controls.js';
 
-export function createPause(actions, settings, quality) {
+export function createPause(actions, settings, quality, hooks) {
   const root = el(`
     <section class="screen pause" aria-label="일시정지">
       <div class="panel dialog wide">
@@ -23,7 +23,7 @@ export function createPause(actions, settings, quality) {
         </div>
       </div>
     </section>`);
-  const refresh = bindSettings(root, settings, quality);
+  const refresh = bindSettings(root, settings, quality, hooks);
   root.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]');
     if (act && actions[act.dataset.act]) actions[act.dataset.act]();

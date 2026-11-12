@@ -299,15 +299,17 @@ export class Hud {
       }
       return;
     }
-    // 미사일: 화면 중심의 락온 범위(옅은 원) + 상태별 사각형
+    // 미사일: 가상 조준점(마우스·터치 위치) 둘레의 락온 범위(옅은 원) + 상태별 사각형
+    const cx = session.cursor.x / this.scale - W;
+    const cy = session.cursor.y / this.scale - H;
     const radiusPx = (Math.tan((ui.lockRadius * Math.PI) / 180) / Math.tan((camera.fov * Math.PI) / 360)) * H;
     g.beginPath();
     g.setLineDash([3, 9]);
-    g.arc(0, 0, radiusPx, 0, Math.PI * 2);
+    g.arc(cx, cy, radiusPx, 0, Math.PI * 2);
     this._line(HUD.faint, 1);
     g.setLineDash([]);
     if (ui.lockState === LOCK.SEARCH || !ui.target) {
-      this._corners(0, 0, 24, 9);
+      this._corners(cx, cy, 24, 9);
       this._line(ui.ammo > 0 ? HUD.lock.search : HUD.dim);
       return;
     }
@@ -323,6 +325,16 @@ export class Hud {
       g.arc(p.x, p.y, half + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * t);
       this._line(HUD.lock.tracking, 1);
     } else {
+      // 락온 완료: 초록 사각형 + 0.3초짜리 펄스(바깥으로 퍼지는 사각형)
+      const age = ui.lockedFor || 0;
+      if (age < 0.3) {
+        const k = age / 0.3, r = 22 + 26 * k;
+        g.globalAlpha = 1 - k;
+        g.beginPath();
+        g.rect(p.x - r, p.y - r, r * 2, r * 2);
+        this._line(HUD.lock.locked, 2);
+        g.globalAlpha = 1;
+      }
       g.beginPath();
       g.rect(p.x - 22, p.y - 22, 44, 44);
       this._line(HUD.lock.locked, 2);

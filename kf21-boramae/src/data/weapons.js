@@ -35,7 +35,7 @@ export const WEAPONS = {
     proximity: 17, // 근접 신관 반경
     lock: {
       radius: 8, // 화면 중심 기준 락온 반경(도)
-      time: 2.0, // 추적 유지 시간
+      time: 0.5, // 추적 유지 시간(락온 완료까지). 처음 2.0초에서 0.5초로 줄였다
       range: 3200, // 락온 가능 거리
     },
     smokeEvery: 0.022,
