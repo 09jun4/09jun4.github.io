@@ -11,7 +11,7 @@ const _v = new THREE.Vector3();
 const TEXT = {
   speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', takeoff: '이륙 활주', rotate: 'W 또는 S — 기수 들기', climb: '상승 중 · 기어 접는 중', skip: 'Enter / Space  건너뛰기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
   ceiling: '상승 한계', overheat: '과열', kill: '격추', wave: '적 편대 접근', lock: 'LOCK', noAmmo: '미사일 없음',
-  clear: '임무 완수', down: '격추당함', time: 'TIME',
+  clear: '임무 완수', down: '격추당함', time: 'TIME', limit: '남은 시간', boss: '적 에이스', failed: '임무 실패',
   warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
 };
 
@@ -149,6 +149,7 @@ export class Hud {
     }
     this._enemies(session, camera, W, H);
     if (session.ground && session.ground.aliveCount > 0) this._ground(session, camera, W, H);
+    if (session.navPoint && session.navPoint.active) this._nav(session, camera, W, H);
     if (player.alive && session.phase === PHASE.ACTIVE) this._weaponAim(session, camera, W, H);
     this._status(session, player, hpRatio, W, H, blink);
     this._notices(session, player, fb, low, W, H, blink);
@@ -278,6 +279,64 @@ export class Hud {
   }
 
   /** 적기 표시: 화면 안은 붉은 모서리 상자, 화면 밖은 가장자리 화살표(거리 숫자 없음) */
+  /** 목표 패널(왼쪽 위, 최대 3줄 + 진행도), 제한시간, 보스 체력바 */
+  _mission(session, W, H, blink) {
+    const g = this.g, e = session.engine;
+    if (!e) return;
+    if (this._objVersion !== e.version || this._objEngine !== e) { this._objVersion = e.version; this._objEngine = e; this._obj = e.summary(); }
+    const x = -W + 30, y0 = this.touch ? -H + 78 : -H + 34;
+    let row = 0;
+    for (const o of this._obj) {
+      if (row >= 3) break;
+      if (!o.active && !o.done && !o.failed) continue; // 아직 열리지 않은 단계는 감춘다
+      const y = y0 + row * 19;
+      const color = o.failed ? HUD.danger : o.done ? HUD.ok : o.required ? HUD.color : HUD.dim;
+      g.beginPath(); g.rect(x, y - 9, 9, 9); this._line(color, 1.2);
+      if (o.done) { g.beginPath(); g.moveTo(x + 1.5, y - 4.5); g.lineTo(x + 4, y - 2); g.lineTo(x + 8, y - 8); this._line(color, 1.6); }
+      this._text(`${o.label || o.type}${o.required ? '' : ' (선택)'}`, x + 15, y, 12, color, 'left', true, 600);
+      const tw = g.measureText(`${o.label || o.type}${o.required ? '' : ' (선택)'}`).width;
+      if (o.count > 1) this._text(`${o.progress}/${o.count}`, x + 23 + tw, y, 12, color, 'left', false, 600);
+      row++;
+    }
+    // 제한시간(가장 급한 것)
+    const left = e.timeLeft();
+    if (left != null && session.phase === PHASE.ACTIVE) {
+      const urgent = left < 30;
+      if (!urgent || blink) this._text(`${TEXT.limit} ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`, 0, -H + 34, 17, urgent ? HUD.danger : HUD.warn, 'center', false, 700);
+    }
+    // 보스 체력바
+    const b = session.boss;
+    if (b && b.alive) {
+      const w = Math.min(360, W * 0.9), k = Math.max(0, b.hp / b.maxHp), by = -H + 78;
+      g.beginPath(); g.rect(-w / 2, by, w, 8); this._line(HUD.danger, 1.2);
+      g.fillStyle = HUD.danger; g.fillRect(-w / 2 + 1.5, by + 1.5, (w - 3) * k, 5);
+      this._text(`${TEXT.boss}  ${['I', 'II', 'III'][b.phase] || ''}`, 0, by - 5, 11, HUD.danger, 'center', true, 700);
+    }
+  }
+
+  /** 정찰 체크포인트: 다음 링의 방향과 거리 */
+  _nav(session, camera, W, H) {
+    const g = this.g, nav = session.navPoint, A = HUD.arrow;
+    const p = this._p || (this._p = { x: 0, y: 0, cx: 0, cy: 0 });
+    const d = nav.pos.distanceTo(session.player.flight.pos);
+    const label = `${nav.label}  ${d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d / 10) * 10 + 'm'}`;
+    const front = this._project(nav.pos, camera, p);
+    if (front && Math.abs(p.x) < W - 20 && Math.abs(p.y) < H - 20) {
+      g.beginPath(); g.arc(p.x, p.y, 15, 0, Math.PI * 2); this._line(HUD.ok, 1.6);
+      this._text(label, p.x, p.y + 32, 11, HUD.ok, 'center', false, 700);
+      return;
+    }
+    let dx = p.cx, dy = -p.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    const k = Math.min((W - A.margin - 34) / Math.max(Math.abs(dx), 1e-4), (H - A.margin - 34) / Math.max(Math.abs(dy), 1e-4));
+    const ax = dx * k, ay = clamp(dy * k, -H + A.keepOut, H - A.keepOut), s = A.size * 1.3, nx = -dy, ny = dx;
+    g.beginPath();
+    g.moveTo(ax + dx * s, ay + dy * s); g.lineTo(ax - dx * s * 0.5 + nx * s * 0.75, ay - dy * s * 0.5 + ny * s * 0.75); g.lineTo(ax - dx * s * 0.5 - nx * s * 0.75, ay - dy * s * 0.5 - ny * s * 0.75); g.closePath();
+    g.fillStyle = HUD.ok; g.fill();
+    this._text(label, clamp(ax - dx * 46, -W + 80, W - 80), ay - dy * 30, 11, HUD.ok, 'center', false, 700);
+  }
+
   /** 지상 목표: 화면 안은 다이아몬드 + 거리, 화면 밖은 가장 가까운 3개만 가장자리 화살표 */
   _ground(session, camera, W, H) {
     const g = this.g;
@@ -475,9 +534,7 @@ export class Hud {
     }
 
     // 미션 진행(위쪽 가운데)
-    const left = Math.max(0, session.total - session.stats.kills);
-    this._text(TEXT.targets, -8, -H + 34, 12, HUD.dim, 'right', true);
-    this._text(`${left} / ${session.total}`, 4, -H + 34, 16, left === 0 ? HUD.ok : HUD.color, 'left', false, 600);
+    this._mission(session, W, H, blink);
     const t = session.stats.time;
     const mm = Math.floor(t / 60);
     const ss = Math.floor(t % 60);
@@ -495,7 +552,7 @@ export class Hud {
       return;
     }
     if (session.phase === PHASE.ENDING || session.phase === PHASE.DONE) {
-      put(session.success ? TEXT.clear : TEXT.down, session.success ? HUD.ok : HUD.danger, 26);
+      put(session.success ? TEXT.clear : session.player.alive ? TEXT.failed : TEXT.down, session.success ? HUD.ok : HUD.danger, 26);
       return;
     }
     if (fb.wave > 0) put(TEXT.wave, HUD.warn);

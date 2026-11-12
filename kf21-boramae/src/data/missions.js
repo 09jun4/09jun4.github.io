@@ -53,6 +53,45 @@ const RAW = [
       { id: 'o2', type: 'destroy', targetType: 'aa_gun', count: 2, points: 800, required: false, label: '대공포 제압' },
     ],
   },
+  // ── C3 해상 방어(저녁, 해안) ──
+  {
+    id: 'c3m1', campaign: 'c3', title: '빈손으로 돌려보내라', codename: 'OPERATION EMPTY HANDS', area: '동쪽 해안', map: { x: 0.74, y: 0.48 },
+    brief: '수송기 3대가 해안을 벗어나기 전에 전부 격추하라.',
+    briefing: '적 수송기 3대가 해안선을 따라 서쪽으로 빠져나가고 있다. 무장은 없지만 한 대라도 놓치면 임무는 실패다. 느리고 크니 미사일로 확실히 잡아라.',
+    timeOfDay: 'dusk', terrain: 'coast', refTime: 120, weapons: { missile: 5, bomb: 0 },
+    waves: [{ count: 3, role: 'transport', at: 0, from: [5200, 1500, -7000], to: [-16000, -7600] }],
+    objectives: [{ id: 'o1', type: 'intercept', role: 'transport', count: 3, points: 2100, label: '수송기 격추' }],
+  },
+  {
+    id: 'c3m4', campaign: 'c3', title: '해안선을 따라', codename: 'OPERATION SHORELINE', area: '동쪽 해안', map: { x: 0.8, y: 0.6 },
+    brief: '해안 정찰 경로의 체크포인트 6곳을 순서대로 통과하라.',
+    briefing: '해안선을 따라 정찰 경로를 비행한다. 초록 고리 6개를 순서대로 통과하라. 도중에 요격기 3대가 올라온다. 싸워도 되고 따돌려도 된다.',
+    timeOfDay: 'dusk', terrain: 'coast', refTime: 180, weapons: { missile: 5, bomb: 0 }, maxAttackers: 2,
+    checkpoints: [[-600, 700, -5200], [1500, 900, -7600], [4200, 800, -8600], [6400, 1100, -6600], [5200, 900, -3600], [2400, 700, -2200]],
+    waves: [{ count: 3, at: 45, personality: ['aggressive', 'evasive', 'aggressive'] }],
+    objectives: [
+      { id: 'o1', type: 'checkpoints', count: 6, points: 2400, timeLimit: 240, label: '체크포인트 통과' },
+      { id: 'o2', type: 'killAir', count: 3, points: 3000, required: false, label: '요격기 격추' },
+    ],
+  },
+  // ── C1 4번째: 시간제한 요격 ──
+  {
+    id: 'c1m4', campaign: 'c1', title: '연속 요격', codename: 'OPERATION RELAY', area: '중부 상공', map: { x: 0.5, y: 0.42 },
+    brief: '150초 안에 연달아 들어오는 적기 8대를 격추하라.',
+    briefing: '적기가 두 대씩 쉬지 않고 들어온다. 150초 안에 8대를 격추해야 한다. 락온을 걸면 급선회로 빠져나가는 기체가 섞여 있다. 미사일은 확실할 때만 쏴라.',
+    timeOfDay: 'day', terrain: 'inland', refTime: 150, weapons: { missile: 6, bomb: 0 }, maxAttackers: 2,
+    waves: [{ count: 2, trigger: { type: 'start' }, personality: ['aggressive', 'evasive'] }, { count: 2, repeat: 3, trigger: { type: 'remaining', value: 1 }, personality: ['aggressive', 'evasive'] }],
+    objectives: [{ id: 'o1', type: 'timedKill', count: 8, points: 8000, timeLimit: 150, label: '적기 격추' }],
+  },
+  // ── C5 마지막: 보스 ──
+  {
+    id: 'c5m3', campaign: 'c5', title: '마지막 한 대', codename: 'OPERATION LAST ACE', area: '북쪽 상공', map: { x: 0.42, y: 0.14 },
+    brief: '적 에이스를 격추하라. 호위 2기가 함께 온다.',
+    briefing: '적 에이스가 호위 2기와 함께 올라온다. 체력이 줄수록 움직임이 달라진다. 처음에는 정면으로 덤비고, 다음에는 빠져나가며 시간을 끌고, 마지막에는 쉬지 않고 쏜다. 호위는 선택 목표다.',
+    timeOfDay: 'night', terrain: 'inland', refTime: 240, weapons: { missile: 6, bomb: 0 }, maxAttackers: 2,
+    waves: [{ count: 1, role: 'boss', trigger: { type: 'start' } }, { count: 2, at: 4, personality: 'flanker' }],
+    objectives: [{ id: 'o1', type: 'boss', points: 3000, label: '에이스 격추' }, { id: 'o2', type: 'killAir', count: 2, points: 2000, required: false, label: '호위기 격추' }],
+  },
 ];
 
 /** 기본값 채우기: 캠페인 안 순번(order), 이전 코드가 읽는 이름(summary, parTime), 편대의 at → 시간 조건 */
@@ -60,7 +99,8 @@ function define(list) {
   const seen = {};
   return list.map((m) => {
     seen[m.campaign] = (seen[m.campaign] || 0) + 1;
-    const waves = (m.waves || []).map((w) => ({ ...w, count: w.count ?? w.flight, trigger: w.trigger || (w.at ? { type: 'time', value: w.at } : { type: 'start' }) }));
+    // repeat: 같은 편대를 여러 번(시간제한 요격의 연속 등장). 편대의 at → 시간 조건
+    const waves = (m.waves || []).flatMap((w) => Array.from({ length: w.repeat || 1 }, () => ({ ...w, count: w.count ?? w.flight, trigger: w.trigger || (w.at != null ? { type: 'time', value: w.at } : { type: 'start' }) })));
     return { groundTargets: [], checkpoints: [], maxAttackers: 2, ...m, waves, order: seen[m.campaign], summary: m.brief, parTime: m.refTime, weapons: { missile: 5, bomb: 0, ...(m.weapons || {}) } };
   });
 }

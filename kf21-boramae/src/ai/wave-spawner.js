@@ -64,6 +64,19 @@ export class WaveSpawner {
   _spawnWave(wave, o) {
     const c = this.cfg;
     const f = o.flight;
+    // 고정 경로(수송기·폭격기): from [x, 고도, z] → to [x, z]. 실제 좌표라 원점 재배치만큼 뺀다
+    if (wave.from) {
+      const ox = o.origin ? o.origin.x : 0, oz = o.origin ? o.origin.z : 0;
+      const fx = wave.from[0] - ox, fz = wave.from[2] - oz, tx = wave.to[0] - ox, tz = wave.to[1] - oz;
+      const yaw0 = Math.atan2(-(tx - fx), -(tz - fz));
+      let n = 0;
+      for (let i = 0; i < wave.count; i++) {
+        const rank = Math.ceil(i / 2), wing = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
+        _v.set(wing * rank * c.spacing * 2.2, 0, rank * c.spacing * 2.4).applyAxisAngle(UP, yaw0);
+        if (o.spawn(fx + _v.x, wave.from[1] + rank * 20, fz + _v.z, yaw0, this.spawned, wave, i, tx + _v.x, tz + _v.z)) { n++; this.spawned++; }
+      }
+      return n;
+    }
     const side = this.rng() < 0.5 ? -1 : 1;
     const bearing = side * lerp(c.bearing[0], c.bearing[1], this.rng()) * DEG;
     const dist = lerp(c.distance[0], c.distance[1], this.rng());
@@ -79,7 +92,7 @@ export class WaveSpawner {
       const rank = Math.ceil(i / 2);
       const wing = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
       _v.set(wing * rank * c.spacing, rank * 14, rank * c.spacing * 0.8).applyAxisAngle(UP, yaw).add(_leader);
-      if (o.spawn(_v.x, _v.y, _v.z, yaw, this.spawned)) { made++; this.spawned++; }
+      if (o.spawn(_v.x, _v.y, _v.z, yaw, this.spawned, wave, i)) { made++; this.spawned++; }
     }
     return made;
   }

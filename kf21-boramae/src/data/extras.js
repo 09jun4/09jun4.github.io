@@ -42,3 +42,6 @@ export const TUTORIAL = {
   ],
   skip: { pc: 'Enter: 건너뛰기', mobile: '건너뛰기 버튼: 넘어가기' },
 };
+
+/** 정찰 체크포인트 링 */
+export const CHECKPOINT = { radius: 150 };

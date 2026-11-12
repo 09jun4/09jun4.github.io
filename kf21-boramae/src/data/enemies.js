@@ -67,6 +67,31 @@ export const ENEMIES = {
   },
 };
 
+/**
+ * 성격: AI 코드는 이 숫자만 읽는다(분기 대신 파라미터).
+ *  evadeOnLock 플레이어가 락온을 걸면 급선회로 이탈(1 = 한다) · evadeScale 이탈 시간 배율
+ *  flank 편대 동료가 공격하는 동안 플레이어 측후방으로 돌아 들어간다 · extraAttacker 공격 차례 상한을 넘겨 함께 공격
+ *  attackTime 공격 지속 배율 · fireRate 사격 간격 배율(작을수록 자주) · speed/turn 기체 성능 배율
+ */
+export const PERSONALITIES = {
+  aggressive: { evadeOnLock: 0, evadeScale: 1, flank: 0, extraAttacker: 0, attackTime: 1, fireRate: 1, speed: 1, turn: 1 },
+  evasive: { evadeOnLock: 1, evadeScale: 1.5, flank: 0, extraAttacker: 0, attackTime: 0.8, fireRate: 1.1, speed: 1.03, turn: 1.08 },
+  flanker: { evadeOnLock: 0, evadeScale: 1, flank: 1, extraAttacker: 1, attackTime: 1, fireRate: 1, speed: 1.04, turn: 1 },
+  ace: { evadeOnLock: 1, evadeScale: 1.3, flank: 1, extraAttacker: 1, attackTime: 1.25, fireRate: 0.8, speed: 1.1, turn: 1.22 },
+};
+
+/** 역할: 전투기가 아닌 표적과 보스. cruise = 목표 지점으로 직진만 한다(비무장) */
+export const ROLES = {
+  fighter: { hp: 1, scale: 1 },
+  transport: { name: '수송기', cruise: true, hpAbs: 60, speed: 110, scale: 1.9, hitRadius: 20, points: 700 },
+  bomber: { name: '폭격기', cruise: true, hpAbs: 120, speed: 125, scale: 2.2, hitRadius: 22, points: 900 },
+  boss: { name: '에이스', hpAbs: 400, scale: 1.15, hitRadius: 12, personality: 'ace', points: 3000,
+    // 체력 구간별 3페이즈: 공격 → 회피 비행 → 격분
+    phases: [{ below: 1, attackTime: 1, speed: 0, fireRate: 1, evade: 0 }, { below: 0.66, attackTime: 0.45, speed: 12, fireRate: 1, evade: 1 }, { below: 0.33, attackTime: 1.6, speed: 26, fireRate: 0.5, evade: 0 }] },
+};
+/** 수송기·폭격기가 목표 지점에 이만큼 다가가면 도달로 본다(m) */
+export const CRUISE_ARRIVE = 260;
+
 export const DEFAULT_ENEMY = 'raider';
 /** 동시에 존재할 수 있는 적기 수(풀 크기) */
 export const ENEMY_POOL_SIZE = 8;

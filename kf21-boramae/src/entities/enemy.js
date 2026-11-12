@@ -31,6 +31,14 @@ export class Enemy {
     this.smokeTimer = 0;
     this.age = 0;
     this.fireWarn = 0; // 연발을 시작한 뒤 남은 경고 시간(위협 경고가 읽는다)
+    this.baseCfg = cfg;
+    this.role = 'fighter'; // 'fighter' | 'transport' | 'bomber' | 'boss'
+    this.roleDef = null;
+    this.pers = null; // 성격 파라미터(data/enemies.js의 PERSONALITIES)
+    this.maxHp = cfg.hp;
+    this.goal = new THREE.Vector3(); // 직진 표적의 목표 지점
+    this.speedScale = 1; this.turnScale = 1; this.minSpeed = cfg.flight.speedMin;
+    this.phase = 0;
     // AI 상태(ai/enemy-ai.js 가 사용)
     this.ai = {
       state: 'approach', time: 0, timer: 0, hasToken: false, tokenWait: 0,
@@ -39,8 +47,30 @@ export class Enemy {
     };
   }
 
+  /**
+   * 역할·성격을 입힌다(spawn 직후). 체력·크기·판정 반경은 역할이, 속도·선회 배율은 성격이 정한다.
+   * @param {string} role @param {object} roleDef data/enemies.js ROLES 항목 @param {object} pers PERSONALITIES 항목
+   */
+  setRole(role, roleDef, pers) {
+    this.role = role;
+    this.roleDef = roleDef;
+    this.pers = pers;
+    const base = this.baseCfg;
+    const hp = roleDef.hpAbs || base.hp;
+    this.cfg = role === 'fighter' ? base : Object.assign(Object.create(base), { hp, hitRadius: roleDef.hitRadius || base.hitRadius, collisionRadius: (roleDef.hitRadius || base.hitRadius) * 0.8 });
+    this.hp = hp; this.maxHp = hp;
+    this.speedScale = pers.speed; this.turnScale = pers.turn;
+    this.minSpeed = roleDef.cruise ? roleDef.speed * 0.9 : base.flight.speedMin;
+    if (roleDef.cruise) { this.speed = roleDef.speed; this.wantSpeed = roleDef.speed; }
+    this.group.scale.setScalar(roleDef.scale || 1);
+    this.phase = 0;
+  }
+
   spawn(x, y, z, yaw, pitch = 0) {
     this.alive = true;
+    this.cfg = this.baseCfg; this.role = 'fighter'; this.roleDef = null; this.pers = null; this.maxHp = this.cfg.hp;
+    this.speedScale = 1; this.turnScale = 1; this.minSpeed = this.cfg.flight.speedMin; this.phase = 0;
+    this.group.scale.setScalar(1);
     this.hp = this.cfg.hp;
     this.pos.set(x, y, z);
     this.yaw = yaw;
@@ -80,8 +110,8 @@ export class Enemy {
     this.age += dt;
     if (this.fireWarn > 0) this.fireWarn -= dt;
     const f = this.cfg.flight;
-    const yawMax = f.yawMax * DEG;
-    const pitchMax = f.pitchMax * DEG;
+    const yawMax = f.yawMax * DEG * this.turnScale;
+    const pitchMax = f.pitchMax * DEG * this.turnScale;
     const w = this.want;
     const wantYaw = Math.atan2(-w.x, -w.z);
     let wantPitch = clamp(Math.asin(clamp(w.y, -1, 1)), -f.pitchLimit * DEG, f.pitchLimit * DEG);
@@ -94,7 +124,7 @@ export class Enemy {
     this.yaw = wrapAngle(this.yaw + this.yawRate * dt);
     this.pitch = clamp(this.pitch + this.pitchRate * dt, -f.pitchLimit * DEG, f.pitchLimit * DEG);
     this.roll = damp(this.roll, -(this.yawRate / yawMax) * f.rollMax * DEG, f.rollTau, dt);
-    this.speed = damp(this.speed, clamp(this.wantSpeed, f.speedMin, f.speedMax), f.speedTau, dt);
+    this.speed = damp(this.speed, clamp(this.wantSpeed, this.minSpeed, f.speedMax * this.speedScale), f.speedTau, dt);
     this._orient();
     this.velocity.copy(this.forward).multiplyScalar(this.speed);
     this.pos.addScaledVector(this.velocity, dt);

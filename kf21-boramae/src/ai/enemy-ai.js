@@ -4,6 +4,7 @@
 // 동시에 공격하는 적기 수는 공격 토큰으로 제한한다(미션의 maxAttackers). 적기끼리는 분리 벡터로 겹치지 않게 한다.
 import * as THREE from 'three';
 import { THREAT } from '../data/extras.js';
+import { PERSONALITIES, CRUISE_ARRIVE } from '../data/enemies.js';
 import { DEG, clamp, clamp01, lerp } from '../core/math.js';
 import { angleBetween } from '../combat/hit-test.js';
 
@@ -66,14 +67,14 @@ export class EnemyDirector {
   onHit(e) {
     const a = e.ai;
     const c = e.cfg.ai;
-    if (!e.alive || a.state === AI.EVADE || a.evadeCooldown > 0) return;
+    if (!e.alive || a.state === AI.EVADE || a.evadeCooldown > 0 || (e.roleDef && e.roleDef.cruise)) return;
     // 지금 진행 방향에 수직인 쪽으로 꺾는다
     _tangent.crossVectors(e.forward, UP).normalize();
     const side = this.rng() < 0.5 ? -1 : 1;
     const vert = (this.rng() - 0.5) * 1.4;
     a.dir.copy(_tangent).multiplyScalar(side).addScaledVector(UP, vert).addScaledVector(e.forward, 0.35).normalize();
     this._enter(e, AI.EVADE);
-    a.timer = lerp(c.evadeTime[0], c.evadeTime[1], this.rng());
+    a.timer = lerp(c.evadeTime[0], c.evadeTime[1], this.rng()) * (e.pers ? e.pers.evadeScale : 1);
     a.evadeCooldown = c.evadeCooldown + a.timer;
     a.burstLeft = 0;
   }
@@ -111,12 +112,36 @@ export class EnemyDirector {
       if (a.evadeCooldown > 0) a.evadeCooldown -= dt;
       if (a.fireTimer > 0) a.fireTimer -= dt;
 
+      const P = e.pers || PERSONALITIES.aggressive;
+      // 직진 표적(수송기·폭격기): 목표 지점으로만 간다. 도달하면 세션에 알린다
+      if (e.roleDef && e.roleDef.cruise) {
+        _want.subVectors(e.goal, e.pos);
+        const left = Math.hypot(_want.x, _want.z);
+        if (left < CRUISE_ARRIVE) { if (ctx.onEscaped) ctx.onEscaped(e); e.despawn(); continue; }
+        _want.y = clamp(_want.y, -left * 0.1, left * 0.1);
+        e.want.copy(_want.normalize());
+        e.wantSpeed = e.roleDef.speed;
+        continue;
+      }
+      // 보스 페이즈(체력 구간): 공격 시간·속도·사격 간격이 달라진다
+      let ph = null;
+      if (e.roleDef && e.roleDef.phases) {
+        const ratio = e.hp / e.maxHp;
+        let k = 0;
+        for (let i = 0; i < e.roleDef.phases.length; i++) if (ratio <= e.roleDef.phases[i].below) k = i;
+        if (k !== e.phase) { e.phase = k; if (e.roleDef.phases[k].evade) { a.evadeCooldown = 0; this.onHit(e); } }
+        ph = e.roleDef.phases[k];
+      }
+      const attackTime = c.attackTimeMax * P.attackTime * (ph ? ph.attackTime : 1);
+      // 락온당하면 급선회로 이탈(evasive·ace)
+      if ((P.evadeOnLock || (ph && ph.evade)) && ctx.lockedEnemy === e && a.state !== AI.EVADE && a.evadeCooldown <= 0) this.onHit(e);
+
       _to.subVectors(pf.pos, e.pos);
       const dist = _to.length();
       // 추격용 예측 위치
       const leadT = c.leadTime * clamp(dist / c.keepMax, 0.25, 1.4);
       _lead.copy(pf.pos).addScaledVector(player.velocity, leadT);
-      let speed = f.speed + (f.speedMax - f.speed) * clamp01((dist - f.catchUpFrom) / (f.catchUpFull - f.catchUpFrom));
+      let speed = f.speed * P.speed + (f.speedMax - f.speed) * clamp01((dist - f.catchUpFrom) / (f.catchUpFull - f.catchUpFrom)) + (ph ? ph.speed : 0);
 
       if (!player.alive) {
         // 플레이어가 격추되면 그냥 지나간다
@@ -141,8 +166,13 @@ export class EnemyDirector {
         _want.y += a.lift * c.orbitRadius * 0.5;
         _want.sub(e.pos).multiplyScalar(1.3 / c.orbitRadius).addScaledVector(_tangent, 0.85).normalize();
         speed = Math.max(speed, pf.speed + 8);
+        // 측후방 접근(flanker): 동료가 정면에서 끄는 동안 플레이어 뒤쪽 옆으로 돌아 들어간다
+        if (P.flank && attackers > 0) {
+          _want.copy(pf.pos).addScaledVector(pf.forward, -c.keepMax).addScaledVector(_tangent.crossVectors(UP, pf.forward), a.side * c.keepMin).sub(e.pos).normalize();
+          speed = Math.max(speed, pf.speed + c.attackClosing);
+        }
         if (dist > c.returnDistance) this._enter(e, AI.APPROACH);
-        else if (a.time > c.minStateTime && a.tokenWait <= 0 && attackers < this.maxAttackers) {
+        else if (a.time > c.minStateTime && a.tokenWait <= 0 && attackers < this.maxAttackers + P.extraAttacker) {
           a.hasToken = true;
           attackers++;
           this._enter(e, AI.ATTACK);
@@ -151,8 +181,8 @@ export class EnemyDirector {
         _want.subVectors(_lead, e.pos).normalize();
         // 뒤에서 따라올 때도 거리를 좁힐 수 있게 플레이어보다 조금 빠르게
         if (dist > c.keepMin + 40) speed = Math.max(speed, pf.speed + c.attackClosing);
-        this._fire(e, dt, ctx, dist);
-        if (a.time > c.minStateTime && (dist < c.keepMin || a.time > c.attackTimeMax)) {
+        this._fire(e, dt, ctx, dist, P.fireRate * (ph ? ph.fireRate : 1));
+        if (a.time > c.minStateTime && (dist < c.keepMin || a.time > attackTime)) {
           // 이탈: 플레이어에게서 멀어지되 옆·위아래로 비껴 나간다
           _radial.copy(_to).multiplyScalar(-1 / Math.max(dist, 1));
           _tangent.crossVectors(UP, _radial);
@@ -190,7 +220,7 @@ export class EnemyDirector {
   }
 
   /** 공격 중 사격: 기수가 조준 방향을 향하고 사거리 안이면 짧은 연발 */
-  _fire(e, dt, ctx, dist) {
+  _fire(e, dt, ctx, dist, rate = 1) {
     const a = e.ai;
     const w = e.cfg.weapon;
     const player = ctx.player;
@@ -223,6 +253,6 @@ export class EnemyDirector {
     a.burstLeft = w.burst;
     a.burstTimer = 0;
     e.fireWarn = THREAT.fireHold;
-    a.fireTimer = w.interval;
+    a.fireTimer = w.interval * rate;
   }
 }

@@ -24,13 +24,13 @@ import { damageEnemy, damagePlayer } from '../combat/damage.js';
 import { EnemyDirector } from '../ai/enemy-ai.js';
 import { WaveSpawner } from '../ai/wave-spawner.js';
 import { WEAPONS } from '../data/weapons.js';
-import { ENEMIES, DEFAULT_ENEMY, ENEMY_POOL_SIZE, ENEMY_BULLET_POOL } from '../data/enemies.js';
+import { ENEMIES, DEFAULT_ENEMY, ENEMY_POOL_SIZE, ENEMY_BULLET_POOL, PERSONALITIES, ROLES } from '../data/enemies.js';
 import { MISSION_FLOW, SPAWN, missionEnemyCount } from '../data/missions.js';
 import { PALETTE } from '../data/palette.js';
 import { CAMERA } from '../data/camera.js';
 import { FX } from '../data/fx.js';
 import { HUD_FEEDBACK } from '../data/hud.js';
-import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL } from '../data/extras.js';
+import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL, CHECKPOINT } from '../data/extras.js';
 import { ThreatMonitor, enemyGunSource, enemyMissileSource } from '../combat/threat.js';
 import { createDecals } from '../entities/decals.js';
 import { Recorder } from './replay.js';
@@ -101,6 +101,12 @@ export class MissionSession {
     }
     this.damageTimer = 0;
     // 위협 경고: 적기 기관포·추격(+ 적 미사일 자리). HUD가 this.threat.state를 읽는다
+    this.boss = null; // 보스 적기(HUD 체력바)
+    // 정찰 체크포인트: 다음 링 하나만 보여 준다. HUD는 navPoint로 방향·거리를 그린다
+    this.navPoint = { active: false, pos: new THREE.Vector3(), label: '', index: 0, total: 0 };
+    this.ring = new THREE.Mesh(new THREE.TorusGeometry(CHECKPOINT.radius, 5, 6, 36), new THREE.MeshBasicMaterial({ color: 0x6ee7d0, transparent: true, opacity: 0.85, toneMapped: false, fog: false }));
+    this.ring.visible = false; this.ring.frustumCulled = false;
+    scene.add(this.ring);
     this.ground = new GroundSystem(scene); // 지상 목표·대공포·SAM
     this.ground.onDestroyed = (t) => { this.stats.groundKills++; this.engine.groundDestroyed(t.type); this.feedback.kill = HUD_FEEDBACK.killNotice; this._checkCleared(); };
     this.enemyMissiles = this.ground.sams; // 적 미사일은 SAM만 쓴다(적기 미사일은 꺼져 있다)
@@ -136,10 +142,18 @@ export class MissionSession {
     this.cineAmmo = 5;
     this._spawnArgs = {
       aliveCount: 0, time: 0, flight: player.flight, limits: this.enemyCfg.flight,
-      spawn: (x, y, z, yaw, slot) => {
+      origin: world.origin,
+      spawn: (x, y, z, yaw, slot, wave, i, gx, gz) => {
         const e = this.enemies.spawn(x, y, z, yaw);
-        if (e) this.director.onSpawn(e, slot);
-        return !!e;
+        if (!e) return false;
+        // 역할(수송기·폭격기·보스)과 성격(편대 안에서 기체별로 다를 수 있다)
+        const role = (wave && wave.role) || 'fighter', def = ROLES[role] || ROLES.fighter;
+        const pn = wave && wave.personality ? (Array.isArray(wave.personality) ? wave.personality[i % wave.personality.length] : wave.personality) : def.personality || 'aggressive';
+        e.setRole(role, def, PERSONALITIES[pn] || PERSONALITIES.aggressive);
+        if (def.cruise) e.goal.set(gx, y, gz);
+        if (role === 'boss') this.boss = e;
+        this.director.onSpawn(e, slot);
+        return true;
       },
     };
 
@@ -166,6 +180,8 @@ export class MissionSession {
       markWeaponUsed(id) {
         if (!self.stats.weaponsUsed.includes(id)) self.stats.weaponsUsed.push(id);
       },
+      lockedEnemy: null, // 플레이어가 락온 중인 적기(성격 evasive가 읽는다)
+      onEscaped(enemy) { self.engine.escaped(enemy.role); self._checkCleared(); },
       onEnemyHit(enemy, source) { self._onEnemyHit(enemy, source); },
       onEnemyKilled(enemy, source) { self._onEnemyKilled(enemy, source); },
       onPlayerHit(amount, kind) { self._onPlayerHit(amount, kind); },
@@ -196,6 +212,9 @@ export class MissionSession {
     this.collisionCooldown = 0;
     this.fx.clear();
     this.weapons.reset();
+    this.boss = null;
+    this.navPoint.active = false;
+    this.ring.visible = false;
     this.ground.clear();
     this.stats.groundKills = 0; this.stats.bombsDropped = 0;
     this.world.resetOrigin();
@@ -563,6 +582,22 @@ export class MissionSession {
     };
   }
 
+  // ── 정찰 체크포인트 ─────────────────────────────────────────────────────
+  _stepCheckpoints() {
+    const list = this.mission.checkpoints, nav = this.navPoint;
+    const i = list && list.length ? this.engine.nextCheckpoint() : -1;
+    if (i < 0 || i >= list.length || this.phase !== PHASE.ACTIVE) { nav.active = false; this.ring.visible = false; return; }
+    const c = list[i], o = this.world.origin;
+    nav.active = true; nav.index = i; nav.total = list.length; nav.label = `CP ${i + 1}/${list.length}`;
+    nav.pos.set(c[0] - o.x, c[1], c[2] - o.z);
+    this.ring.visible = true;
+    this.ring.position.copy(nav.pos);
+    // 링은 들어오는 방향을 향해 세운다(이전 지점 → 이 지점)
+    const p = i > 0 ? list[i - 1] : [0, 0, 0];
+    this.ring.rotation.set(0, Math.atan2(c[0] - p[0], c[2] - p[2]), 0);
+    if (this.player.flight.pos.distanceTo(nav.pos) < CHECKPOINT.radius && this.engine.checkpoint(i)) { this.feedback.switched = HUD_FEEDBACK.switchFlash; this._checkCleared(); }
+  }
+
   // ── 킬캠 ────────────────────────────────────────────────────────────────
   _startKillcam() {
     const k = this.killcam;
@@ -815,7 +850,9 @@ export class MissionSession {
       this._updateAim();
       const trigger = active && player.alive && !this.looking && (this.triggerOverride ?? this._manualTrigger());
       this.weapons.update(dt, this.ctx, trigger);
+      { const ml = this.weapons.byId('missile'); const u = ml && ml._ui; this.ctx.lockedEnemy = u && u.lockState !== 'search' ? u.target : null; }
       if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
+      this._stepCheckpoints();
       this._stepEnemies(dt);
       this.ground.step(dt, this.ctx);
       this.projectiles.step(dt, this.ctx);
@@ -825,6 +862,7 @@ export class MissionSession {
       if (active) {
         if (!this.tutorial.active) { this.stats.time += dt; this.engine.tick(dt); } // 튜토리얼 중에는 시간이 흐르지 않는다
         if (!this.tutorial.holding) this._stepMission(dt); // 마지막 단계 전까지 적이 나오지 않는다
+        if (!this.engine.running) this._checkCleared(); // 제한시간 초과 등
       } else if (this.phase === PHASE.ENDING) {
         if (!this.killcam.active) this.endTimer -= dt; // 킬캠이 끝난 뒤부터 센다
         if (this.endTimer <= 0) this._finish();
