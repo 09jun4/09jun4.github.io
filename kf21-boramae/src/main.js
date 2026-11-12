@@ -28,12 +28,14 @@ import { createMissionSelect } from './ui/mission-select.js';
 import { createBriefing } from './ui/briefing.js';
 import { createPause } from './ui/pause.js';
 import { createResult } from './ui/result.js';
+import { createTutorialBanner } from './ui/tutorial-banner.js';
+import { DECALS } from './data/extras.js';
 import { createSettingsDialog } from './ui/settings-panel.js';
 import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
 import { isMobileMode } from './core/device.js';
-import { MOBILE } from './data/quality.js';
+import { MOBILE, PRESETS } from './data/quality.js';
 import { createTouchControls } from './ui/touch-controls.js';
 import { PostFX } from './world/post.js';
 import { Autopilot } from './core/autopilot.js';
@@ -71,7 +73,7 @@ input.attach(stage);
 const inputHooks = {
   onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); hud.touch = input.touchMode; hud.resize(window.innerWidth, window.innerHeight); if (typeof touch !== 'undefined') touch.refresh(); },
   onRecalibrate: () => { if (window.__kf21Touch) window.__kf21Touch.recalibrate(); },
-  onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작할 때 튜토리얼이 나와요.'); },
+  onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작하면 튜토리얼이 나와요.'); },
   mobileQualityLimit: true,
 };
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
@@ -124,6 +126,8 @@ async function applyPreset(name, cfg) {
   world.setCloudFraction(cfg.clouds * (m ? m.cloudScale : 1));
   session.fx.setParticleFraction(cfg.particles * (m ? m.particleScale : 1));
   session.simpleTakeoff = cfg.tier === 'low';
+  session.killcam.sideCam = cfg.tier !== 'low'; // 낮음은 슬로모션만
+  session.decals.setMax(cfg.tier === 'low' ? DECALS.count.low : DECALS.count.high);
   // 메뉴 화면에서 프리셋을 바꿨으면 배경(시네마틱 ↔ 회전)도 바로 바꾼다
   if (tierChanged && session.mode === 'showcase' && typeof fsm !== 'undefined' && fsm.name) session.startShowcase();
   resize();
@@ -170,6 +174,7 @@ const ui = {
   result: createResult({
     next: (mission) => goto(STATE.BRIEFING, { mission }),
     retry: (mission) => goto(STATE.PLAYING, { mission }),
+    replay: () => startReplay(),
     menu: () => goto(STATE.MENU),
     ranking: (mission) => online.openRanking(mission),
   }),
@@ -201,7 +206,7 @@ fsm.add(STATE.RESULT, { enter: (payload) => { input.setLockWanted(false); screen
 const touch = createTouchControls({
   parent: appEl, input, settings,
   actions: {
-    weapon: () => session.switchWeapon(), view: () => session.toggleView(), pause: () => pause(), skip: () => session.skipTakeoff(),
+    weapon: () => session.switchWeapon(), view: () => session.toggleView(), pause: () => pause(), skip: () => session.skip(),
     takeoffTap: () => { if (session.phase === 'takeoff') session.skipTakeoff(); },
     portrait: () => pause(), // 세로로 들면 게임을 멈추고 안내를 띄운다
   },
@@ -214,13 +219,28 @@ fsm.onChange((name) => {
   appEl.dataset.state = name;
 });
 fsm.go(STATE.MENU);
+const banner = createTutorialBanner(appEl);
+// 마지막 격추 리플레이: 결과 화면을 잠시 치우고 보여 준 뒤 되돌아온다
+let resultPayload = null;
+function startReplay() {
+  if (fsm.name !== STATE.RESULT || !session.startReplay()) return;
+  screens.show(null);
+  appEl.classList.add('replaying');
+}
+session.onReplayEnd = () => {
+  appEl.classList.remove('replaying');
+  banner.setReplay(false);
+  if (fsm.name === STATE.RESULT && resultPayload) screens.show('result', resultPayload);
+};
+stage.addEventListener('pointerdown', () => { if (session.replay.on) session.stopReplay(); });
 
 let lastResult = null; // 가장 최근 미션 결과(자동플레이가 다음 미션을 고르는 데 쓴다)
 session.onFinished = (result) => {
   lastResult = result;
   if (autoPanel) autoPanel.record(result);
   const saved = save.applyResult(result);
-  goto(STATE.RESULT, { result, saved });
+  resultPayload = { result, saved, canReplay: session.canReplay() };
+  goto(STATE.RESULT, resultPayload);
   online.submitResult(result, (note) => ui.result.setNote(note, result));
 };
 
@@ -281,6 +301,7 @@ input.onBlur(() => { if (!autopilot.enabled) pause(); }); // 자동플레이 중
 input.onKey((code) => {
   if (screens.busy) return;
   if (code === 'Escape') {
+    if (session.replay.on) { session.stopReplay(); return; }
     if (online.closeTop()) return;
     if (settingsDialog.isOpen) settingsDialog.close();
     else if (fsm.name === STATE.PLAYING) pause();
@@ -289,13 +310,15 @@ input.onKey((code) => {
     else if (fsm.name === STATE.SELECT) goto(STATE.MENU);
     return;
   }
+  if (session.replay.on) { if (code === 'Enter' || code === 'Space') session.stopReplay(); return; }
   if (fsm.name !== STATE.PLAYING) return;
-  if (code === 'Enter' || code === 'Space') { session.skipTakeoff(); return; }
+  if (code === 'Enter' || code === 'Space') { session.skip(); return; }
   if (code === 'KeyV') session.toggleView();
   else if (code === 'KeyF') session.switchWeapon();
 });
 
 // ── 루프 ─────────────────────────────────────────────────────────────────
+let baseTimeScale = 1;
 const loop = new GameLoop({
   ...LOOP,
   step(dt) {
@@ -305,7 +328,10 @@ const loop = new GameLoop({
   render(alpha, frameDt) {
     const paused = fsm.name === STATE.PAUSED;
     input.poll(frameDt);
-    touch.update(frameDt, { takeoff: session.phase === 'takeoff' });
+    touch.update(frameDt, { takeoff: session.phase === 'takeoff' || session.tutorial.active || session.killcam.active });
+    loop.timeScale = baseTimeScale * session.timeScale; // 킬캠 슬로모션
+    banner.update(session.tutorial, fsm.name === STATE.PLAYING);
+    if (session.replay.on) banner.setReplay(true, session.replay.pass, input.touchMode);
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     visuals.animate(player.time, paused ? 0 : frameDt);
     renderer.info.reset();
@@ -382,10 +408,12 @@ if (isDebugEnabled()) {
       go: (name, payload) => fsm.go(name, payload),
       startMission: (id) => { const m = MISSIONS.find((x) => x.id === id); if (fsm.name === STATE.PLAYING) { currentMission = m; session.startMission(m); } else { if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT); if (fsm.name !== STATE.BRIEFING) fsm.go(STATE.BRIEFING, { mission: m }); fsm.go(STATE.PLAYING, { mission: m }); } },
       advance: (seconds) => loop.advance(seconds),
-      timeScale: (s) => { loop.timeScale = s; },
+      timeScale: (s) => { baseTimeScale = s; loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },
       setTrigger: (v) => { session.triggerOverride = v; },
       autopilot: () => autopilot,
+      killEnemy: () => session.debugKill(),
+      hitPlayer: (n = 1) => { for (let i = 0; i < n; i++) session._onPlayerHit(1, 'bullet'); },
       inspect: (f) => { session.showcaseHold = !!f; rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
       inspectEnemy: (f) => {
         debugState.freezeEnemies = true;
@@ -424,7 +452,13 @@ if (isDebugEnabled()) {
 
 // ── 시작: 첫 실행이면 벤치마크로 프리셋을 고른 뒤 적용한다 ───────────────
 resize();
-if (!settings.get('benchmarked')) {
+// 주소의 quality=low|high|ultra: 이번 실행만 그 프리셋으로 시작한다(자동플레이 아티팩트가 쓴다). 저장된 설정은 바꾸지 않는다
+const urlQuality = q.get('quality');
+if (PRESETS[urlQuality]) {
+  quality.name = input.touchMode && urlQuality === 'ultra' ? 'high' : urlQuality;
+  if (input.touchMode && quality.name === 'high' && !settings.get('mobileHighOk')) quality.name = 'low';
+  quality.urlLocked = true;
+} else if (!settings.get('benchmarked')) {
   loading.show('그래픽 성능 확인 중');
   loading.progress(0, '이 기기에 맞는 그래픽 품질을 고르고 있어요');
   await new Promise((r) => requestAnimationFrame(r));

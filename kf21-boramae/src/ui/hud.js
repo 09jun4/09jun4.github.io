@@ -1,6 +1,7 @@
 // HUD: 실제 전투기 HUD를 본뜬 미니멀 표시(2D 캔버스 오버레이). 청록 단색 + 얇은 선.
 // 기준 해상도(1280×720)의 좌표로 그리고 화면 크기에 비례해 확대한다. 원점은 화면 중앙.
 import * as THREE from 'three';
+import { THREAT } from '../data/extras.js';
 import { HUD } from '../data/hud.js';
 import { RAD, clamp } from '../core/math.js';
 import { LOCK } from '../combat/lock-on.js';
@@ -11,6 +12,7 @@ const TEXT = {
   speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', takeoff: '이륙 활주', rotate: 'W 또는 S — 기수 들기', climb: '상승 중 · 기어 접는 중', skip: 'Enter / Space  건너뛰기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
   ceiling: '상승 한계', overheat: '과열', kill: '격추', wave: '적 편대 접근', lock: 'LOCK', noAmmo: '미사일 없음',
   clear: '임무 완수', down: '격추당함', time: 'TIME',
+  warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
 };
 
 export class Hud {
@@ -125,6 +127,13 @@ export class Hud {
     const fb = session.feedback;
     const hpRatio = player.hp / player.cfg.hp;
     const blink = Math.sin(this.time * 9) > 0;
+    // 킬캠(옆 카메라): 조준·계기 대신 격추 표시만
+    if (session.killcam && session.killcam.cam) {
+      this._setDamage(0);
+      this._text(TEXT.kill, 0, -H * 0.36, 26, HUD.ok, 'center', true, 700);
+      this._text(this.touch ? TEXT.skipTouch : TEXT.skip, 0, H * 0.4, 12, HUD.dim, 'center', true, 600);
+      return;
+    }
 
     // 피격 붉은 효과 + 체력 낮을 때 은은한 맥동
     const low = hpRatio <= HUD.lowHp && player.alive;
@@ -142,6 +151,28 @@ export class Hud {
     if (player.alive && session.phase === PHASE.ACTIVE) this._weaponAim(session, camera, W, H);
     this._status(session, player, hpRatio, W, H, blink);
     this._notices(session, player, fb, low, W, H, blink);
+    if (player.alive && session.phase === PHASE.ACTIVE && session.threat) this._threat(session.threat.state, W, H, blink);
+  }
+
+  /** 위협 경고: 화면 가장자리의 방향 화살표 + WARNING (위 = 정면, 아래 = 뒤) */
+  _threat(t, W, H, blink) {
+    if (!t.active) return;
+    const g = this.g;
+    const sx = Math.sin(t.bearing), sy = -Math.cos(t.bearing);
+    const x = sx * W * THREAT.edgeX, y = sy * H * THREAT.edgeY;
+    const fast = t.kind !== 'chase';
+    const on = fast ? Math.sin(this.time * 16) > -0.3 : blink;
+    g.save();
+    g.translate(x, y);
+    g.rotate(Math.atan2(sy, sx) + Math.PI / 2);
+    g.globalAlpha = on ? 1 : 0.35;
+    g.fillStyle = HUD.danger;
+    g.beginPath(); g.moveTo(0, -17); g.lineTo(15, 11); g.lineTo(0, 4); g.lineTo(-15, 11); g.closePath(); g.fill();
+    g.restore();
+    const ty = y + (sy > 0.5 ? -30 : 34);
+    const tx = Math.max(-W + 70, Math.min(W - 70, x));
+    if (on) this._text(t.kind === 'missile' ? TEXT.warnMissile : TEXT.warn, tx, ty, 14, HUD.danger, 'center', false, 700);
+    this._text(TEXT['threat_' + t.kind], tx, ty + 16, 11, HUD.danger, 'center', true, 600);
   }
 
   /** 수평선·피치 사다리(기체 롤만큼 기울어진다) */

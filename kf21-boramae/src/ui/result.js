@@ -20,6 +20,7 @@ export function createResult(actions) {
     else if (act.dataset.act === 'retry') actions.retry(mission);
     else if (act.dataset.act === 'menu') actions.menu();
     else if (act.dataset.act === 'rank') actions.ranking(mission);
+    else if (act.dataset.act === 'replay' && actions.replay) actions.replay();
   });
 
   return {
@@ -57,6 +58,7 @@ export function createResult(actions) {
           <button class="btn${next ? '' : ' primary'}" data-act="retry" ${next ? '' : 'data-autofocus'}>재시작</button>
           <button class="btn" data-act="menu">메인 메뉴</button>
           ${r.success ? '<button class="btn ghost" data-act="rank">랭킹 보기</button>' : ''}
+          ${r.success && payload.canReplay ? '<button class="btn ghost" data-act="replay">마지막 격추 다시 보기</button>' : ''}
         </div>`;
       // 점수 카운트업 → 끝나면 등급이 나타난다
       const scoreEl = panel.querySelector('[data-score]');

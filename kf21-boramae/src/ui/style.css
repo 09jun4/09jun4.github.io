@@ -259,3 +259,16 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 #app.touch .mission-row, #app.touch .seg button { min-height: 48px; }
 #app.touch .controls, #app.touch .brief-side .keys { display: none; }
 @media (pointer: coarse) { .btn { min-height: 48px; } }
+
+/* ── 튜토리얼 안내 · 리플레이 표시 ── */
+.tutorial { position: absolute; left: 50%; top: max(84px, calc(env(safe-area-inset-top) + 64px)); transform: translateX(-50%); width: min(560px, 76vw); padding: 12px 18px; background: rgba(8, 14, 22, 0.78); border: 1px solid rgba(110, 231, 208, 0.45); border-radius: 10px; text-align: center; pointer-events: none; z-index: 6; backdrop-filter: blur(4px); }
+.tutorial[hidden], .replay-tag[hidden] { display: none; }
+.tutorial .tut-step { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.08em; color: #6ee7d0; }
+.tutorial .tut-step b { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #6ee7d0; color: #06241f; }
+.tutorial .tut-text { margin: 0; font-size: 16px; line-height: 1.45; color: #f2f6fa; text-wrap: balance; }
+.tutorial .tut-skip { margin: 6px 0 0; font-size: 12px; color: rgba(242, 246, 250, 0.6); }
+.tutorial.done { border-color: #6ee7d0; }
+#app.touch .tutorial { top: max(62px, calc(env(safe-area-inset-top) + 56px)); width: min(440px, 52vw); padding: 8px 12px; }
+#app.touch .tutorial .tut-text { font-size: 13px; }
+.replay-tag { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 16px; background: rgba(8, 14, 22, 0.78); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; font-size: 13px; color: #f2f6fa; z-index: 6; pointer-events: none; white-space: nowrap; }
+.replay-tag b { margin-right: 10px; color: #ff6b5e; letter-spacing: 0.12em; }

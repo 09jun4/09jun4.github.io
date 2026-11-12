@@ -20,7 +20,7 @@ describe('비행 모델 — 조작감 기준', () => {
 
   it('(c) 무한 상승으로 도망칠 수 없다: 속도가 떨어지고 기수가 숙여진다', () => {
     let maxPitch = 0;
-    const s = fly(60, { pitch: 1, turn: 0 }, undefined, (st, t) => { if (t > 20) maxPitch = Math.max(maxPitch, st.pitch); });
+    const s = fly(30, { pitch: 1, turn: 0 }, undefined, (st, t) => { if (t > 20) maxPitch = Math.max(maxPitch, st.pitch); }); // 상승 한계(6000m)에 닿기 전까지
     expect(s.speed).toBeGreaterThanOrEqual(KF21.speed.min);
     expect(s.speed).toBeLessThan(KF21.speed.min + KF21.stall.margin);
     expect(maxPitch * RAD).toBeLessThan(50); // 계속 당겨도 지속 상승각은 제한된다

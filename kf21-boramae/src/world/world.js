@@ -17,6 +17,8 @@ export class World {
     this.sunDirection = new THREE.Vector3().fromArray(cfg.sky.sunDirection).normalize();
     // 실제 좌표 = 렌더 좌표 + origin. 배정밀도로 누적하므로 얼마든지 멀리 갈 수 있다.
     this.origin = { x: 0, z: 0 };
+    this._altK = -1;
+    this.altitudeK = 0;
     this.sky = createSky(cfg.sky, this.sunDirection);
     this.clouds = createClouds(cfg.clouds, cfg.sky, this.sunDirection);
     this.terrain = createTerrain(cfg.terrain, cfg.sky, this.sunDirection);
@@ -46,8 +48,30 @@ export class World {
     this.origin.z = 0;
   }
 
+  /** 고도 연출: 카메라 고도에 따라 하늘색·햇빛·반사광을 바꾼다 */
+  setAltitude(alt) {
+    const a = this.cfg.altitudeLook;
+    if (!a) return;
+    let k = Math.min(1, Math.max(0, (alt - a.from) / (a.to - a.from)));
+    k = k * k * (3 - 2 * k);
+    if (Math.abs(k - this._altK) < 0.004) return;
+    this._altK = k;
+    if (!this._alt) {
+      const c = (hex) => new THREE.Color(hex);
+      this._alt = { z0: c(this.cfg.sky.zenith), z1: c(a.zenith), m0: c(this.cfg.sky.mid), m1: c(a.mid) };
+    }
+    const u = this.sky.material.uniforms;
+    u.uZenith.value.lerpColors(this._alt.z0, this._alt.z1, k);
+    u.uMid.value.lerpColors(this._alt.m0, this._alt.m1, k);
+    u.uSunGlow.value = this.cfg.sky.sunGlow * (1 + a.glowGain * k);
+    this.lights.sun.intensity = this.cfg.lighting.sunIntensity * (1 + a.sunGain * k);
+    this.lights.hemi.intensity = this.cfg.lighting.hemiIntensity * (1 - a.hemiDrop * k);
+    this.altitudeK = k;
+  }
+
   /** 렌더 프레임마다: 카메라 기준으로 유니폼 갱신 */
   update(camera) {
+    this.setAltitude(camera.position.y);
     if (this.softClouds) this.softClouds.update(camera.position, this.origin); else this.clouds.update(camera.position, this.origin);
     this.terrain.update(camera.position, this.origin, this.base);
     this.airbase.group.position.set(this.base.x - this.origin.x, this.base.height, this.base.z - this.origin.z);

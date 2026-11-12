@@ -3,6 +3,7 @@
 //   → break 너무 가까워지면 이탈 → (orbit) … / evade 피격 시 방향을 바꿔 회피
 // 동시에 공격하는 적기 수는 공격 토큰으로 제한한다(미션의 maxAttackers). 적기끼리는 분리 벡터로 겹치지 않게 한다.
 import * as THREE from 'three';
+import { THREAT } from '../data/extras.js';
 import { DEG, clamp, clamp01, lerp } from '../core/math.js';
 import { angleBetween } from '../combat/hit-test.js';
 
@@ -221,6 +222,7 @@ export class EnemyDirector {
     if (angleBetween(e.forward.x, e.forward.y, e.forward.z, _off.x, _off.y, _off.z) > w.cone * DEG) return;
     a.burstLeft = w.burst;
     a.burstTimer = 0;
+    e.fireWarn = THREAT.fireHold;
     a.fireTimer = w.interval;
   }
 }

@@ -15,6 +15,9 @@ export const WORLD = {
     radius: 60000,
   },
 
+  // 고도 연출: 높이 올라갈수록 하늘이 짙푸르고 해가 강해지며, 아래에서 올라오는 빛이 줄어든다
+  altitudeLook: { from: 1500, to: 6500, zenith: 0x0d2f7a, mid: 0x2f7fd6, sunGain: 0.28, hemiDrop: 0.2, glowGain: 0.5, cloudLit: 0.12 },
+
   lighting: {
     sunColor: 0xfff2dc,
     sunIntensity: 2.1,

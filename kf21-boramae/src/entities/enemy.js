@@ -30,6 +30,7 @@ export class Enemy {
     this.wantSpeed = cfg.flight.speed;
     this.smokeTimer = 0;
     this.age = 0;
+    this.fireWarn = 0; // 연발을 시작한 뒤 남은 경고 시간(위협 경고가 읽는다)
     // AI 상태(ai/enemy-ai.js 가 사용)
     this.ai = {
       state: 'approach', time: 0, timer: 0, hasToken: false, tokenWait: 0,
@@ -51,6 +52,7 @@ export class Enemy {
     this.wantSpeed = this.speed;
     this.smokeTimer = 0;
     this.age = 0;
+    this.fireWarn = 0;
     this._orient();
     this.want.copy(this.forward);
     this.prevPos.copy(this.pos);
@@ -76,6 +78,7 @@ export class Enemy {
     this.prevQuat.copy(this.quat);
     if (frozen) { this.velocity.set(0, 0, 0); return; }
     this.age += dt;
+    if (this.fireWarn > 0) this.fireWarn -= dt;
     const f = this.cfg.flight;
     const yawMax = f.yawMax * DEG;
     const pitchMax = f.pitchMax * DEG;

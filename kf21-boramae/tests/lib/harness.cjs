@@ -38,8 +38,8 @@ async function launch() {
 async function openGame(browser, origin, { query = '?debug=1', width = 1280, height = 720, scale = 1, initScript, userAgent, autoQuality = false, context: reuse, settings } = {}) {
   const context = reuse || await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, userAgent });
   // 헤드리스(소프트웨어 렌더링)는 느리므로, 따로 요청하지 않으면 자동 품질 조절을 꺼 둔다
-  if (settings && !reuse) await context.addInitScript((v) => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ v: 2, autoQuality: false, benchmarked: true, quality: 'low', skipTakeoff: true, ...v })); } catch (e) { /* 무시 */ } }, settings);
-  if (!autoQuality && !reuse) await context.addInitScript(() => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ v: 2, autoQuality: false, benchmarked: true, quality: 'low', skipTakeoff: true })); } catch (e) { /* 무시 */ } });
+  if (settings && !reuse) await context.addInitScript((v) => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ v: 2, autoQuality: false, benchmarked: true, quality: 'low', skipTakeoff: true, tutorialDone: true, ...v })); } catch (e) { /* 무시 */ } }, settings);
+  if (!autoQuality && !reuse) await context.addInitScript(() => { try { if (!localStorage.getItem('kf21.settings')) localStorage.setItem('kf21.settings', JSON.stringify({ v: 2, autoQuality: false, benchmarked: true, quality: 'low', skipTakeoff: true, tutorialDone: true })); } catch (e) { /* 무시 */ } });
   if (initScript) await context.addInitScript(initScript);
   const page = await context.newPage();
   const errors = [];

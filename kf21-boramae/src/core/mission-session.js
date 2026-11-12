@@ -28,6 +28,12 @@ import { PALETTE } from '../data/palette.js';
 import { CAMERA } from '../data/camera.js';
 import { FX } from '../data/fx.js';
 import { HUD_FEEDBACK } from '../data/hud.js';
+import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL } from '../data/extras.js';
+import { ThreatMonitor, enemyGunSource, enemyMissileSource } from '../combat/threat.js';
+import { createDecals } from '../entities/decals.js';
+import { Recorder } from './replay.js';
+import { Tutorial } from './tutorial.js';
+import { PHASE_NAMES } from './phase.js';
 
 const _v = new THREE.Vector3();
 const _shift = { x: 0, z: 0 };
@@ -36,7 +42,7 @@ const _ax = { pitch: 0, turn: 0 };
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 
-export const PHASE = { TAKEOFF: 'takeoff', ACTIVE: 'active', ENDING: 'ending', DONE: 'done' };
+export const PHASE = PHASE_NAMES;
 
 export class MissionSession {
   constructor({ scene, camera, world, rig, input, settings, audio, player, loadout }) {
@@ -91,6 +97,26 @@ export class MissionSession {
       this.wrecks.push({ group: visual.group, active: false, vel: new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), life: 0, timer: 0 });
     }
     this.damageTimer = 0;
+    // 위협 경고: 적기 기관포·추격(+ 적 미사일 자리). HUD가 this.threat.state를 읽는다
+    this.enemyMissiles = []; // 적 미사일은 꺼져 있다(missileEnabled: false). 켜면 여기에 넣는다
+    this.threat = new ThreatMonitor(THREAT).addSource(enemyGunSource(this.enemies.list, THREAT));
+    if (this.enemyCfg.missileEnabled) this.threat.addSource(enemyMissileSource(this.enemyMissiles));
+    // 피격 흔적(총알 구멍·그을음)
+    this.decals = createDecals(DECALS);
+    player.root.add(this.decals.mesh);
+    // 킬캠: 마지막 격추 때 슬로모션(+ 옆에서 잡는 카메라)
+    this.killcam = { active: false, cam: false, t: 0, wreck: null, side: 1, sideCam: true };
+    this.timeScale = 1; // main이 게임 루프에 곱한다
+    this.lastWreck = null;
+    // 마지막 격추 리플레이
+    this.rec = new Recorder(ENEMY_POOL_SIZE, REPLAY);
+    this.replay = { on: false, t: 0, t0: 0, t1: 0, pass: 0, boomed: false, target: new THREE.Vector3(), targetQuat: new THREE.Quaternion(), sample: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), enemies: Array.from({ length: ENEMY_POOL_SIZE }, () => ({ alive: false, pos: new THREE.Vector3(), quat: new THREE.Quaternion() })) } };
+    this.onReplayEnd = null;
+    // 튜토리얼(미션 1)
+    this.tutorial = new Tutorial(TUTORIAL);
+    this.tutorial.onFinish = () => { this.settings.set('tutorialDone', true); };
+    this.tutorialEnabled = true; // 자동플레이에서는 끈다
+    this.spawnClock = 0;
     this.gpuFrame = { depth: null, w: 1, h: 1 }; // 소프트 파티클용 장면 깊이(후처리가 있을 때 main이 채운다)
     // 이륙 연출 상태. state: 'roll' 활주 → 'rotate' 기수 들기 대기 → 'climb' 상승
     this.takeoff = { state: 'roll', speed: 0, pitch: 0, wait: 0, assisted: false, time: 0 };
@@ -171,6 +197,15 @@ export class MissionSession {
     f.hit = 0; f.hitWarn = 0; f.kill = 0; f.wave = 0; f.switched = 0; f.flash = 0;
     this.endTimer = 0;
     this.success = false;
+    this.threat.reset();
+    this.decals.clear();
+    this.killcam.active = false; this.killcam.cam = false;
+    this.timeScale = 1;
+    this.lastWreck = null;
+    this.rec.reset();
+    this.replay.on = false;
+    this.tutorial.stop();
+    this.spawnClock = 0;
   }
 
   /** 메뉴 배경: 수평 비행 + 회전 카메라 */
@@ -281,7 +316,17 @@ export class MissionSession {
       this.gearTarget = 1;
       this.player.visual.gear = 1;
     }
+    if (this.tutorialEnabled && mission.id === TUTORIAL.missionId && !this.settings.get('tutorialDone') && !(this.autopilot && this.autopilot.enabled)) this.tutorial.start(this, this.input.touchMode);
     this._applyView();
+  }
+
+  /** Enter/Space/건너뛰기 버튼: 이륙 → 킬캠 → 튜토리얼 순으로 하나를 넘긴다 */
+  skip() {
+    if (this.replay.on) { this.stopReplay(); return true; }
+    if (this.skipTakeoff()) return true;
+    if (this.killcam.active) { this._endKillcam(); return true; }
+    if (this.tutorial.active) return this.tutorial.finish(this);
+    return false;
   }
 
   /** 이륙 완료(또는 건너뛰기): 공중, 기어 접힘 상태로 미션을 시작한다. 미션 시간은 여기서부터 잰다. */
@@ -417,6 +462,8 @@ export class MissionSession {
     w.vel.copy(enemy.velocity).multiplyScalar(0.8);
     w.axis.set(this.rng() - 0.5, this.rng() - 0.5, this.rng() - 0.5).normalize();
     w.group.visible = true;
+    this.lastWreck = w;
+    this.rec.markKill(enemy.index);
     this.feedback.kill = HUD_FEEDBACK.killNotice;
     this._checkCleared();
   }
@@ -429,6 +476,8 @@ export class MissionSession {
       this.stats.clearTime = this.stats.time;
       this.endTimer = MISSION_FLOW.clearDelay;
       this.audio.play('mission_clear');
+      this.tutorial.finish(this);
+      this._startKillcam();
     }
   }
 
@@ -436,8 +485,9 @@ export class MissionSession {
     return this.spawner.allSpawned;
   }
 
-  _onPlayerHit() {
+  _onPlayerHit(amount, kind) {
     this.stats.hitsTaken++;
+    if (kind !== 'collision' || this.decals.count === 0) this.decals.add(this.player.root, this.player.model && (this.player.model.exterior || this.player.model.group), this.rng);
     this.feedback.hit = 1;
     this.feedback.hitWarn = HUD_FEEDBACK.hitWarn;
   }
@@ -449,6 +499,7 @@ export class MissionSession {
     this.success = false;
     this.stats.clearTime = this.stats.time;
     this.endTimer = MISSION_FLOW.failDelay;
+    this.tutorial.stop();
     this.audio.play('mission_fail');
   }
 
@@ -470,6 +521,129 @@ export class MissionSession {
       score,
       grade: gradeFor(this.mission, score, this.success),
     };
+  }
+
+  // ── 킬캠 ────────────────────────────────────────────────────────────────
+  _startKillcam() {
+    const k = this.killcam;
+    if (!this.lastWreck) return;
+    k.active = true;
+    k.t = 0;
+    k.wreck = this.lastWreck;
+    k.cam = k.sideCam && !this.input.touchMode; // 낮음·모바일은 슬로모션만
+    k.side = this.rng() < 0.5 ? -1 : 1;
+    this.timeScale = KILLCAM.timeScale;
+    if (k.cam) this.player.setCockpitView(false);
+  }
+
+  _endKillcam() {
+    const k = this.killcam;
+    if (!k.active) return;
+    k.active = false;
+    this.timeScale = 1;
+    if (k.cam) { k.cam = false; this.rig.fov = 0; this._applyView(); }
+  }
+
+  /** 격추된 적기를 옆에서 따라가는 카메라 */
+  _killcamCamera(frameDt) {
+    const k = this.killcam;
+    k.t += frameDt;
+    if (k.t >= KILLCAM.duration) { this._endKillcam(); return; }
+    if (!k.cam) return;
+    this._sideCamera(k.wreck.group.position, k.wreck.vel, k.side, KILLCAM);
+  }
+
+  _sideCamera(target, vel, side, c) {
+    _v.copy(vel); _v.y = 0;
+    if (_v.lengthSq() < 1) _v.set(0, 0, -1);
+    _v.normalize();
+    _v2.set(-_v.z, 0, _v.x); // 진행 방향의 오른쪽
+    const cam = this.camera;
+    cam.position.copy(target).addScaledVector(_v2, side * c.side).addScaledVector(_v, c.lead);
+    cam.position.y += c.up;
+    cam.up.set(0, 1, 0);
+    cam.lookAt(target);
+    if (Math.abs(cam.fov - c.fov) > 0.01) { cam.fov = c.fov; cam.updateProjectionMatrix(); }
+  }
+
+  // ── 마지막 격추 리플레이 ────────────────────────────────────────────────
+  canReplay() {
+    return this.mode === 'mission' && this.success && !!this.rec.window();
+  }
+
+  startReplay() {
+    const w = this.canReplay() && this.rec.window();
+    if (!w) return false;
+    const r = this.replay;
+    this.rec.frozen = true;
+    this._endKillcam();
+    r.on = true; r.t0 = w.t0; r.t1 = w.t1; r.t = w.t0; r.pass = 0; r.boomed = false;
+    this.mode = 'replay';
+    this.fx.clear();
+    this.projectiles.clear();
+    for (const wr of this.wrecks) { wr.active = false; wr.group.visible = false; }
+    this.player.root.visible = true;
+    this.player.setCockpitView(false);
+    this._updateOutline();
+    return true;
+  }
+
+  stopReplay() {
+    const r = this.replay;
+    if (!r.on) return;
+    r.on = false;
+    this.mode = 'mission';
+    for (const e of this.enemies.list) e.group.visible = e.alive;
+    this.fx.clear();
+    this.rig.fov = 0;
+    this._applyView();
+    if (this.onReplayEnd) this.onReplayEnd();
+  }
+
+  _renderReplay(frameDt) {
+    const r = this.replay, rec = this.rec, s = r.sample, player = this.player;
+    r.t += frameDt * REPLAY.speed;
+    if (r.t >= r.t1) {
+      if (r.pass === 0) { r.pass = 1; r.t = r.t0; r.boomed = false; this.fx.clear(); } else { this.stopReplay(); return; }
+    }
+    rec.sample(r.t, s);
+    player.root.position.copy(s.pos);
+    player.root.quaternion.copy(s.quat);
+    player.renderPos.copy(s.pos);
+    player.renderQuat.copy(s.quat);
+    player.animate(frameDt);
+    const list = this.enemies.list;
+    for (let i = 0; i < list.length; i++) {
+      const e = s.enemies[i], g = list[i].group;
+      g.visible = e.alive;
+      if (e.alive) { g.position.copy(e.pos); g.quaternion.copy(e.quat); }
+    }
+    const t = s.enemies[rec.killIndex];
+    if (t && t.alive) { r.target.copy(t.pos); r.targetQuat.copy(t.quat); }
+    if (!r.boomed && r.t >= rec.killT) { // 격추 순간: 폭발을 다시 터뜨린다
+      r.boomed = true;
+      _v3.set(0, 0, -1).applyQuaternion(r.targetQuat).multiplyScalar(this.enemyCfg.flight.speed);
+      this.fx.explosion(r.target, _v3, 1);
+    }
+    const cam = this.camera;
+    if (r.pass === 0) { // 뷰 1: 내 기체 뒤에서 표적을 본다
+      const c = REPLAY.chase;
+      _v.set(0, 0, 1).applyQuaternion(s.quat);
+      cam.position.copy(s.pos).addScaledVector(_v, c.back);
+      cam.position.y += c.up;
+      cam.up.set(0, 1, 0);
+      _v2.copy(s.pos).lerp(r.target, 0.5);
+      cam.lookAt(_v2);
+      if (Math.abs(cam.fov - c.fov) > 0.01) { cam.fov = c.fov; cam.updateProjectionMatrix(); }
+    } else { // 뷰 2: 표적 옆
+      _v3.set(0, 0, -1).applyQuaternion(r.targetQuat);
+      this._sideCamera(r.target, _v3, 1, REPLAY.side);
+    }
+    cam.updateMatrixWorld();
+    this.world.update(cam);
+    this.fx.update(frameDt, WEAPONS.gun.tracer, cam);
+    if (this.fx.gpu) this.fx.gpu.update(frameDt, cam, this.world.origin, this.gpuFrame.depth, this.gpuFrame.w, this.gpuFrame.h);
+    this.fx.endBolts();
   }
 
   _finish() {
@@ -574,6 +748,7 @@ export class MissionSession {
 
   // ── 고정 스텝 ───────────────────────────────────────────────────────────
   step(dt) {
+    if (this.mode === 'replay') return; // 리플레이 중에는 시뮬레이션을 멈춘다
     if (this.autopilot) this.autopilot.step(dt); // 자동플레이가 켜져 있으면 입력 값을 먼저 정한다
     const player = this.player;
     const mission = this.mode === 'mission';
@@ -603,11 +778,14 @@ export class MissionSession {
       if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);
       this.projectiles.step(dt, this.ctx);
+      this.tutorial.update(dt, this);
+      this.threat.update(player);
+      if (this.phase === PHASE.ACTIVE || this.phase === PHASE.ENDING) this.rec.step(dt, player, this.enemies.list);
       if (active) {
-        this.stats.time += dt;
-        this._stepMission(dt);
+        if (!this.tutorial.active) this.stats.time += dt; // 튜토리얼 중에는 시간이 흐르지 않는다
+        if (!this.tutorial.holding) this._stepMission(dt); // 마지막 단계 전까지 적이 나오지 않는다
       } else if (this.phase === PHASE.ENDING) {
-        this.endTimer -= dt;
+        if (!this.killcam.active) this.endTimer -= dt; // 킬캠이 끝난 뒤부터 센다
         if (this.endTimer <= 0) this._finish();
       }
       const f = this.feedback;
@@ -641,7 +819,8 @@ export class MissionSession {
     // 편대 등장
     const a = this._spawnArgs;
     a.aliveCount = this.enemies.aliveCount;
-    a.time = this.stats.time;
+    this.spawnClock += dt;
+    a.time = this.spawnClock;
     if (this.spawner.step(dt, a) > 0) {
       this.feedback.wave = HUD_FEEDBACK.waveNotice;
       this._updateOutline();
@@ -684,10 +863,12 @@ export class MissionSession {
     for (const w of this.wrecks) { w.group.position.x += dx; w.group.position.z += dz; }
     this.projectiles.shift(dx, dz);
     this.weapons.shift(dx, dz);
+    this.rec.shift(dx, dz);
   }
 
   // ── 렌더 프레임 ─────────────────────────────────────────────────────────
   render(alpha, frameDt) {
+    if (this.mode === 'replay') { this._renderReplay(frameDt); return; }
     const player = this.player;
     player.interpolate(alpha);
     player.animate(frameDt);
@@ -696,11 +877,13 @@ export class MissionSession {
     this._updateMfd();
     if (this.mode === 'showcase' && this.cine.on && !this.showcaseHold) this._cineCamera();
     this.rig.update(player.view, frameDt);
+    if (this.killcam.active) this._killcamCamera(frameDt); // 킬캠 시간은 실제 시간으로 센다
     this.world.update(this.camera);
     if (!this.looking) this.updateCursor();
-    this._renderWrecks(frameDt);
-    this.fx.update(frameDt, WEAPONS.gun.tracer, this.camera);
-    if (this.fx.gpu) this.fx.gpu.update(frameDt, this.camera, this.world.origin, this.gpuFrame.depth, this.gpuFrame.w, this.gpuFrame.h);
+    const fxDt = frameDt * this.timeScale; // 슬로모션에서는 잔해·파티클도 느리게
+    this._renderWrecks(fxDt);
+    this.fx.update(fxDt, WEAPONS.gun.tracer, this.camera);
+    if (this.fx.gpu) this.fx.gpu.update(fxDt, this.camera, this.world.origin, this.gpuFrame.depth, this.gpuFrame.w, this.gpuFrame.h);
     this._renderProjectiles(alpha);
     this.fx.endBolts();
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
@@ -762,6 +945,14 @@ export class MissionSession {
   }
 
   /** 미션을 즉시 끝낸다. */
+  /** 살아 있는 적기 하나를 실제 피해 경로로 격추한다(킬캠·리플레이 검증용) */
+  debugKill() {
+    const e = this.enemies.list.find((x) => x.alive);
+    if (!e) return false;
+    damageEnemy(this.ctx, e, e.cfg.hp * 10, 'gun');
+    return true;
+  }
+
   debugSkip(success = true) {
     if (this.mode !== 'mission' || this.phase !== PHASE.ACTIVE) return false;
     if (success) {

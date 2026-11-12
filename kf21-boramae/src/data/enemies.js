@@ -25,7 +25,7 @@ export const ENEMIES = {
       rollTau: 0.35,
       speedTau: 1.4,
       altMin: 900,
-      altMax: 9000,
+      altMax: 5600, // 플레이어 상승 한계(6000m)보다 낮게
     },
 
     ai: {
@@ -63,6 +63,7 @@ export const ENEMIES = {
     },
 
     fx: { smokeBelow: 0.5, smokeEvery: 0.07 },
+    missileEnabled: false, // 적 미사일: 지금은 끔. 켜면 위협 경고(combat/threat.js)의 미사일 출처에 연결한다
   },
 };
 
