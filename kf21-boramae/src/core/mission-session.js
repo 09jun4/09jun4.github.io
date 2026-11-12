@@ -96,6 +96,9 @@ export class MissionSession {
     this.simpleTakeoff = false; // 낮음 프리셋: 막 떠오른 순간부터 시작
     // 메인 메뉴 시네마틱(높음·최고): 몇 번째 장면의 몇 초인지
     this.cine = { on: false, shot: 0, t: 0, view: { yaw: 0, pitch: 0, dist: 20, at: [0, 0, 0], shift: 0, fov: 40, level: true } };
+    this.cursorOverride = null; // 자동플레이가 정하는 조준 커서(화면 좌표)
+    this.skipTakeoffOverride = null; // 자동플레이 주소의 takeoff=skip|full
+    this.autopilot = null;
     this.showcaseHold = false; // 디버그: 고정 시점으로 모델을 볼 때 시네마틱 카메라를 멈춘다
     this.gearTarget = 0;
     this.cineAmmo = 5;
@@ -260,7 +263,7 @@ export class MissionSession {
     const ground = AIRBASE.height + GEAR_HEIGHT + 0.5;
     this.player.reset({ yaw: 0, y: ground });
     this._onMissionStart();
-    if (this.settings.get('skipTakeoff')) {
+    if (this.skipTakeoffOverride ?? this.settings.get('skipTakeoff')) {
       this._airStart();
     } else {
       // 활주로에서 시작(낮음은 막 떠오른 순간부터)
@@ -477,6 +480,11 @@ export class MissionSession {
   /** 조준 커서(화면 좌표). 마우스 감도는 화면 중앙 기준 배율로 적용한다. */
   updateCursor() {
     const { w, h } = this.viewport;
+    if (this.cursorOverride) { // 자동플레이: 봇이 정한 조준 위치
+      this.cursor.x = clamp(this.cursorOverride.x, 0, w);
+      this.cursor.y = clamp(this.cursorOverride.y, 0, h);
+      return;
+    }
     const k = this.settings.get('mouseSensitivity');
     this.cursor.x = clamp(w / 2 + (this.input.mouse.x - w / 2) * k, 0, w);
     this.cursor.y = clamp(h / 2 + (this.input.mouse.y - h / 2) * k, 0, h);
@@ -540,6 +548,7 @@ export class MissionSession {
 
   // ── 고정 스텝 ───────────────────────────────────────────────────────────
   step(dt) {
+    if (this.autopilot) this.autopilot.step(dt); // 자동플레이가 켜져 있으면 입력 값을 먼저 정한다
     const player = this.player;
     const mission = this.mode === 'mission';
     const controllable = mission && player.alive && this.phase !== PHASE.DONE && this.phase !== PHASE.TAKEOFF;

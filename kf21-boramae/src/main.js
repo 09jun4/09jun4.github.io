@@ -33,6 +33,9 @@ import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
 import { PostFX } from './world/post.js';
+import { Autopilot } from './core/autopilot.js';
+import { createAutoplayPanel } from './ui/autoplay-panel.js';
+import { missionById, nextMission } from './data/missions.js';
 import { GpuParticles, PARTICLE_LAYER } from './entities/gpu-particles.js';
 
 const appEl = document.getElementById('app');
@@ -183,14 +186,68 @@ fsm.onChange((name) => {
 });
 fsm.go(STATE.MENU);
 
+let lastResult = null; // 가장 최근 미션 결과(자동플레이가 다음 미션을 고르는 데 쓴다)
 session.onFinished = (result) => {
+  lastResult = result;
+  if (autoPanel) autoPanel.record(result);
   const saved = save.applyResult(result);
   goto(STATE.RESULT, { result, saved });
   online.submitResult(result, (note) => ui.result.setNote(note, result));
 };
 
+// ── 자동플레이(?auto=1 &skill=0~100 &mission=m1|m2|m3 &loop=0|1 &view=chase|cockpit &takeoff=skip|full) ──
+// 봇이 키·마우스 입력 값만 만들어 낸다. 주소로 켜지 않으면 아무 영향이 없다.
+const q = new URLSearchParams(location.search);
+const autopilot = new Autopilot(session);
+session.autopilot = autopilot;
+const autoOpts = { mission: missionById(q.get('mission')) ? q.get('mission') : MISSIONS[0].id, loop: q.get('loop') !== '0' };
+let autoPanel = null;
+let autoResultAt = 0;
+function autoSyncUrl() {
+  const u = new URL(location.href);
+  u.searchParams.set('skill', autopilot.skill);
+  u.searchParams.set('mission', autoOpts.mission);
+  u.searchParams.set('loop', autoOpts.loop ? 1 : 0);
+  history.replaceState(null, '', u);
+}
+function autoStartMission() {
+  const mission = missionById(autoOpts.mission);
+  if (!mission || screens.busy) return;
+  if (fsm.name === STATE.PLAYING) { currentMission = mission; session.startMission(mission); return; }
+  if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT);
+  if (fsm.name === STATE.SELECT) fsm.go(STATE.BRIEFING, { mission });
+  if (fsm.name === STATE.BRIEFING || fsm.name === STATE.RESULT || fsm.name === STATE.PAUSED) fsm.go(STATE.PLAYING, { mission, restart: true });
+}
+if (q.get('auto') === '1') {
+  autopilot.setSkill(Number(q.get('skill') ?? 40));
+  if (q.get('view') === 'cockpit' || q.get('view') === 'chase') session.view = q.get('view');
+  if (q.get('takeoff') === 'skip') session.skipTakeoffOverride = true; else if (q.get('takeoff') === 'full') session.skipTakeoffOverride = false;
+  autoPanel = createAutoplayPanel({
+    autopilot, options: autoOpts, onChange: autoSyncUrl,
+    onStart: () => { autopilot.enable(true); autoStartMission(); },
+    onStop: () => autopilot.enable(false),
+  });
+  uiEl.appendChild(autoPanel.el);
+  autopilot.enable(true);
+  autoSyncUrl();
+  // 메뉴·결과 화면을 사람 대신 넘긴다
+  setInterval(() => {
+    if (!autopilot.enabled || screens.busy || loading.visible) return;
+    autoPanel.setMode(fsm.name === STATE.PLAYING ? autopilot.status.mode : fsm.name === STATE.RESULT ? '결과 확인' : '준비');
+    if (fsm.name === STATE.MENU || fsm.name === STATE.SELECT || fsm.name === STATE.BRIEFING || fsm.name === STATE.PAUSED) autoStartMission();
+    else if (fsm.name === STATE.RESULT) {
+      if (!autoResultAt) autoResultAt = performance.now();
+      if (performance.now() - autoResultAt < 3800) return; // 결과 화면을 잠깐 보여 준다
+      autoResultAt = 0;
+      if (lastResult && lastResult.success && autoOpts.loop) { const n = nextMission(lastResult.missionId); autoOpts.mission = n ? n.id : MISSIONS[0].id; autoPanel.refresh(); autoSyncUrl(); }
+      else if (!autoOpts.loop && lastResult && lastResult.success) { autopilot.enable(false); autoPanel.refresh(); return; }
+      autoStartMission();
+    }
+  }, 500);
+}
+
 const pause = () => { if (fsm.name === STATE.PLAYING && !screens.busy) fsm.go(STATE.PAUSED); };
-input.onBlur(pause); // 창 포커스가 사라지면 자동 일시정지
+input.onBlur(() => { if (!autopilot.enabled) pause(); }); // 자동플레이 중에는 포커스가 패널로 옮겨 가도 멈추지 않는다 // 창 포커스가 사라지면 자동 일시정지
 input.onKey((code) => {
   if (screens.busy) return;
   if (code === 'Escape') {
@@ -296,6 +353,7 @@ if (isDebugEnabled()) {
       timeScale: (s) => { loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },
       setTrigger: (v) => { session.triggerOverride = v; },
+      autopilot: () => autopilot,
       inspect: (f) => { session.showcaseHold = !!f; rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },
       inspectEnemy: (f) => {
         debugState.freezeEnemies = true;

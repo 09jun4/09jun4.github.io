@@ -214,3 +214,25 @@ input[type="text"] { width: 100%; padding: 11px 12px; min-height: 44px; border: 
 .loading-step { margin: 10px 0 0; min-height: 18px; font: 500 12px var(--mono); color: var(--ink-faint); }
 .loading-tip { margin: 26px 0 0; font-size: 15px; line-height: 1.6; color: var(--ink-dim); }
 .loading-tip b { display: block; margin-bottom: 4px; font: 600 11px var(--mono); letter-spacing: 0.14em; color: var(--ink-faint); }
+
+/* ── 자동플레이 패널 ─────────────────────────────────────────────────── */
+.autopanel { position: absolute; top: 56px; right: 16px; width: 248px; z-index: 40; padding: 10px 12px 12px; background: rgba(8, 18, 29, 0.84); border: 1px solid var(--line-strong); border-radius: 6px; font-size: 12.5px; color: var(--ink); backdrop-filter: blur(6px); }
+.autopanel header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font: 600 11px var(--mono); letter-spacing: 0.16em; color: var(--accent); }
+.autopanel header button { appearance: none; width: 26px; height: 22px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--ink-dim); cursor: pointer; }
+.autopanel.folded .ap-body { display: none; }
+.ap-field { margin-bottom: 10px; }
+.ap-field label { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--ink-dim); }
+.ap-field output { font: 600 12px var(--mono); color: var(--accent); }
+.autopanel input[type="range"] { width: 100%; height: 22px; accent-color: var(--accent); }
+.autopanel select { width: 100%; min-height: 32px; padding: 4px 6px; background: rgba(0, 0, 0, 0.35); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 4px; font: inherit; }
+.ap-levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 4px; }
+.ap-levels button, .ap-actions button { appearance: none; min-height: 30px; padding: 0 2px; white-space: nowrap; border: 1px solid var(--line-strong); border-radius: 4px; background: rgba(10, 24, 38, 0.7); color: var(--ink); cursor: pointer; font: 600 12px var(--font); }
+.ap-levels button { font-size: 11.5px !important; }
+.ap-levels button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.ap-check { justify-content: flex-start !important; gap: 6px; margin: 6px 0 0 !important; cursor: pointer; }
+.ap-stats { margin: 0 0 10px; display: grid; gap: 3px; }
+.ap-stats div { display: grid; grid-template-columns: 38px 1fr; gap: 6px; }
+.ap-stats dt { color: var(--ink-faint); }
+.ap-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.ap-actions button { width: 100%; min-height: 34px; }
+.ap-actions button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
