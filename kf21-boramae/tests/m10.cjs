@@ -45,7 +45,7 @@ const INAPP_UA = require('./lib/inapp-ua.cjs');
   await p.click('#account [data-act="login"]'); await sleep(700);
   log.B.nickDialogOnFirstLogin = await p.$eval('.modal.nick', (e) => !e.hidden);
   await shot(p, 'm10-nickname');
-  log.B.migrated = await p.evaluate(() => ({ uid: window.__debug.save().uid, m1: window.__debug.save().record('m1').bestScore, guestSlot: localStorage.getItem('kf21.progress.guest'), cloud: JSON.parse(window.__KF21_FAKE.docs.get('users/user-a').progress).missions.m1.bestScore }));
+  log.B.migrated = await p.evaluate(() => ({ uid: window.__debug.save().uid, m1: window.__debug.save().record('c1m1').bestScore, guestSlot: localStorage.getItem('kf21.progress.guest'), cloud: JSON.parse(window.__KF21_FAKE.docs.get('users/user-a').progress).missions.c1m1.bestScore }));
   const tryNick = async (v) => { await p.fill('#nick-input', v); await p.click('.nick [type="submit"]'); await sleep(300); return p.$eval('.nick .form-error', (e) => e.textContent); };
   log.B.nickErrors = [await tryNick('a'), await tryNick('관리자님'), await tryNick('두 단어')];
   await p.evaluate(() => { window.__KF21_FAKE.docs.set('nicknames/ace', { uid: 'someone-else' }); });
@@ -53,12 +53,12 @@ const INAPP_UA = require('./lib/inapp-ua.cjs');
   log.B.nickOk = await tryNick('보라매01');
   log.B.account = await p.$eval('#account', (e) => e.textContent.replace(/\s+/g, ' ').trim());
   await sleep(500);
-  log.B.rankDoc = await p.evaluate(() => window.__KF21_FAKE.docs.get('rankings/m1/scores/user-a'));
+  log.B.rankDoc = await p.evaluate(() => window.__KF21_FAKE.docs.get('rankings/c1m1/entries/user-a'));
   // 다른 사람 기록을 넣고 랭킹 창 확인
-  await p.evaluate(() => { const d = window.__KF21_FAKE.docs; d.set('rankings/m1/scores/u2', { uid: 'u2', name: '독수리', score: 3700, time: 20 }); d.set('rankings/m1/scores/u3', { uid: 'u3', name: '참매', score: 3100, time: 80 }); });
+  await p.evaluate(() => { const d = window.__KF21_FAKE.docs; d.set('rankings/c1m1/entries/u2', { uid: 'u2', name: '독수리', score: 3700, time: 20 }); d.set('rankings/c1m1/entries/u3', { uid: 'u3', name: '참매', score: 3100, time: 80 }); });
   await p.click('[data-act="start"]'); await sleep(800);
   await p.click('.card [data-act="rank"]'); await sleep(300);
-  await p.click('.rank [data-mission="m1"]'); await sleep(400);
+  await p.click('.rank [data-mission="c1m1"]'); await sleep(400);
   log.B.rankRows = await p.$$eval('.rank-list li', (li) => li.map((x) => x.textContent.replace(/\s+/g, ' ').trim() + (x.classList.contains('me') ? ' [me]' : '')));
   log.B.adminDeleteButtons = await p.$$eval('.rank-list [data-del]', (b) => b.length);
   await shot(p, 'm10-ranking');
@@ -66,14 +66,14 @@ const INAPP_UA = require('./lib/inapp-ua.cjs');
   // 더 좋은 기록을 내면 랭킹이 갱신된다
   await clear(p, 'm1', 12);
   log.B.noteLoggedIn = await p.$eval('[data-note]', (e) => e.textContent);
-  log.B.rankDocAfter = await p.evaluate(() => window.__KF21_FAKE.docs.get('rankings/m1/scores/user-a').score);
+  log.B.rankDocAfter = await p.evaluate(() => window.__KF21_FAKE.docs.get('rankings/c1m1/entries/user-a').score);
   // 새로고침해도 로그인·계정 진행이 유지된다
   const g2 = await openGame(browser, origin, { context: ctx });
   await sleep(700);
-  log.B.afterReload = await g2.page.evaluate(() => ({ uid: window.__debug.save().uid, m2open: window.__debug.save().isUnlocked('m2'), account: document.getElementById('account').textContent.replace(/\s+/g, ' ').trim(), nickOpen: !document.querySelector('.modal.nick').hidden }));
+  log.B.afterReload = await g2.page.evaluate(() => ({ uid: window.__debug.save().uid, m2open: window.__debug.save().isUnlocked('zz'), account: document.getElementById('account').textContent.replace(/\s+/g, ' ').trim(), nickOpen: !document.querySelector('.modal.nick').hidden }));
   // 로그아웃 → 게스트 상태
   await g2.page.click('#account [data-act="logout"]'); await sleep(500);
-  log.B.afterLogout = await g2.page.evaluate(() => ({ uid: window.__debug.save().uid, m1: window.__debug.save().record('m1'), m2open: window.__debug.save().isUnlocked('m2'), account: document.getElementById('account').textContent.trim() }));
+  log.B.afterLogout = await g2.page.evaluate(() => ({ uid: window.__debug.save().uid, m1: window.__debug.save().record('c1m1'), m2open: window.__debug.save().isUnlocked('zz'), account: document.getElementById('account').textContent.trim() }));
 
   // C) 관리자 화면: 판별(해시 비교)은 단위 테스트가 맡고, 여기서는 삭제 버튼과 삭제 동작만 본다
   await g2.page.evaluate(() => { window.__KF21_FAKE.nextUser = { uid: 'admin-1', email: 'boss@example.com', emailVerified: true, displayName: 'admin' }; });
@@ -82,7 +82,7 @@ const INAPP_UA = require('./lib/inapp-ua.cjs');
   await g2.page.evaluate(() => { window.__debug.online().auth.isAdmin = true; });
   await g2.page.click('[data-act="start"]'); await sleep(800);
   await g2.page.click('.card [data-act="rank"]'); await sleep(300);
-  await g2.page.click('.rank [data-mission="m1"]'); await sleep(400);
+  await g2.page.click('.rank [data-mission="c1m1"]'); await sleep(400);
   log.C = { deleteButtons: await g2.page.$$eval('.rank-list [data-del]', (b) => b.length) };
   g2.page.once('dialog', (dlg) => dlg.accept());
   await g2.page.click('.rank-list [data-del="u3"]'); await sleep(600);

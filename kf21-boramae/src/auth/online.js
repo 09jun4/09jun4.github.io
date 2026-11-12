@@ -2,13 +2,14 @@
 // Firebase 설정이 비어 있으면 전부 꺼진 채로 남고, 게임은 브라우저 저장만으로 동작한다.
 import { Auth, AUTH, authErrorText } from './auth.js';
 import { CloudSave } from './cloud-save.js';
-import { Ranking } from './ranking.js';
+import { Ranking, isTotalScope } from './ranking.js';
+import { rankTotals } from '../core/rank-totals.js';
 import { inAppBrowser, inAppText } from './inapp-browser.js';
 import { defaultNickname } from './nickname-rules.js';
 import { createNicknameDialog } from '../ui/nickname.js';
 import { createRankingDialog } from '../ui/ranking.js';
 import { esc } from '../ui/dom.js';
-import { MISSIONS } from '../data/missions.js';
+import { MISSIONS, missionById } from '../data/missions.js';
 import { SETTINGS_SYNC_DELAY, DEVICE_ONLY_SETTINGS } from '../data/online.js';
 
 export function createOnline({ save, settings, uiEl, toast }) {
@@ -61,10 +62,16 @@ export function createOnline({ save, settings, uiEl, toast }) {
     },
   });
   const rankDialog = createRankingDialog({
-    load: (missionId, force) => ranking.top(missionId, force),
-    remove: (missionId, uid) => ranking.remove(missionId, uid),
+    load: (scope, force) => ranking.top(scope, force),
+    remove: (scope, uid) => ranking.remove(scope, uid),
     viewer: () => ({ uid: auth.user ? auth.user.uid : null, isAdmin: auth.isAdmin, enabled: auth.enabled && !!ranking, signedIn: signedIn() }),
-    localBest: (missionId) => save.record(missionId),
+    mineText: (scope) => {
+      const t = rankTotals(save.progress);
+      if (scope === 'overall') return t.overall.missions ? `내 합산: ${t.overall.score.toLocaleString()}점 · 미션 ${t.overall.missions}개` : '아직 완수한 미션이 없어요.';
+      if (isTotalScope(scope)) { const c = t.campaigns[scope]; return c.complete ? `내 합산: ${c.score.toLocaleString()}점` : `이 캠페인을 ${c.missions}/${c.total}개 클리어했어요. 모두 클리어하면 순위에 올라요.`; }
+      const r = save.record(scope);
+      return r && r.clears ? `내 최고 기록: ${r.bestScore.toLocaleString()}점 · ${r.grade}` : '아직 이 미션을 완수한 기록이 없어요.';
+    },
   });
   uiEl.appendChild(nickDialog.el);
   uiEl.appendChild(rankDialog.el);
@@ -75,11 +82,22 @@ export function createOnline({ save, settings, uiEl, toast }) {
     if (!signedIn() || !rec || !rec.clears) return 'skipped';
     return ranking.submit(missionId, auth.user.uid, displayName(), rec.bestScore, rec.bestTime);
   }
+  /** 캠페인별(모두 클리어했을 때만)·전체 합산을 올린다. campaignId를 주면 그 캠페인과 전체만 */
+  async function pushTotals(campaignId) {
+    if (!signedIn()) return;
+    const t = rankTotals(save.progress), uid = auth.user.uid, name = displayName();
+    for (const [id, c] of Object.entries(t.campaigns)) {
+      if (campaignId && id !== campaignId) continue;
+      if (c.complete) { try { await ranking.submit(id, uid, name, c.score, c.missions); } catch (e) { console.warn('[KF21] 캠페인 랭킹 기록 실패', id, e); } }
+    }
+    if (t.overall.missions) { try { await ranking.submit('overall', uid, name, t.overall.score, t.overall.missions); } catch (e) { console.warn('[KF21] 전체 랭킹 기록 실패', e); } }
+  }
   /** 내 최고 기록을 모두 랭킹에 맞춘다(로그인 직후, 닉네임 변경 후). */
   async function pushAll() {
     for (const m of MISSIONS) {
       try { await push(m.id); } catch (e) { console.warn('[KF21] 랭킹 기록 실패', m.id, e); }
     }
+    await pushTotals();
   }
 
   // ── 로그인 상태 변화 ───────────────────────────────────────────────────
@@ -160,6 +178,8 @@ export function createOnline({ save, settings, uiEl, toast }) {
       if (!signedIn()) { setNote('로그인하면 이 기록이 랭킹에 올라가요.'); return; }
       try {
         const r = await push(result.missionId);
+        const m = missionById(result.missionId);
+        if (m) await pushTotals(m.campaign);
         setNote(r === 'written' ? `랭킹에 기록했어요. (${displayName()})` : r === 'kept' ? '랭킹에는 더 높은 내 기록이 이미 있어요.' : '');
       } catch (e) {
         setNote('랭킹에 기록하지 못했어요. 기록은 계정/브라우저에 저장됐어요.');

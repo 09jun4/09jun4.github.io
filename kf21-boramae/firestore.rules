@@ -16,15 +16,12 @@ service cloud.firestore {
     function validName(n) {
       return n is string && n.size() >= 2 && n.size() <= 12 && n.matches('^[^\\s<>"\'`\\\\/]+$');
     }
-    // 미션별 적기 수와 기준 시간(src/data/missions.js 와 같아야 한다)
-    function enemies(mission) { return mission == 'm1' ? 3 : (mission == 'm2' ? 4 : 5); }
-    function parTime(mission) { return mission == 'm1' ? 90 : (mission == 'm2' ? 120 : 150); }
-    // 점수식: 1000 × 적기 수 + max(0, 기준시간 − 클리어시간) × 10  (오차 1점 허용)
-    function validScore(mission, score, time) {
-      return score is int && time is number
-        && time >= 8 && time < 3600
-        && score >= 1000 * enemies(mission)
-        && score <= 1000 * enemies(mission) + math.max(0, parTime(mission) - time) * 10 + 1;
+    // 점수 범위 검증. 미션이 18개로 늘고 목표·점수식이 미션마다 달라서 점수식 자체는 규칙으로 검증하지 않는다(타입·범위만).
+    function validMissionScore(score, time) {
+      return score is int && score >= 0 && score <= 100000 && time is number && time >= 8 && time < 3600;
+    }
+    function validTotal(score, missions) {
+      return score is int && score >= 0 && score <= 2000000 && missions is int && missions >= 1 && missions <= 18;
     }
 
     // 개인 저장(진행도·설정·닉네임): 본인만 읽고 쓴다.
@@ -52,18 +49,36 @@ service cloud.firestore {
       allow delete: if (request.auth != null && resource.data.uid == request.auth.uid) || isAdmin();
     }
 
-    // 미션별 랭킹: 누구나 읽고, 본인 기록만 쓴다. 점수는 타입·범위·점수식으로 검증한다.
-    // 관리자는 부정 기록을 지울 수 있다.
-    match /rankings/{mission}/scores/{uid} {
+    // 미션별 랭킹: 누구나 읽고, 본인 기록만 쓴다. 관리자는 부정 기록을 지울 수 있다.
+    match /rankings/{mission}/entries/{uid} {
       allow read: if true;
       allow delete: if signedIn(uid) || isAdmin();
       allow create, update: if signedIn(uid)
-        && mission in ['m1', 'm2', 'm3']
+        && mission.matches('^c[1-5]m[1-4]$')
         && request.resource.data.keys().hasOnly(['uid', 'name', 'score', 'time', 'at'])
         && request.resource.data.uid == uid
         && validName(request.resource.data.name)
-        && validScore(mission, request.resource.data.score, request.resource.data.time)
+        && validMissionScore(request.resource.data.score, request.resource.data.time)
         && request.resource.data.at == request.time;
+    }
+
+    // 캠페인별·전체 랭킹(scope = c1~c5 | overall): 합산 점수. 누구나 읽고, 본인 기록만 쓴다.
+    match /rankTotals/{scope}/entries/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid) || isAdmin();
+      allow create, update: if signedIn(uid)
+        && scope in ['overall', 'c1', 'c2', 'c3', 'c4', 'c5']
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'score', 'missions', 'at'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && validTotal(request.resource.data.score, request.resource.data.missions)
+        && request.resource.data.at == request.time;
+    }
+
+    // 예전(미션 3개 시절) 랭킹: 읽기와 정리만 남긴다. 새 기록은 위 경로로 올라간다.
+    match /rankings/{mission}/scores/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid) || isAdmin();
     }
   }
 }

@@ -6,6 +6,8 @@ import { validateMissions } from '../src/mission/schema.js';
 import { MissionEngine, OBJ, OUTCOME, LOSS, objectiveRole, referenceScore } from '../src/mission/engine.js';
 import { gradeFor } from '../src/core/scoring.js';
 import { TARGETS } from '../src/data/targets.js';
+import { rankTotals } from '../src/core/rank-totals.js';
+import { normalizeProgress } from '../src/core/save.js';
 import { PERSONALITIES } from '../src/data/enemies.js';
 import { TIME_OF_DAY } from '../src/data/timeOfDay.js';
 
@@ -133,5 +135,22 @@ describe('미션 엔진', () => {
     // 끝난 뒤의 사건은 무시한다
     e.airKill('fighter');
     expect(e.score(100)).toBe(4000);
+  });
+});
+
+describe('랭킹 합산', () => {
+  it('캠페인은 전부 클리어해야 완성, 전체는 클리어한 미션의 최고 점수 합', () => {
+    const rec = (score) => ({ bestScore: score, grade: 'A', bestTime: 60, clears: 1 });
+    const p = normalizeProgress({ v: 2, missions: { c1m1: rec(3500), c1m2: rec(4400), c1m3: rec(5600), c1m4: rec(8200), c2m1: rec(2500), c2m2: { bestScore: 900, grade: null, clears: 0 } } });
+    const t = rankTotals(p);
+    expect(t.campaigns.c1).toEqual({ score: 21700, missions: 4, total: 4, complete: true });
+    expect(t.campaigns.c2).toMatchObject({ score: 2500, missions: 1, total: 3, complete: false });
+    expect(t.campaigns.c5.complete).toBe(false);
+    expect(t.overall).toEqual({ score: 24200, missions: 5 });
+    // 옛 저장(m1~m3)도 합산에 들어간다
+    expect(rankTotals(normalizeProgress({ v: 1, missions: { m1: rec(3000), m2: rec(4000) } })).overall).toEqual({ score: 7000, missions: 2 });
+    // 규칙의 범위 안: 미션 점수 ≤ 100000, 합산 ≤ 2000000
+    for (const m of MISSIONS) expect(referenceScore(m)).toBeLessThan(100000);
+    expect(MISSIONS.reduce((s, m) => s + referenceScore(m), 0)).toBeLessThan(2000000);
   });
 });
