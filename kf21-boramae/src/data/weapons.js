@@ -43,7 +43,23 @@ export const WEAPONS = {
     pool: 6, // 동시에 날아다닐 수 있는 발 수
     visual: { length: 5.2, radius: 0.24 }, // 눈에 띄도록 실물보다 크게
   },
+  bomb: {
+    id: 'bomb',
+    type: 'bomb',
+    name: '폭탄',
+    short: 'BMB',
+    cooldown: 0.6,
+    doorTime: 0.4, // 무장창이 열리는 시간(누른 뒤 이만큼 지나 떨어진다)
+    gravity: 9.8,
+    dropOffset: 1.4, // 기체 아래에서 분리
+    radius: 35, // 범위 피해 반경(m)
+    damage: 220, // 중심 피해. 명세의 150에서 올렸다: 150이면 hp 150인 레이더가 정확히 맞아야만 부서져서 폭탄이 무력했다
+    falloff: 0.8, // 반경 끝에서 피해가 이만큼 줄어든다(0.8 → 중심의 20%)
+    blastScale: 1.9,
+    pool: 6,
+    visual: { length: 2.2, radius: 0.34 },
+  },
 };
 
 /** 플레이어 무장 순서(F키로 순환) */
-export const LOADOUT = ['gun', 'missile'];
+export const LOADOUT = ['gun', 'missile', 'bomb']; // F키 순환 순서. 폭탄은 탄이 있는 미션에서만 나온다

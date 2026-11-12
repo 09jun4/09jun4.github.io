@@ -91,9 +91,9 @@ describe('점수·등급', () => {
     expect(gradeFor(m1, ref, false)).toBe(null); // 실패 시 등급 없음
   });
   it('미션 구성: 3·4·5대, 기준 시간 90·120·150초', () => {
-    expect(MISSIONS.map(missionEnemyCount)).toEqual([3, 4, 5]);
-    expect(MISSIONS.map((m) => m.parTime)).toEqual([90, 120, 150]);
-    expect(MISSIONS.map((m) => m.waves.length)).toEqual([1, 2, 3]);
+    expect(MISSIONS.slice(0, 3).map(missionEnemyCount)).toEqual([3, 4, 5]);
+    expect(MISSIONS.slice(0, 3).map((m) => m.parTime)).toEqual([90, 120, 150]);
+    expect(MISSIONS.slice(0, 3).map((m) => m.waves.length)).toEqual([1, 2, 3]);
   });
   it('betterGrade', () => {
     expect(betterGrade('A', 'S')).toBe('S');

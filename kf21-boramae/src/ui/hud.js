@@ -148,6 +148,7 @@ export class Hud {
       }
     }
     this._enemies(session, camera, W, H);
+    if (session.ground && session.ground.aliveCount > 0) this._ground(session, camera, W, H);
     if (player.alive && session.phase === PHASE.ACTIVE) this._weaponAim(session, camera, W, H);
     this._status(session, player, hpRatio, W, H, blink);
     this._notices(session, player, fb, low, W, H, blink);
@@ -161,6 +162,9 @@ export class Hud {
     const sx = Math.sin(t.bearing), sy = -Math.cos(t.bearing);
     const x = sx * W * THREAT.edgeX, y = sy * H * THREAT.edgeY;
     const fast = t.kind !== 'chase';
+    if (t.kind === 'missile' && Math.sin(this.time * 14) > 0) { // 미사일 접근: 화면 테두리 붉은 점멸
+      g.save(); g.strokeStyle = HUD.danger; g.globalAlpha = 0.55; g.lineWidth = 6; g.strokeRect(-W + 5, -H + 5, W * 2 - 10, H * 2 - 10); g.restore();
+    }
     const on = fast ? Math.sin(this.time * 16) > -0.3 : blink;
     g.save();
     g.translate(x, y);
@@ -274,6 +278,40 @@ export class Hud {
   }
 
   /** 적기 표시: 화면 안은 붉은 모서리 상자, 화면 밖은 가장자리 화살표(거리 숫자 없음) */
+  /** 지상 목표: 화면 안은 다이아몬드 + 거리, 화면 밖은 가장 가까운 3개만 가장자리 화살표 */
+  _ground(session, camera, W, H) {
+    const g = this.g;
+    const A = HUD.arrow;
+    const p = this._p || (this._p = { x: 0, y: 0, cx: 0, cy: 0 });
+    const gs = session.ground, from = session.player.flight.pos;
+    const off = this._off || (this._off = []);
+    off.length = 0;
+    for (let i = 0; i < gs.count; i++) {
+      const t = gs.targets[i];
+      if (!t.alive) continue;
+      const d = t.pos.distanceTo(from);
+      const front = this._project(t.pos, camera, p);
+      if (front && Math.abs(p.x) < W - 12 && Math.abs(p.y) < H - 12) {
+        const r = 9;
+        g.beginPath();
+        g.moveTo(p.x, p.y - r); g.lineTo(p.x + r, p.y); g.lineTo(p.x, p.y + r); g.lineTo(p.x - r, p.y); g.closePath();
+        this._line(HUD.ground, 1.4);
+        this._text(`${t.def.short} ${d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d / 10) * 10 + 'm'}`, p.x, p.y + r + 13, 10, HUD.ground, 'center', false, 600);
+      } else off.push({ d, cx: p.cx, cy: p.cy });
+    }
+    off.sort((a, b) => a.d - b.d);
+    for (let i = 0; i < Math.min(3, off.length); i++) {
+      let dx = off[i].cx, dy = -off[i].cy;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len; dy /= len;
+      const k = Math.min((W - A.margin - 16) / Math.max(Math.abs(dx), 1e-4), (H - A.margin - 16) / Math.max(Math.abs(dy), 1e-4));
+      const ax = dx * k, ay = clamp(dy * k, -H + A.keepOut, H - A.keepOut), s = A.size * 0.8;
+      g.beginPath();
+      g.moveTo(ax + dx * s, ay + dy * s); g.lineTo(ax - dy * s * 0.7, ay + dx * s * 0.7); g.lineTo(ax - dx * s, ay - dy * s); g.lineTo(ax + dy * s * 0.7, ay - dx * s * 0.7); g.closePath();
+      this._line(HUD.ground, 1.4);
+    }
+  }
+
   _enemies(session, camera, W, H) {
     const g = this.g;
     const A = HUD.arrow;
@@ -337,6 +375,17 @@ export class Hud {
     const cy = session.cursor.y / this.scale - H;
     const radiusPx = (Math.tan((ui.lockRadius * Math.PI) / 180) / Math.tan((camera.fov * Math.PI) / 360)) * H;
     g.beginPath();
+    if (ui.kind === 'bomb') { // 폭탄: 낙하 예측 지점(CCIP)에 십자 + 남은 낙하 시간
+      const bomb = session.weapons.current, p = this._p;
+      if (bomb.ccip && bomb.ccip.valid && this._project(bomb.ccip.pos, camera, p)) {
+        g.beginPath();
+        g.arc(p.x, p.y, 13, 0, Math.PI * 2);
+        g.moveTo(p.x - 22, p.y); g.lineTo(p.x - 5, p.y); g.moveTo(p.x + 5, p.y); g.lineTo(p.x + 22, p.y); g.moveTo(p.x, p.y - 22); g.lineTo(p.x, p.y - 5); g.moveTo(p.x, p.y + 5); g.lineTo(p.x, p.y + 22);
+        this._line(ui.ready ? HUD.ground : HUD.dim, 1.6);
+        this._text(`CCIP ${bomb.ccip.time.toFixed(1)}s`, p.x, p.y + 36, 10, HUD.ground, 'center', false, 600);
+      }
+      return;
+    }
     g.setLineDash([3, 9]);
     g.arc(cx, cy, radiusPx, 0, Math.PI * 2);
     this._line(HUD.faint, 1);

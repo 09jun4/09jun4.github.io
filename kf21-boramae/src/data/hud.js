@@ -10,6 +10,7 @@ export const HUD = {
   shadow: 'rgba(0, 20, 24, 0.55)',
   warn: '#ffb347',
   danger: '#ff5a4d',
+  ground: '#ffb347', // 지상 목표·폭탄
   ok: '#7dffa0',
   lock: { search: '#b8c4cc', tracking: '#ffa53a', locked: '#5dff8f' },
   enemy: '#ff5a4d',

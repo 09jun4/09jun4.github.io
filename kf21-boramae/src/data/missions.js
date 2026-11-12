@@ -37,6 +37,22 @@ const RAW = [
     waves: [{ count: 2, trigger: { type: 'start' } }, { count: 2, trigger: { type: 'remaining', value: 1 } }, { count: 1, trigger: { type: 'remaining', value: 2 } }],
     objectives: [{ id: 'o1', type: 'killAir', count: 5, points: 5000, label: '적기 격추' }],
   },
+  // ── C2 새벽 타격(새벽) ──
+  {
+    id: 'c2m1', campaign: 'c2', title: '눈을 멀게 하라', codename: 'OPERATION BLIND EYE', area: '내륙 방공 기지', map: { x: 0.55, y: 0.25 },
+    brief: '레이더 2기를 폭격하고 대공포를 제압하라.',
+    briefing: '동이 트기 전에 적 방공 레이더 2기를 파괴한다. 레이더 옆에 대공포 2문이 있다. 폭탄은 6발, F키로 무장을 바꾸고 지면의 예측 지점을 목표에 맞춰 떨어뜨려라. 대공포는 기관포로도 부술 수 있다.',
+    timeOfDay: 'dawn', terrain: 'inland', refTime: 150, weapons: { missile: 5, bomb: 6 },
+    groundTargets: [
+      { id: 'r1', type: 'radar', pos: [-900, -7200] }, { id: 'r2', type: 'radar', pos: [1100, -7900] },
+      { type: 'aa_gun', near: 'r1', count: 1 }, { type: 'aa_gun', near: 'r2', count: 1 },
+    ],
+    waves: [],
+    objectives: [
+      { id: 'o1', type: 'destroy', targetType: 'radar', count: 2, points: 1400, label: '레이더 파괴' },
+      { id: 'o2', type: 'destroy', targetType: 'aa_gun', count: 2, points: 800, required: false, label: '대공포 제압' },
+    ],
+  },
 ];
 
 /** 기본값 채우기: 캠페인 안 순번(order), 이전 코드가 읽는 이름(summary, parTime), 편대의 at → 시간 조건 */

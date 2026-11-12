@@ -17,6 +17,8 @@ import { KF21_POINTS } from '../entities/kf21-model.js';
 import { WeaponSystem } from '../combat/weapon-system.js';
 import '../combat/gun.js';
 import '../combat/missile.js';
+import '../combat/bomb.js';
+import { GroundSystem } from '../ground/ground-system.js';
 import { Projectiles } from '../combat/projectiles.js';
 import { damageEnemy, damagePlayer } from '../combat/damage.js';
 import { EnemyDirector } from '../ai/enemy-ai.js';
@@ -67,7 +69,7 @@ export class MissionSession {
     this.success = false;
     this.rng = makeRng(1);
 
-    this.stats = { kills: 0, gunShots: 0, gunHits: 0, missilesFired: 0, hitsTaken: 0, time: 0, clearTime: 0, weaponsUsed: [] };
+    this.stats = { groundKills: 0, bombsDropped: 0, kills: 0, gunShots: 0, gunHits: 0, missilesFired: 0, hitsTaken: 0, time: 0, clearTime: 0, weaponsUsed: [] };
     // HUD가 읽는 순간 연출 값(초 단위 타이머 / 0~1 세기)
     this.feedback = { hit: 0, hitWarn: 0, kill: 0, wave: 0, switched: 0, flash: 0 }; // flash: 폭발 섬광(화면 가장자리)
     this.cursor = { x: this.viewport.w / 2, y: this.viewport.h / 2 };
@@ -99,9 +101,11 @@ export class MissionSession {
     }
     this.damageTimer = 0;
     // 위협 경고: 적기 기관포·추격(+ 적 미사일 자리). HUD가 this.threat.state를 읽는다
-    this.enemyMissiles = []; // 적 미사일은 꺼져 있다(missileEnabled: false). 켜면 여기에 넣는다
+    this.ground = new GroundSystem(scene); // 지상 목표·대공포·SAM
+    this.ground.onDestroyed = (t) => { this.stats.groundKills++; this.engine.groundDestroyed(t.type); this.feedback.kill = HUD_FEEDBACK.killNotice; this._checkCleared(); };
+    this.enemyMissiles = this.ground.sams; // 적 미사일은 SAM만 쓴다(적기 미사일은 꺼져 있다)
     this.threat = new ThreatMonitor(THREAT).addSource(enemyGunSource(this.enemies.list, THREAT));
-    if (this.enemyCfg.missileEnabled) this.threat.addSource(enemyMissileSource(this.enemyMissiles));
+    this.threat.addSource(enemyMissileSource(this.enemyMissiles));
     // 피격 흔적(총알 구멍·그을음)
     this.decals = createDecals(DECALS);
     player.root.add(this.decals.mesh);
@@ -143,6 +147,8 @@ export class MissionSession {
     this.ctx = {
       player,
       enemies: this.enemies.list,
+      ground: this.ground,
+      origin: world.origin,
       scene,
       fx: this.fx,
       projectiles: this.projectiles,
@@ -190,6 +196,8 @@ export class MissionSession {
     this.collisionCooldown = 0;
     this.fx.clear();
     this.weapons.reset();
+    this.ground.clear();
+    this.stats.groundKills = 0; this.stats.bombsDropped = 0;
     this.world.resetOrigin();
     const s = this.stats;
     s.kills = 0; s.gunShots = 0; s.gunHits = 0; s.missilesFired = 0; s.hitsTaken = 0; s.time = 0; s.clearTime = 0;
@@ -301,6 +309,9 @@ export class MissionSession {
     this.rng = makeRng(seed);
     this._resetWorld();
     this.player.visual.canopy = 0; // 메뉴 시네마틱에서 열려 있던 캐노피를 닫는다
+    this.weapons.configure(mission.weapons);
+    this.weapons.reset();
+    this.ground.reset(mission, this.rng, this.world.look.lights);
     const ground = AIRBASE.height + GEAR_HEIGHT + 0.5;
     this.player.reset({ yaw: 0, y: ground });
     this._onMissionStart();
@@ -806,6 +817,7 @@ export class MissionSession {
       this.weapons.update(dt, this.ctx, trigger);
       if (!debugState.freezeEnemies && !debugState.passiveEnemies) this.director.step(dt, this.ctx);
       this._stepEnemies(dt);
+      this.ground.step(dt, this.ctx);
       this.projectiles.step(dt, this.ctx);
       this.tutorial.update(dt, this);
       this.threat.update(player);
@@ -891,6 +903,7 @@ export class MissionSession {
     for (const e of this.enemies.list) e.shift(dx, dz);
     for (const w of this.wrecks) { w.group.position.x += dx; w.group.position.z += dz; }
     this.projectiles.shift(dx, dz);
+    this.ground.shift(dx, dz);
     this.weapons.shift(dx, dz);
     this.rec.shift(dx, dz);
   }
@@ -914,6 +927,9 @@ export class MissionSession {
     this.fx.update(fxDt, WEAPONS.gun.tracer, this.camera);
     if (this.fx.gpu) this.fx.gpu.update(fxDt, this.camera, this.world.origin, this.gpuFrame.depth, this.gpuFrame.w, this.gpuFrame.h);
     this._renderProjectiles(alpha);
+    this.ground.render(this.camera);
+    const bomb = this.weapons.byId('bomb');
+    if (bomb && bomb.marker) bomb.updateMarker(this.camera);
     this.fx.endBolts();
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
     if (this.feedback.flash > 0) this.feedback.flash = Math.max(0, this.feedback.flash - frameDt * HUD_FEEDBACK.flashFade);

@@ -83,7 +83,7 @@ export function createMissile(cfg) {
     },
 
     reset() {
-      this.ammo = cfg.ammo; // 미션 시작 시 가득
+      this.ammo = this.ammoMax ?? cfg.ammo; // 미션 시작 시 가득
       this.cooldown = 0;
       this.prevTrigger = false;
       lock.reset();
@@ -201,9 +201,13 @@ export function createMissile(cfg) {
       return n;
     },
 
+    /** 미션별 탄 수 */
+    setAmmo(n) { this.ammoMax = n; this.ammo = n; },
+
     uiState() {
       const u = this._ui;
       u.ammo = this.ammo;
+      u.ammoMax = this.ammoMax ?? cfg.ammo;
       u.lockState = lock.state;
       u.lockedFor = lock.lockedFor;
       u.lockProgress = lock.progress;

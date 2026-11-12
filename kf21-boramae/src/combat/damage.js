@@ -10,6 +10,7 @@ import { debugState } from '../core/debug.js';
  */
 export function damageEnemy(ctx, enemy, amount, source) {
   if (!enemy.alive) return false;
+  if (enemy.ground) return ctx.ground.damage(enemy, amount, source === 'gun' || source === 'bomb' ? source : 'missile', ctx); // 지상 목표
   enemy.hp -= amount;
   ctx.onEnemyHit(enemy, source);
   if (enemy.hp > 0) {

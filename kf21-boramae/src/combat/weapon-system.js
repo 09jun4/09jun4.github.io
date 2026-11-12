@@ -51,9 +51,18 @@ export class WeaponSystem {
     for (const w of this.weapons) w.reset();
   }
 
+  /** 미션별 탄 수: { missile: 5, bomb: 8 } */
+  configure(counts) {
+    for (const w of this.weapons) if (w.setAmmo && counts && counts[w.id] != null) w.setAmmo(counts[w.id]);
+  }
+
   /** 다음 무장으로 전환 */
   next(ctx) {
-    this.index = (this.index + 1) % this.weapons.length;
+    // 이 미션에 없는 무장(폭탄 0발)은 건너뛴다
+    for (let n = 0; n < this.weapons.length; n++) {
+      this.index = (this.index + 1) % this.weapons.length;
+      if (this.current.available !== false) break;
+    }
     ctx.audio.play('weapon_switch');
     return this.current;
   }

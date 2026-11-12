@@ -46,6 +46,16 @@ export function createGun(cfg) {
         const t = aimHit(a.origin.x, a.origin.y, a.origin.z, a.dir.x, a.dir.y, a.dir.z, e.pos.x, e.pos.y, e.pos.z, Math.max(cfg.hitRadius, e.cfg.hitRadius), assistTan, cfg.range * 1.2);
         if (t >= 0 && t < bestT) { bestT = t; best = e; }
       }
+      // 지상 목표도 같은 방식으로 조준한다(피해 규칙은 ground-system이 정한다)
+      if (ctx.ground) {
+        const list = ctx.ground.targets;
+        for (let i = 0; i < ctx.ground.count; i++) {
+          const e = list[i];
+          if (!e.alive || e.pos.distanceToSquared(from) > range2) continue;
+          const t = aimHit(a.origin.x, a.origin.y, a.origin.z, a.dir.x, a.dir.y, a.dir.z, e.pos.x, e.pos.y, e.pos.z, e.cfg.hitRadius, assistTan, cfg.range * 1.2);
+          if (t >= 0 && t < bestT) { bestT = t; best = e; }
+        }
+      }
       this.target = best;
       this.targetDist = best ? bestT : 0;
       return best;
