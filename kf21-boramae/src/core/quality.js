@@ -35,7 +35,7 @@ export class QualityManager {
   pixelRatio() {
     const dpr = window.devicePixelRatio || 1;
     let p = this.cfg.pixelRatio;
-    if (this.isMobile()) p = Math.min(p, MOBILE.pixelRatioCap[this.tier === 'high' ? 'high' : 'low']); // 모바일 해상도 배율 상한
+    if (this.isMobile()) p = Math.min(p, MOBILE.pixelRatioCap[this.tier === 'low' ? 'low' : 'high']); // 모바일 해상도 배율 상한
     return p >= 1 ? Math.min(dpr, p) : p;
   }
 
@@ -52,8 +52,7 @@ export class QualityManager {
    * @param {boolean} manual 사용자가 직접 골랐으면 true → 자동 선택(벤치마크)을 끈다
    */
   setQuality(name, manual = true) {
-    // 모바일에는 최고가 없고, 높음은 벤치마크를 통과한 기기만
-    if (this.isMobile() && (name === 'ultra' || (name === 'high' && !this.settings.get('mobileHighOk')))) name = 'low';
+    // 모바일도 모든 프리셋을 직접 고를 수 있다(기본은 낮음, 느리면 자동으로 내려간다)
     if (!PRESETS[name] || name === this.name) {
       if (manual) this.settings.set('benchmarked', true);
       return Promise.resolve();

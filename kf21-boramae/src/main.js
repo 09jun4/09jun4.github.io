@@ -74,7 +74,7 @@ const inputHooks = {
   onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); hud.touch = input.touchMode; hud.resize(window.innerWidth, window.innerHeight); if (typeof touch !== 'undefined') touch.refresh(); },
   onRecalibrate: () => { if (window.__kf21Touch) window.__kf21Touch.recalibrate(); },
   onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작하면 튜토리얼이 나와요.'); },
-  mobileQualityLimit: true,
+  mobileQualityLimit: false, // 모바일에서도 높음·최고를 고를 수 있다
 };
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 visuals.enemies = session.enemies;
@@ -455,8 +455,7 @@ resize();
 // 주소의 quality=low|high|ultra: 이번 실행만 그 프리셋으로 시작한다(자동플레이 아티팩트가 쓴다). 저장된 설정은 바꾸지 않는다
 const urlQuality = q.get('quality');
 if (PRESETS[urlQuality]) {
-  quality.name = input.touchMode && urlQuality === 'ultra' ? 'high' : urlQuality;
-  if (input.touchMode && quality.name === 'high' && !settings.get('mobileHighOk')) quality.name = 'low';
+  quality.name = urlQuality;
   quality.urlLocked = true;
 } else if (!settings.get('benchmarked')) {
   loading.show('그래픽 성능 확인 중');
