@@ -272,3 +272,48 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 #app.touch .tutorial .tut-text { font-size: 13px; }
 .replay-tag { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 16px; background: rgba(8, 14, 22, 0.78); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; font-size: 13px; color: #f2f6fa; z-index: 6; pointer-events: none; white-space: nowrap; }
 .replay-tag b { margin-right: 10px; color: #ff6b5e; letter-spacing: 0.12em; }
+
+/* ── 낮은 가로 화면(휴대폰을 눕힌 크기, 640×360까지): 두 칸을 유지하고 여백·글자를 줄인다. 넘치면 패널 안에서 스크롤 ── */
+@media (max-height: 480px) and (orientation: landscape) {
+  .screen { padding: 8px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .bar { margin-bottom: 6px; gap: 10px; }
+  .bar h2 { font-size: 18px; }
+  .bar .btn { padding: 6px 10px; }
+  .select-body { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 8px; overflow: visible; }
+  .map-panel { display: block; padding: 8px; overflow: auto; }
+  .opmap { display: none; }
+  .mission-list { grid-template-columns: 1fr; margin-top: 0; gap: 6px; }
+  .select .card { overflow: auto; -webkit-overflow-scrolling: touch; }
+  .select .card > * { zoom: 0.82; }
+  #app .select .card .btn { min-height: 56px; } /* 축소 뒤에도 44px 이상 */
+  .brief-panel { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .brief-main, .brief-side { padding: 12px 14px; }
+  .brief-title { font-size: 22px; }
+  .brief-text { margin: 8px 0; font-size: 13px; line-height: 1.5; }
+  .brief-side h3 + ul { margin-bottom: 10px; }
+  .pause-cols, .result-body { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; }
+  .dialog { padding: 10px 14px; -webkit-overflow-scrolling: touch; }
+  .dialog h2 { font-size: 18px; margin-bottom: 8px; }
+  .dialog .result-title { font-size: 22px; margin-bottom: 4px; }
+  .eyebrow { margin-bottom: 2px; font-size: 11px; }
+  .facts > div { padding: 3px 0; font-size: 13px; }
+  .scorebox { padding: 6px 10px; gap: 0; }
+  .score { font-size: 28px; }
+  .grade.big { margin-top: 2px; min-width: 56px; font-size: 30px; }
+  .result-note { margin-top: 4px; min-height: 0; font-size: 12px; }
+  .card-actions { margin-top: 8px; gap: 6px; }
+  .card-actions .btn { padding: 6px 12px; font-size: 13px; }
+  .title { font-size: 46px; }
+  .title span { margin-top: 6px; font-size: 18px; }
+  .menu-buttons { gap: 8px; }
+  .menu-buttons .btn { padding: 8px 18px; font-size: 15px; }
+  .menu-foot { display: none; }
+  /* 일시정지: 설정은 안에서 스크롤, 버튼은 항상 아래에 보인다 */
+  .pause .dialog { display: flex; flex-direction: column; overflow: hidden; }
+  .pause .pause-cols { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+  .pause .card-actions { flex: none; }
+}
+#app.touch .keys[data-keys="pc"], #app:not(.touch) .keys[data-keys="mobile"] { display: none; }
+.keys[data-keys="mobile"] kbd { white-space: nowrap; }
+
+#app.touch .btn kbd, #app.touch .field[data-keys-only="pc"] { display: none; }

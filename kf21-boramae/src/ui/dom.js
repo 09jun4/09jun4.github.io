@@ -19,3 +19,8 @@ export const fmtScore = (n) => Math.round(n).toLocaleString('en-US');
 export function controlsHtml(controls) {
   return controls.map((c) => `<li>${c.keys.map((k) => `<kbd>${esc(k)}</kbd>`).join('')}<span>${esc(c.text)}</span></li>`).join('');
 }
+
+/** 조작 안내 두 벌(PC·모바일)을 함께 넣는다. 어느 쪽이 보일지는 #app.touch 여부로 CSS가 정한다 */
+export function controlsBothHtml(pc, mobile) {
+  return `<ul class="keys" data-keys="pc">${controlsHtml(pc)}</ul><ul class="keys" data-keys="mobile">${controlsHtml(mobile)}</ul>`;
+}

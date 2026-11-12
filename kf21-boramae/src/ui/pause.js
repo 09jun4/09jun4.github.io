@@ -1,7 +1,7 @@
 // 일시정지(ESC): 설정 + 재시작 + 메인 메뉴. 게임 시간은 완전히 멈추고, 계속하면 바로 이어진다.
-import { el, controlsHtml } from './dom.js';
+import { el, controlsBothHtml } from './dom.js';
 import { settingsFields, bindSettings } from './settings-panel.js';
-import { CONTROLS } from '../data/controls.js';
+import { CONTROLS, CONTROLS_MOBILE } from '../data/controls.js';
 
 export function createPause(actions, settings, quality, hooks) {
   const root = el(`
@@ -13,7 +13,7 @@ export function createPause(actions, settings, quality, hooks) {
             ${settingsFields()}
           </div>
           <div>
-            <h3>조작</h3><ul class="keys">${controlsHtml(CONTROLS)}</ul>
+            <h3>조작</h3>${controlsBothHtml(CONTROLS, CONTROLS_MOBILE)}
           </div>
         </div>
         <div class="card-actions">

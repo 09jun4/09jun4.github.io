@@ -8,7 +8,7 @@ import { isMobileMode } from '../core/device.js';
 export function settingsFields() {
   const r = SETTING_RANGES.mouseSensitivity;
   return `
-    <div class="field">
+    <div class="field" data-keys-only="pc">
       <label for="set-sens">마우스 감도 <output data-out="sens"></output></label>
       <input id="set-sens" type="range" min="${r.min}" max="${r.max}" step="${r.step}" data-set="mouseSensitivity">
       <p class="hint">조준 커서가 마우스보다 얼마나 빨리 움직이는지예요(화면 가운데 기준).</p>

@@ -1,7 +1,7 @@
 // 미션 선택: 작전 지도(왼쪽) + 미션 카드(오른쪽) + 조작 키 안내(항상 표시).
-import { el, esc, fmtScore, fmtTime, controlsHtml } from './dom.js';
+import { el, esc, fmtScore, fmtTime, controlsBothHtml } from './dom.js';
 import { MISSIONS, missionEnemyCount } from '../data/missions.js';
-import { CONTROLS } from '../data/controls.js';
+import { CONTROLS, CONTROLS_MOBILE } from '../data/controls.js';
 
 // 단순화한 작전 지도(400×300). 가운데 땅덩이를 두고 동·남·서쪽 바다에 작전 구역이 있다.
 const LAND = '176,22 214,30 236,58 250,96 246,128 262,160 252,196 228,226 196,236 170,222 160,190 142,170 150,138 136,110 148,74 160,44';
@@ -41,7 +41,7 @@ export function createMissionSelect(actions, save) {
         <div class="panel map-panel">${mapSvg()}<ol class="mission-list"></ol></div>
         <div class="panel card"></div>
       </div>
-      <div class="panel controls"><h3>조작</h3><ul class="keys">${controlsHtml(CONTROLS)}</ul></div>
+      <div class="panel controls"><h3>조작</h3>${controlsBothHtml(CONTROLS, CONTROLS_MOBILE)}</div>
     </section>`);
   const card = root.querySelector('.card');
   const list = root.querySelector('.mission-list');

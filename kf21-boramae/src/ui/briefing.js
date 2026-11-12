@@ -1,7 +1,7 @@
 // 브리핑: 목표, 적기 수, 상황 설명, "출격" 버튼. 튜토리얼 대신 조작 키 요약을 함께 보여 준다.
-import { el, esc, controlsHtml } from './dom.js';
+import { el, esc, controlsBothHtml } from './dom.js';
 import { missionEnemyCount } from '../data/missions.js';
-import { CONTROLS, TIPS } from '../data/controls.js';
+import { CONTROLS, CONTROLS_MOBILE, TIPS } from '../data/controls.js';
 import { WEAPONS, LOADOUT } from '../data/weapons.js';
 
 export function createBriefing(actions) {
@@ -10,7 +10,7 @@ export function createBriefing(actions) {
       <div class="panel brief-panel">
         <div class="brief-main"></div>
         <aside class="brief-side">
-          <h3>조작</h3><ul class="keys">${controlsHtml(CONTROLS)}</ul>
+          <h3>조작</h3>${controlsBothHtml(CONTROLS, CONTROLS_MOBILE)}
           <h3>알아 두기</h3><ul class="tips">${TIPS.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
         </aside>
       </div>

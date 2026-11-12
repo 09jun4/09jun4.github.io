@@ -19,7 +19,8 @@ async function fly(page, label, maxSeconds = 240) {
   let last = null;
   let nextLog = 15;
   while ((Date.now() - t0) / 1000 < maxSeconds) {
-    const s = await page.evaluate(() => ({ st: window.__debug.state(), f: window.__debug.flight(), en: window.__debug.enemies() }));
+    // 헤드리스에서는 포인터락 상대 이동이 믿을 만하지 않아, 잠금 없이 일반 커서로 조준하는 폴백 경로로 돌린다
+    const s = await page.evaluate(() => { const i = window.__debug.session().input; if (i.lockWanted) i.setLockWanted(false); return { st: window.__debug.state(), f: window.__debug.flight(), en: window.__debug.enemies() }; });
     last = s;
     if (s.st.state !== 'playing') break;
     if (process.env.VERBOSE && s.st.stats.time > nextLog) { nextLog += 15; console.log(`  ${label} t=${s.st.stats.time.toFixed(0)} hp=${s.st.hp} kills=${s.st.stats.kills} shots=${s.st.stats.gunShots} hits=${s.st.stats.gunHits} taken=${s.st.stats.hitsTaken} ` + s.en.map((e) => `${e.state[0]}${Math.round(e.dist)}/${Math.round(e.bearing / DEG)}`).join(' ')); }
