@@ -17,7 +17,7 @@
     .filter(function (w) { return w.url !== FEATURED && w.url !== '/f1-champion/'; });
   $('#cards').innerHTML = works.map(function (w, i) {
     return '<a class="card rv" href="' + esc(w.url) + '" data-tilt data-cursor>' +
-      '<div class="media">' + (w.thumb ? '<img src="' + esc(w.thumb) + '" alt="' + esc(w.title) + ' screenshot" width="1200" height="900" loading="lazy">' : '') + '</div>' +
+      '<div class="media">' + (w.thumb ? '<img src="/' + esc(w.thumb) + '" alt="' + esc(w.title) + ' screenshot" width="1200" height="900" loading="lazy">' : '') + '</div>' +
       '<div class="meta"><span class="idx">' + String(i + 1).padStart(2, '0') + '</span><h3>' + esc(w.title) + '</h3>' +
       '<p>' + esc(w.desc || '') + '</p><span class="go">Open →</span></div></a>';
   }).join('');
@@ -50,7 +50,7 @@
   });
 
   // ---------- 디자인 전환 (새 디자인 ↔ 변경 전 디자인) ----------
-  $('#design').addEventListener('click', function () { try { localStorage.setItem('design', 'classic'); } catch (e) {} location.href = 'classic/'; });
+  $('#design').addEventListener('click', function () { location.href = '/'; });
 
   // ---------- 3D 장면 (실패하면 CSS 구체로 대체) ----------
   var scene = null, canvas = $('#gl'), orb = $('#orb'), sceneOK = false;
