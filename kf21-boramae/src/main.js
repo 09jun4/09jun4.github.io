@@ -33,6 +33,7 @@ import { createOnline } from './auth/online.js';
 import { createLoading } from './ui/loading.js';
 import { runBenchmark } from './core/benchmark.js';
 import { isMobileMode } from './core/device.js';
+import { createTouchControls } from './ui/touch-controls.js';
 import { PostFX } from './world/post.js';
 import { Autopilot } from './core/autopilot.js';
 import { createAutoplayPanel } from './ui/autoplay-panel.js';
@@ -67,7 +68,7 @@ input.setSettings(settings);
 input.touchMode = isMobileMode(settings.get('inputMode'));
 input.attach(stage);
 const inputHooks = {
-  onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); },
+  onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); hud.touch = input.touchMode; hud.resize(window.innerWidth, window.innerHeight); if (typeof touch !== 'undefined') touch.refresh(); },
   onRecalibrate: () => { if (window.__kf21Touch) window.__kf21Touch.recalibrate(); },
   onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작할 때 튜토리얼이 나와요.'); },
   mobileQualityLimit: true,
@@ -75,6 +76,8 @@ const inputHooks = {
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 visuals.enemies = session.enemies;
 const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
+hud.touch = input.touchMode;
+hud.resize(window.innerWidth, window.innerHeight);
 
 function resize() {
   const w = window.innerWidth;
@@ -184,6 +187,7 @@ fsm.add(STATE.PLAYING, {
     }
     input.reset();
     input.centerCursor();
+    touch.onMissionStart();
     // 미션 중에는 포인터락(PC). 자동플레이·모바일에서는 쓰지 않는다. 잠글 수 없으면 일반 커서 조준으로 폴백한다
     input.setLockWanted(!autopilot.enabled && !input.touchMode);
     screens.show(null);
@@ -191,7 +195,17 @@ fsm.add(STATE.PLAYING, {
 });
 fsm.add(STATE.PAUSED, { enter: () => { input.reset(); input.setLockWanted(false); screens.show('pause'); } });
 fsm.add(STATE.RESULT, { enter: (payload) => { input.setLockWanted(false); screens.show('result', payload); } });
+const touch = createTouchControls({
+  parent: appEl, input, settings,
+  actions: {
+    weapon: () => session.switchWeapon(), view: () => session.toggleView(), pause: () => pause(), skip: () => session.skipTakeoff(),
+    takeoffTap: () => { if (session.phase === 'takeoff') session.skipTakeoff(); },
+    portrait: () => pause(), // 세로로 들면 게임을 멈추고 안내를 띄운다
+  },
+});
+window.__kf21Touch = touch;
 fsm.onChange((name) => {
+  touch.setVisible(name === STATE.PLAYING);
   hud.setVisible(name === STATE.PLAYING || name === STATE.PAUSED);
   appEl.classList.toggle('playing', name === STATE.PLAYING);
   appEl.dataset.state = name;
@@ -288,6 +302,7 @@ const loop = new GameLoop({
   render(alpha, frameDt) {
     const paused = fsm.name === STATE.PAUSED;
     input.poll(frameDt);
+    touch.update(frameDt, { takeoff: session.phase === 'takeoff' });
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     visuals.animate(player.time, paused ? 0 : frameDt);
     renderer.info.reset();

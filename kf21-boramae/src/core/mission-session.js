@@ -488,8 +488,9 @@ export class MissionSession {
     }
     if (this.input.touchMode) { // 터치: 조준 영역을 누르고 있으면 그 지점, 아니면 화면 중앙
       const t = this.input.touchAim;
-      this.cursor.x = t.active ? t.x : w / 2;
-      this.cursor.y = t.active ? t.y : h / 2;
+      const use = t.active || t.released; // 뗀 바로 그 스텝까지는 마지막 위치를 유지해야 락온이 풀리지 않고 발사된다
+      this.cursor.x = use ? t.x : w / 2;
+      this.cursor.y = use ? t.y : h / 2;
       return;
     }
     // 포인터락이면 입력 계층이 이동량으로 이미 가상 조준점을 옮겨 놓았다. 잠금이 없을 때는 중앙 기준 배율

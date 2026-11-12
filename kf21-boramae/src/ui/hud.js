@@ -26,6 +26,7 @@ export class Hud {
     this.time = 0;
     this.visible = false;
     this.lastDamage = -1;
+    this.touch = false; // 모바일 배치(체력을 위로, 글자 크기 하한)
     this.resize(window.innerWidth, window.innerHeight);
   }
 
@@ -35,7 +36,7 @@ export class Hud {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.round(w * this.dpr);
     this.canvas.height = Math.round(h * this.dpr);
-    this.scale = clamp(Math.min(w / HUD.baseWidth, h / HUD.baseHeight), HUD.minScale, HUD.maxScale);
+    this.scale = clamp(Math.min(w / HUD.baseWidth, h / HUD.baseHeight), this.touch ? HUD.touchMinScale : HUD.minScale, HUD.maxScale);
   }
 
   setVisible(on) {
@@ -65,6 +66,7 @@ export class Hud {
 
   _text(str, x, y, size, color, align = 'left', ko = false, weight = 500) {
     const g = this.g;
+    if (this.touch) size = Math.max(size, HUD.touchMinFont / this.scale); // 모바일 최소 글자 크기
     g.font = `${weight} ${size}px ${ko ? HUD.fontKo : HUD.font}`;
     g.textAlign = align;
     g.textBaseline = 'middle';
@@ -352,7 +354,8 @@ export class Hud {
   _status(session, player, hpRatio, W, H, blink) {
     const g = this.g;
     // 체력(왼쪽 아래)
-    const hx = -W + 36, hy = H - 44;
+    const hx = this.touch ? -W + 20 : -W + 36;
+    const hy = this.touch ? -H + 58 : H - 44; // 모바일: 왼쪽 아래는 조이스틱 자리라 체력을 위로
     const hpColor = hpRatio <= HUD.lowHp ? (blink ? HUD.danger : HUD.warn) : HUD.color;
     this._text(TEXT.hp, hx, hy - 18, 11, HUD.dim);
     this._text(String(Math.ceil(player.hp)), hx + 190, hy - 18, 13, hpColor, 'right', false, 600);

@@ -19,6 +19,8 @@ export const HUD = {
   ladder: { stepDeg: 10, pxPerDeg: 9, halfWidth: 78, gap: 26, range: 26 },
   tape: { height: 220, offsetX: 300, tick: 9 },
   // 1인칭 HUD 유리판에 맺히는 기호(가상 면은 ±12° = 24° 폭)
+  touchMinScale: 0.9, // 모바일: 가로 640×360에서도 읽히도록 스케일 하한을 높인다
+  touchMinFont: 11, // 모바일: 화면 글자 최소 크기(css px)
   glass: { spanDeg: 24, ladderScale: 0.55, tapeX: 84, tapeScale: 0.6 },
   arrow: { margin: 46, size: 14, keepOut: 96 }, // keepOut: 위·아래 상태 표시 줄을 가리지 않게
   lowHp: 0.3,
