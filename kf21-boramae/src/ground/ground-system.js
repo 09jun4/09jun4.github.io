@@ -6,6 +6,7 @@ import { DEG, clamp, lerp } from '../core/math.js';
 import { TARGETS, GROUND_RULES, AA, SAM } from '../data/targets.js';
 import { getGroundHeight } from '../world/ground.js';
 import { damagePlayer } from '../combat/damage.js';
+import { hitFactor } from '../ai/enemy-ai.js';
 import { FX } from '../data/fx.js';
 import { PALETTE } from '../data/palette.js';
 
@@ -246,7 +247,7 @@ export class GroundSystem {
       const time = dist / AA.bulletSpeed;
       _aim.copy(player.flight.pos).addScaledVector(player.velocity, time);
       // 산포: 일부만 기체 근처로, 나머지는 넓게 빗나간다
-      const spread = this.rng() < AA.hitChance ? AA.nearSpread * this.rng() : lerp(AA.wideSpread[0], AA.wideSpread[1], this.rng());
+      const spread = this.rng() < AA.hitChance * hitFactor(ctx, AA.evasion) ? AA.nearSpread * this.rng() : lerp(AA.wideSpread[0], AA.wideSpread[1], this.rng());
       const a = this.rng() * Math.PI * 2, u = this.rng() * 2 - 1, r = Math.sqrt(1 - u * u);
       _aim.x += Math.cos(a) * r * spread; _aim.y += u * spread; _aim.z += Math.sin(a) * r * spread;
       for (let g = 0; g < guns; g++) {

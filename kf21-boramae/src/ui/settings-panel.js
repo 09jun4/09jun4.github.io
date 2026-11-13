@@ -38,7 +38,7 @@ export function settingsFields() {
       <label for="set-stick">조이스틱 감도 <output data-out="stickSens"></output></label>
       <input id="set-stick" type="range" min="0.5" max="2" step="0.05" data-set="stickSens">
       <div class="field row">
-        <label><input type="checkbox" data-set="gyro"> 자이로(기울기) 조종</label>
+        <label><input type="checkbox" data-set="gyro"> 자이로(기울기) 조종: 기울여서 좌우, 조이스틱은 상하만</label>
         <label><input type="checkbox" data-set="gyroInvert"> 자이로 상하 반전</label>
       </div>
       <label for="set-gyro">자이로 감도 <output data-out="gyroSens"></output></label>

@@ -178,6 +178,7 @@ export function createTouchControls({ parent, input, settings, actions }) {
     /** 렌더 프레임마다: 자이로 값 평활, 건너뛰기 버튼 표시 */
     update(dt, { takeoff }) {
       skipBtn.hidden = !(input.touchMode && takeoff);
+      input.gyroOn = !!(gy.listening && settings.get('gyro') && input.touchMode);
       if (gy.listening && settings.get('gyro')) {
         const max = INPUT.gyro.maxTiltDeg;
         const k = settings.get('gyroSens') * (settings.get('gyroInvert') ? -1 : 1);

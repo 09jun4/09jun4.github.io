@@ -21,6 +21,7 @@ export const GROUND_RULES = {
 export const AA = {
   range: 1800, burst: 4, burstGap: 0.12, interval: 1.7, firstShot: [1, 2.5],
   bulletSpeed: 620, bulletLife: 3.2, damage: 4,
+  evasion: { cut: 0.65, mobile: 0.55 }, // 회피기동·모바일 보정(적기와 같은 규칙)
   hitChance: 0.25, nearSpread: 5, wideSpread: [28, 80], // 네 발 중 한 발꼴로만 기체 근처를 지난다
 };
 

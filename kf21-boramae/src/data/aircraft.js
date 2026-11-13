@@ -71,6 +71,7 @@ export const KF21 = {
 
   // 모델 연출
   model: {
+    chaseScale: 1.45, // 3인칭 미션 비행 중 내 기체 확대 배율
     surfaces: { tau: 0.09, elevator: 22, aileron: 24, rudder: 22, stabRollMix: 0.35 },
     // 하이폴리 모델의 작동 부품
     hi: { brakeFrom: 22, brakeRange: 18, flapAngle: 24, flapTau: 0.7, brakeAngle: 48, brakeTau: 0.35, canopyAngle: 36, nozzleClosed: 0.24, nozzleOpen: 0.02, strobePeriod: 1.1, strobeOn: 0.09 },

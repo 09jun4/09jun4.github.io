@@ -17,6 +17,7 @@ export class Input {
     this.steer = { x: 0, y: 0 }; // 우클릭 조향 입력(평활 후)
     this.stick = { x: 0, y: 0 }; // 가상 조이스틱(touch-controls가 채운다)
     this.gyro = { x: 0, y: 0 }; // 기울기(touch-controls가 채운다)
+    this.gyroOn = false; // 자이로 조종이 켜져 있고 센서가 듣는 중인가(touch-controls가 정한다)
     this.touchAim = { active: false, x: 0, y: 0, fire: false };
     this._acc = { x: 0, y: 0 };
     this._last = { x: 0, y: 0, has: false };
@@ -157,8 +158,10 @@ export class Input {
       out.turn = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       return out;
     }
-    out.pitch = clamp(this.steer.y + this.stick.y + this.gyro.y, -1, 1);
-    out.turn = clamp(this.steer.x + this.stick.x + this.gyro.x, -1, 1);
+    // 자이로 조종을 켜면 융합 방식: 조이스틱은 상하(기수)만, 좌우(선회)는 기울기만 쓴다. 끄면 조이스틱이 둘 다 맡는다
+    const fuse = this.gyroOn;
+    out.pitch = clamp(this.steer.y + this.stick.y, -1, 1);
+    out.turn = clamp(this.steer.x + (fuse ? this.gyro.x : this.stick.x), -1, 1);
     return out;
   }
 

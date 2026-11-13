@@ -62,7 +62,7 @@ export class Enemy {
     this.speedScale = pers.speed; this.turnScale = pers.turn;
     this.minSpeed = roleDef.cruise ? roleDef.speed * 0.9 : base.flight.speedMin;
     if (roleDef.cruise) { this.speed = roleDef.speed; this.wantSpeed = roleDef.speed; }
-    this.group.scale.setScalar(roleDef.scale || 1);
+    this.group.scale.setScalar(this.baseCfg.modelScale * (roleDef.scale || 1));
     this.phase = 0;
   }
 
@@ -70,7 +70,7 @@ export class Enemy {
     this.alive = true;
     this.cfg = this.baseCfg; this.role = 'fighter'; this.roleDef = null; this.pers = null; this.maxHp = this.cfg.hp;
     this.speedScale = 1; this.turnScale = 1; this.minSpeed = this.cfg.flight.speedMin; this.phase = 0;
-    this.group.scale.setScalar(1);
+    this.group.scale.setScalar(this.baseCfg.modelScale);
     this.hp = this.cfg.hp;
     this.pos.set(x, y, z);
     this.yaw = yaw;

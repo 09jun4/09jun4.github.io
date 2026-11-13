@@ -133,10 +133,15 @@ describe('적 AI', () => {
     expect(rate).toBeGreaterThan(0.12);
     expect(rate).toBeLessThan(0.6);
   });
-  it('(c) 무한 선회로는 일방적으로 피할 수 없다: 계속 돌기만 해도 맞는다', () => {
-    const sim = makeSim(MISSIONS[2], { pitch: 0, turn: 1 });
-    sim.run(90);
-    expect(sim.log.hits).toBeGreaterThan(2);
+  it('(c) 회피기동: 계속 선회하면 직진할 때보다 덜 맞지만, 완전히 피할 수는 없다', () => {
+    const turn = makeSim(MISSIONS[2], { pitch: 0, turn: 1 });
+    turn.run(90);
+    const straight = makeSim(MISSIONS[2], { pitch: 0, turn: 0 });
+    straight.run(90);
+    const rt = turn.log.hits / Math.max(1, turn.log.shots), rs = straight.log.hits / Math.max(1, straight.log.shots);
+    console.log('hit rate turning', rt.toFixed(3), 'straight', rs.toFixed(3));
+    expect(turn.log.hits).toBeGreaterThan(0);
+    expect(rt).toBeLessThan(rs * 0.7);
   });
   it('(c) 무한 상승으로도 떼어낼 수 없다: 적기가 따라붙는다', () => {
     const sim = makeSim(MISSIONS[0], { pitch: 1, turn: 0 });

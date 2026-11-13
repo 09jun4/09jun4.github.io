@@ -4,11 +4,11 @@ export const ENEMIES = {
     id: 'raider',
     name: '적 전투기',
     hp: 40,
-    hitRadius: 11,
-    modelScale: 1.35, // 멀리서도 보이도록 실물보다 조금 크게
+    hitRadius: 17,
+    modelScale: 2.1, // 멀리서도 보이고 맞히기 쉽도록 실물보다 크게(1.35에서 키움)
     outlinePixels: 1.5, // 붉은 외곽선 두께(화면 픽셀)
     collisionDamage: 30, // 플레이어가 받는 충돌 피해
-    collisionRadius: 9,
+    collisionRadius: 12,
 
     flight: {
       speed: 150, // 순항
@@ -58,7 +58,9 @@ export const ENEMIES = {
       nearSpread: 6, // 정확한 탄의 조준 오차(m)
       wideSpread: [22, 60], // 나머지 탄의 조준 오차(m)
       firstShotDelay: [0.8, 1.6], // 등장 직후에는 쏘지 않는다
-      leadAccel: 1.0, // 선회 중인 플레이어의 가속도를 조준에 반영하는 비율
+      leadAccel: 0.5, // 선회 중인 플레이어의 가속도를 조준에 반영하는 비율(낮을수록 기동하는 표적을 못 맞힌다)
+      // 회피기동: 플레이어가 상하좌우로 움직이는 만큼 명중탄 비율이 줄어든다. 모바일은 조준이 어려운 만큼 더 줄인다
+      evasion: { cut: 0.65, mobile: 0.55 },
       tracer: { length: 30, width: 0.5 },
     },
 

@@ -19,6 +19,17 @@ const _aim = new THREE.Vector3();
 const _from = new THREE.Vector3();
 const _off = new THREE.Vector3();
 
+/**
+ * 회피기동 보정(0~1): 플레이어가 기수를 올리내리거나 선회하는 만큼 명중탄 비율이 준다. 대공포도 같은 값을 쓴다.
+ * @param {object} ctx 세션 컨텍스트(player, touch) @param {{cut:number, mobile:number}} ev
+ */
+export function hitFactor(ctx, ev) {
+  if (!ev) return 1;
+  const p = ctx.player, r = p.cfg.rates;
+  const move = Math.min(1, Math.abs(p.flight.yawRate) / (r.yawMax * DEG) + Math.abs(p.flight.pitchRate) / (r.pitchMax * DEG));
+  return (1 - ev.cut * move) * (ctx.touch && ctx.touch() ? ev.mobile : 1);
+}
+
 export const AI = { APPROACH: 'approach', ORBIT: 'orbit', ATTACK: 'attack', BREAK: 'break', EVADE: 'evade' };
 
 export class EnemyDirector {
@@ -238,7 +249,7 @@ export class EnemyDirector {
         a.burstLeft--;
         a.burstTimer = w.burstGap;
         // 산포: 일부는 플레이어 근처로, 나머지는 넓게 빗나간다
-        const spread = this.rng() < w.accuracy ? w.nearSpread * this.rng() : lerp(w.wideSpread[0], w.wideSpread[1], this.rng());
+        const spread = this.rng() < w.accuracy * hitFactor(ctx, w.evasion) ? w.nearSpread * this.rng() : lerp(w.wideSpread[0], w.wideSpread[1], this.rng());
         const u = this.rng() * 2 - 1;
         const ang = this.rng() * Math.PI * 2;
         const r = Math.sqrt(1 - u * u);

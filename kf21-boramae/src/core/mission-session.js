@@ -30,6 +30,7 @@ import { PALETTE } from '../data/palette.js';
 import { CAMERA } from '../data/camera.js';
 import { FX } from '../data/fx.js';
 import { HUD_FEEDBACK } from '../data/hud.js';
+import { PLAYER_AIRCRAFT } from '../data/aircraft.js';
 import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL, CHECKPOINT } from '../data/extras.js';
 import { ThreatMonitor, enemyGunSource, enemyMissileSource } from '../combat/threat.js';
 import { createDecals } from '../entities/decals.js';
@@ -180,6 +181,7 @@ export class MissionSession {
       markWeaponUsed(id) {
         if (!self.stats.weaponsUsed.includes(id)) self.stats.weaponsUsed.push(id);
       },
+      touch: () => self.input.touchMode,
       lockedEnemy: null, // 플레이어가 락온 중인 적기(성격 evasive가 읽는다)
       onEscaped(enemy) { self.engine.escaped(enemy.role); self._checkCleared(); },
       onEnemyHit(enemy, source) { self._onEnemyHit(enemy, source); },
@@ -390,6 +392,7 @@ export class MissionSession {
     this.phase = PHASE.ACTIVE;
     this.stats.time = 0;
     this.engine.time = 0;
+    this._applyScale();
   }
 
   /** Enter/Space: 이륙 연출 건너뛰기 */
@@ -459,7 +462,14 @@ export class MissionSession {
     this.rig.setMode(mode);
     this.rig.snap = true;
     this.player.setCockpitView(mode === VIEW.COCKPIT && this.player.alive);
+    this._applyScale();
     this._updateOutline();
+  }
+
+  /** 3인칭 미션 비행 중에는 내 기체를 크게 보여 준다(지상·조종석·메뉴에서는 실제 크기) */
+  _applyScale() {
+    const big = this.mode === 'mission' && this.view === VIEW.CHASE && this.phase !== PHASE.TAKEOFF && !this.replay.on;
+    this.player.root.scale.setScalar(big ? PLAYER_AIRCRAFT.model.chaseScale : 1);
   }
 
   toggleView() {

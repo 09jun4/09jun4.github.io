@@ -57,9 +57,11 @@ describe('입력 계층: 우클릭 조향', () => {
     inp.keys.clear();
     expect(ax(inp).turn).toBeGreaterThan(0.5);
   });
-  it('조이스틱·자이로·조향 합이 ±1로 잘린다', () => {
-    const inp = make(); inp.stick.x = 0.8; inp.gyro.x = 0.6; inp.stick.y = -0.7; inp.gyro.y = -0.7;
-    expect(ax(inp)).toEqual({ pitch: -1, turn: 1 });
+  it('자이로 융합: 켜면 조이스틱은 상하만, 좌우는 기울기만. 끄면 조이스틱이 둘 다', () => {
+    const inp = make(); inp.stick.x = 0.8; inp.gyro.x = -0.6; inp.stick.y = -0.7; inp.gyro.y = 0.9;
+    expect(ax(inp)).toEqual({ pitch: -0.7, turn: 0.8 }); // 꺼짐: 조이스틱만
+    inp.gyroOn = true;
+    expect(ax(inp)).toEqual({ pitch: -0.7, turn: -0.6 }); // 켜짐: 상하 = 조이스틱, 좌우 = 자이로
   });
   it('마우스 이동 입력 상수', () => {
     expect(INPUT.steerSpeed).toBe(1200); expect(INPUT.steerTau).toBe(0.08); expect(INPUT.steerReleaseTau).toBe(0.15);
