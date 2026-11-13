@@ -131,6 +131,25 @@ function buildBody() {
   return b.build();
 }
 
+/** 조종석 안쪽(낮음): 유리 아래의 어두운 바닥판 + 계기판 덮개 + 좌석 등받이. 막힌 덩어리 대신 파인 조종석으로 보이게 한다 */
+function buildCockpitTub() {
+  const b = new GeoBuilder();
+  const eye = KF21_POINTS.eye;
+  b.color(0x10141a);
+  for (let i = 0; i < CANOPY.length - 1; i++) { // 유리 밑동을 따라 가는 바닥판
+    const [s0, w0, , y0] = CANOPY[i], [s1, w1, , y1] = CANOPY[i + 1];
+    b.quad([-w0 * 0.9, y0 + 0.03, Z(s0)], [w0 * 0.9, y0 + 0.03, Z(s0)], [w1 * 0.9, y1 + 0.03, Z(s1)], [-w1 * 0.9, y1 + 0.03, Z(s1)], [0, -5, 0]);
+  }
+  b.color(0x1b222b);
+  b.addGeometry(new THREE.BoxGeometry(0.62, 0.2, 0.5), new THREE.Matrix4().setPosition(0, eye.y - 0.34, eye.z - 0.72), [0, eye.y - 0.34, eye.z - 0.72]); // 계기판 덮개
+  b.color(0x39d0c0);
+  b.addGeometry(new THREE.BoxGeometry(0.46, 0.012, 0.3), new THREE.Matrix4().makeRotationX(-0.9).setPosition(0, eye.y - 0.3, eye.z - 0.47), [0, eye.y - 0.6, eye.z - 0.9]); // 계기판 불빛
+  b.color(0x2a3038);
+  b.addGeometry(new THREE.BoxGeometry(0.4, 0.72, 0.1), new THREE.Matrix4().makeRotationX(-0.16).setPosition(0, eye.y - 0.32, eye.z + 0.36), [0, eye.y - 0.32, eye.z + 0.36]); // 좌석 등받이
+  b.addGeometry(new THREE.BoxGeometry(0.2, 0.14, 0.1), new THREE.Matrix4().setPosition(0, eye.y + 0.02, eye.z + 0.33), [0, eye.y + 0.02, eye.z + 0.33]); // 머리 받침
+  return b.build();
+}
+
 function buildCanopy() {
   const b = new GeoBuilder();
   b.color(P.canopy);
@@ -249,11 +268,14 @@ export function createKF21(tuning) {
   group.add(exterior);
 
   const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.18 });
-  const canopyMat = new THREE.MeshPhongMaterial({ color: P.canopy, specular: P.canopySpecular, shininess: 90, flatShading: true });
+  // 유리: 반투명 색조(안의 조종사가 보인다). 깊이는 쓰지 않고 양면으로 그린다
+  const canopyMat = new THREE.MeshPhongMaterial({ color: 0x4f86ad, specular: P.canopySpecular, shininess: 90, flatShading: true, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide });
 
   const body = new THREE.Mesh(buildBody(), bodyMat);
   const canopy = new THREE.Mesh(buildCanopy(), canopyMat);
-  exterior.add(body, canopy);
+  canopy.renderOrder = 4;
+  const tub = new THREE.Mesh(buildCockpitTub(), bodyMat);
+  exterior.add(body, tub, canopy);
 
   const surfaces = {};
   for (const side of [1, -1]) {
