@@ -30,7 +30,7 @@ export function settingsFields() {
       <label for="set-steer">우클릭 조향 감도 <output data-out="steerSens"></output></label>
       <input id="set-steer" type="range" min="0.5" max="2" step="0.05" data-set="steerSens">
       <div class="field row">
-        <label><input type="checkbox" data-set="steerEnabled"> 우클릭 조향 사용 (누른 채 마우스를 움직이면 그쪽으로 선회)</label>
+        <label><input type="checkbox" data-set="steerEnabled"> 우클릭 조향 사용 (누른 자리가 중심인 조이스틱: 벗어난 방향으로, 누르고 있는 동안 계속 선회)</label>
         <label><input type="checkbox" data-set="steerInvertY"> 조향 상하 반전</label>
       </div>
     </div>

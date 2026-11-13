@@ -53,6 +53,7 @@ export const WEAPONS = {
     gravity: 9.8,
     dropOffset: 1.4, // 기체 아래에서 분리
     radius: 60, // 범위 피해 반경(m). 35에서 넓혔다(쉽게)
+    markerSize: 14, // 지면 고리의 최소 반지름(m)
     aimRadius: 30, // 예측 지점이 목표에서 이 거리 안이면 '투하' 표시(초록)와 자동 투하
     unlimited: true, // 폭탄이 있는 미션에서는 무제한
     damage: 320, // 중심 피해. 명세의 150에서 올렸다: 150이면 hp 150인 레이더가 정확히 맞아야만 부서져서 폭탄이 무력했다

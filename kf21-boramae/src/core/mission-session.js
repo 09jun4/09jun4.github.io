@@ -954,7 +954,7 @@ export class MissionSession {
     this._renderProjectiles(alpha);
     this.ground.render(this.camera);
     const bomb = this.weapons.byId('bomb');
-    if (bomb && bomb.marker) bomb.updateMarker(this.camera);
+    if (bomb && bomb.marker) bomb.updateMarker(this.camera, this.mode === 'mission' && this.phase === PHASE.ACTIVE && this.player.alive && !this.killcam.cam);
     this.fx.endBolts();
     if (this.feedback.hit > 0) this.feedback.hit = Math.max(0, this.feedback.hit - frameDt * HUD_FEEDBACK.hitFade);
     if (this.feedback.flash > 0) this.feedback.flash = Math.max(0, this.feedback.flash - frameDt * HUD_FEEDBACK.flashFade);

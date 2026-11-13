@@ -147,13 +147,13 @@ export function createBomb(cfg) {
     },
 
     /** 렌더 프레임: 마커 크기를 거리에 맞춘다(멀어도 보이게) */
-    updateMarker(camera) {
+    updateMarker(camera, show = true) {
       const c = this.ccip;
-      this.marker.visible = c.valid;
-      if (!c.valid) return;
+      this.marker.visible = c.valid && show; // 이륙 시네마틱·킬캠·결과 화면에서는 그리지 않는다
+      if (!this.marker.visible) return;
       this.marker.position.copy(c.pos);
       this.marker.material.color.setHex(c.onTarget ? 0x4dff9a : 0xffb347); // 목표에 들어오면 초록
-      const k = Math.max(cfg.radius, camera.position.distanceTo(c.pos) * 0.035);
+      const k = Math.max(cfg.markerSize, camera.position.distanceTo(c.pos) * 0.03); // 멀어도 보이게 거리에 맞춰 키운다
       this.marker.scale.set(k, 1, k);
     },
 

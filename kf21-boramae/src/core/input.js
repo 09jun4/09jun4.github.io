@@ -15,6 +15,7 @@ export class Input {
     this.touchMode = false; // 모바일 입력 사용 중(포인터락·마우스 조향 끔)
     this.settings = null;
     this.steer = { x: 0, y: 0 }; // 우클릭 조향 입력(평활 후)
+    this.joy = { on: false, x: 0, y: 0 }; // 우클릭 조이스틱: 누른 점에서 벗어난 거리(px). HUD가 스틱 모양으로 그린다
     this.stick = { x: 0, y: 0 }; // 가상 조이스틱(touch-controls가 채운다)
     this.gyro = { x: 0, y: 0 }; // 기울기(touch-controls가 채운다)
     this.gyroOn = false; // 자이로 조종이 켜져 있고 센서가 듣는 중인가(touch-controls가 정한다)
@@ -139,11 +140,22 @@ export class Input {
     const on = this.mouse.right && !this.touchMode && this._get('steerEnabled', true);
     const sens = this._get('steerSens', 1);
     const inv = this._get('steerInvertY', false) ? -1 : 1;
-    const tx = on ? clamp((this._acc.x / dt) / INPUT.steerSpeed, -1, 1) * sens : 0; // 오른쪽 = 우선회
-    const ty = on ? clamp((-this._acc.y / dt) / INPUT.steerSpeed, -1, 1) * sens * inv : 0; // 위 = 상승
+    // 조이스틱 방식: 우클릭을 시작한 점이 중심이고, 거기서 벗어난 거리와 방향이 누르고 있는 동안 조향으로 유지된다
+    const j = this.joy;
+    if (on && !j.on) { j.x = 0; j.y = 0; } // 누르는 순간이 중심
+    j.on = on;
+    let tx = 0, ty = 0;
+    if (on) {
+      const R = INPUT.steerRadius / sens;
+      j.x = clamp(j.x + this._acc.x, -R, R); j.y = clamp(j.y + this._acc.y, -R, R); // 스틱처럼 반경에서 멈춘다(반대로 움직이면 바로 줄어든다)
+      const dz = INPUT.steerDeadzone;
+      const curve = (v) => { const a = Math.abs(v); return a <= dz ? 0 : Math.sign(v) * (a - dz) / (1 - dz); };
+      tx = curve(j.x / R); // 오른쪽 = 우선회
+      ty = curve(-j.y / R) * inv; // 위 = 상승
+    }
     this._acc.x = this._acc.y = 0;
-    this.steer.x = damp(this.steer.x, tx, Math.abs(tx) > Math.abs(this.steer.x) ? INPUT.steerTau : INPUT.steerReleaseTau, dt);
-    this.steer.y = damp(this.steer.y, ty, Math.abs(ty) > Math.abs(this.steer.y) ? INPUT.steerTau : INPUT.steerReleaseTau, dt);
+    this.steer.x = damp(this.steer.x, tx, on ? INPUT.steerTau : INPUT.steerReleaseTau, dt);
+    this.steer.y = damp(this.steer.y, ty, on ? INPUT.steerTau : INPUT.steerReleaseTau, dt);
     if (!on && Math.abs(this.steer.x) < 0.01 && Math.abs(this.steer.y) < 0.01) { this.steer.x = this.steer.y = 0; }
   }
 
@@ -170,6 +182,7 @@ export class Input {
     this.mouse.down = false;
     this.mouse.right = false;
     this.steer.x = this.steer.y = 0;
+    this.joy.on = false; this.joy.x = this.joy.y = 0;
     this.stick.x = this.stick.y = 0;
     this.touchAim.fire = false;
   }

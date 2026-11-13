@@ -159,6 +159,13 @@ export class Hud {
     this._status(session, player, hpRatio, W, H, blink);
     this._notices(session, player, fb, low, W, H, blink);
     if (player.alive && session.phase === PHASE.ACTIVE && session.threat) this._threat(session.threat.state, W, H, blink);
+    const joy = session.input && session.input.joy;
+    if (joy && joy.on && session.phase === PHASE.ACTIVE) { // 우클릭 조이스틱: 중심 고리와 손잡이
+      const st = session.input.steer, r = 30, cx = 0, cy = H * 0.66;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); this._line(HUD.dim, 1.2);
+      g.beginPath(); g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy); g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5); this._line(HUD.dim, 1);
+      g.beginPath(); g.arc(cx + clamp(st.x, -1, 1) * r, cy - clamp(st.y, -1, 1) * r, 7, 0, Math.PI * 2); g.fillStyle = HUD.color; g.fill();
+    }
   }
 
   /** 위협 경고: 화면 가장자리의 방향 화살표 + WARNING (위 = 정면, 아래 = 뒤) */
