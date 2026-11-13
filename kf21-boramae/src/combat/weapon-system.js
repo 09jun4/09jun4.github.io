@@ -56,6 +56,12 @@ export class WeaponSystem {
     for (const w of this.weapons) if (w.setAmmo && counts && counts[w.id] != null) w.setAmmo(counts[w.id]);
   }
 
+  /** 무장을 바로 고른다(있고 쓸 수 있을 때만) */
+  select(id) {
+    const i = this.weapons.findIndex((w) => w.id === id && w.available !== false);
+    if (i >= 0) this.index = i;
+  }
+
   /** 다음 무장으로 전환 */
   next(ctx) {
     // 이 미션에 없는 무장(폭탄 0발)은 건너뛴다

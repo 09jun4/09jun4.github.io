@@ -30,7 +30,9 @@ export function createBomb(cfg) {
     cooldown: 0,
     door: -1, // 무장창이 열리는 중이면 남은 시간
     prevTrigger: false,
-    ccip: { valid: false, pos: new THREE.Vector3(), time: 0 },
+    unlimited: false,
+    ccip: { valid: false, pos: new THREE.Vector3(), time: 0, onTarget: false }, // onTarget: 지금 떨어뜨리면 목표에 맞는다
+    held: 0, // 발사 버튼을 누르고 있는 시간
     bombs: Array.from({ length: cfg.pool }, () => ({ active: false, pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })),
     mesh: null,
     marker: null,
@@ -63,6 +65,7 @@ export function createBomb(cfg) {
 
     /** 미션별 탄 수 */
     setAmmo(n) {
+      this.unlimited = n > 0 && !!cfg.unlimited;
       this.ammoMax = n; this.ammo = n; this.available = n > 0;
     },
 
@@ -80,8 +83,20 @@ export function createBomb(cfg) {
         ground = getGroundHeight(out[0] + ctx.origin.x, out[1] + ctx.origin.z);
         c.pos.set(out[0], ground + 0.6, out[1]);
         c.time = out[2];
-      }
-      if (active && trigger && !this.prevTrigger && this.ammo > 0 && this.cooldown <= 0 && this.door < 0) this.door = cfg.doorTime; // 무장창 개방 시작
+        // 예측 지점 근처에 살아 있는 목표가 있는가(가장자리 기준)
+        c.onTarget = false;
+        if (ctx.ground) {
+          const g = ctx.ground;
+          for (let i = 0; i < g.count; i++) {
+            const t = g.targets[i];
+            if (t.alive && Math.hypot(t.base.x - c.pos.x, t.base.z - c.pos.z) - t.def.radius < cfg.aimRadius) { c.onTarget = true; break; }
+          }
+        }
+      } else c.onTarget = false;
+      // 누르는 순간 바로 투하. 계속 누르고 있으면 예측 지점이 목표에 들어올 때마다 자동으로 투하한다
+      this.held = active && trigger ? this.held + dt : 0;
+      const auto = this.held > 0.25 && c.onTarget;
+      if (active && trigger && (!this.prevTrigger || auto) && this.ammo > 0 && this.cooldown <= 0 && this.door < 0) this.door = cfg.doorTime; // 무장창 개방 시작
       this.prevTrigger = trigger;
       if (this.door >= 0) {
         this.door -= dt;
@@ -107,7 +122,7 @@ export function createBomb(cfg) {
     fire(ctx) {
       const b = this.bombs.find((x) => !x.active);
       if (!b || this.ammo <= 0) return;
-      this.ammo--;
+      if (!this.unlimited) this.ammo--;
       this.cooldown = cfg.cooldown;
       ctx.markWeaponUsed(cfg.id);
       ctx.stats.bombsDropped = (ctx.stats.bombsDropped || 0) + 1;
@@ -137,6 +152,7 @@ export function createBomb(cfg) {
       this.marker.visible = c.valid;
       if (!c.valid) return;
       this.marker.position.copy(c.pos);
+      this.marker.material.color.setHex(c.onTarget ? 0x4dff9a : 0xffb347); // 목표에 들어오면 초록
       const k = Math.max(cfg.radius, camera.position.distanceTo(c.pos) * 0.035);
       this.marker.scale.set(k, 1, k);
     },
@@ -148,7 +164,7 @@ export function createBomb(cfg) {
 
     uiState() {
       const u = this._ui;
-      u.ammo = this.ammo; u.ammoMax = this.ammoMax;
+      u.ammo = this.ammo; u.ammoMax = this.ammoMax; u.unlimited = this.unlimited; u.onTarget = this.ccip.onTarget;
       u.door = this.door >= 0;
       u.ready = this.ammo > 0 && this.cooldown <= 0 && this.door < 0;
       return u;

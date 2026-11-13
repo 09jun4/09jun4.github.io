@@ -41,7 +41,7 @@ const RAW = [
   {
     id: 'c2m1', campaign: 'c2', title: '눈을 멀게 하라', codename: 'OPERATION BLIND EYE', area: '내륙 방공 기지', map: { x: 0.55, y: 0.25 },
     brief: '레이더 2기를 폭격하고 대공포를 제압하라.',
-    briefing: '동이 트기 전에 적 방공 레이더 2기를 파괴한다. 레이더 옆에 대공포 2문이 있다. 폭탄은 6발, F키로 무장을 바꾸고 지면의 예측 지점을 목표에 맞춰 떨어뜨려라. 대공포는 기관포로도 부술 수 있다.',
+    briefing: '동이 트기 전에 적 방공 레이더 2기를 파괴한다. 레이더 옆에 대공포 2문이 있다. 폭탄은 무제한이고 폭탄을 든 채 출격한다. 땅 위의 고리를 목표에 겹쳐 초록이 되면 떨어뜨려라. 대공포는 기관포로도 부술 수 있다.',
     timeOfDay: 'dawn', terrain: 'inland', refTime: 150, weapons: { missile: 5, bomb: 6 },
     groundTargets: [
       { id: 'r1', type: 'radar', pos: [-900, -7200] }, { id: 'r2', type: 'radar', pos: [1100, -7900] },
@@ -104,21 +104,21 @@ const RAW = [
   {
     id: 'c2m3', campaign: 'c2', title: '호송대 차단', codename: 'OPERATION ROADBLOCK', area: '내륙 보급로', map: { x: 0.66, y: 0.42 },
     brief: '이동하는 보급 트럭 8대를 파괴하라.',
-    briefing: '보급 트럭 8대가 두 줄로 도로를 달리고 있다. 트럭은 기관포로도 부술 수 있지만 폭탄 한 발이면 여러 대가 함께 날아간다. 길가에 대공포 3문이 있다.',
-    timeOfDay: 'dawn', terrain: 'inland', refTime: 200, weapons: { missile: 5, bomb: 8 },
+    briefing: '보급 트럭 8대가 두 줄로 도로를 달리고 있다. 트럭은 기관포로도 부술 수 있지만 폭탄 한 발이면 여러 대가 함께 날아간다. 길가에 대공포 2문이 있다.',
+    timeOfDay: 'dawn', terrain: 'inland', refTime: 240, weapons: { missile: 5, bomb: 8 },
     groundTargets: [
       ...[0, 1, 2, 3].map((i) => ({ type: 'truck', pos: [-2600 + i * 60, -6800], path: [[2600 + i * 60, -6800], [-2600 + i * 60, -6800]] })),
       ...[0, 1, 2, 3].map((i) => ({ type: 'truck', pos: [2400 - i * 60, -7700], path: [[-2400 - i * 60, -7700], [2400 - i * 60, -7700]] })),
-      { type: 'aa_gun', pos: [-1200, -7250] }, { type: 'aa_gun', pos: [300, -7250] }, { type: 'aa_gun', pos: [1700, -7250] },
+      { type: 'aa_gun', pos: [-1200, -7250] }, { type: 'aa_gun', pos: [1500, -7250] },
     ],
     waves: [],
-    objectives: [{ id: 'o1', type: 'destroy', targetType: 'truck', count: 8, points: 2000, label: '트럭 파괴' }, { id: 'o2', type: 'destroy', targetType: 'aa_gun', count: 3, points: 1200, required: false, label: '대공포 제압' }],
+    objectives: [{ id: 'o1', type: 'destroy', targetType: 'truck', count: 8, points: 2000, label: '트럭 파괴' }, { id: 'o2', type: 'destroy', targetType: 'aa_gun', count: 2, points: 800, required: false, label: '대공포 제압' }],
   },
   {
     id: 'c3m2', campaign: 'c3', title: '초계함 격침', codename: 'OPERATION BROADSIDE', area: '동쪽 앞바다', map: { x: 0.82, y: 0.4 },
     brief: '해안으로 접근하는 초계함 3척을 격침하라.',
-    briefing: '대공포 2문씩을 실은 초계함 3척이 해안으로 다가온다. 한 척에 폭탄 두 발이 든다. 배는 움직이니 예측 지점을 뱃머리 앞에 두고 떨어뜨려라. 낮게 오래 머물면 대공포에 맞는다.',
-    timeOfDay: 'dusk', terrain: 'coast', refTime: 200, weapons: { missile: 5, bomb: 8 },
+    briefing: '대공포 2문씩을 실은 초계함 3척이 해안으로 다가온다. 배는 움직이니 예측 지점을 뱃머리 앞에 두고 떨어뜨려라. 낮게 오래 머물면 대공포에 맞는다.',
+    timeOfDay: 'dusk', terrain: 'coast', refTime: 250, weapons: { missile: 5, bomb: 8 },
     groundTargets: [
       { type: 'patrol_boat', pos: [-1800, -7600], path: [[1200, -7400], [-1800, -7600]] },
       { type: 'patrol_boat', pos: [600, -8800], path: [[-2000, -8600], [600, -8800]] },
@@ -149,7 +149,7 @@ const RAW = [
   {
     id: 'c4m2', campaign: 'c4', title: '방공망 제압', codename: 'OPERATION WILD WEASEL', area: '북쪽 방공 진지', map: { x: 0.3, y: 0.3 },
     brief: 'SAM 발사대 3기와 대공포 2문을 제압하라.',
-    briefing: 'SAM 3기가 4km 밖에서부터 미사일을 쏜다. 경고가 뜨면 급선회하라. 미사일은 우리보다 크게 돈다. 발사 간격은 8초다. 그 틈에 파고들어 폭탄을 떨어뜨려라.',
+    briefing: 'SAM 3기가 3km 밖에서부터 미사일을 쏜다. 경고가 뜨면 급선회하라. 미사일은 우리보다 크게 돈다. 발사 간격은 12초다. 그 틈에 파고들어 폭탄을 떨어뜨려라.',
     timeOfDay: 'night', terrain: 'inland', refTime: 220, weapons: { missile: 5, bomb: 8 },
     groundTargets: [{ id: 's1', type: 'sam', pos: [-1700, -7400] }, { id: 's2', type: 'sam', pos: [100, -8300] }, { id: 's3', type: 'sam', pos: [1900, -7500] }, { type: 'aa_gun', near: 's1', count: 1 }, { type: 'aa_gun', near: 's3', count: 1 }],
     waves: [],
@@ -158,7 +158,7 @@ const RAW = [
   {
     id: 'c4m3', campaign: 'c4', title: '4분', codename: 'OPERATION FOUR MINUTES', area: '북쪽 지휘 거점', map: { x: 0.26, y: 0.2 },
     brief: '240초 안에 기지국 2기와 레이더 2기를 파괴하라.',
-    briefing: '지원 병력이 오기까지 4분이다. 그 안에 기지국 2기와 레이더 2기를 모두 부숴야 한다. 폭탄은 8발, 목표는 넷. 빗나갈 여유가 많지 않다.',
+    briefing: '지원 병력이 오기까지 4분이다. 그 안에 기지국 2기와 레이더 2기를 모두 부숴야 한다. 폭탄은 넉넉하지만 시간은 그렇지 않다.',
     timeOfDay: 'night', terrain: 'inland', refTime: 200, timeLimit: 240, weapons: { missile: 5, bomb: 8 },
     groundTargets: [{ id: 't1', type: 'comm_tower', pos: [-1300, -7000] }, { id: 't2', type: 'comm_tower', pos: [1500, -7200] }, { id: 'r1', type: 'radar', pos: [-300, -8300] }, { id: 'r2', type: 'radar', pos: [2500, -8400] }, { type: 'aa_gun', near: 'r1', count: 1 }, { type: 'sam', pos: [900, -9300] }],
     waves: [],
@@ -176,7 +176,7 @@ const RAW = [
   {
     id: 'c5m1', campaign: 'c5', title: '문을 열어라', codename: 'OPERATION OPEN DOOR', area: '북쪽 방어선', map: { x: 0.46, y: 0.2 },
     brief: '방공망(SAM 2, 대공포 3)을 제압한 뒤 기지국 2기를 파괴하라.',
-    briefing: '먼저 SAM 2기와 대공포 3문을 제압해 길을 연다. 그 다음에야 기지국 2기가 목표로 열린다. 폭탄은 10발. 방공망을 부수는 데 너무 많이 쓰면 기지국에 쓸 폭탄이 모자란다. 대공포는 기관포로 처리하라.',
+    briefing: '먼저 SAM 2기와 대공포 3문을 제압해 길을 연다. 그 다음에야 기지국 2기가 목표로 열린다. 발사 버튼을 누르고 있으면 고리가 목표에 겹칠 때마다 폭탄이 떨어진다.',
     timeOfDay: 'dusk', terrain: 'inland', refTime: 260, weapons: { missile: 5, bomb: 10 },
     groundTargets: [{ id: 's1', type: 'sam', pos: [-1500, -6900] }, { id: 's2', type: 'sam', pos: [1500, -6900] }, { type: 'aa_gun', pos: [-700, -7500] }, { type: 'aa_gun', pos: [700, -7500] }, { type: 'aa_gun', pos: [0, -8100] }, { id: 't1', type: 'comm_tower', pos: [-900, -8800] }, { id: 't2', type: 'comm_tower', pos: [900, -8800] }],
     waves: [],

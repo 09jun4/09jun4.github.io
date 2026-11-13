@@ -12,7 +12,7 @@ const TEXT = {
   speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', takeoff: '이륙 활주', rotate: 'W 또는 S — 기수 들기', climb: '상승 중 · 기어 접는 중', skip: 'Enter / Space  건너뛰기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
   ceiling: '상승 한계', overheat: '과열', kill: '격추', wave: '적 편대 접근', lock: 'LOCK', noAmmo: '미사일 없음',
   clear: '임무 완수', down: '격추당함', time: 'TIME', limit: '남은 시간', boss: '적 에이스', failed: '임무 실패',
-  skipTap: '화면을 누르면 건너뛰기', warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
+  skipTap: '화면을 누르면 건너뛰기', drop: '투하!', warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
 };
 
 export class Hud {
@@ -445,8 +445,9 @@ export class Hud {
         g.beginPath();
         g.arc(p.x, p.y, 13, 0, Math.PI * 2);
         g.moveTo(p.x - 22, p.y); g.lineTo(p.x - 5, p.y); g.moveTo(p.x + 5, p.y); g.lineTo(p.x + 22, p.y); g.moveTo(p.x, p.y - 22); g.lineTo(p.x, p.y - 5); g.moveTo(p.x, p.y + 5); g.lineTo(p.x, p.y + 22);
-        this._line(ui.ready ? HUD.ground : HUD.dim, 1.6);
-        this._text(`CCIP ${bomb.ccip.time.toFixed(1)}s`, p.x, p.y + 36, 10, HUD.ground, 'center', false, 600);
+        const col = ui.onTarget ? HUD.ok : ui.ready ? HUD.ground : HUD.dim;
+        this._line(col, ui.onTarget ? 2.4 : 1.6);
+        this._text(ui.onTarget ? TEXT.drop : `${bomb.ccip.time.toFixed(1)}s`, p.x, p.y + 38, ui.onTarget ? 15 : 10, col, 'center', ui.onTarget, 700);
       }
       return;
     }
@@ -526,6 +527,8 @@ export class Hud {
       g.fillStyle = c;
       g.fillRect(wx - 187, wy - 4, 184 * clamp(ui.heat, 0, 1), 6);
       if (ui.overheated) this._text(`${TEXT.overheat} ${ui.lock.toFixed(1)}`, wx - 196, wy, 12, c, 'right', true, 600);
+    } else if (ui.unlimited) {
+      this._text('∞', wx - 6, wy, 17, HUD.color, 'right', false, 700);
     } else {
       for (let i = 0; i < ui.ammoMax; i++) {
         const x = wx - 14 - i * 20;

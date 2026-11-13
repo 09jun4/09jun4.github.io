@@ -37,7 +37,7 @@ export function airSummary(m) {
 
 export function weaponsText(m) {
   const parts = [`${WEAPONS.gun.name}(무제한·과열)`, `${WEAPONS.missile.name} ${m.weapons.missile}`];
-  if (m.weapons.bomb > 0) parts.push(`${WEAPONS.bomb.name} ${m.weapons.bomb}`);
+  if (m.weapons.bomb > 0) parts.push(`${WEAPONS.bomb.name} ${WEAPONS.bomb.unlimited ? '무제한' : m.weapons.bomb}`);
   return parts.join(' · ');
 }
 

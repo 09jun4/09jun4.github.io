@@ -29,6 +29,8 @@ export const REPLAY = {
 /** 튜토리얼(미션 1). 문구는 기기별로 다르다. 적은 마지막 단계에서야 등장하고, 점수·시간은 튜토리얼이 끝난 뒤부터 잰다. */
 export const TUTORIAL = {
   missionId: 'c1m1',
+  settingKey: 'tutorialDone',
+  holdUntil: 'lock', // 이 단계 전까지는 적이 나오지 않는다
   flightHold: 0.7, // 피치·선회를 각각 이만큼 입력하면 통과(초)
   gunShots: 10,
   doneHold: 1.4, // 단계 완료 표시 유지(초)
@@ -44,3 +46,15 @@ export const TUTORIAL = {
 
 /** 정찰 체크포인트 링 */
 export const CHECKPOINT = { radius: 150 };
+
+/** 폭격 튜토리얼: 처음 하는 지상 타격 미션에서 한 번. 목표는 처음부터 있고 시간만 멈춰 있다 */
+export const BOMB_TUTORIAL = {
+  settingKey: 'bombTutorialDone',
+  flightHold: 0.7, gunShots: 10, doneHold: 1.2,
+  steps: [
+    { id: 'bombAim', title: '조준', pc: '폭탄 모드입니다(무제한). 주황 다이아몬드가 목표예요. 그쪽으로 날아가 땅 위의 고리를 목표에 겹치세요. 고리가 초록이 되면 맞는 위치입니다', mobile: '폭탄 모드입니다(무제한). 주황 다이아몬드 쪽으로 날아가 땅 위의 고리를 목표에 겹치세요. 초록이 되면 맞는 위치입니다' },
+    { id: 'bombDrop', title: '투하', pc: '왼쪽 버튼을 누르면 떨어집니다. 누르고 있으면 고리가 초록이 될 때마다 자동으로 떨어져요', mobile: '화면 오른쪽을 누르면 떨어집니다. 누르고 있으면 고리가 초록이 될 때마다 자동으로 떨어져요' },
+    { id: 'bombKill', title: '파괴', pc: '목표 하나를 파괴하세요. 낮고 수평으로 날수록 정확합니다. 기지국·레이더·함정은 폭탄만 통해요', mobile: '목표 하나를 파괴하세요. 낮고 수평으로 날수록 정확합니다' },
+  ],
+  skip: { pc: 'Enter: 건너뛰기', mobile: '건너뛰기 버튼: 넘어가기' },
+};

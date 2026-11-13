@@ -17,7 +17,7 @@ export class Tutorial {
 
   get step() { return this.cfg.steps[this.index]; }
   /** 적 등장 보류 중인가(마지막 단계 전) */
-  get holding() { return this.active && this.step.id !== 'lock'; }
+  get holding() { return this.active && !!this.cfg.holdUntil && this.step.id !== this.cfg.holdUntil; }
   get stepDone() { return this.doneTimer > 0; }
   get total() { return this.cfg.steps.length; }
   get text() { return this.mobile ? this.step.mobile : this.step.pc; }
@@ -43,6 +43,8 @@ export class Tutorial {
     this._base.missiles = s.stats.missilesFired;
     this._base.kills = s.stats.kills;
     this._base.view = s.view;
+    this._base.bombs = s.stats.bombsDropped || 0;
+    this._base.ground = s.stats.groundKills || 0;
     this.version++;
   }
 
@@ -59,6 +61,9 @@ export class Tutorial {
       case 'gun': return s.stats.gunShots - b.gun >= c.gunShots;
       case 'weapon': return s.weapons.current.id === 'missile';
       case 'view': return s.view !== b.view;
+      case 'bombAim': { const w = s.weapons.current; return w.id === 'bomb' && w.ccip.onTarget; }
+      case 'bombDrop': return (s.stats.bombsDropped || 0) > b.bombs;
+      case 'bombKill': return s.stats.groundKills > b.ground;
       case 'lock': return s.stats.missilesFired > b.missiles || s.stats.kills > b.kills;
       default: return true;
     }

@@ -74,7 +74,7 @@ input.attach(stage);
 const inputHooks = {
   onMode: () => { input.touchMode = isMobileMode(settings.get('inputMode')); input.releaseLock(); hud.touch = input.touchMode; hud.resize(window.innerWidth, window.innerHeight); if (typeof touch !== 'undefined') touch.refresh(); },
   onRecalibrate: () => { if (window.__kf21Touch) window.__kf21Touch.recalibrate(); },
-  onTutorial: () => { settings.set('tutorialDone', false); toast('다음에 미션 1을 시작하면 튜토리얼이 나와요.'); },
+  onTutorial: () => { settings.set('tutorialDone', false); settings.set('bombTutorialDone', false); toast('다음에 미션 1이나 폭격 미션을 시작하면 튜토리얼이 나와요.'); },
   mobileQualityLimit: false, // 모바일에서도 높음·최고를 고를 수 있다
 };
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });

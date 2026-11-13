@@ -31,7 +31,7 @@ import { CAMERA } from '../data/camera.js';
 import { FX } from '../data/fx.js';
 import { HUD_FEEDBACK } from '../data/hud.js';
 import { PLAYER_AIRCRAFT } from '../data/aircraft.js';
-import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL, CHECKPOINT } from '../data/extras.js';
+import { KILLCAM, THREAT, DECALS, REPLAY, TUTORIAL, BOMB_TUTORIAL, CHECKPOINT } from '../data/extras.js';
 import { ThreatMonitor, enemyGunSource, enemyMissileSource } from '../combat/threat.js';
 import { createDecals } from '../entities/decals.js';
 import { Recorder } from './replay.js';
@@ -127,7 +127,7 @@ export class MissionSession {
     this.onReplayEnd = null;
     // 튜토리얼(미션 1)
     this.tutorial = new Tutorial(TUTORIAL);
-    this.tutorial.onFinish = () => { this.settings.set('tutorialDone', true); };
+    this.tutorial.onFinish = () => { this.settings.set(this.tutorial.cfg.settingKey, true); };
     this.tutorialEnabled = true; // 자동플레이에서는 끈다
     this.spawnClock = 0;
     this.gpuFrame = { depth: null, w: 1, h: 1 }; // 소프트 파티클용 장면 깊이(후처리가 있을 때 main이 채운다)
@@ -336,6 +336,9 @@ export class MissionSession {
     this.player.visual.canopy = 0; // 메뉴 시네마틱에서 열려 있던 캐노피를 닫는다
     this.weapons.configure(mission.weapons);
     this.weapons.reset();
+    // 지상 타격이 필수 목표인 미션은 폭탄을 든 채 시작한다(F로 바꿀 수 있다)
+    const bombing = mission.objectives.some((o) => o.type === 'destroy' && o.required !== false);
+    if (bombing) this.weapons.select('bomb');
     this.ground.reset(mission, this.rng, this.world.look.lights);
     const ground = AIRBASE.height + GEAR_HEIGHT + 0.5;
     this.player.reset({ yaw: 0, y: ground });
@@ -350,7 +353,11 @@ export class MissionSession {
       this.takeoffCine.simple = this.simpleTakeoff;
       this.takeoffCine.start();
     }
-    if (this.tutorialEnabled && mission.id === TUTORIAL.missionId && !this.settings.get('tutorialDone') && !(this.autopilot && this.autopilot.enabled)) this.tutorial.start(this, this.input.touchMode);
+    if (this.tutorialEnabled && !(this.autopilot && this.autopilot.enabled)) {
+      // 미션 1은 기본 튜토리얼, 처음 하는 폭격 미션은 폭격 튜토리얼
+      const script = mission.id === TUTORIAL.missionId ? TUTORIAL : bombing ? BOMB_TUTORIAL : null;
+      if (script && !this.settings.get(script.settingKey)) { this.tutorial.cfg = script; this.tutorial.start(this, this.input.touchMode); }
+    }
     this._applyView();
   }
 

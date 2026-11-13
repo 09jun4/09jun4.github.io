@@ -5,7 +5,7 @@ export const TARGETS = {
   radar: { name: '레이더', short: 'RDR', hp: 150, points: 700, armor: 'hard', radius: 13, height: 16, spin: 0.7 },
   aa_gun: { name: '대공포', short: 'AAA', hp: 60, points: 400, armor: 'soft', radius: 9, height: 6, weapon: 'aa', guns: 1 },
   sam: { name: 'SAM 발사대', short: 'SAM', hp: 80, points: 600, armor: 'soft', radius: 10, height: 7, weapon: 'sam', missileEnabled: true },
-  truck: { name: '트럭', short: 'TRK', hp: 40, points: 250, armor: 'soft', radius: 8, height: 4, speed: 14 },
+  truck: { name: '트럭', short: 'TRK', hp: 40, points: 250, armor: 'soft', radius: 8, height: 4, speed: 8 },
   patrol_boat: { name: '초계함', short: 'SHIP', hp: 300, points: 1000, armor: 'hard', radius: 28, height: 14, speed: 9, weapon: 'aa', guns: 2, sea: true },
 };
 
@@ -19,14 +19,14 @@ export const GROUND_RULES = {
 
 /** 대공포(지상·함정 공통) */
 export const AA = {
-  range: 1800, burst: 4, burstGap: 0.12, interval: 1.7, firstShot: [1, 2.5],
-  bulletSpeed: 620, bulletLife: 3.2, damage: 4,
+  range: 1800, burst: 3, burstGap: 0.12, interval: 2.3, firstShot: [1, 2.5],
+  bulletSpeed: 620, bulletLife: 3.2, damage: 3,
   evasion: { cut: 0.65, mobile: 0.55 }, // 회피기동·모바일 보정(적기와 같은 규칙)
-  hitChance: 0.25, nearSpread: 5, wideSpread: [28, 80], // 네 발 중 한 발꼴로만 기체 근처를 지난다
+  hitChance: 0.18, nearSpread: 5, wideSpread: [28, 80], // 네 발 중 한 발꼴로만 기체 근처를 지난다
 };
 
-/** 지대공 미사일. 선회반경 = 속도 ÷ 선회율 = 280 ÷ 0.698 ≈ 401m. 플레이어는 160 ÷ 0.785 ≈ 204m라 급선회로 따돌릴 수 있다 */
+/** 지대공 미사일. 선회반경 = 속도 ÷ 선회율 = 280 ÷ 0.593 ≈ 472m. 플레이어는 160 ÷ 0.785 ≈ 204m라 급선회로 따돌릴 수 있다 */
 export const SAM = {
-  range: 4000, minRange: 450, interval: 8, firstShot: [2, 5],
-  speed: 280, turnRate: 40, life: 9, damage: 35, proximity: 16, pool: 6, smokeEvery: 0.035,
+  range: 3200, minRange: 450, interval: 12, firstShot: [2, 5],
+  speed: 280, turnRate: 34, life: 8, damage: 15, proximity: 16, pool: 6, smokeEvery: 0.035,
 };
