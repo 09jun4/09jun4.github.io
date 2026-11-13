@@ -548,6 +548,7 @@ export function createPilotRig({ detail, eye }) {
     st.kick = Math.max(0, st.kick - dt / 0.45);
 
     // G 쏠림: 하중만큼 머리가 아래·바깥으로 눌렸다가(관성 지연) 돌아온다. 큰 G에서는 목이 눌린다
+    st.surge = damp(st.surge || 0, o.surge || 0, 0.12, dt); // 가속에 몸이 뒤로 쏠린다(이륙)
     const load = Math.min(1.4, Math.abs(o.turnLoad || 0) * 0.8 + Math.max(0, o.pitchLoad || 0) * 0.7);
     const ty = -0.035 * load, tx = -0.03 * (o.turnLoad || 0);
     const h = Math.min(dt, 0.04);
@@ -557,7 +558,7 @@ export function createPilotRig({ detail, eye }) {
 
     // 몸통: 척추가 G 방향으로 기울고, 머리가 숙여진다(3인칭에서 조종사가 입력에 반응)
     const lean = clamp(st.gx / 0.03, -1.5, 1.5);
-    B.spine1.quaternion.setFromEuler(_eu.set(-0.03 + -st.gy * 1.2, 0, lean * 0.05));
+    B.spine1.quaternion.setFromEuler(_eu.set(-0.03 + -st.gy * 1.2 + st.surge * 0.1, 0, lean * 0.05));
     B.spine2.quaternion.setFromEuler(_eu.set(-0.02 + -st.gy * 1.6, st.turn * -0.05, lean * 0.08));
     B.neck.position.y = B.neck.userData.world.y - B.spine2.userData.world.y - st.compress * 0.025;
     const yaw = -st.turn * 0.55; // 선회 방향으로 고개를 돌린다

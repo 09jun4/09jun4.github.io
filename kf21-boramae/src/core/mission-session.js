@@ -37,6 +37,7 @@ import { createDecals } from '../entities/decals.js';
 import { Recorder } from './replay.js';
 import { Tutorial } from './tutorial.js';
 import { PHASE_NAMES } from './phase.js';
+import { TakeoffCinematic } from './takeoff-cine.js';
 import { MissionEngine, OUTCOME } from '../mission/engine.js';
 
 const _v = new THREE.Vector3();
@@ -132,7 +133,8 @@ export class MissionSession {
     this.gpuFrame = { depth: null, w: 1, h: 1 }; // 소프트 파티클용 장면 깊이(후처리가 있을 때 main이 채운다)
     // 이륙 연출 상태. state: 'roll' 활주 → 'rotate' 기수 들기 대기 → 'climb' 상승
     this.takeoff = { state: 'roll', speed: 0, pitch: 0, wait: 0, assisted: false, time: 0 };
-    this.simpleTakeoff = false; // 낮음 프리셋: 막 떠오른 순간부터 시작
+    this.simpleTakeoff = false; // 낮음 프리셋: 이륙 시네마틱의 일부 효과를 뺀다
+    this.takeoffCine = new TakeoffCinematic(this);
     // 메인 메뉴 시네마틱(높음·최고): 몇 번째 장면의 몇 초인지
     this.cine = { on: false, shot: 0, t: 0, view: { yaw: 0, pitch: 0, dist: 20, at: [0, 0, 0], shift: 0, fov: 40, level: true } };
     this.cursorOverride = null; // 자동플레이가 정하는 조준 커서(화면 좌표)
@@ -227,6 +229,8 @@ export class MissionSession {
     f.hit = 0; f.hitWarn = 0; f.kill = 0; f.wave = 0; f.switched = 0; f.flash = 0;
     this.endTimer = 0;
     this.success = false;
+    if (this.takeoffCine.active) { this.takeoffCine.active = false; this.world.setDim(1); const ck = this.player.cockpit; if (ck && ck.group) ck.group.scale.z = 1; this.player.visual.flapDirect = false; this.player.visual.surge = 0; }
+    this.rig.fov = 0;
     this.threat.reset();
     this.decals.clear();
     this.killcam.active = false; this.killcam.cam = false;
@@ -339,19 +343,12 @@ export class MissionSession {
     if (this.skipTakeoffOverride ?? this.settings.get('skipTakeoff')) {
       this._airStart();
     } else {
-      // 활주로에서 시작(낮음은 막 떠오른 순간부터)
-      const tk = this.takeoff;
-      const f = this.player.flight;
+      // 활주로에서 8초 이륙 시네마틱(조작 없음). 끝나면 공중에서 수평 비행으로 이어진다
       this.phase = PHASE.TAKEOFF;
-      this.player.manual = true;
-      tk.time = 0; tk.wait = 0; tk.assisted = false;
-      if (this.simpleTakeoff) { tk.state = 'climb'; tk.speed = TAKEOFF.low.speed; tk.pitch = TAKEOFF.climbPitch * 0.5 * DEG; f.pos.y = ground + TAKEOFF.low.startAgl; } else { tk.state = 'roll'; tk.speed = 0; tk.pitch = 0; }
-      f.speed = tk.speed; f.pitch = tk.pitch; f.throttle = 1;
-      updateOrientation(f);
-      this.player.prevPos.copy(f.pos);
-      this.player.prevQuat.copy(f.quat);
       this.gearTarget = 1;
       this.player.visual.gear = 1;
+      this.takeoffCine.simple = this.simpleTakeoff;
+      this.takeoffCine.start();
     }
     if (this.tutorialEnabled && mission.id === TUTORIAL.missionId && !this.settings.get('tutorialDone') && !(this.autopilot && this.autopilot.enabled)) this.tutorial.start(this, this.input.touchMode);
     this._applyView();
@@ -398,44 +395,16 @@ export class MissionSession {
   /** Enter/Space: 이륙 연출 건너뛰기 */
   skipTakeoff() {
     if (this.mode !== 'mission' || this.phase !== PHASE.TAKEOFF) return false;
-    this._airStart(true);
-    return true;
+    return this.takeoffCine.skip();
   }
 
   _stepTakeoff(dt) {
-    const T = TAKEOFF;
-    const tk = this.takeoff;
-    const f = this.player.flight;
-    const ground = AIRBASE.height + GEAR_HEIGHT;
-    tk.time += dt;
-    if (tk.state === 'roll') {
-      tk.speed += T.accel * dt;
-      if (tk.speed >= T.rotateSpeed) { tk.state = 'rotate'; tk.wait = 0; }
-    } else if (tk.state === 'rotate') {
-      tk.speed += T.accel * 0.45 * dt;
-      tk.wait += dt;
-      // W 또는 S로 기수를 든다. 누르지 않아도 잠시 뒤 자동으로 든다(이륙 실패 없음)
-      const pressed = this.inputOverride ? this.inputOverride.pitch !== 0 : Math.abs(this.input.flightAxes(_ax).pitch) > 0.3;
-      if (pressed || tk.wait >= T.assistDelay) { tk.assisted = !pressed; tk.state = 'climb'; }
-    } else {
-      tk.pitch = moveToward(tk.pitch, T.climbPitch * DEG, T.pitchRate * DEG * dt);
-      tk.speed = Math.min(T.climbSpeed, tk.speed + T.liftAccel * dt);
-    }
-    f.speed = tk.speed;
-    f.pitch = tk.pitch;
-    f.roll = 0;
-    f.throttle = 1;
-    updateOrientation(f);
-    f.pos.addScaledVector(f.forward, tk.speed * dt);
-    if (f.pos.y < ground) f.pos.y = ground;
-    this.player.velocity.copy(f.forward).multiplyScalar(tk.speed);
-    const agl = f.pos.y - ground;
-    if (agl > T.gearUpAgl) this.gearTarget = 0;
-    if (agl >= T.finishAgl) this._airStart(false);
+    this.takeoffCine.step(dt);
   }
 
   /** 모델 연출 값(기어·플랩·에어브레이크·애프터버너)을 비행 상태에서 정한다. */
   _stepVisual(dt) {
+    if (this.mode === 'mission' && this.phase === PHASE.TAKEOFF) return; // 이륙 시네마틱이 직접 정한다
     const v = this.player.visual;
     const f = this.player.flight;
     const cfg = this.player.cfg;
@@ -967,6 +936,7 @@ export class MissionSession {
     this._updateMfd();
     if (this.mode === 'showcase' && this.cine.on && !this.showcaseHold) this._cineCamera();
     this.rig.update(player.view, frameDt);
+    if (this.takeoffCine.active) this.takeoffCine.camera(frameDt);
     if (this.killcam.active) this._killcamCamera(frameDt); // 킬캠 시간은 실제 시간으로 센다
     this.world.update(this.camera);
     if (!this.looking) this.updateCursor();

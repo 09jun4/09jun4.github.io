@@ -55,7 +55,7 @@ export function settingsFields() {
     </div>
     <div class="field row">
       <label><input type="checkbox" data-set="autoQuality"> 느려지면 자동으로 품질 낮추기</label>
-      <label><input type="checkbox" data-set="skipTakeoff"> 이륙 연출 건너뛰기</label>
+      <label><input type="checkbox" data-set="skipTakeoff"> 이륙 시네마틱 기본 생략</label>
       <label><input type="checkbox" data-set="cameraShake"> 카메라 흔들림</label>
     </div>
     <button type="button" class="btn" data-act="tutorial">튜토리얼 다시 보기</button>`;

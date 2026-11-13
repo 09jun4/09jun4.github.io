@@ -29,6 +29,7 @@ import { createBriefing } from './ui/briefing.js';
 import { createPause } from './ui/pause.js';
 import { createResult } from './ui/result.js';
 import { createTutorialBanner } from './ui/tutorial-banner.js';
+import { SHOTS as TAKEOFF_SHOTS } from './data/takeoff-cine.js';
 import { DECALS } from './data/extras.js';
 import { createSettingsDialog } from './ui/settings-panel.js';
 import { createOnline } from './auth/online.js';
@@ -213,6 +214,15 @@ const touch = createTouchControls({
   },
 });
 window.__kf21Touch = touch;
+// 이륙 시네마틱 디버그 훅(?debug=1): __cinematic.seek(초)로 임의 시점을 보여 주고 멈춘다. resume()으로 이어서 재생
+if (isDebugEnabled()) {
+  window.__cinematic = {
+    shots: TAKEOFF_SHOTS,
+    seek(t) { const ok = session.takeoffCine.seek(t); console.info('[KF21] cinematic', ok ? `seek ${t}s` : '재생 중이 아니에요(미션을 시작한 직후에만 됩니다)', TAKEOFF_SHOTS.map((x) => `${x.id} ${x.t0}~${x.t1}s`).join(' | ')); return ok; },
+    resume() { session.takeoffCine.hold = false; },
+    get time() { return session.takeoffCine.t; },
+  };
+}
 fsm.onChange((name) => {
   touch.setVisible(name === STATE.PLAYING);
   hud.setVisible(name === STATE.PLAYING || name === STATE.PAUSED);
@@ -333,7 +343,7 @@ const loop = new GameLoop({
     input.poll(frameDt);
     touch.update(frameDt, { takeoff: session.phase === 'takeoff' || session.tutorial.active || session.killcam.active });
     loop.timeScale = baseTimeScale * session.timeScale; // 킬캠 슬로모션
-    banner.update(session.tutorial, fsm.name === STATE.PLAYING);
+    banner.update(session.tutorial, fsm.name === STATE.PLAYING && session.phase !== 'takeoff');
     if (session.replay.on) banner.setReplay(true, session.replay.pass, input.touchMode);
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
     visuals.animate(player.time, paused ? 0 : frameDt);
@@ -346,7 +356,7 @@ const loop = new GameLoop({
       sunScreen.set(_sunWorld.x * 0.5 + 0.5, _sunWorld.y * 0.5 + 0.5, inFront * Math.max(0, 1 - Math.max(Math.abs(_sunWorld.x), Math.abs(_sunWorld.y)) * 0.85));
       postFrame.flash = session.feedback.flash;
       postFrame.exposure = world.look.exposure;
-      postFrame.turn = Math.min(1, Math.abs(player.flight.yawRate) * 1.4 + Math.abs(player.flight.pitchRate) * 0.9);
+      postFrame.turn = Math.max(session.takeoffCine.active ? session.takeoffCine.blur : 0, Math.min(1, Math.abs(player.flight.yawRate) * 1.4 + Math.abs(player.flight.pitchRate) * 0.9));
       post.render(scene, camera, postFrame);
       renderer.setRenderTarget(null);
     } else renderer.render(scene, camera);
@@ -417,6 +427,7 @@ if (isDebugEnabled()) {
       setTrigger: (v) => { session.triggerOverride = v; },
       autopilot: () => autopilot,
       killEnemy: () => session.debugKill(),
+      cine: () => session.takeoffCine,
       env: (tod, terrain) => session._setEnvironment(tod, terrain),
       hitPlayer: (n = 1) => { for (let i = 0; i < n; i++) session._onPlayerHit(1, 'bullet'); },
       inspect: (f) => { session.showcaseHold = !!f; rig.fixed = f; rig.snap = true; if (!f) { rig.mode = ''; session._applyView(); } },

@@ -26,7 +26,7 @@ export class Tutorial {
   start(session, mobile) {
     this.active = true;
     this.mobile = mobile;
-    this.index = session.phase === PHASE_NAMES.TAKEOFF ? 0 : 1;
+    this.index = 0;
     this._enter(session);
   }
 

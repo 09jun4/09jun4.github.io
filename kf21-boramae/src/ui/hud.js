@@ -12,7 +12,7 @@ const TEXT = {
   speed: 'SPD', alt: 'ALT', hp: 'HP', targets: '남은 적기', takeoff: '이륙 활주', rotate: 'W 또는 S — 기수 들기', climb: '상승 중 · 기어 접는 중', skip: 'Enter / Space  건너뛰기', hit: '피격', lowHp: '체력 경고', pullUp: '고도 주의',
   ceiling: '상승 한계', overheat: '과열', kill: '격추', wave: '적 편대 접근', lock: 'LOCK', noAmmo: '미사일 없음',
   clear: '임무 완수', down: '격추당함', time: 'TIME', limit: '남은 시간', boss: '적 에이스', failed: '임무 실패',
-  warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
+  skipTap: '화면을 누르면 건너뛰기', warn: 'WARNING', warnMissile: 'MISSILE', threat_gun: '적 사격', threat_chase: '후방 추격', threat_missile: '미사일 접근', skipTouch: '건너뛰기 버튼',
 };
 
 export class Hud {
@@ -127,6 +127,11 @@ export class Hud {
     const fb = session.feedback;
     const hpRatio = player.hp / player.cfg.hp;
     const blink = Math.sin(this.time * 9) > 0;
+    if (session.phase === PHASE.TAKEOFF) { // 이륙 시네마틱: HUD를 숨기고 생략 안내만
+      this._setDamage(0);
+      this._text(this.touch ? TEXT.skipTap : TEXT.skip, 0, H * 0.42, 12, HUD.dim, 'center', true, 600);
+      return;
+    }
     // 킬캠(옆 카메라): 조준·계기 대신 격추 표시만
     if (session.killcam && session.killcam.cam) {
       this._setDamage(0);

@@ -455,7 +455,7 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
     const h = tuning.hi;
     st.gear = o.gear;
     gear.setDown(o.gear);
-    st.flap = damp(st.flap, o.flap, h.flapTau, o.dt);
+    st.flap = o.flapDirect ? o.flap : damp(st.flap, o.flap, h.flapTau, o.dt); // 시네마틱은 플랩 각을 직접 준다
     st.brake = damp(st.brake, o.airbrake, h.brakeTau, o.dt);
     deflect(brake, -st.brake * h.brakeAngle * DEG);
     st.canopy = o.canopy;
@@ -473,7 +473,7 @@ export function createKF21Hi({ detail, tuning, textures, pilot }) {
       group.updateWorldMatrix(true, false);
       for (let i = 0; i < 6; i++) worldPlanes[i].copy(localPlanes[i]).applyMatrix4(group.matrixWorld);
     }
-    if (pilot) pilot.update({ pitch: o.pitchIn || 0, turn: o.headYaw || 0, power: o.power, turnLoad: o.turnLoad || 0, pitchLoad: o.pitchLoad || 0, firePulse: o.firePulse || 0, dt: o.dt, stick: o.stick || null });
+    if (pilot) pilot.update({ pitch: o.pitchIn || 0, turn: o.headYaw || 0, power: o.power, turnLoad: o.turnLoad || 0, pitchLoad: o.pitchLoad || 0, firePulse: o.firePulse || 0, dt: o.dt, stick: o.stick || null, surge: o.surge || 0 });
     if (o.firePulse) o.firePulse = 0;
     flame.set(st.power, o.boost, o.time, o.dt);
   }

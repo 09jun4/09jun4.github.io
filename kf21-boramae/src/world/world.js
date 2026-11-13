@@ -97,6 +97,13 @@ export class World {
     return changed;
   }
 
+  /** 조명 배율(이륙 시네마틱의 어둡게 시작하기). 1이 기본 */
+  setDim(k) {
+    if (k === this._dim) return;
+    this._dim = k;
+    this._altK = -1; // 다음 프레임에 조명 세기를 다시 계산한다
+  }
+
   /** 고도 연출: 카메라 고도에 따라 하늘색·햇빛·반사광을 바꾼다 */
   setAltitude(alt) {
     const a = this.cfg.altitudeLook;
@@ -114,8 +121,9 @@ export class World {
     u.uZenith.value.lerpColors(this._alt.z0, this._alt.z1, k);
     u.uMid.value.lerpColors(this._alt.m0, this._alt.m1, k);
     u.uSunGlow.value = this.look.sunGlow * (1 + a.glowGain * k);
-    this.lights.sun.intensity = this.look.sunIntensity * (1 + a.sunGain * k);
-    this.lights.hemi.intensity = this.look.hemiIntensity * (1 - a.hemiDrop * k);
+    const dim = this._dim ?? 1;
+    this.lights.sun.intensity = this.look.sunIntensity * (1 + a.sunGain * k) * dim;
+    this.lights.hemi.intensity = this.look.hemiIntensity * (1 - a.hemiDrop * k) * dim;
     this.altitudeK = k;
   }
 
