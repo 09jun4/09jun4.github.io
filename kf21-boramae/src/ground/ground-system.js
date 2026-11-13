@@ -172,7 +172,7 @@ export class GroundSystem {
     mesh.instanceColor.needsUpdate = true;
     ctx.fx.explosion(t.pos, t.velocity, t.def.radius > 20 ? 1.8 : 1.2);
     ctx.rig.addShake(ctx.shake.explosion * Math.max(0, 1 - t.pos.distanceTo(ctx.player.flight.pos) / 1200));
-    ctx.audio.play('explosion');
+    ctx.audio.play('explosion', { distance: t.pos.distanceTo(ctx.player.flight.pos) + 600 }); // 폭탄 폭발음과 겹치므로 작게
     const k = GROUND_RULES.smoke;
     if (this.smokes.length >= k.max) this.smokes.shift();
     this.smokes.push({ pos: t.pos.clone(), life: k.life, timer: 0 });

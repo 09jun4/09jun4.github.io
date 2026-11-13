@@ -6,7 +6,8 @@ import { Input } from './core/input.js';
 import { Settings, safeStorage } from './core/settings.js';
 import { SaveData } from './core/save.js';
 import { QualityManager } from './core/quality.js';
-import { audio } from './core/audio-stub.js';
+import { audio } from './core/audio.js';
+import { AUDIO } from './data/audio.js';
 import { isDebugEnabled, installDebug, debugState } from './core/debug.js';
 import { MissionSession } from './core/mission-session.js';
 import { LOOP, STATE, TRANSITIONS } from './data/app.js';
@@ -77,6 +78,7 @@ const inputHooks = {
   onTutorial: () => { settings.set('tutorialDone', false); settings.set('bombTutorialDone', false); toast('다음에 미션 1이나 폭격 미션을 시작하면 튜토리얼이 나와요.'); },
   mobileQualityLimit: false, // 모바일에서도 높음·최고를 고를 수 있다
 };
+audio.init(settings);
 const session = new MissionSession({ scene, camera, world, rig, input, settings, audio, player, loadout: LOADOUT });
 visuals.enemies = session.enemies;
 const hud = new Hud(document.getElementById('hud'), document.getElementById('damage'));
@@ -224,6 +226,8 @@ if (isDebugEnabled()) {
   };
 }
 fsm.onChange((name) => {
+  audio.setPaused(name === STATE.PAUSED); // 일시정지하면 소리도 그 자리에서 멎는다
+  if (name !== STATE.PLAYING && name !== STATE.PAUSED) audio.stopAll();
   touch.setVisible(name === STATE.PLAYING);
   hud.setVisible(name === STATE.PLAYING || name === STATE.PAUSED);
   appEl.classList.toggle('playing', name === STATE.PLAYING);
@@ -332,6 +336,7 @@ input.onKey((code) => {
 
 // ── 루프 ─────────────────────────────────────────────────────────────────
 let baseTimeScale = 1;
+const _eng = { on: false, power: 0, boost: 0, cockpit: false, level: 1 };
 const loop = new GameLoop({
   ...LOOP,
   step(dt) {
@@ -343,6 +348,13 @@ const loop = new GameLoop({
     input.poll(frameDt);
     touch.update(frameDt, { takeoff: session.phase === 'takeoff' || session.tutorial.active || session.killcam.active });
     loop.timeScale = baseTimeScale * session.timeScale; // 킬캠 슬로모션
+    { // 엔진음: 미션 비행 중(이륙은 시동 뒤부터). 출력·애프터버너에 따라 음량과 음높이가 변한다
+      const cine = session.takeoffCine, mission = session.mode === 'mission' && (fsm.name === STATE.PLAYING || fsm.name === STATE.PAUSED);
+      const on = mission && player.alive && (session.phase === 'active' || session.phase === 'ending' || (session.phase === 'takeoff' && cine.t > AUDIO.takeoff.engineFrom));
+      _eng.on = on; _eng.power = player.flight.throttle; _eng.boost = player.visual.boost || 0; _eng.cockpit = player.cockpitView;
+      _eng.level = session.phase === 'takeoff' ? Math.min(1, (cine.t - AUDIO.takeoff.engineFrom) / 2) * 0.7 : 1;
+      audio.update(_eng, frameDt);
+    }
     banner.update(session.tutorial, fsm.name === STATE.PLAYING && session.phase !== 'takeoff');
     if (session.replay.on) banner.setReplay(true, session.replay.pass, input.touchMode);
     session.render(paused ? 1 : alpha, paused ? 0 : frameDt);
@@ -427,6 +439,7 @@ if (isDebugEnabled()) {
       setTrigger: (v) => { session.triggerOverride = v; },
       autopilot: () => autopilot,
       killEnemy: () => session.debugKill(),
+      audio: () => audio,
       cine: () => session.takeoffCine,
       env: (tod, terrain) => session._setEnvironment(tod, terrain),
       hitPlayer: (n = 1) => { for (let i = 0; i < n; i++) session._onPlayerHit(1, 'bullet'); },

@@ -14,7 +14,7 @@ export function createMenu(actions) {
           <button class="btn" data-act="settings">설정</button>
         </nav>
       </div>
-      <p class="menu-foot">PC · 키보드와 마우스 · 사운드 없음</p>
+      <p class="menu-foot">PC · 모바일 · 소리 있음</p>
     </section>`);
   root.querySelector('[data-act="start"]').addEventListener('click', actions.start);
   root.querySelector('[data-act="settings"]').addEventListener('click', actions.settings);

@@ -9,6 +9,7 @@ import { GEAR_HEIGHT } from '../entities/gear.js';
 import { VIEW } from '../flight/camera-rig.js';
 import { FX } from '../data/fx.js';
 import { PALETTE } from '../data/palette.js';
+import { AUDIO } from '../data/audio.js';
 
 const _p = new THREE.Vector3();
 const _l = new THREE.Vector3();
@@ -48,7 +49,12 @@ export class TakeoffCinematic {
   /** 고정 스텝: 시간을 보내고 그 시각의 상태를 입힌다 */
   step(dt) {
     if (!this.active) return;
+    const t0 = this.t;
     if (!this.hold) this.t += dt;
+    // 소리: 시동음은 초반부, 이륙음은 애프터버너 점화에 맞춰(저공 통과가 끝날 때 잦아든다)
+    const A = AUDIO.takeoff, au = this.s.audio;
+    if (t0 < A.startAt && this.t >= A.startAt) { au.play('engine_start'); if (au.fadeOut) au.fadeOut('engine_start', A.startFade[0], A.startFade[1]); }
+    if (t0 < A.roarAt && this.t >= A.roarAt) au.play('takeoff');
     if (this.t >= CINE.duration) { this.finish(false); return; }
     this._apply(dt);
   }
@@ -122,6 +128,7 @@ export class TakeoffCinematic {
     if (!this.active) return false;
     const s = this.s, p = s.player;
     this.t = CINE.duration; this.hold = false;
+    if (skipped && this.s.audio.stop) { this.s.audio.stop('engine_start', 0.3); this.s.audio.stop('takeoff', 0.5); } // 생략하면 연출음을 줄인다
     this._apply(0);
     this.active = false;
     this.blur = 0; this.env = 0;

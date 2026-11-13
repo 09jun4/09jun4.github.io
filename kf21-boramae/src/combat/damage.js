@@ -21,7 +21,7 @@ export function damageEnemy(ctx, enemy, amount, source) {
   ctx.fx.explosion(enemy.pos, enemy.velocity, 1);
   ctx.rig.addShake(ctx.shake.explosion * Math.max(0, 1 - enemy.pos.distanceTo(ctx.player.flight.pos) / 900));
   enemy.despawn(); // 폭발 후 즉시 제거
-  ctx.audio.play('explosion');
+  ctx.audio.play('explosion', { distance: enemy.pos.distanceTo(ctx.player.flight.pos) });
   ctx.onEnemyKilled(enemy, source);
   return true;
 }

@@ -21,6 +21,10 @@ export function settingsFields() {
       <p class="hint">낮음은 가벼운 로우폴리, 높음·최고는 사실적인 기체와 효과예요. 바꾸면 잠깐 다시 불러와요.</p>
     </div>
     <div class="field">
+      <label for="set-volume">음량 <output data-out="volume"></output></label>
+      <input id="set-volume" type="range" min="0" max="1" step="0.05" data-set="volume">
+    </div>
+    <div class="field">
       <span class="label">도색</span>
       <div class="seg three" role="radiogroup" aria-label="도색">
         ${PAINTS.map((p) => `<button type="button" role="radio" data-paint="${p.id}">${p.label}</button>`).join('')}
@@ -57,6 +61,7 @@ export function settingsFields() {
       <label><input type="checkbox" data-set="autoQuality"> 느려지면 자동으로 품질 낮추기</label>
       <label><input type="checkbox" data-set="skipTakeoff"> 이륙 시네마틱 기본 생략</label>
       <label><input type="checkbox" data-set="cameraShake"> 카메라 흔들림</label>
+      <label><input type="checkbox" data-set="sound"> 소리</label>
     </div>
     <button type="button" class="btn" data-act="tutorial">튜토리얼 다시 보기</button>`;
 }

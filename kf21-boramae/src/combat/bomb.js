@@ -113,7 +113,7 @@ export function createBomb(cfg) {
           b.pos.y = ground + 1;
           ctx.fx.explosion(b.pos, ZERO, cfg.blastScale);
           ctx.rig.addShake(ctx.shake.explosion * Math.max(0.15, 1 - b.pos.distanceTo(f.pos) / 1500));
-          ctx.audio.play('explosion');
+          ctx.audio.play('bomb_explosion', { distance: b.pos.distanceTo(f.pos) });
           if (ctx.ground) ctx.ground.blast(b.pos, cfg, ctx);
         }
       }
@@ -131,7 +131,7 @@ export function createBomb(cfg) {
       b.pos.copy(f.pos); b.pos.y -= cfg.dropOffset;
       b.prev.copy(b.pos);
       b.vel.copy(ctx.player.velocity);
-      ctx.audio.play('missile_launch');
+      ctx.audio.play('bomb_drop', { fall: this.ccip.valid ? this.ccip.time : 3 }); // 낙하 휘파람이 착탄에 맞춰 끝난다
     },
 
     render(alpha) {

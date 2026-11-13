@@ -10,6 +10,8 @@ export const DEFAULT_SETTINGS = {
   paint: 'grey', // 도색: 'grey' | 'dark' | 'urban'
   skipTakeoff: false, // 이륙 연출 기본 스킵
   cameraShake: true,
+  sound: true, // 소리 켜기
+  volume: 0.7, // 전체 음량(0~1)
   // PC: 우클릭 조향
   steerEnabled: true,
   steerSens: 1,
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 export const SETTING_RANGES = {
+  volume: { min: 0, max: 1, step: 0.05 },
   mouseSensitivity: { min: 0.5, max: 2, step: 0.05 },
   steerSens: { min: 0.5, max: 2, step: 0.05 },
   stickSens: { min: 0.5, max: 2, step: 0.05 },

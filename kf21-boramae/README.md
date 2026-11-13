@@ -92,3 +92,7 @@ Firebase(Authentication + Firestore)를 쓴다. `js/firebase-config.js`가 비�
 | `rankings/{미션}/scores/{uid}` | 미션별 최고 점수 | 읽기 공개, 쓰기 본인(점수식 검증), 삭제 본인·관리자 |
 
 규칙을 바꾸면 콘솔에서 다시 게시해야 적용된다.
+
+## 소리
+
+효과음 7개는 `assets/audio/`에 있다(엔진 루프, 시동, 이륙, 기관포, 미사일, 폭탄 낙하, 폭발). 원본은 사이트 주인이 내려받아 제공한 파일이고, 파일 이름으로 보아 Pixabay의 freesound_community · mycuppatea · derrickmckinnon · agapites_plc · u_xg7ssi08yr 업로드다. 게임에 맞게 길이와 음량을 손봤다. 설정에서 소리를 끄거나 음량을 바꿀 수 있다.
