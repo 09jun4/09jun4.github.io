@@ -46,7 +46,7 @@ export const TRACKS = {
 export const CAMERAS = {
   pilot: { mode: 'rel', keys: [[0, 0.05, 1.13, -4.25, 0, 1.03, -3.6, 40], [1, 0.02, 1.11, -4.2, 0, 1.03, -3.6, 40]] }, // 헬멧 앞 약 0.6m(계기판 덮개 안쪽: 밖에서는 덮개에 가려 얼굴이 안 보인다)
   start: { mode: 'cockpit', keys: [] },
-  side: { mode: 'rel', keys: [[3, 23, 2.4, 2, 0, 0.6, 1.5, 36], [5, 19, 1.3, 11, 0, 0.5, 2.5, 32]] }, // 기체 약 25m, 뒷전(플랩)이 보이게 조금 뒤로 돈다
+  side: { mode: 'rel', keys: [[3, 23, 2.4, 0, 0, 0.6, 1.5, 36], [4.4, 12, 0.5, 13, 1.5, 0.3, 3, 30], [5, 14, 0.4, 12, 0, 0.6, 2.5, 32]] }, // 측면에서 날개 뒤 아래로 돌아 들어가 플랩이 내려오는 것을 보여 준다 // 기체 약 25m, 뒷전(플랩)이 보이게 조금 뒤로 돈다
   gear: { mode: 'rel', keys: [[5, 20, -1.2, 3, 0, -0.6, 0, 38], [7, 19, -3.4, 5.5, 0, -0.8, 0, 38]] }, // 약 20m, 카메라를 낮춰 기체 하부가 보이게
   flyby: { mode: 'fixed', at: 7.75, offset: [36, -6, 0], lookAt: 7.3, fov: 50 }, // 통과 지점 옆에 고정(회전 없음): 기체가 멀리서 들어와 화면을 가로질러 나간다
 };
@@ -113,7 +113,10 @@ export function cameraAt(t, out) {
     out.fov = c.fov;
     return out;
   }
-  const k = c.keys, a = k[0], b = k[k.length - 1];
+  const k = c.keys;
+  let n = 0;
+  while (n < k.length - 2 && t > k[n + 1][0]) n++; // t가 속한 키프레임 구간
+  const a = k[n], b = k[n + 1];
   const u = ease(Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0]))));
   out.px = a[1] + (b[1] - a[1]) * u; out.py = a[2] + (b[2] - a[2]) * u; out.pz = a[3] + (b[3] - a[3]) * u;
   out.lx = a[4] + (b[4] - a[4]) * u; out.ly = a[5] + (b[5] - a[5]) * u; out.lz = a[6] + (b[6] - a[6]) * u;

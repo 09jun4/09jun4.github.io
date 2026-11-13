@@ -37,7 +37,7 @@ describe('이륙 시네마틱 타임라인', () => {
   it('카메라: 1인칭 → 측면 추적(약 25m → 20m) → 물러난 고정 샷', () => {
     const c = {};
     expect(cameraAt(2, c).mode).toBe('cockpit');
-    cameraAt(4, c);
+    cameraAt(3.1, c);
     expect(c.mode).toBe('rel');
     expect(Math.hypot(c.px, c.pz)).toBeGreaterThan(20);
     cameraAt(6, c);
