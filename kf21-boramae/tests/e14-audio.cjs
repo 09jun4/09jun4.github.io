@@ -11,6 +11,7 @@ const { startServer, launch, openGame, sleep } = require('./lib/harness.cjs');
   out.loaded = await d(() => { const a = window.__debug.audio(); return Object.fromEntries(Object.entries(a.buffers).map(([k, b]) => [k, +b.duration.toFixed(2)])); });
   // 루프 이음매: 끝 표본과 첫 표본이 이어지는가(차이가 작아야 한다)
   out.seam = await d(() => { const b = window.__debug.audio().buffers.engineLoop.getChannelData(0); let mx = 0; for (let i = 1; i < 2000; i++) mx = Math.max(mx, Math.abs(b[i] - b[i - 1])); return { jump: +Math.abs(b[0] - b[b.length - 1]).toFixed(4), typicalStep: +mx.toFixed(4) }; });
+  out.music = await d(() => { const a = window.__debug.audio(), b = a.buffers.musicLoop.getChannelData(0); let mx = 0; for (let i = 1; i < 4000; i++) mx = Math.max(mx, Math.abs(b[i] - b[i - 1])); return { playing: !!a.music, length: +a.buffers.musicLoop.duration.toFixed(3), seamJump: +Math.abs(b[0] - b[b.length - 1]).toFixed(4), typicalStep: +mx.toFixed(4), scene: a.scene }; });
   await d(() => { window.__debug.startMission('c1m1'); window.__debug.session().input.setLockWanted(false); });
   const names = async () => d(() => { const a = window.__debug.audio(); return { t: +window.__debug.session().takeoffCine.t.toFixed(1), named: Object.keys(a.named), engine: !!a.engine, engGain: +a.eng.gain.toFixed(2), state: a.ctx.state }; });
   out.timeline = [];
@@ -18,6 +19,7 @@ const { startServer, launch, openGame, sleep } = require('./lib/harness.cjs');
   await page.waitForFunction(() => window.__debug.state().phase === 'active', null, { timeout: 60000 });
   await sleep(600);
   out.flight = await names();
+  out.musicInMission = await d(() => window.__debug.audio().scene);
   await d(() => window.__debug.setTrigger(true)); await sleep(500);
   out.gunOn = await d(() => { const a = window.__debug.audio(); return a.gun && a.gun.on; });
   await d(() => window.__debug.setTrigger(null)); await sleep(500);

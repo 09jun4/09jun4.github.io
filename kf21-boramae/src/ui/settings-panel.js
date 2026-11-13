@@ -23,6 +23,8 @@ export function settingsFields() {
     <div class="field">
       <label for="set-volume">음량 <output data-out="volume"></output></label>
       <input id="set-volume" type="range" min="0" max="1" step="0.05" data-set="volume">
+      <label for="set-music">배경음악 음량 <output data-out="musicVolume"></output></label>
+      <input id="set-music" type="range" min="0" max="1" step="0.05" data-set="musicVolume">
     </div>
     <div class="field">
       <span class="label">도색</span>
@@ -62,6 +64,7 @@ export function settingsFields() {
       <label><input type="checkbox" data-set="skipTakeoff"> 이륙 시네마틱 기본 생략</label>
       <label><input type="checkbox" data-set="cameraShake"> 카메라 흔들림</label>
       <label><input type="checkbox" data-set="sound"> 소리</label>
+      <label><input type="checkbox" data-set="music"> 배경음악</label>
     </div>
     <button type="button" class="btn" data-act="tutorial">튜토리얼 다시 보기</button>`;
 }

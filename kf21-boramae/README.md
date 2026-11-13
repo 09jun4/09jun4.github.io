@@ -96,3 +96,5 @@ Firebase(Authentication + Firestore)를 쓴다. `js/firebase-config.js`가 비�
 ## 소리
 
 효과음 7개는 `assets/audio/`에 있다(엔진 루프, 시동, 이륙, 기관포, 미사일, 폭탄 낙하, 폭발). 원본은 사이트 주인이 내려받아 제공한 파일이고, 파일 이름으로 보아 Pixabay의 freesound_community · mycuppatea · derrickmckinnon · agapites_plc · u_xg7ssi08yr 업로드다. 게임에 맞게 길이와 음량을 손봤다. 설정에서 소리를 끄거나 음량을 바꿀 수 있다.
+
+배경음악(`assets/audio/music.mp3`)은 `tools/make-music.py`로 합성한 자작 루프다(오케스트라풍, 40초). 설정에서 끄거나 음량을 바꿀 수 있다.

@@ -354,6 +354,7 @@ const loop = new GameLoop({
       _eng.on = on; _eng.power = player.flight.throttle; _eng.boost = player.visual.boost || 0; _eng.cockpit = player.cockpitView;
       _eng.level = session.phase === 'takeoff' ? Math.min(1, (cine.t - AUDIO.takeoff.engineFrom) / 2) * 0.7 : 1;
       audio.update(_eng, frameDt);
+      audio.setScene(!mission ? 'menu' : session.phase === 'takeoff' ? 'takeoff' : 'mission'); // 배경음악 음량: 메뉴 > 미션 > 이륙 연출
     }
     banner.update(session.tutorial, fsm.name === STATE.PLAYING && session.phase !== 'takeoff');
     if (session.replay.on) banner.setReplay(true, session.replay.pass, input.touchMode);

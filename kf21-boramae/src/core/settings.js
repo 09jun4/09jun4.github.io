@@ -14,8 +14,8 @@ export function normalizeSettings(raw) {
     if (typeof raw.autoQuality === 'boolean') s.autoQuality = raw.autoQuality;
     if (typeof raw.cameraShake === 'boolean') s.cameraShake = raw.cameraShake;
     if (raw.view === 'chase' || raw.view === 'cockpit') s.view = raw.view;
-    for (const k of ['steerSens', 'stickSens', 'gyroSens', 'volume']) if (Number.isFinite(raw[k])) s[k] = clamp(raw[k], SETTING_RANGES[k].min, SETTING_RANGES[k].max);
-    for (const k of ['steerEnabled', 'steerInvertY', 'gyro', 'gyroInvert', 'tutorialDone', 'bombTutorialDone', 'mobileHighOk', 'sound']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    for (const k of ['steerSens', 'stickSens', 'gyroSens', 'volume', 'musicVolume']) if (Number.isFinite(raw[k])) s[k] = clamp(raw[k], SETTING_RANGES[k].min, SETTING_RANGES[k].max);
+    for (const k of ['steerEnabled', 'steerInvertY', 'gyro', 'gyroInvert', 'tutorialDone', 'bombTutorialDone', 'mobileHighOk', 'sound', 'music']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
     if (['auto', 'pc', 'mobile'].includes(raw.inputMode)) s.inputMode = raw.inputMode;
     // v1의 quality('high'|'low')는 의미가 달랐다(둘 다 로우폴리). v2부터만 그대로 읽고, 옛 값이면 벤치마크로 다시 고른다.
     if (raw.v >= 2) {

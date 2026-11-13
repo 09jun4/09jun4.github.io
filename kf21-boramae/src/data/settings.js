@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS = {
   cameraShake: true,
   sound: true, // 소리 켜기
   volume: 0.7, // 전체 음량(0~1)
+  music: true, // 배경음악 켜기
+  musicVolume: 0.5, // 배경음악 음량(0~1, 전체 음량에 곱해진다)
   // PC: 우클릭 조향
   steerEnabled: true,
   steerSens: 1,
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS = {
 
 export const SETTING_RANGES = {
   volume: { min: 0, max: 1, step: 0.05 },
+  musicVolume: { min: 0, max: 1, step: 0.05 },
   mouseSensitivity: { min: 0.5, max: 2, step: 0.05 },
   steerSens: { min: 0.5, max: 2, step: 0.05 },
   stickSens: { min: 0.5, max: 2, step: 0.05 },

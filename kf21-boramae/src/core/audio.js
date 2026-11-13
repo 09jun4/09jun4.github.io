@@ -33,14 +33,15 @@ class GameAudio {
     this.named = {}; // 이름으로 멈출 수 있는 소리(시동음·이륙음·폭탄 낙하음)
     this.eng = { gain: 0, rate: 1 };
     this.unlocked = false;
+    this.music = null; this.musicOn = true; this.musicVolume = 0.5; this.scene = 'menu';
   }
 
   /** 설정 연결 + 첫 입력 때 소리 켜기 */
   init(settings) {
     this.settings = settings;
-    const apply = () => { this.enabled = settings.get('sound') !== false; this.volume = settings.get('volume') ?? 0.7; this._applyMaster(); };
+    const apply = () => { this.enabled = settings.get('sound') !== false; this.volume = settings.get('volume') ?? 0.7; this.musicOn = settings.get('music') !== false; this.musicVolume = settings.get('musicVolume') ?? 0.5; this._applyMaster(); this._music(); };
     apply();
-    settings.onChange((k) => { if (k === 'sound' || k === 'volume' || k === '*') apply(); });
+    settings.onChange((k) => { if (k === 'sound' || k === 'volume' || k === 'music' || k === 'musicVolume' || k === '*') apply(); });
     const unlock = () => { this.unlock(); };
     window.addEventListener('pointerdown', unlock, { capture: true });
     window.addEventListener('keydown', unlock, { capture: true });
@@ -69,11 +70,38 @@ class GameAudio {
     }));
     if (this.buffers.engine) this.buffers.engineLoop = makeLoop(ctx, this.buffers.engine, A.engine.from, A.engine.to, A.engine.xfade);
     if (this.buffers.gun) this.buffers.gunLoop = makeLoop(ctx, this.buffers.gun, A.gun.from, A.gun.to, A.gun.xfade);
+    if (this.buffers.music) { const m = A.music; this.buffers.musicLoop = makeLoop(ctx, this.buffers.music, m.from, m.from + m.length + m.xfade, m.xfade); delete this.buffers.music; }
     this.ready = true;
+    this._music();
   }
 
   _applyMaster() {
     if (this.master) this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime, 0.03);
+  }
+
+  /** 배경음악: 켜져 있으면 루프를 돌리고, 장면(메뉴·미션·이륙)에 따라 음량만 바꾼다 */
+  _music() {
+    const ctx = this.ctx;
+    if (!ctx || !this.ready || !this.buffers.musicLoop) return;
+    if (this.musicOn && !this.music) {
+      const src = ctx.createBufferSource(), gain = ctx.createGain();
+      src.buffer = this.buffers.musicLoop; src.loop = true;
+      gain.gain.value = 0;
+      src.connect(gain); gain.connect(this.master);
+      src.start();
+      this.music = { src, gain };
+    }
+    if (!this.music) return;
+    const target = this.musicOn ? this.musicVolume * (AUDIO.music[this.scene] ?? 1) : 0;
+    this.music.gain.gain.setTargetAtTime(target, ctx.currentTime, AUDIO.music.tau / 3);
+    if (!this.musicOn) { const m = this.music; this.music = null; try { m.src.stop(ctx.currentTime + AUDIO.music.tau + 0.1); } catch (e) { /* 무시 */ } }
+  }
+
+  /** 장면: 'menu' | 'mission' | 'takeoff' (음악 음량이 달라진다) */
+  setScene(scene) {
+    if (scene === this.scene) return;
+    this.scene = scene;
+    this._music();
   }
 
   setMasterVolume(v) { this.volume = clamp01(v); this._applyMaster(); }
