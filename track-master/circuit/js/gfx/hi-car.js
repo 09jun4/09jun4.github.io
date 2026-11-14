@@ -174,7 +174,9 @@
       };
     }
     var discs = [];
-    [sideSign, -sideSign].forEach(function (sd, k) {
+    // rear wheels: outer face only (the inner one is never seen); fronts also
+    // show their inner face to the cockpit camera
+    (part.front ? [sideSign, -sideSign] : [sideSign]).forEach(function (sd, k) {
       var d = new THREE.Mesh(shared.discs[key], mats.sharp);
       d.position.z = sd * (width / 2 + 0.003);
       if (sd < 0) d.rotation.y = Math.PI;

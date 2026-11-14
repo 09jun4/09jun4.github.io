@@ -353,7 +353,7 @@
   Gfx.render = function (ctx, canvas, dt) {
     if (Gfx.active !== 'high' || !hi) { lowRenderer.render(ctx, canvas, dt); return; }
     var now = performance.now();
-    var realDt = lastNow ? Math.min(0.25, (now - lastNow) / 1000) : 0.016;
+    var realDt = lastNow ? Math.min(1, (now - lastNow) / 1000) : 0.016;
     lastNow = now;
     // 2D canvas = transparent overlay; clear it when the cockpit drew on it.
     if (overlayDirty) {

@@ -217,6 +217,10 @@
       this.scene.add(this.sun, this.sun.target);
     }
     var self = this;
+    // A rebuilt CSM strips its uniforms from the old shaders: drop each lit
+    // material's cached program state so it recompiles with the new setup.
+    if (this.shadowsReady) this.mats.forEach(function (m) { m.dispose(); });
+    this.shadowsReady = true;
     this.mats.forEach(function (m) { self.shadowSetup(m); });
     this.proxyKey = '';
   };
@@ -538,7 +542,9 @@
     this.coneGeo.dispose(); this.blobGeo.dispose();
     this.renderer.renderLists.dispose();
     this.renderer.dispose();
-    try { this.renderer.forceContextLoss(); } catch (e) { /* already lost */ }
+    // free the GL context now (browsers cap live contexts); skip when already lost
+    var gl = this.renderer.getContext();
+    if (gl && !gl.isContextLost()) { try { this.renderer.forceContextLoss(); } catch (e) { /* ignore */ } }
     this.renderer = null;
     this.scene = this.bgScene = null;
     this.built = null;
