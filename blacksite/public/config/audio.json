@@ -1,0 +1,156 @@
+{
+  "comment": "file 값에 public/audio/ 아래 파일 경로(예: \"audio/pistol.ogg\")를 넣으면 그 파일을 쓰고, null이면 Web Audio 합성음을 써요. pain·death·grunt는 여러 변형(pain0~5, death0~2, grunt0~1)이 무작위로 재생돼요.",
+  "crossfade": 1.5,
+  "tensionFadeOut": 4.0,
+  "hearingRange": 26,
+  "sounds": {
+    "shot": {
+      "file": null,
+      "volume": 0.85
+    },
+    "guardShot": {
+      "file": null,
+      "volume": 0.8
+    },
+    "dry": {
+      "file": null,
+      "volume": 0.6
+    },
+    "magOut": {
+      "file": null,
+      "volume": 0.6
+    },
+    "magIn": {
+      "file": null,
+      "volume": 0.7
+    },
+    "slide": {
+      "file": null,
+      "volume": 0.7
+    },
+    "door": {
+      "file": null,
+      "volume": 0.55
+    },
+    "terminal": {
+      "file": null,
+      "volume": 0.45
+    },
+    "complete": {
+      "file": null,
+      "volume": 0.5
+    },
+    "hit": {
+      "file": null,
+      "volume": 0.5
+    },
+    "kill": {
+      "file": null,
+      "volume": 0.5
+    },
+    "hurt": {
+      "file": null,
+      "volume": 0.8
+    },
+    "uiClick": {
+      "file": null,
+      "volume": 0.35
+    },
+    "uiHover": {
+      "file": null,
+      "volume": 0.15
+    },
+    "alert": {
+      "file": null,
+      "volume": 0.5
+    },
+    "suspicious": {
+      "file": null,
+      "volume": 0.35
+    },
+    "impact": {
+      "file": null,
+      "volume": 0.35
+    },
+    "whiz": {
+      "file": null,
+      "volume": 0.5
+    },
+    "log": {
+      "file": null,
+      "volume": 0.4
+    },
+    "stepConcrete": {
+      "file": null,
+      "volume": 0.32
+    },
+    "stepMetal": {
+      "file": null,
+      "volume": 0.36
+    },
+    "stepTile": {
+      "file": null,
+      "volume": 0.3
+    },
+    "grab": {
+      "file": null,
+      "volume": 0.6
+    },
+    "stab": {
+      "file": null,
+      "volume": 0.85
+    },
+    "grunt": {
+      "file": null,
+      "volume": 0.6
+    },
+    "pain": {
+      "file": null,
+      "volume": 0.5
+    },
+    "death": {
+      "file": null,
+      "volume": 0.55
+    }
+  },
+  "ambience": {
+    "entry": {
+      "file": null,
+      "volume": 0.45
+    },
+    "corridor": {
+      "file": null,
+      "volume": 0.45
+    },
+    "security": {
+      "file": null,
+      "volume": 0.45
+    },
+    "lab": {
+      "file": null,
+      "volume": 0.5
+    },
+    "server": {
+      "file": null,
+      "volume": 0.55
+    },
+    "control": {
+      "file": null,
+      "volume": 0.5
+    }
+  },
+  "music": {
+    "menu": {
+      "file": null,
+      "volume": 0.5
+    },
+    "stealth": {
+      "file": null,
+      "volume": 0.35
+    },
+    "tension": {
+      "file": null,
+      "volume": 0.55
+    }
+  }
+}

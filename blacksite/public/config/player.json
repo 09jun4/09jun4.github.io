@@ -1,0 +1,22 @@
+{
+  "walkSpeed": 3.5,
+  "sprintSpeed": 5.5,
+  "crouchSpeed": 1.8,
+  "aimSpeedMul": 0.75,
+  "acceleration": 14,
+  "airControl": 0.25,
+  "jumpHeight": 0.8,
+  "gravity": 18,
+  "radius": 0.32,
+  "standHeight": 1.8,
+  "crouchHeight": 1.15,
+  "standEye": 1.66,
+  "crouchEye": 1.02,
+  "crouchTransition": 0.25,
+  "lean": { "offset": 0.38, "rollDeg": 9, "speed": 9 },
+  "health": { "max": 100, "regenDelay": 5, "regenRate": 10 },
+  "camera": { "fov": 90, "aimFov": 70, "aimTransition": 0.2, "near": 0.03, "far": 120 },
+  "mouse": { "sensitivity": 1.0, "aimSensitivityMul": 0.7, "radiansPerPixel": 0.0022 },
+  "bob": { "walkAmp": 0.028, "sprintAmp": 0.05, "crouchAmp": 0.018, "walkFreq": 1.9, "sprintFreq": 2.6, "crouchFreq": 1.4, "rollAmp": 0.006 },
+  "weaponSway": { "move": 0.012, "look": 0.0009, "return": 10 }
+}
