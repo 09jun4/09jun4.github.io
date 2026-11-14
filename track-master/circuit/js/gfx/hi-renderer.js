@@ -146,6 +146,7 @@
     this.texRunoff = Hi.concrete(aniso, [92, 95, 100]);
     this.texConcrete = Hi.concrete(aniso);
     this.texGrass = Hi.grass(aniso);
+    this.texSand = Hi.sand(aniso);
     this.texKerb = Hi.kerb(aniso);
     this.texFence = Hi.fence();
     this.texCrowd = Hi.crowdCarpet();
@@ -154,7 +155,7 @@
     this.texGlow = Hi.glow();
     this.texTread = Hi.tread();
     var blob = Hi.blob();
-    [this.texAsphalt.map, this.texAsphalt.normal, this.texAsphalt.rough, this.texRunoff, this.texConcrete, this.texGrass.map, this.texGrass.normal,
+    [this.texAsphalt.map, this.texAsphalt.normal, this.texAsphalt.rough, this.texRunoff, this.texConcrete, this.texGrass.map, this.texGrass.normal, this.texSand,
       this.texKerb, this.texFence, this.texCrowd, this.texSponsors, this.texPuff, this.texGlow, this.texTread, blob].forEach(function (t) { self.textures.push(t); });
     this.blobGeo = new THREE.PlaneGeometry(1, 1);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blob, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });

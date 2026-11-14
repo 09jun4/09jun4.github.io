@@ -129,6 +129,19 @@
     return tex(c, { aniso: aniso });
   };
 
+  // Sand / dusty urban ground (desert circuits).
+  Hi.sand = function (aniso) {
+    var N = 256, noise = makeNoise(31), c = canvas(N, N), g = c.getContext('2d'), img = g.createImageData(N, N), d = img.data;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      var n = fbm(noise, x / 24, y / 24, N / 24, 4), s = noise(x * 1.5, y * 1.5, N * 1.5 | 0);
+      var k = 0.78 + n * 0.32 + (s > 0.85 ? 0.06 : 0);
+      var i = (y * N + x) * 4;
+      d[i] = 168 * k; d[i + 1] = 140 * k; d[i + 2] = 106 * k; d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return tex(c, { aniso: aniso });
+  };
+
   // Grass (tileable): blades noise + clumps; the terrain shader adds mowing
   // stripes and colour variation by world position.
   Hi.grass = function (aniso) {
@@ -139,7 +152,7 @@
         var clump = fbm(noise, x / 32, y / 32, N / 32, 3), blade = noise(x * 1.3, y * 0.55, N * 1.3 | 0);
         var k = 0.72 + clump * 0.35 + (blade - 0.5) * 0.3;
         var i = (y * N + x) * 4;
-        d[i] = 62 * k; d[i + 1] = 98 * k; d[i + 2] = 48 * k; d[i + 3] = 255;
+        d[i] = 64 * k; d[i + 1] = 92 * k; d[i + 2] = 50 * k; d[i + 3] = 255;
         height[y * N + x] = blade * 0.7 + clump * 0.3;
       }
     }

@@ -494,8 +494,8 @@
     function billboard(texture, widthM, heightM, bottom, spot, emissive) {
       var side = spot.side;
       var g = new THREE.Group();
-      var mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.45, metalness: 0, emissive: emissive ? 0xffffff : 0x000000,
-        emissiveMap: emissive ? texture : null, emissiveIntensity: emissive ? 1.2 : 0 });
+      var mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0, envMapIntensity: 0.15, emissive: emissive ? 0xffffff : 0x000000,
+        emissiveMap: emissive ? texture : null, emissiveIntensity: emissive ? 0.55 : 0 });
       R.register(mat);
       var face = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), mat);
       face.position.y = bottom + heightM / 2;
@@ -523,13 +523,14 @@
     var nameSpot = null;
     for (var tries = 0; tries < 12 && !nameSpot; tries++) nameSpot = spotFree(120 + tries * 40, tries % 2 ? -1 : 1, 22, 10);
     if (nameSpot) group.add(billboard(nameTex.texture, 20, 5, 6, nameSpot, false));
+    out.nameSpot = nameSpot;
     var screen = Hi.textBoard([{ text: 'TRACK MASTER', size: 0.5 }], 512, 256, '#05070a', '#f4f4f4');
     R.textures.push(screen.texture);
     var scrSpot = null;
     for (var t2 = 0; t2 < 12 && !scrSpot; t2++) scrSpot = spotFree(-160 - t2 * 40, t2 % 2 ? 1 : -1, 16, 10);
     if (scrSpot) {
       group.add(billboard(screen.texture, 12, 6, 5, scrSpot, true));
-      out.screen = { canvas: screen.canvas, texture: screen.texture, last: '', next: 0 };
+      out.screen = { canvas: screen.canvas, texture: screen.texture, last: '', next: 0, spot: scrSpot };
     }
 
     // --- Light towers round the lap -------------------------------------------------------------------

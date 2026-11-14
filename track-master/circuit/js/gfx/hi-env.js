@@ -22,7 +22,7 @@
       zenith: '#3f78c4', horizon: '#c6dbeb', haze: '#c9d9e6', mountains: '#7f93a8', exposure: 1.0, fog: [380, 2600], trees: 'deciduous' },
     'Suzuka International Racing Course': { sun: [38, 230], night: 0, hills: 0.65, forest: 0.8, city: 0.1, clouds: 0.45, ground: [0.95, 1.02, 0.95],
       zenith: '#3a74c2', horizon: '#cfe0ec', haze: '#cbdbe6', mountains: '#6f8799', exposure: 1.0, fog: [360, 2500], trees: 'mixed' },
-    'Las Vegas Street Circuit': { sun: [4, 255], night: 0.65, hills: 0.4, forest: 0.06, city: 1.0, clouds: 0.25, ground: [1.25, 1.0, 0.72],
+    'Las Vegas Street Circuit': { sun: [4, 255], night: 0.65, hills: 0.4, forest: 0.06, city: 1.0, clouds: 0.25, ground: [0.5, 0.47, 0.45], desert: true,
       zenith: '#26315e', horizon: '#f39a5b', haze: '#d98b62', mountains: '#5a4a5c', exposure: 1.15, fog: [320, 2400], trees: 'palm' },
     'Circuit de Spa-Francorchamps': { sun: [30, 215], night: 0, hills: 1.0, forest: 1.0, city: 0, clouds: 0.72, ground: [0.92, 1.0, 0.9],
       zenith: '#5d7fa6', horizon: '#c3ccd4', haze: '#b9c3cc', mountains: '#5f6f62', exposure: 1.05, fog: [300, 2200], trees: 'conifer' },
@@ -148,7 +148,7 @@
     var winTex = Hi.windows();
     winTex.repeat.set(2, 3);
     R.textures.push(winTex);
-    var mat = new THREE.MeshLambertMaterial({ color: col('#4b5463'), emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 0.15 + th.night * 1.6, fog: true });
+    var mat = new THREE.MeshLambertMaterial({ color: col('#4b5463'), emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 0.15 + th.night * 3.2, fog: true });
     R.register(mat);
     var mesh = new THREE.InstancedMesh(geo, mat, count), dummy = new THREE.Object3D();
     var a0 = rnd() * Math.PI * 2, spread = Math.PI * (0.6 + th.city * 0.9);
@@ -221,11 +221,15 @@
       pos[j * 3] = wx; pos[j * 3 + 1] = h; pos[j * 3 + 2] = wz;
       uv[j * 2] = wx / 7; uv[j * 2 + 1] = wz / 7;
       // colour: patchy greens, mowing stripes near the track, drier on hills
-      var patch = Hi.fbm(noise2, wx / 90, wz / 90, 4096, 3);
-      var stripe = dd < 70 ? ((Math.floor(dd / 7) % 2) ? 1.06 : 0.95) : 1;
-      var dry = Math.min(1, h / 140);
-      var k = (0.8 + patch * 0.35) * stripe;
-      colors[j * 3] = k * tint[0] * (1 + dry * 0.25); colors[j * 3 + 1] = k * tint[1] * (1 - dry * 0.05); colors[j * 3 + 2] = k * tint[2] * (1 - dry * 0.2);
+      // fields of different greens (large patches), clumps, mowing stripes
+      // near the track, drier on the hills
+      var patch = Hi.fbm(noise2, wx / 90, wz / 90, 4096, 3), field = Hi.fbm(noise, wx / 420 + 9, wz / 420 - 4, 4096, 3);
+      var stripe = dd < 75 ? ((Math.floor(dd / 6) % 2) ? 1.07 : 0.93) : 1;
+      var dry = Math.min(1, h / 140) * 0.6 + Math.max(0, field - 0.55) * 1.4;
+      var k = (0.72 + patch * 0.4) * stripe * (0.9 + field * 0.2);
+      var cr = 0.92 + dry * 0.38, cg = 1.0 - dry * 0.06, cb = 0.86 - dry * 0.3;
+      if (th.desert) { cr = 1; cg = 1; cb = 1; k = 0.85 + patch * 0.3; }
+      colors[j * 3] = k * tint[0] * cr; colors[j * 3 + 1] = k * tint[1] * cg; colors[j * 3 + 2] = k * tint[2] * cb;
     }
     var idx = new Uint32Array((nx - 1) * (nz - 1) * 6), q = 0;
     for (var zz = 0; zz < nz - 1; zz++) for (var xx = 0; xx < nx - 1; xx++) {
@@ -238,7 +242,9 @@
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     g.setIndex(new THREE.BufferAttribute(idx, 1));
     g.computeVertexNormals();
-    var mat = R.std({ map: R.texGrass.map, normalMap: R.texGrass.normal, normalScale: new THREE.Vector2(0.5, 0.5), vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.25 }, 'terrain');
+    var mat = th.desert
+      ? R.std({ map: R.texRunoff, vertexColors: true, roughness: 0.9, metalness: 0, envMapIntensity: 0.3 }, 'terrain')
+      : R.std({ map: R.texGrass.map, normalMap: R.texGrass.normal, normalScale: new THREE.Vector2(0.5, 0.5), vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.25 }, 'terrain');
     var mesh = new THREE.Mesh(g, mat);
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
@@ -254,7 +260,7 @@
       p.setY(v, -0.3);
     }
     outer.translate(cx, 0, cz);
-    var outerMat = R.std({ color: new THREE.Color(0.17 * tint[0], 0.27 * tint[1], 0.12 * tint[2]), roughness: 1, metalness: 0 }, 'outerground');
+    var outerMat = R.std({ color: th.desert ? new THREE.Color(0.06, 0.055, 0.05) : new THREE.Color(0.15 * tint[0], 0.22 * tint[1], 0.1 * tint[2]), roughness: 1, metalness: 0 }, 'outerground');
     var outerMesh = new THREE.Mesh(outer, outerMat);
     outerMesh.matrixAutoUpdate = false;
     outerMesh.receiveShadow = false;
@@ -317,7 +323,7 @@
     function rnd() { s = (s * 16807) % 2147483647; return s / 2147483647; }
     var noise = Hi.makeNoise(23);
     var kinds = th.trees === 'mixed' ? ['deciduous', 'conifer'] : [th.trees];
-    var CELL = 420, cells = {}, maxTrees = Math.round(9000 * th.forest), maxBush = Math.round(2400 * Math.max(0.25, th.forest));
+    var CELL = 420, cells = {}, maxTrees = Math.round(20000 * th.forest), maxBush = Math.round(900 * Math.max(0.25, th.forest));
     function put(kind, x, z, scale) {
       var key = Math.floor(x / CELL) + ',' + Math.floor(z / CELL) + ',' + kind;
       var c = cells[key] || (cells[key] = { kind: kind, list: [], cx: 0, cz: 0 });
@@ -328,9 +334,10 @@
       tries++;
       var x = b.x0 + rnd() * (b.x1 - b.x0), z = b.z0 + rnd() * (b.z1 - b.z0);
       var d = terrain.distAt(x, z);
-      if (d < 62 || d > 1500) continue;
-      var dens = Hi.fbm(noise, x / 260, z / 260, 4096, 3);
-      if (dens < 0.5 - th.forest * 0.12 + d / 9000) continue;
+      if (d < 56 || d > 1400) continue;
+      // forests in clumps (noise threshold), denser near the circuit
+      var dens = Hi.fbm(noise, x / 230, z / 230, 4096, 4);
+      if (dens < 0.5 - th.forest * 0.07 + d / 5000) continue;
       put(kinds[(rnd() * kinds.length) | 0], x, z, 0.75 + rnd() * 0.7);
       placed++;
     }
@@ -339,7 +346,7 @@
     while (pb < maxBush && tries < maxBush * 10) {
       tries++;
       var bx = b.x0 + rnd() * (b.x1 - b.x0), bz = b.z0 + rnd() * (b.z1 - b.z0), bd = terrain.distAt(bx, bz);
-      if (bd < 46 || bd > 260) continue;
+      if (bd < 46 || bd > 260 || Hi.fbm(noise, bx / 230, bz / 230, 4096, 4) < 0.5) continue;
       put('bush', bx, bz, 0.7 + rnd() * 0.8);
       pb++;
     }
