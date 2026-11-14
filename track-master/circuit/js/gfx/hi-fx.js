@@ -285,7 +285,11 @@
           var str = front ? 0.85 : Math.min(1, spin ? 0.7 : (lat - 2.2) / 4 + 0.4);
           fx.skids.mark(key, p[0], p[1], c.heading, w.wheel[2] * 0.9, str, fx.time);
           var rate = front ? 26 : 18 + lat * 6;
-          if (Math.random() < rate * dt * (heat < 160 ? 1 : 0.3)) puff(fx, p[0] + rnd(0.2), p[1] + rnd(0.2), 0.25, c.vx * 0.25 + rnd(1), c.vy * 0.25 + rnd(1), 0.5 + Math.random() * 0.7, 0.7, 2.4, 1.6 + Math.random(), 0.86, 0.86, 0.88, 0.32, 1.4);
+          var nP = rate * dt * (heat < 160 ? 1 : 0.3);
+          while (nP > 0) {
+            if (Math.random() < nP) puff(fx, p[0] + rnd(0.25), p[1] + rnd(0.25), 0.3, c.vx * 0.3 + rnd(1.2), c.vy * 0.3 + rnd(1.2), 0.5 + Math.random() * 0.8, 0.8, 3.0, 1.8 + Math.random() * 1.2, 0.88, 0.88, 0.9, 0.5, 1.3);
+            nP -= 1;
+          }
         } else fx.skids.lift(key);
         // dust off the line / on the kerbs
         if (speed > 6 && ao > half - 0.3 && Math.random() < (ao > half + 0.9 ? 22 : 9) * dt) {
