@@ -53,6 +53,7 @@
     // Pre-scale the context once so all drawing code (renderer.js, camera.js)
     // can work purely in CSS pixels regardless of backing-store resolution.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (CR.Gfx) CR.Gfx.resize();
   }
 
   // Resets CR.Config to the authored values, then applies a car's physics
@@ -112,7 +113,7 @@
     Main.trackIndex = pick;
     if (CR.Race.active) CR.Race.end();
     CR.Race.start(pick, CR.Garage.raceDifficulty);
-    CR.Renderer.resetEffects();
+    CR.Gfx.resetEffects();
     CR.Car.events.length = 0;
     Main.mode = 'race';
     Main.raceActive = true;
@@ -149,7 +150,7 @@
     // Build after applying the car: corner colours depend on its grip.
     CR.Track.buildTrack(tracks[pick].segments);
     CR.Car.spawnAtTrackStart();
-    CR.Renderer.resetEffects();
+    CR.Gfx.resetEffects();
     CR.Laps.reset(false); // new race: no lap records, no best lap
     CR.Car.events.length = 0;
     Main.raceActive = true;
@@ -212,7 +213,7 @@
   Main.restart = function () {
     if (CR.Race.active) return; // a retirement ends an AI 대전
     CR.Car.spawnAtTrackStart();
-    CR.Renderer.resetEffects();
+    CR.Gfx.resetEffects();
     CR.Input.clear();
     CR.Laps.reset(true); // same race: keep its best lap
     CR.Audio.startEngine(CR.Car.def);
@@ -232,7 +233,7 @@
       } else if (ev[i].type === 'explode') {
         CR.Audio.silence();
         CR.Audio.explode();
-        CR.Renderer.explode(CR.Car.state);
+        CR.Gfx.explode(CR.Car.state);
         retireOverlayIn = CR.Config.RETIRE_OVERLAY_DELAY;
       }
     }
@@ -317,10 +318,12 @@
       CR.Camera.update(dt);
       // Finish shot: hide controls and help that would cover the car.
       document.body.classList.toggle('finish-shot', !!CR.Car.state.autopilot);
+      // Graphics preset (gfx/gfx-preset.js): 낮음 = renderer.js (Canvas 2D),
+      // 높음 = three.js. The cockpit overlay draws on the 2D canvas in both.
       var t0 = performance.now();
-      CR.Renderer.render(ctx, canvas, dt);
+      CR.Gfx.render(ctx, canvas, dt);
       if (CR.Camera.inCockpit()) CR.Cockpit.draw(ctx, canvas, dt);
-      adaptResolution(performance.now() - t0, now);
+      if (!CR.Gfx.isHigh()) adaptResolution(performance.now() - t0, now);
       CR.Cockpit.update(dt);
       CR.Hud.update();
       CR.Hud.updateLaps();
@@ -328,7 +331,7 @@
       CR.Minimap.update();
       CR.Audio.update();
     } else if (Main.state === 'paused') {
-      CR.Renderer.render(ctx, canvas, 0); // frozen frame behind the overlay
+      CR.Gfx.render(ctx, canvas, 0); // frozen frame behind the overlay
       if (CR.Camera.inCockpit()) CR.Cockpit.draw(ctx, canvas, 0);
     }
     if (Main.state !== 'playing') CR.Cockpit.update(0);
@@ -340,6 +343,7 @@
     canvas = document.getElementById('game-canvas');
     ctx = canvas.getContext('2d');
 
+    CR.Gfx.init(canvas, ctx);
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 

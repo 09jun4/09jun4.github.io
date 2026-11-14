@@ -152,6 +152,8 @@
     Camera.horizonY = cy - Camera.focal * Math.tan(p);
     Camera.width = w;
     Camera.height = h;
+    Camera.pitch = p; // read by the 높음 renderer (gfx/hi-renderer.js)
+    Camera.centerPx = cy;
     Camera.pos.x = camX;
     Camera.pos.y = camY;
     Camera.pos.h = camH;

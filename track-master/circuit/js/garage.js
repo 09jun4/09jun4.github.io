@@ -68,7 +68,7 @@
   function snapshot() {
     return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track, tune: Garage.tune,
       f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, raceDifficulty: Garage.raceDifficulty,
-      season: Garage.season, seasons: Garage.seasons, savedAt: Garage.savedAt };
+      season: Garage.season, seasons: Garage.seasons, gfx: Garage.gfx, savedAt: Garage.savedAt };
   }
 
   function setStatus(st) {
@@ -130,7 +130,9 @@
     Garage.raceDifficulty = 'normal';
     Garage.season = { num: 1, races: [] };
     Garage.seasons = [];
+    Garage.gfx = null; // graphics preset 'low' | 'high' (gfx/gfx-preset.js); null = not chosen
     if (data) {
+      if (data.gfx === 'low' || data.gfx === 'high') Garage.gfx = data.gfx;
       Garage.f1Laps = Math.max(0, Math.floor(Number(data.f1Laps)) || 0);
       [['practice', Garage.practice], ['practiceFP', Garage.practiceFP]].forEach(function (pair) {
         var src = data[pair[0]], dst = pair[1];
@@ -170,6 +172,7 @@
     }
     Garage.owned[starter] = true;
     if (!Garage.owned[Garage.selected]) Garage.selected = starter;
+    emit('apply');
   }
 
   Garage.load = function () {
@@ -218,6 +221,15 @@
   };
 
   Garage.setStatus = setStatus;
+
+  // Graphics preset chosen in the settings: kept with the save (and the
+  // account's, when signed in) as well as in this browser (gfx-preset.js).
+  Garage.setGfx = function (p) {
+    if (p !== 'low' && p !== 'high') return;
+    if (Garage.gfx === p) return;
+    Garage.gfx = p;
+    save();
+  };
 
   // Connects to the viewer's Claude account save. Without an account
   // (signed out, or no write access) the browser save keeps working.

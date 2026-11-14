@@ -770,6 +770,11 @@
     CR.Volume.onSummary = function (text) { folds.sound.sum.textContent = text; };
     CR.Volume.init();
     folds.sound.sum.textContent = CR.Volume.summary();
+    makeFold(document.querySelector('.graphics'), 'gfx', '그래픽');
+    CR.Gfx.buildUI(document.getElementById('graphics-panel'));
+    CR.Gfx.buildUI(document.getElementById('pause-gfx'), { compact: true });
+    CR.Gfx.onSummary = function (text) { folds.gfx.sum.textContent = text; };
+    folds.gfx.sum.textContent = CR.Gfx.summary();
     var st = foldState();
     Object.keys(folds).forEach(function (k) { setFold(k, !!st[k]); });
   }
@@ -882,6 +887,7 @@
     Menu.el.hidden = false;
     Menu.refresh(); // draws previews now that the canvases have their size
     els.play.focus();
+    if (CR.Gfx && CR.Gfx.menuShown) CR.Gfx.menuShown();
   };
 
   Menu.hide = function () {

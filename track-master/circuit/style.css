@@ -1080,6 +1080,7 @@ body { overscroll-behavior: none; }
   .pause-card > .pause-title, .pause-card > .pause-hint { grid-column: 1 / -1; }
   .pause-card > .pause-btn { grid-column: 1; }
   .pause-card > .pause-sound { grid-column: 2; grid-row: 2 / span 3; margin: 0; padding: 0 0 0 20px; border-top: 0; border-left: 1px solid rgba(255, 255, 255, 0.1); }
+  .pause-card > .pause-gfx { grid-column: 2; margin: 0; padding: 8px 0 0 20px; border-top: 0; border-left: 1px solid rgba(255, 255, 255, 0.1); }
 }
 
 /* Finish shot after the chequered flag (AI 대전): clean view of the car. */
@@ -1095,3 +1096,36 @@ body.touch.cockpit .tc-side { top: 160px; transform: none; display: grid; grid-t
 body.touch.cockpit .tc-side .tc-small { padding: 7px 9px; font-size: 12px; }
 .rec-sub { display: block; font-size: 11px; font-weight: 600; color: var(--menu-dim); }
 .rank-views { margin-top: 8px; }
+
+/* --- Graphics preset (gfx/gfx-preset.js): menu 그래픽 panel + pause card ------ */
+/* 높음: the WebGL canvas sits under the (transparent) 2D game canvas. */
+#gl-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; pointer-events: none; }
+body.in-menu #gl-canvas { visibility: hidden; }
+.graphics { margin-top: 16px; }
+.fold-body > .graphics { padding: 14px 18px 18px; }
+.fold-body #graphics-title { display: none; }
+.gfx { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.gfx-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 12px; }
+.gfx-name { font-size: 14px; font-weight: 800; color: var(--menu-fg, #f2f4f8); }
+.gfx-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 3px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
+.gfx-opt { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 9px;
+  background: transparent; color: #c9cfda; font: 800 14px/1 inherit; font-family: inherit; cursor: pointer; }
+.gfx-opt:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.gfx-opt.is-on { background: #ffd23f; color: #121212; }
+.gfx-opt:focus-visible { outline: 2px solid #ffd23f; outline-offset: 2px; }
+.gfx-opt.is-loading span::after { content: ' …'; }
+.gfx-opt.is-unsupported { opacity: 0.55; }
+.gfx-badge { padding: 2px 6px; border-radius: 999px; background: #2fbf71; color: #08140d; font-size: 10px; font-weight: 800; letter-spacing: 0.02em; }
+.gfx-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--menu-dim, #9aa3b2); }
+.gfx.is-compact .gfx-row { grid-template-columns: 52px 1fr; gap: 10px; }
+.gfx.is-compact .gfx-opt { min-height: 34px; font-size: 13px; }
+.pause-gfx { margin: 0 0 2px; padding: 12px 0 4px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.gfx-toast { position: fixed; z-index: 60; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 8px 10px; max-width: min(560px, calc(100vw - 24px));
+  padding: 11px 14px; border-radius: 12px; background: rgba(16, 19, 25, 0.94); border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f2f4f8; font: 700 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); }
+.gfx-toast.is-warn { border-color: rgba(255, 210, 63, 0.6); }
+.gfx-toast-msg { flex: 1 1 200px; text-align: center; }
+.gfx-toast-btn { padding: 8px 12px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08);
+  color: #f2f4f8; font: 800 12px/1 inherit; font-family: inherit; cursor: pointer; }
+.gfx-toast-btn.is-primary { background: #ffd23f; border-color: #ffd23f; color: #121212; }
