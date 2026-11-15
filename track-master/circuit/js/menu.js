@@ -72,7 +72,9 @@
     return dl;
   }
 
-  function drawPreview(cnv, car) {
+  function drawPreview(cnv, car, spin) {
+    // 높음: the 3D car (gfx-preset.js); 낮음: the 2D picture below, unchanged
+    if (CR.Gfx && CR.Gfx.drawCarPreview && CR.Gfx.drawCarPreview(cnv, car, { spin: !!spin })) return;
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var w = cnv.clientWidth || 200, h = cnv.clientHeight || 110;
     cnv.width = Math.round(w * dpr);
@@ -275,7 +277,7 @@
   }
 
   function drawAllPreviews() {
-    drawPreview(els.preview, CR.Garage.car());
+    drawPreview(els.preview, CR.Garage.car(), true);
     var cards = els.shop.children;
     for (var i = 0; i < cards.length; i++) drawPreview(cards[i]._preview, cards[i]._car);
   }
@@ -890,8 +892,11 @@
     if (CR.Gfx && CR.Gfx.menuShown) CR.Gfx.menuShown();
   };
 
+  Menu.redrawPreviews = function () { if (Menu.el && !Menu.el.hidden && els.preview) drawAllPreviews(); };
+
   Menu.hide = function () {
     Menu.el.hidden = true;
+    if (CR.Gfx && CR.Gfx.stopTurntable) CR.Gfx.stopTurntable();
     // Drop focus from the hidden button so Space (brake) can't press it.
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   };

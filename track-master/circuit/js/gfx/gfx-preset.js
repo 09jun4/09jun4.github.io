@@ -233,7 +233,7 @@
     Gfx.renderers.high = hi;
     Gfx.active = 'high';
     document.body.classList.add('gfx-high');
-    if (CR.Cockpit) CR.Cockpit.hiBody = true;
+    if (CR.Cockpit) { CR.Cockpit.hiBody = true; CR.Cockpit.hiMirrors = Gfx.tier === 0; }
     overlayDirty = true;
     return true;
   }
@@ -246,7 +246,9 @@
     glCanvas = null;
     Gfx.active = 'low';
     document.body.classList.remove('gfx-high');
-    if (CR.Cockpit) CR.Cockpit.hiBody = false;
+    if (CR.Cockpit) { CR.Cockpit.hiBody = false; CR.Cockpit.hiMirrors = false; }
+    stopTurntable();
+    previewCache = {};
   }
 
   function fallbackLow(message) {
@@ -312,6 +314,8 @@
     if (t === Gfx.tier) { syncAll(); return; }
     Gfx.tier = t;
     if (hi) hi.setQuality(TIERS[t], t);
+    if (CR.Cockpit && hi) CR.Cockpit.hiMirrors = t === 0;
+    previewCache = {};
     syncAll();
   }
   Gfx.setTier = function (t, opts) { setTier(t, !(opts && opts.save === false)); };
@@ -355,6 +359,102 @@
   };
   Gfx.isHigh = function () { return Gfx.active === 'high'; };
   Gfx.info = function () { return hi ? hi.info() : null; }; // tests
+
+  // --- Car pictures in the car-select cards (높음: the 3D car) ----------------------
+  // drawCarPreview(canvas, car, {spin}) -> true when it drew (높음 running);
+  // false means the caller draws the 2D picture as before. spin: the card turns
+  // the car slowly and can be dragged round (menu, own car); otherwise a still
+  // studio image, cached per car and size.
+  var previewCache = {}, turn = null;
+
+  function sizeCanvas(cnv, fallbackW, fallbackH) {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = cnv.clientWidth || fallbackW, h = cnv.clientHeight || fallbackH;
+    cnv.width = Math.round(w * dpr);
+    cnv.height = Math.round(h * dpr);
+    return { w: w, h: h, dpr: dpr };
+  }
+
+  function stillImage(car, pw, ph) {
+    var key = (car.id || '') + '|' + pw + 'x' + ph + '|' + (car.model && car.model.length);
+    var hit = previewCache[key + '|' + (car.model ? previewKeyOf(car.model) : '')];
+    if (hit) return hit;
+    var c = document.createElement('canvas');
+    c.width = pw * 2; c.height = ph * 2;
+    var cx = c.getContext('2d');
+    if (CR.Main && CR.Main.state === 'menu') {
+      // menu: the game canvas is hidden, draw through it (no GPU read-back)
+      var src = hi.renderPreview(car.model, pw, ph, -0.65, true);
+      cx.imageSmoothingQuality = 'high';
+      cx.drawImage(src.source, src.sx, src.sy, src.sw, src.sh, 0, 0, c.width, c.height);
+    } else {
+      cx.putImageData(hi.renderPreview(car.model, pw * 2, ph * 2, -0.65, false), 0, 0); // 2x for clean edges
+    }
+    previewCache[key + '|' + previewKeyOf(car.model)] = c;
+    return c;
+  }
+  var modelIds = typeof WeakMap !== 'undefined' ? new WeakMap() : null, modelSeq = 0;
+  function previewKeyOf(model) {
+    if (!modelIds) return '';
+    if (!modelIds.has(model)) modelIds.set(model, ++modelSeq);
+    return modelIds.get(model);
+  }
+
+  Gfx.drawCarPreview = function (cnv, car, opts) {
+    if (Gfx.active !== 'high' || !hi || !cnv || !car || !car.model) return false;
+    opts = opts || {};
+    try {
+      var sz = sizeCanvas(cnv, 200, 110), pw = Math.round(sz.w * sz.dpr), ph = Math.round(sz.h * sz.dpr);
+      var ctx = cnv.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (opts.spin) { startTurntable(cnv, car, pw, ph); return true; }
+      if (turn && turn.cnv === cnv) stopTurntable();
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.drawImage(stillImage(car, Math.max(1, Math.round(pw / 2)) , Math.max(1, Math.round(ph / 2))), 0, 0, pw, ph);
+      return true;
+    } catch (e) {
+      console.warn('[Gfx] preview', e);
+      return false;
+    }
+  };
+
+  function startTurntable(cnv, car, pw, ph) {
+    if (turn && turn.cnv === cnv) { turn.car = car; turn.pw = pw; turn.ph = ph; return; }
+    stopTurntable();
+    turn = { cnv: cnv, car: car, pw: pw, ph: ph, angle: -0.65, vel: 0.32, drag: null, raf: 0, last: 0 };
+    if (!cnv._gfxDrag) {
+      cnv._gfxDrag = true;
+      cnv.addEventListener('pointerdown', function (e) { if (!turn || turn.cnv !== cnv) return; turn.drag = { x: e.clientX, a: turn.angle, t: performance.now() }; });
+      window.addEventListener('pointermove', function (e) {
+        if (!turn || turn.cnv !== cnv || !turn.drag) return;
+        var dx = e.clientX - turn.drag.x;
+        turn.angle = turn.drag.a + dx * 0.012;
+      });
+      window.addEventListener('pointerup', function () { if (turn && turn.drag) { turn.drag = null; turn.resume = performance.now() + 1500; } });
+      cnv.style.cursor = 'grab';
+    }
+    var step = function (now) {
+      if (!turn || turn.cnv !== cnv) return;
+      if (Gfx.active !== 'high' || !hi || document.hidden || (CR.Menu && CR.Menu.el && CR.Menu.el.hidden)) { stopTurntable(); return; }
+      var dt = turn.last ? Math.min(0.1, (now - turn.last) / 1000) : 0;
+      turn.last = now;
+      if (!turn.drag && (!turn.resume || now > turn.resume)) turn.angle += turn.vel * dt;
+      try {
+        var src = hi.renderPreview(turn.car.model, turn.pw, turn.ph, turn.angle, true);
+        var ctx = cnv.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(src.source, src.sx, src.sy, src.sw, src.sh, 0, 0, cnv.width, cnv.height);
+      } catch (e) { console.warn('[Gfx] turntable', e); stopTurntable(); return; }
+      turn.raf = requestAnimationFrame(step);
+    };
+    turn.raf = requestAnimationFrame(step);
+  }
+  function stopTurntable() {
+    if (turn && turn.raf) cancelAnimationFrame(turn.raf);
+    turn = null;
+  }
+  Gfx.stopTurntable = stopTurntable;
 
   // --- Settings UI (menu 그래픽 panel + pause card) ------------------------------
 
@@ -446,9 +546,17 @@
     copy.note.textContent = text;
   }
 
+  var lastPreviewState = '';
   function syncAll() {
     copies.forEach(sync);
     if (Gfx.onSummary) Gfx.onSummary(Gfx.summary());
+    // car pictures in the menu follow the preset (2D for 낮음, 3D for 높음)
+    var ps = Gfx.active + '|' + Gfx.tier;
+    if (ps !== lastPreviewState) {
+      lastPreviewState = ps;
+      if (Gfx.active !== 'high') stopTurntable();
+      if (CR.Menu && CR.Menu.redrawPreviews) CR.Menu.redrawPreviews();
+    }
   }
   Gfx.sync = syncAll;
 

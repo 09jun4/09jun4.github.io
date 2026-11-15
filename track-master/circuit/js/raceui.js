@@ -218,6 +218,7 @@
     wrap.appendChild(conf);
     setTimeout(function () {
       canvases.forEach(function (c) {
+        if (CR.Gfx && CR.Gfx.drawCarPreview && CR.Gfx.drawCarPreview(c.cnv, { model: c.model })) return; // 높음: 3D car
         var dpr = Math.min(window.devicePixelRatio || 1, 2);
         var w = c.cnv.clientWidth || 150, h = c.cnv.clientHeight || 90;
         c.cnv.width = Math.round(w * dpr);

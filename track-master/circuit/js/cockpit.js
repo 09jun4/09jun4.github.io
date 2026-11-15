@@ -272,9 +272,11 @@
 
   // Geometry shared with the 높음 renderer's 3D cockpit (gfx/hi-car.js).
   Cockpit.hiBody = false;
+  Cockpit.hiMirrors = false; // 높음 최고: mirrors rendered in 3D
   Cockpit.GEO = { HALO_CTRL: HALO_CTRL, HALO_W: HALO_W, HALO_T: HALO_T, PILLAR: PILLAR, MIRRORS: MIRRORS, GLASS_W: GLASS_W, GLASS_H: GLASS_H, COCKPIT_Y: COCKPIT_Y };
 
   function drawMirrors(ctx, w, h) {
+    if (Cockpit.hiMirrors) return; // housings and glass are 3D (gfx/hi-car.js)
     MIRRORS.forEach(function (m) {
       var sg = m.side === 'L' ? -1 : 1, cx = m.c[0], cy = m.c[1], cz = m.c[2];
       // the glass is angled ~20° to face the driver's eyes
@@ -387,7 +389,7 @@
     }
     // Mirrors refresh every 2nd frame (every 3rd on touch screens).
     var every = document.body.classList.contains('touch') ? 3 : 2;
-    if (mirrorFrame++ % every === 0) renderMirrorImage(c);
+    if (!Cockpit.hiMirrors && mirrorFrame++ % every === 0) renderMirrorImage(c); // 최고: live 3D glass instead
     CR.Camera.begin(canvas); // the mirror render changed the view
     CR.Camera.setNear(0.03);
     setCar(c);

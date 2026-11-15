@@ -276,6 +276,120 @@
     return Hi.Track.merge(clean);
   }
 
+  // Swept tube with an elliptical cross-section along a smooth curve through
+  // car-local points. rad(t) -> [a, b]: half-width sideways (horizontal,
+  // perpendicular to the path) and half-height. Ends are open (they are buried
+  // in the bodywork or in another tube).
+  var UPV = new THREE.Vector3(0, 1, 0);
+  function sweep(pts, rad, segs, radial) {
+    var curve = new THREE.CatmullRomCurve3(pts.map(function (p) { return V3(p[0], p[1], p[2]); }), false, 'centripetal');
+    var P = curve.getSpacedPoints(segs), T = new THREE.Vector3(), B = new THREE.Vector3(), N = new THREE.Vector3();
+    var pos = [], uv = [], idx = [], along = 0;
+    for (var i = 0; i <= segs; i++) {
+      var t = i / segs;
+      curve.getTangentAt(Math.min(0.9999, Math.max(0.0001, t)), T);
+      B.crossVectors(T, UPV);
+      if (B.lengthSq() < 1e-6) B.set(0, 0, 1);
+      B.normalize();
+      N.crossVectors(B, T).normalize();
+      var r = rad(t);
+      if (i > 0) along += P[i].distanceTo(P[i - 1]);
+      var per = Math.PI * (r[0] + r[1]);
+      for (var k = 0; k <= radial; k++) {
+        var th = k / radial * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+        pos.push(P[i].x + B.x * r[0] * c + N.x * r[1] * sn, P[i].y + B.y * r[0] * c + N.y * r[1] * sn, P[i].z + B.z * r[0] * c + N.z * r[1] * sn);
+        uv.push(k / radial * per / WEAVE, along / WEAVE);
+      }
+    }
+    var W = radial + 1;
+    for (var j = 0; j < segs; j++) for (var q = 0; q < radial; q++) {
+      var a = j * W + q, b = a + 1, cc = a + W, d = cc + 1;
+      idx.push(a, cc, b, b, cc, d);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+  C.sweep = sweep;
+
+  function smoothstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+
+  // FIA-style halo (three mounting points: two behind the head on the cockpit
+  // sides, one on the chassis ahead of the driver): one continuous hoop with
+  // an oval section, and a front stay that leaves the front of the hoop with
+  // the hoop's own size and narrows smoothly to a ~50 mm tube down to the
+  // chassis. ring: car-local points from one rear mount over the apex to the
+  // other; stay: points from inside the apex down into the chassis.
+  // dims: {a, b} hoop half-width / half-height, {s} stay radius.
+  function haloGeometry(ring, stay, dims) {
+    var out = [];
+    out.push(sweep(ring, function (t) {
+      // legs swell slightly towards their mounts
+      var leg = Math.max(smoothstep(0.12, 0, t), smoothstep(0.88, 1, t));
+      return [dims.a * (1 + 0.25 * leg), dims.b * (1 + 0.45 * leg)];
+    }, 72, 14));
+    out.push(sweep(stay, function (t) {
+      var top = smoothstep(0.32, 0, t), base = smoothstep(0.85, 1, t);
+      return [dims.s + (dims.a - dims.s) * top + 0.008 * base, dims.s + (dims.b * 1.15 - dims.s) * top + 0.006 * base];
+    }, 40, 14));
+    return out;
+  }
+
+  // A bolted mounting fitting: rounded block on the bodywork + bolt heads.
+  function fitting(at, size, yaw, bolts, boltList) {
+    var g = roundedBox(size[1], size[2], size[0], Math.min(size[0], size[1], size[2]) * 0.35, 2); // three (car y, z, x)
+    g.rotateY(yaw || 0);
+    var c = V3(at[0], at[1], at[2] + size[2] / 2);
+    g.translate(c.x, c.y, c.z);
+    if (bolts && boltList) {
+      for (var i = 0; i < bolts; i++) {
+        var bx = at[0] + (bolts > 1 ? (i % 2 ? 1 : -1) * size[0] * 0.28 : 0), by = at[1] + (i < 2 ? -1 : 1) * size[1] * 0.3 * (bolts > 2 ? 1 : 0);
+        var bg = new THREE.CylinderGeometry(0.0065, 0.0065, 0.006, 6);
+        var bc = V3(bx, by, at[2] + size[2] + 0.002);
+        bg.translate(bc.x, bc.y, bc.z);
+        boltList.push(bg);
+      }
+    }
+    return g;
+  }
+
+  // Small decal (canvas texture on a plane) lying on a surface.
+  function stickerTex(R, kind) {
+    var key = 'sticker-' + kind;
+    if (R[key]) return R[key];
+    var S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    if (kind === 'E') { // electrical isolator marking: blue triangle, white border, red spark + E
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(S / 2, 6); g.lineTo(S - 6, S - 10); g.lineTo(6, S - 10); g.closePath(); g.fill();
+      g.fillStyle = '#1f4fd1'; g.beginPath(); g.moveTo(S / 2, 18); g.lineTo(S - 18, S - 18); g.lineTo(18, S - 18); g.closePath(); g.fill();
+      g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(S / 2 + 6, 34); g.lineTo(S / 2 - 12, 74); g.lineTo(S / 2, 74); g.lineTo(S / 2 - 8, 102); g.lineTo(S / 2 + 14, 62); g.lineTo(S / 2 + 2, 62); g.closePath(); g.fill();
+    } else { // fire extinguisher marking: white circle, red ring, E
+      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#d6322f'; g.lineWidth = 12; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 16, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#d6322f'; g.font = '900 54px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('E', S / 2, S / 2 + 3);
+    }
+    var t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    R.textures.push(t);
+    var m = new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.4, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    R.register(m);
+    R[key] = m;
+    return m;
+  }
+
+  // Top of a surface (closest hit straight down) at car-local (x, y).
+  var ray = null;
+  function surfaceAt(meshes, x, y) {
+    ray = ray || new THREE.Raycaster();
+    ray.set(V3(x, y, 3), new THREE.Vector3(0, -1, 0));
+    var hits = ray.intersectObjects(meshes, false);
+    return hits.length ? { z: hits[0].point.y, n: hits[0].face ? hits[0].face.normal.clone() : new THREE.Vector3(0, 1, 0) } : null;
+  }
+
   // --- Materials: carbon, and livery paint over carbon ----------------------------------
   // paint mode 0: carbon only; 1: livery on the upper surfaces (normal facing
   // up), carbon on the sides and below; 2: fully painted.
@@ -554,10 +668,11 @@
     if (L.fin) add(plate(roundPoly([[-0.55, 0.78], [-1.62 * s, 0.4], [-1.62 * s, 0.6], [-0.75, 0.9]], 0.05, 3), 0, 0.012, 0.004), mat('full', L.main));
     // Halo, mirrors on stalks
     if (L.halo) {
-      var hc = [[0.26, -0.42, 0.6], [0.25, -0.2, 0.755], [0.19, 0.1, 0.8], [0.0, 0.3, 0.805], [-0.19, 0.1, 0.8], [-0.25, -0.2, 0.755], [-0.26, -0.42, 0.6]];
-      var curve = new THREE.CatmullRomCurve3(hc.map(function (p) { return V3(p[0], p[1], p[2]); }), false, 'centripetal');
-      add(boxUV(new THREE.TubeGeometry(curve, 40, 0.027, 10, false)), satin, 'halo');
-      add(tube([0, 0.3, 0.79], [0, 0.6, 0.48], 0.02, 8), satin, 'halo');
+      var exRing = [[0.27, -0.4, 0.4], [0.266, -0.33, 0.57], [0.25, -0.2, 0.72], [0.19, 0.08, 0.775], [0.1, 0.24, 0.79], [0, 0.29, 0.792],
+        [-0.1, 0.24, 0.79], [-0.19, 0.08, 0.775], [-0.25, -0.2, 0.72], [-0.266, -0.33, 0.57], [-0.27, -0.4, 0.4]];
+      var exStay = [[0, 0.265, 0.79], [0, 0.33, 0.765], [0, 0.45, 0.66], [0, 0.56, 0.54], [0, 0.6, 0.47]];
+      var haloPaint = mat('full', '#1b1e23');
+      haloGeometry(exRing, exStay, { a: 0.03, b: 0.02, s: 0.021 }).forEach(function (g) { add(g, haloPaint, 'halo'); });
     }
     [1, -1].forEach(function (sd) {
       var mh = roundedBox(0.07, 0.075, 0.19, 0.03, 3);
@@ -586,6 +701,34 @@
       fg.translate(fy, 0.31, sd * 0.78);
       add(boxUV(fg), mat('top', L.accent));
     });
+    // Driver in the opening: shoulders, HANS, harness, headrest pads (detail >= 1)
+    var det = opts.detail || 0, bolts = [];
+    if (det >= 1) {
+      var suitM = R.suitMat || (R.suitMat = R.std({ color: new THREE.Color('#252b3a').convertSRGBToLinear(), roughness: 0.85 }, 'suit'));
+      var sh = new THREE.SphereGeometry(1, 16, 10);
+      sh.scale(0.11, 0.07, 0.2);
+      sh.translate(-0.06, 0.47, 0);
+      add(sh, suitM);
+      var hans = new THREE.TorusGeometry(0.115, det >= 2 ? 0.022 : 0.018, det >= 2 ? 8 : 6, det >= 2 ? 22 : 12, Math.PI * 1.15);
+      hans.rotateX(Math.PI / 2); hans.rotateY(Math.PI / 2 + Math.PI * 0.07);
+      hans.translate(-0.04, 0.505, 0);
+      add(boxUV(hans), carbon);
+      var strapM = R.strapMat || (R.strapMat = R.std({ color: new THREE.Color(L.accent).convertSRGBToLinear(), roughness: 0.7 }, 'strap'));
+      [1, -1].forEach(function (sd) {
+        add(sweep([[sd * 0.085, -0.2, 0.49], [sd * 0.09, -0.08, 0.545], [sd * 0.08, 0.04, 0.53], [sd * 0.05, 0.14, 0.49]], function () { return [0.022, 0.004]; }, 10, 4), strapM);
+      });
+      var padM = R.padMat || (R.padMat = R.std({ color: new THREE.Color('#1d1f24').convertSRGBToLinear(), roughness: 0.95 }, 'pad'));
+      var topZ = keyAt(mk, -0.1, 'cz') + keyAt(mk, -0.1, 'hh');
+      [1, -1].forEach(function (sd) {
+        var pg = det >= 2 ? roundedBox(0.36, 0.11, 0.055, 0.025, 3) : new THREE.BoxGeometry(0.36, 0.11, 0.055);
+        pg.translate(-0.15, topZ + 0.03, sd * 0.165);
+        add(pg, padM);
+      });
+      var back = det >= 2 ? roundedBox(0.06, 0.13, 0.3, 0.025, 3) : new THREE.BoxGeometry(0.06, 0.13, 0.3);
+      back.translate(-0.33, topZ + 0.04, 0);
+      add(back, padM);
+    }
+
     // Cockpit opening and padded rim
     var ck = new THREE.Shape(), cr = roundPoly([[0.19, -0.35], [0.19, 0.42], [-0.19, 0.42], [-0.19, -0.35]], 0.1, 4);
     cr.forEach(function (p, i) { if (i === 0) ck.moveTo(p[1], p[0]); else ck.lineTo(p[1], p[0]); });
@@ -692,7 +835,7 @@
     group.add(shadow);
 
     // First-person cockpit (player cars)
-    var cockpit = opts.cockpit ? buildCockpit(R, L, mat, carbon, s) : null;
+    var cockpit = opts.cockpit ? buildCockpit(R, L, mat, carbon, s, opts) : null;
     if (cockpit) { cockpit.visible = false; body.add(cockpit); }
 
     // Exterior parts hidden from the driver's seat (cockpit view keeps the
@@ -702,14 +845,15 @@
 
     var allMats = Object.keys(mats).map(function (k) { return mats[k]; });
     return {
-      group: group, body: body, wheels: wheels, brakeMat: brakeMat, cockpitHidden: hideInCockpit, cockpit: cockpit,
+      group: group, body: body, wheels: wheels, brakeMat: brakeMat, cockpitHidden: hideInCockpit, cockpit: cockpit, mirrorGlass: cockpit ? cockpit.userData.glass : null,
       materials: allMats, char: char, scale: s, model: model, cones: cones, frontWing: frontWing, rearWing: rearWing,
       livery: L, hidden: undefined, wrecked: false,
     };
   };
 
   // --- First-person cockpit (cockpit.js layout, rounded) ----------------------------------------
-  function buildCockpit(R, L, mat, carbon, s) {
+  function buildCockpit(R, L, mat, carbon, s, opts) {
+    opts = opts || {};
     var G = (CR.Cockpit && CR.Cockpit.GEO) || null, CY = G ? G.COCKPIT_Y : 0.6;
     var grp = new THREE.Group(), list = [];
     function add(g, m) { list.push([g, m]); }
@@ -758,15 +902,37 @@
     var rr = roundPoly([[0.235, -0.8], [0.235, 0.33], [0.14, 0.42], [-0.14, 0.42], [-0.235, 0.33], [-0.235, -0.8]], 0.08, 4);
     var rimCurve = new THREE.CatmullRomCurve3(rr.map(function (p) { return V3(p[0], p[1] + CY, 0.675); }), true);
     add(new THREE.TubeGeometry(rimCurve, 64, 0.04, 10, true), R.rimMat || (R.rimMat = R.std({ color: 0x0b0c0e, roughness: 0.85 }, 'rim')));
-    // Halo (cockpit.js curve) and its centre pillar
+    // Surfaces to sit things on (found by casting rays at the real geometry)
+    var probeMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    var surf = list.filter(function (e) { return e[1] === paint; }).map(function (e) { var m = new THREE.Mesh(e[0], probeMat); m.updateMatrixWorld(true); return m; });
+    function topAt(x, yc, fallback) { var h = surfaceAt(surf, x, yc + CY); return h ? h : { z: fallback, n: new THREE.Vector3(0, 1, 0) }; }
+    var det = opts.detail || 0, bolts = [], metal = R.boltMat || (R.boltMat = R.std({ color: 0x9aa0a8, roughness: 0.3, metalness: 0.9 }, 'bolt'));
+    var seamMat = R.seamMat || (R.seamMat = R.std({ color: 0x050506, roughness: 0.7 }, 'seam'));
+    var padM = R.padMat || (R.padMat = R.std({ color: new THREE.Color('#1d1f24').convertSRGBToLinear(), roughness: 0.95 }, 'pad'));
+
+    // Halo: hoop from cockpit.js (its top surface -> tube centre), the rear legs
+    // carried down onto the shoulders behind the head, and the front stay
+    // growing out of the front of the hoop down onto the deck ahead.
     if (G && L.halo) {
-      var half = G.HALO_CTRL, full2 = half.slice().reverse().concat(half.slice(1).map(function (p) { return [-p[0], p[1], p[2]]; }));
-      var hc = new THREE.CatmullRomCurve3(full2.map(function (p) { return V3(p[0], p[1] + CY, p[2] - 0.022); }), false, 'centripetal');
-      var haloMat = mat('full', '#1b1e23'); // smooth titanium / fairing, right above the eyes
-      add(boxUV(new THREE.TubeGeometry(hc, 64, 0.03, 12, false)), haloMat);
-      add(tube([0, 0.12 + CY, 1.0], [G.PILLAR[1][0], G.PILLAR[1][1] + CY, G.PILLAR[1][2]], 0.02, 10), haloMat);
+      var b = G.HALO_T / 2, a = G.HALO_W / 2;
+      var rearZ = topAt(0.38, -0.725, 0.67).z, frontZ = topAt(0, 0.8, 0.58).z;
+      var half = G.HALO_CTRL.slice(0, 7).map(function (p) { return [p[0], p[1], p[2] - b]; })
+        .concat([[0.372, -0.69, 0.83], [0.378, -0.715, 0.72], [0.38, -0.725, rearZ - 0.025]]);
+      var ringPts = half.slice().reverse().map(function (p) { return [-p[0], p[1] + CY, p[2]]; })
+        .concat(half.slice(1).map(function (p) { return [p[0], p[1] + CY, p[2]]; }));
+      var apexZ = G.HALO_CTRL[0][2] - b;
+      var stayPts = [[0, 0.09 + CY, apexZ], [0, 0.17 + CY, apexZ - 0.03], [0, 0.32 + CY, apexZ - 0.12], [0, 0.55 + CY, (apexZ + frontZ) / 2 - 0.05],
+        [0, 0.76 + CY, frontZ + 0.03], [0, 0.82 + CY, frontZ - 0.03]];
+      var haloMat = mat('full', '#1b1e23'); // titanium, painted
+      haloGeometry(ringPts, stayPts, { a: a, b: b, s: 0.024 }).forEach(function (g) { add(g, haloMat); });
+      // bolted fittings at the three mounting points
+      var nb = det >= 2 ? 4 : 0;
+      add(fitting([0, 0.8 + CY, frontZ - 0.012], [0.075, 0.11, 0.026], 0, nb, bolts), haloMat);
+      [1, -1].forEach(function (sd) { add(fitting([sd * 0.38, -0.725 + CY, rearZ - 0.012], [0.07, 0.09, 0.026], 0, nb, bolts), haloMat); });
     }
-    // Mirror housings behind the 2D glass, on stalks
+    // Mirror housings (aero pods) on stalks; glass from cockpit.js (2D) or, at
+    // the top detail tier, live 3D glass (opts.mirror3d)
+    var glass = [];
     if (G) G.MIRRORS.forEach(function (m) {
       var sg = m.side === 'L' ? -1 : 1, c = m.c, yaw = 0.35 * sg;
       var hb = roundedBox(0.075, G.GLASS_H + 0.03, G.GLASS_W + 0.035, 0.03, 3);
@@ -774,8 +940,81 @@
       var back = V3(c[0], c[1] + CY + 0.012 + 0.037, c[2]);
       hb.translate(back.x, back.y, back.z);
       add(hb, full);
-      add(tube([c[0], c[1] + CY + 0.03, c[2] - G.GLASS_H / 2], [c[0] * 1.08, c[1] + CY + 0.04, c[2] - 0.17], 0.012, 8), carbon);
+      var foot = topAt(c[0] * 1.08, c[1] + 0.04, c[2] - 0.17).z;
+      add(sweep([[c[0], c[1] + CY + 0.03, c[2] - G.GLASS_H / 2], [c[0] * 1.04, c[1] + CY + 0.035, c[2] - 0.1], [c[0] * 1.08, c[1] + CY + 0.04, foot - 0.01]],
+        function (t) { return [0.012 + 0.006 * t, 0.012 + 0.004 * t]; }, 10, 8), carbon);
+      if (det >= 2) add(fitting([c[0] * 1.08, c[1] + 0.04 + CY, foot - 0.008], [0.04, 0.05, 0.014], 0, 2, bolts), carbon);
+      if (opts.mirror3d && R.mirrorTex) {
+        var pg = new THREE.PlaneGeometry(G.GLASS_W, G.GLASS_H);
+        var u0 = sg < 0 ? 1 : 0.5, u1 = sg < 0 ? 0.5 : 0; // left edge -> right edge (flipped like a mirror)
+        var uvA = pg.attributes.uv;
+        for (var i = 0; i < uvA.count; i++) uvA.setX(i, uvA.getX(i) < 0.5 ? u0 : u1);
+        var ux = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), nrm = new THREE.Vector3().crossVectors(ux, UPV);
+        pg.applyMatrix4(new THREE.Matrix4().makeBasis(ux, UPV, nrm).setPosition(V3(c[0], c[1] + CY - 0.002, c[2])));
+        var gm2 = R.mirrorGlassMat || (R.mirrorGlassMat = (function () { var mm = new THREE.MeshBasicMaterial({ map: R.mirrorTex, color: 0xd8dde4, toneMapped: false }); R.register(mm); return mm; })());
+        var gl = new THREE.Mesh(pg, gm2);
+        glass.push(gl);
+      }
     });
+    // Detail tiers: 1 = pads + panel seams; 2 = + fasteners, bolts, switch panel, safety stickers
+    if (det >= 1) {
+      [1, -1].forEach(function (sd) {
+        var pd = det >= 2 ? roundedBox(0.98, 0.11, 0.03, 0.012, 2) : new THREE.BoxGeometry(0.98, 0.11, 0.03);
+        pd.translate(-0.21 + CY, 0.6, sd * 0.207);
+        add(pd, padM);
+      });
+      var seams = [];
+      // across the deck where the nose panel meets it
+      var row = [];
+      for (var sx = -0.2; sx <= 0.2001; sx += 0.025) { var hh = topAt(sx, 1.0, 0.52); row.push([sx, 1.0 + CY, hh.z + 0.002]); }
+      seams.push(row);
+      // along both shoulders
+      [1, -1].forEach(function (sd) {
+        var line = [];
+        for (var sy = -0.7; sy <= 0.3001; sy += 0.05) { var h2 = topAt(sd * 0.62, sy, 0.66); line.push([sd * 0.62, sy + CY, h2.z + 0.002]); }
+        seams.push(line);
+      });
+      seams.forEach(function (ln) {
+        add(sweep(ln, function () { return [0.0028, 0.0016]; }, ln.length * 2, 4), seamMat);
+        if (det >= 2) for (var f = 1; f < ln.length - 1; f += 2) {
+          var fg = new THREE.CylinderGeometry(0.0055, 0.0055, 0.0025, 10);
+          var fp = V3(ln[f][0], ln[f][1], ln[f][2] + 0.0005);
+          fg.translate(fp.x, fp.y, fp.z);
+          bolts.push(fg);
+        }
+      });
+    }
+    if (det >= 2) {
+      // switch panel on the left shoulder by the rim (isolator, ignition, drink)
+      var sp0 = topAt(-0.34, 0.27, 0.66);
+      var plate = roundedBox(0.05, 0.007, 0.075, 0.003, 1);
+      var pc = V3(-0.34, 0.27 + CY, sp0.z + 0.004);
+      plate.translate(pc.x, pc.y, pc.z);
+      add(plate, R.intakeMat || (R.intakeMat = R.std({ color: 0x050506, roughness: 0.9 }, 'intake')));
+      [[-0.362, 0.258], [-0.34, 0.258], [-0.318, 0.258]].forEach(function (q) {
+        var tg = new THREE.CylinderGeometry(0.0022, 0.0026, 0.014, 6);
+        tg.rotateX(0.35);
+        var tp = V3(q[0], q[1] + CY, sp0.z + 0.013);
+        tg.translate(tp.x, tp.y, tp.z);
+        bolts.push(tg);
+      });
+      var btn = new THREE.CylinderGeometry(0.0065, 0.0065, 0.006, 12), bp = V3(-0.34, 0.288 + CY, sp0.z + 0.009);
+      btn.translate(bp.x, bp.y, bp.z);
+      add(btn, R.btnMat || (R.btnMat = R.std({ color: 0xc8102e, roughness: 0.4, emissive: 0x200000 }, 'button')));
+      // safety markings on the shoulders
+      [['E', 0.46], ['F', -0.5]].forEach(function (st) {
+        var yy = st[0] === 'E' ? 0.3 : 0.05;
+        var h3 = topAt(st[1], yy, 0.65), sg2 = new THREE.PlaneGeometry(0.075, 0.075);
+        sg2.rotateX(-Math.PI / 2); sg2.rotateY(-Math.PI / 2);
+        var sp = V3(st[1], yy + CY, h3.z + 0.003);
+        sg2.translate(sp.x, sp.y, sp.z);
+        add(sg2, stickerTex(R, st[0]));
+      });
+    }
+    if (bolts.length) add(mergeAll(bolts), metal);
+    probeMat.dispose();
+    grp.userData.glass = glass;
+    glass.forEach(function (g) { grp.add(g); });
     var gm = {};
     list.forEach(function (e) { if (!e[0]) return; var k = e[1].uuid; (gm[k] = gm[k] || { mat: e[1], list: [] }).list.push(e[0]); });
     Object.keys(gm).forEach(function (k) { var m = new THREE.Mesh(mergeAll(gm[k].list), gm[k].mat); m.receiveShadow = true; m.castShadow = false; grp.add(m); });

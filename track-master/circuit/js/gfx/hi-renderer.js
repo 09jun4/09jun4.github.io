@@ -42,6 +42,12 @@
     m.userData.hiName = name || 'm';
     m.userData.hiHook = hook || null;
     this.register(m);
+    if (this.previewMode) { // studio previews: no cascaded shadows on these
+      var key = (name || 'm') + '|pv';
+      m.onBeforeCompile = hook || THREE.Material.prototype.onBeforeCompile;
+      m.customProgramCacheKey = function () { return key; };
+      return m;
+    }
     this.mats.push(m);
     this.shadowSetup(m);
     return m;
@@ -102,6 +108,10 @@
     this.opts = opts;
     this.device = opts.device;
     this.tier = opts.tier;
+    this.tierIndex = opts.tierIndex || 0;
+    this.previewCars = new Map();
+    this.previewImages = {};
+    this.pvCache = null;
     var attrs = { alpha: false, antialias: false, depth: true, stencil: false, powerPreference: this.device.mobile ? 'default' : 'high-performance', preserveDrawingBuffer: false };
     var gl = null;
     try {
@@ -336,15 +346,25 @@
     this.carCache.clear();
     this.disposeScope('cars');
     this.carShared = null;
-    this.intakeMat = this.rimMat = this.tubMat = this.suitMat = null;
+    var self = this;
+    ['intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F'].forEach(function (k) { self[k] = null; });
+    this.previewCars = new Map();
+    this.previewImages = {};
+    this.pvCache = null;
   };
+
+  // Detail of the car / cockpit for the current tier: 2 = everything (최고 /
+  // 높음), 1 = simplified (중간), 0 = basic rounded cockpit (낮춤 / 최소).
+  P.detailLevel = function () { var t = this.tierIndex || 0; return t <= 1 ? 2 : t === 2 ? 1 : 0; };
 
   P.carFor = function (model, number, cockpit) {
     var c = this.carCache.get(model);
     if (c) return c;
     var prev = this.scope;
     this.useScope('cars');
-    c = Hi.Car.create(this, model, { number: number, night: this.night || 0, cockpit: !!cockpit });
+    var mirror3d = !!cockpit && this.tierIndex === 0;
+    if (mirror3d) this.ensureMirrorRT();
+    c = Hi.Car.create(this, model, { number: number, night: this.night || 0, cockpit: !!cockpit, detail: this.detailLevel(), mirror3d: mirror3d });
     this.scope.roots.push(c.group);
     this.scope = prev; this.textures = prev.tex;
     this.carCache.set(model, c);
@@ -423,6 +443,11 @@
       }
     }
 
+    // Live 3D mirrors (top tier, cockpit view): the scene from the driver's
+    // head looking back, every other frame, into a small target the glass shows.
+    this.mirrorFrame = (this.mirrorFrame || 0) + 1;
+    if (cockpit && player.mirrorGlass && player.mirrorGlass.length && this.mirrorRT && this.mirrorFrame % 2 === 0) this.renderMirror(player, c);
+
     // Culling (crowd, trees) per cell / stand
     var b = this.built, t = this.tier, fr = this.frustum, cp = cam.position;
     var crowdFar = 150 + 260 * t.crowd, treeFar = 700 + 1100 * t.trees;
@@ -492,6 +517,157 @@
     this.post.finish();
   };
 
+  // --- Mirrors -------------------------------------------------------------------------------
+  P.ensureMirrorRT = function () {
+    if (this.mirrorRT) return;
+    var opts = { type: this.hdr ? THREE.HalfFloatType : THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+    this.mirrorRT = new THREE.WebGLRenderTarget(560, 96, opts);
+    this.mirrorRT.texture.generateMipmaps = false;
+    if (!this.hdr) this.mirrorRT.texture.encoding = THREE.sRGBEncoding;
+    this.mirrorTex = this.mirrorRT.texture;
+    // same lens as cockpit.js renderMirrorImage: focal 2.1 x height, 1.5 deg down
+    this.mirrorCam = new THREE.PerspectiveCamera(2 * Math.atan(0.5 / 2.1) * 180 / Math.PI, 560 / 96, 0.2, 1500);
+  };
+
+  P.renderMirror = function (player, c) {
+    var r = this.renderer, eye = CR.Camera.EYE, back = c.heading + Math.PI, mc = this.mirrorCam;
+    var ex = c.x + Math.cos(c.heading) * eye.forward, ey = c.y + Math.sin(c.heading) * eye.forward;
+    mc.position.set(ex, eye.height, -ey);
+    var p = 1.5 * Math.PI / 180;
+    mc.lookAt(ex + Math.cos(back) * Math.cos(p), eye.height - Math.sin(p), -(ey + Math.sin(back) * Math.cos(p)));
+    mc.updateMatrixWorld(true);
+    // own car: only the rear tyres show (as 낮음 does); the cockpit is hidden
+    var hideCk = player.cockpit && player.cockpit.visible;
+    if (hideCk) player.cockpit.visible = false;
+    var rear = player.wheels.filter(function (w) { return !w.front; });
+    rear.forEach(function (w) { w.pivot.visible = true; });
+    var autoSh = r.shadowMap.autoUpdate;
+    r.shadowMap.autoUpdate = false;
+    r.setRenderTarget(this.mirrorRT);
+    r.autoClear = false;
+    r.clear(true, true, false);
+    this.built.sky.position.copy(mc.position);
+    r.render(this.bgScene, mc);
+    r.clearDepth();
+    r.render(this.scene, mc);
+    r.shadowMap.autoUpdate = autoSh;
+    this.built.sky.position.copy(this.camera.position);
+    rear.forEach(function (w) { w.pivot.visible = !player.hidden; });
+    if (hideCk) player.cockpit.visible = true;
+  };
+
+  // --- Car previews for the menu (studio render of the 높음 car) -------------------------------
+  P.ensureStudio = function () {
+    if (this.studio) return this.studio;
+    var prev = this.scope;
+    this.useScope('global');
+    var sc = new THREE.Scene();
+    sc.background = new THREE.Color('#2a2e37'); // clear colour is written as is (matches the card)
+    sc.add(new THREE.HemisphereLight(0xdfe7f2, 0x2a2d33, 0.75));
+    var key = new THREE.DirectionalLight(0xffffff, 2.6); key.position.set(3, 5, 4); sc.add(key);
+    var rim = new THREE.DirectionalLight(0xbfd4ff, 1.6); rim.position.set(-4, 3, -3); sc.add(rim);
+    // soft studio reflections: a dark room with three light panels
+    var room = new THREE.Scene();
+    room.add(new THREE.Mesh(new THREE.BoxGeometry(20, 10, 20), new THREE.MeshBasicMaterial({ color: 0x15171c, side: THREE.BackSide })));
+    [[0, 6, 0, 10, 0.2, 4], [7, 3, 3, 0.2, 3, 6], [-7, 3, -3, 0.2, 3, 6]].forEach(function (q) {
+      var pm = new THREE.Mesh(new THREE.BoxGeometry(q[3], q[4], q[5]), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      pm.position.set(q[0], q[1], q[2]); room.add(pm);
+    });
+    var pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.studioEnv = pmrem.fromScene(room, 0, 0.1, 50);
+    pmrem.dispose();
+    room.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    sc.environment = this.studioEnv.texture;
+    this.studio = { scene: sc, camera: new THREE.PerspectiveCamera(28, 1.8, 0.1, 60), holder: new THREE.Group() };
+    sc.add(this.studio.holder);
+    this.scope = prev; this.textures = prev.tex;
+    return this.studio;
+  };
+
+  P.previewCar = function (model) {
+    var c = this.previewCars.get(model);
+    if (c) return c;
+    var id = null;
+    (CR.Cars.list || []).forEach(function (k) { if (k.model === model) id = k.id; });
+    if (!id && CR.Race && CR.Race.DRIVERS) CR.Race.DRIVERS.forEach(function (d) { if (d.model === model) id = d.id; });
+    var prev = this.scope, self = this;
+    this.useScope('cars');
+    // own set of shared materials (the race cars' ones carry the cascade setup)
+    var keys = ['carShared', 'intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F'];
+    var saved = {};
+    keys.forEach(function (k) { saved[k] = self[k]; self[k] = self.pvCache ? self.pvCache[k] : null; });
+    this.previewMode = true;
+    try {
+      c = Hi.Car.create(this, model, { number: id ? Hi.Car.NUMBERS[id] : null, detail: 2 });
+    } finally {
+      this.previewMode = false;
+      this.pvCache = {};
+      keys.forEach(function (k) { self.pvCache[k] = self[k]; self[k] = saved[k]; });
+    }
+    this.scope.roots.push(c.group);
+    this.scope = prev; this.textures = prev.tex;
+    c.wheels.forEach(function (w) { if (w.front) w.pivot.rotation.y = 0.3; w.sharp.forEach(function (d) { d.visible = true; }); });
+    this.previewCars.set(model, c);
+    return c;
+  };
+
+  // Renders `model` (turntable angle, rad) at pw x ph pixels. onCanvas: draw
+  // straight onto the (hidden) game canvas and return where to copy from (menu
+  // turntable); otherwise render off-screen and return the pixels.
+  P.renderPreview = function (model, pw, ph, angle, onCanvas) {
+    var r = this.renderer, st = this.ensureStudio(), car = this.previewCar(model);
+    st.holder.add(car.group);
+    car.group.position.set(0, 0, 0);
+    car.group.rotation.set(0, angle, 0);
+    car.group.updateMatrixWorld(true);
+    // frame the car: fit ~5 m (length seen at three-quarters) across the width
+    var cam = st.camera, s = car.scale, aspect = pw / ph;
+    cam.aspect = aspect;
+    cam.fov = 26;
+    cam.updateProjectionMatrix();
+    var halfV = Math.tan(cam.fov * Math.PI / 360), halfH = halfV * aspect;
+    var dist = Math.max(2.45 * s / halfH, 1.25 / halfV);
+    cam.position.set(0.12 * dist, 0.36 * dist, dist);
+    cam.lookAt(0, 0.32, 0);
+    var prevTM = r.toneMapping, prevEnc = r.outputEncoding, prevExp = r.toneMappingExposure, prevClear = r.autoClear;
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.05;
+    r.outputEncoding = THREE.sRGBEncoding;
+    r.autoClear = true;
+    var out;
+    if (onCanvas) {
+      var cw = r.domElement.width, chh = r.domElement.height;
+      var ss = Math.min(2, cw / pw, chh / ph); // supersample, then the copy scales down
+      pw = Math.floor(pw * ss); ph = Math.floor(ph * ss);
+      r.setRenderTarget(null);
+      r.setViewport(0, 0, pw, ph); r.setScissor(0, 0, pw, ph); r.setScissorTest(true);
+      r.render(st.scene, cam);
+      r.setScissorTest(false);
+      r.setViewport(0, 0, cw, chh);
+      out = { source: r.domElement, sx: 0, sy: chh - ph, sw: pw, sh: ph };
+    } else {
+      var rt = this.previewRT;
+      if (!rt || rt.width !== pw || rt.height !== ph) {
+        if (rt) rt.dispose();
+        rt = this.previewRT = (this.webglVersion === 2 && THREE.WebGLMultisampleRenderTarget) ? new THREE.WebGLMultisampleRenderTarget(pw, ph) : new THREE.WebGLRenderTarget(pw, ph);
+        if (this.webglVersion === 2) rt.samples = 4;
+        rt.texture.encoding = THREE.sRGBEncoding;
+        rt.texture.generateMipmaps = false;
+      }
+      r.setRenderTarget(rt);
+      r.render(st.scene, cam);
+      var px = new Uint8Array(pw * ph * 4);
+      r.readRenderTargetPixels(rt, 0, 0, pw, ph, px);
+      r.setRenderTarget(null);
+      var img = new ImageData(pw, ph), row = pw * 4; // flip rows: GL origin is bottom-left
+      for (var y = 0; y < ph; y++) img.data.set(px.subarray((ph - 1 - y) * row, (ph - y) * row), y * row);
+      out = img;
+    }
+    r.toneMapping = prevTM; r.outputEncoding = prevEnc; r.toneMappingExposure = prevExp; r.autoClear = prevClear;
+    st.holder.remove(car.group);
+    return out;
+  };
+
   // --- Size / quality -----------------------------------------------------------------------
   P.resize = function () {
     if (!this.renderer) return;
@@ -507,8 +683,10 @@
     this.proxyKey = '';
   };
 
-  P.setQuality = function (tier) {
+  P.setQuality = function (tier, index) {
     this.tier = tier;
+    if (index !== undefined) this.tierIndex = index;
+    this.disposeCars(); // rebuilt lazily with this tier's car / cockpit detail
     this.post.configure(tier, this.webglVersion === 2);
     this.resize();
     this.setupShadows();
@@ -540,6 +718,10 @@
     }
     this.disposeScope('global');
     if (this.envRT) { this.envRT.dispose(); this.envRT = null; }
+    if (this.studioEnv) { this.studioEnv.dispose(); this.studioEnv = null; }
+    if (this.studio) { this.studio.scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); this.studio = null; }
+    if (this.mirrorRT) { this.mirrorRT.dispose(); this.mirrorRT = null; this.mirrorTex = null; }
+    if (this.previewRT) { this.previewRT.dispose(); this.previewRT = null; }
     this.scene.environment = null;
     this.post.dispose();
     this.coneGeo.dispose(); this.blobGeo.dispose();
