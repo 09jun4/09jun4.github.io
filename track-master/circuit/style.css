@@ -1199,12 +1199,21 @@ body.in-real #lap-history, body.in-real .laps-money { display: none !important; 
 .rl-q b { color: #ffd23f; font-size: 18px; font-weight: 900; }
 .rl-q-cut { color: #ff8a7a; font-weight: 700; }
 .rl-hud.is-quali .rl-radio { top: 52px; }
-.rl-touch { display: none; position: absolute; right: 10px; top: 46%; flex-direction: column; gap: 8px; pointer-events: auto; }
-body.touch .rl-touch { display: flex; }
+.rl-touch { display: none; position: absolute; right: 10px; bottom: 96px; grid-template-columns: 58px 58px; gap: 6px; pointer-events: auto; }
+body.touch .rl-touch { display: grid; }
 .rl-touch.is-quali button:not([data-act="boost"]) { display: none; }
-.rl-touch button { width: 64px; height: 44px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(10, 13, 19, 0.6); color: #fff; font: 900 12px/1.1 inherit; }
+.rl-touch.is-quali { grid-template-columns: 58px; }
+.rl-touch button { width: 58px; height: 40px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(10, 13, 19, 0.6); color: #fff; font: 900 12px/1.1 inherit; }
 .rl-touch button small { display: block; font-size: 9px; opacity: 0.5; }
-body.touch .rl-panel { top: auto; bottom: 10px; right: auto; left: 10px; width: 190px; font-size: 11px; }
+body.touch .rl-panel { top: auto; bottom: 8px; right: auto; left: calc(50% + 40px); transform: translateX(-50%); width: 196px; padding: 6px 9px; gap: 4px; font-size: 11px; }
+body.touch .rl-panel .rl-row:nth-child(4) { display: none; } /* fuel / next tyre row */
+.rl-gaps { display: none; font-size: 11px; font-weight: 800; color: #ffe48a; white-space: nowrap; }
+body.touch .rl-gaps { display: flex; }
+body.touch.in-real .race-tower { display: none !important; }
+body.touch .rl-radio { top: 74px; left: 45%; width: min(380px, 44%); min-width: 0; }
+body.touch .rl-msg { font-size: 12px; padding: 4px 8px; }
+body.touch .rl-flag { top: 74px; }
+body.touch .rl-flag:not([hidden]) ~ .rl-radio { top: 112px; }
 .rl-rain { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 .race-tower.is-real { width: 196px; padding: 3px; }
 .race-tower.is-real li { grid-template-columns: 18px 4px 1fr auto 15px; gap: 5px; padding: 2px 5px; font-size: 11px; }

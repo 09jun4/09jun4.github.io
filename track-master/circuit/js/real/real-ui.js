@@ -80,6 +80,7 @@
       '  <div class="rl-row rl-modes"><span class="rl-mode rl-ot">OVERTAKE</span><span class="rl-mode rl-boost">BOOST</span><span class="rl-mode rl-straight">STRAIGHT</span></div>' +
       '  <div class="rl-row"><span class="rl-k">연료</span><b class="rl-fuel"></b><span class="rl-k">다음</span><span class="rl-next"></span><b class="rl-box"></b></div>' +
       '  <div class="rl-row rl-pen" hidden></div>' +
+      '  <div class="rl-row rl-gaps"></div>' +
       '</div>' +
       '<div class="rl-pitstop" hidden><div class="rl-ps-title">PIT STOP</div><div class="rl-ps-time">0.0</div><div class="rl-ps-crew"></div><div class="rl-ps-note"></div></div>' +
       '<div class="rl-q" hidden></div>' +
@@ -99,6 +100,7 @@
     els.ps = q('.rl-pitstop'); els.psTime = q('.rl-ps-time'); els.psCrew = q('.rl-ps-crew'); els.psNote = q('.rl-ps-note');
     els.q = q('.rl-q');
     els.tyreRow = q('.rl-tyre-row');
+    els.gaps = q('.rl-gaps');
     // crew dots for the 2D pit stop panel (top view of the car and 4 wheel crews)
     els.psCrew.innerHTML = '<svg viewBox="0 0 120 70" aria-hidden="true"><rect class="ps-car" x="44" y="10" width="32" height="50" rx="10"/>' +
       '<g class="ps-w" data-w="0"><rect x="34" y="14" width="10" height="14" rx="3"/></g><g class="ps-w" data-w="1"><rect x="76" y="14" width="10" height="14" rx="3"/></g>' +
@@ -222,6 +224,15 @@
     els.pen.hidden = !(pen || warn);
     if (pen || warn) els.pen.textContent = (warn ? '트랙 리밋 ' + Math.min(3, warn) + '/3' : '') + (pen ? '  ·  페널티 +' + pen + '초' : '');
     els.touch.classList.toggle('is-quali', !race);
+    // touch screens: the timing tower is hidden, the cars around you show here
+    if (race && document.body.classList.contains('touch')) {
+      var order = R.order(), i = order.indexOf(CR.Race.player), L = CR.Race._ctx().L, vRef = L / (R.idealLap * 1.04);
+      var txt = function (a, b) { var d = a.dist - b.dist; return d > L ? '+' + Math.floor(d / L) + '랩' : (d / vRef).toFixed(1) + '초'; };
+      var parts = [];
+      if (i > 0) parts.push('앞 ' + order[i - 1].driver.code + ' ' + txt(order[i - 1], CR.Race.player));
+      if (i >= 0 && i < order.length - 1 && !order[i + 1].retired) parts.push('뒤 ' + order[i + 1].driver.code + ' ' + txt(CR.Race.player, order[i + 1]));
+      els.gaps.textContent = parts.join(' · ');
+    } else els.gaps.textContent = '';
     if (race) {
       var lastTowerNow = performance.now();
       if (lastTowerNow - lastTower > 250) lastTower = lastTowerNow;
