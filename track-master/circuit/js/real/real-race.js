@@ -491,7 +491,7 @@
     R.scEnding = false;
     R.scLaps = 2 + Math.floor(Math.random() * 2);
     var lead = R.order()[0];
-    if (!scModel) scModel = CR.Cars.formulaModel({ main: '#c9ced6', dark: '#2a2f36', accent: '#1fbf5f', helmet: '#c9ced6', pod: 0.62, wing: 1.0, rearWing: 1.0, halo: true, fin: true });
+    if (!scModel) scModel = RD().safetyCarModel();
     var leadDist = lead ? (lead.isPlayer ? CR.Race.player.dist : lead.dist) : 0;
     var sc = {
       sc: true, isAI: true, driver: { id: 'sc', code: 'SC', name: '세이프티카', team: 'fia', main: '#c9ced6', num: 0 }, model: scModel,
@@ -541,6 +541,7 @@
       R.radio('세이프티카 피트인 — 리더가 재출발을 주도', 'race');
     }
   }
+  R.debugCaution = function (kind) { if (kind === 'vsc') deployVSC(); else deploySC(); }; // tests
   function removeSC() {
     var i = CR.Race.ai.indexOf(R.sc);
     if (i >= 0) CR.Race.ai.splice(i, 1);

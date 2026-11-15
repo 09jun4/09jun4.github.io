@@ -135,9 +135,12 @@
     if (Camera.cine) {
       // From the front quarter on the garage side, sweeping round to the side
       // as the crew works, then watching the car leave.
-      var sh = Camera.cine, a = 0.75 + Math.max(-0.6, Math.min(3.5, sh.t)) * 0.33;
+      // Bearing from the car to the camera sweeps from the front quarter to the
+      // pit-wall side, inside the lane and above the fence: the crew with the
+      // garage behind them, like the TV pit cameras.
+      var sh = Camera.cine, a = 0.55 + Math.max(-0.4, Math.min(3.5, sh.t)) * 0.36;
       var dir = c.heading + Math.PI - sh.side * a;
-      Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, dir, 8.6, 3.7, 17, cfg.CAM_FOCAL * 0.95, 0.56);
+      Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, dir, 6.0, 4.5, 29, cfg.CAM_FOCAL * 0.9, 0.52);
       Camera.heading = c.heading;
       return;
     }

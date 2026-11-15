@@ -128,6 +128,27 @@
       d.model = CR.Cars.formulaModel({ main: main, dark: dark, accent: accent, helmet: accent, pod: 0.62, wing: 1.0, rearWing: 1.0, halo: true, fin: true });
     });
   };
+  // Safety car: a silver GT coupe with a roof light bar (renderer.js parts;
+  // the 높음 renderer builds its own GT body from opts.gt, hi-car.js createGT).
+  var scModel = null;
+  CR.RealData.safetyCarModel = function () {
+    if (scModel) return scModel;
+    var silver = '#c9ced6', dark = '#1a2028', rim = '#b9bec6';
+    scModel = [
+      { wheel: [0.82, -1.4, 0.28, 0.34], rim: rim, stripe: rim },
+      { wheel: [-0.82, -1.4, 0.28, 0.34], rim: rim, stripe: rim },
+      { wheel: [0.82, 1.42, 0.28, 0.34], front: true, rim: rim, stripe: rim },
+      { wheel: [-0.82, 1.42, 0.28, 0.34], front: true, rim: rim, stripe: rim },
+      { prism: [[0, 2.34], [0.6, 2.28], [0.95, 1.9], [0.98, -1.9], [0.88, -2.25], [0, -2.34], [-0.88, -2.25], [-0.98, -1.9], [-0.95, 1.9], [-0.6, 2.28]],
+        z: [0.2, 0.9], taper: 0.94, color: silver },
+      { decal: { rect: [0, 1.65, 1.3, 0.1], fill: '#1fbf5f' } },
+      { prism: [[0.72, 1.0], [0.66, -1.5], [-0.66, -1.5], [-0.72, 1.0]], z: [0.9, 1.22], taper: 0.78, color: dark, top: silver },
+      { box: [0, -0.3, 1.1, 0.24], z: [1.22, 1.31], color: '#ff9a1a' },
+      { box: [0, -2.12, 1.7, 0.28], z: [0.98, 1.02], color: '#0d0f12' },
+    ];
+    scModel.opts = { gt: true, main: silver, dark: '#2a2f36', accent: '#1fbf5f' };
+    return scModel;
+  };
   CR.RealData.driver = function (id) {
     if (id === 'you') return PLAYER;
     for (var i = 0; i < DRIVERS.length; i++) if (DRIVERS[i].id === id) return DRIVERS[i];

@@ -15,6 +15,7 @@
 
   var MAX_CREWS = 4, PER = 17;
 
+  function lin(hex) { return new THREE.Color(hex).convertSRGBToLinear(); }
   function vec(s, o, h) { return new THREE.Vector3(s.x + s.nx * o, h, -(s.y + s.ny * o)); }
 
   // Static scenery + crew instancing. S: samples, D: cumulative, group: track group.
@@ -81,7 +82,7 @@
     if (rg) { var rm = Tr.mesh(R, rg, roofMat, { cast: true }); rm.material.side = THREE.DoubleSide; group.add(rm); }
 
     // team bays: dark opening, colour band, painted box on the lane
-    var dark = R.std({ color: 0x101215, roughness: 0.9, metalness: 0 }, 'bay');
+    var dark = R.std({ color: lin('#121418'), roughness: 0.9, metalness: 0, envMapIntensity: 0.1 }, 'bay');
     P.garages.forEach(function (gar) {
       var s0 = S[gar.i0], s1 = S[gar.i1];
       var o = sd * (P.garage - 0.03);
@@ -96,10 +97,10 @@
         group.add(m);
       };
       quad(o, 0, 4.0, dark);
-      var band = R.std({ color: new THREE.Color(gar.color), roughness: 0.45, metalness: 0.2, emissive: new THREE.Color(gar.color), emissiveIntensity: 0.15 }, 'band');
+      var band = R.std({ color: lin(gar.color), roughness: 0.45, metalness: 0.2, emissive: lin(gar.color), emissiveIntensity: 0.15 }, 'band');
       quad(sd * (P.garage - 0.05), 4.2, 5.35, band);
       // painted box on the working lane
-      var boxMat = R.std({ color: new THREE.Color(gar.color), roughness: 0.6, metalness: 0, transparent: true, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }, 'boxpaint');
+      var boxMat = R.std({ color: lin(gar.color), roughness: 0.6, metalness: 0, transparent: true, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }, 'boxpaint');
       var w0 = sd * (P.garage - 4.4), w1 = sd * (P.garage - 0.4);
       var a = vec(s0, w0, 0.014), b = vec(s1, w0, 0.014), c = vec(s1, w1, 0.014), d = vec(s0, w1, 0.014);
       var g2 = new THREE.BufferGeometry();
@@ -115,9 +116,9 @@
     var N = MAX_CREWS * PER;
     // matte race suits: low environment reflection so the team colours stay deep
     var suit = R.std({ color: 0xffffff, roughness: 0.75, metalness: 0, envMapIntensity: 0.25 }, 'crew');
-    var dk = R.std({ color: 0x15171b, roughness: 0.85, metalness: 0, envMapIntensity: 0.2 }, 'crewLegs');
+    var dk = R.std({ color: lin('#15171b'), roughness: 0.85, metalness: 0, envMapIntensity: 0.2 }, 'crewLegs');
     var hel = R.std({ color: 0xffffff, roughness: 0.25, metalness: 0.1, envMapIntensity: 0.6 }, 'crewHelmet');
-    var tyreMat = R.std({ color: 0x141518, roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }, 'crewTyre');
+    var tyreMat = R.std({ color: lin('#141518'), roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }, 'crewTyre');
     var bandMat = R.std({ color: 0xffffff, roughness: 0.5, metalness: 0, envMapIntensity: 0.3 }, 'crewTyreBand');
     // figure (1.78 m): suit = torso + upper arms + forearms + collar; dark = legs, boots, gloves, visor
     function box(w, h, d, x, y, z, rz) { var g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); return g; }
@@ -265,8 +266,8 @@
         d.scale.set(1, 1 - crouch * 0.38, 1);
         d.updateMatrix();
         st.torso.setMatrixAt(k, d.matrix); st.legs.setMatrixAt(k, d.matrix); st.head.setMatrixAt(k, d.matrix);
-        col.set(suitC); st.torso.setColorAt(k, col);
-        col.set(helmC); st.head.setColorAt(k, col);
+        col.set(suitC).convertSRGBToLinear(); st.torso.setColorAt(k, col);
+        col.set(helmC).convertSRGBToLinear(); st.head.setColorAt(k, col);
         // tyres carried
         if (carry && kt < st.tyres.instanceMatrix.count) {
           var tp = toW(lx + (w[0] > 0 ? -0.35 : 0.35), ly);
@@ -275,7 +276,7 @@
           d.scale.set(1, 1, 1);
           d.updateMatrix();
           st.tyres.setMatrixAt(kt, d.matrix); st.bands.setMatrixAt(kt, d.matrix);
-          col.set(carry === 2 ? CR.RealData.tyre(s.tyre).color : '#555a62');
+          col.set(carry === 2 ? CR.RealData.tyre(s.tyre).color : '#555a62').convertSRGBToLinear();
           st.bands.setColorAt(kt, col);
           kt++;
         }

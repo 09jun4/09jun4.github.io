@@ -365,7 +365,7 @@
     this.useScope('cars');
     var mirror3d = !!cockpit && this.tierIndex === 0;
     if (mirror3d) this.ensureMirrorRT();
-    c = Hi.Car.create(this, model, { number: number, night: this.night || 0, cockpit: !!cockpit, detail: this.detailLevel(), mirror3d: mirror3d });
+    c = (model.opts && model.opts.gt ? Hi.Car.createGT : Hi.Car.create)(this, model, { number: number, night: this.night || 0, cockpit: !!cockpit, detail: this.detailLevel(), mirror3d: mirror3d });
     this.scope.roots.push(c.group);
     this.scope = prev; this.textures = prev.tex;
     this.carCache.set(model, c);

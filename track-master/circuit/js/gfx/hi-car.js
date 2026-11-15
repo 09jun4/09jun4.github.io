@@ -851,6 +851,98 @@
     };
   };
 
+  // --- 리얼리스틱 safety car: a silver GT coupe with a roof light bar ------------------------
+  // model.opts.gt (real-data.js safetyCarModel). Same return shape as create().
+  C.createGT = function (R, model, opts) {
+    var o = model.opts, group = new THREE.Group(), body = new THREE.Group();
+    group.add(body);
+    var shared = R.carShared || (R.carShared = {
+      tyres: {}, discs: {}, sideMats: {},
+      tyreMat: R.std({ map: R.texTread, color: 0xffffff, roughness: 0.82, metalness: 0 }, 'tyre'),
+    });
+    var char = { value: 0 };
+    var paint = R.phys({ color: new THREE.Color(o.main).convertSRGBToLinear(), roughness: 0.32, metalness: 0.75, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1 }, 'scPaint');
+    var glass = R.phys({ color: 0x0b0f15, roughness: 0.06, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.2 }, 'scGlass');
+    var black = R.std({ color: 0x0d0f12, roughness: 0.6, metalness: 0.1 }, 'scTrim');
+    var lower = bodyLoft([
+      { y: 2.33, cz: 0.4, hw: 0.5, hh: 0.1, n: 3, under: 0.1 },
+      { y: 2.22, cz: 0.46, hw: 0.84, hh: 0.19, n: 3.4, under: 0.2 },
+      { y: 1.75, cz: 0.53, hw: 0.95, hh: 0.27, n: 4, under: 0.2 },
+      { y: 1.0, cz: 0.58, hw: 0.93, hh: 0.31, n: 4, under: 0.2 },
+      { y: 0.0, cz: 0.6, hw: 0.91, hh: 0.33, n: 4, under: 0.2 },
+      { y: -1.0, cz: 0.62, hw: 0.97, hh: 0.34, n: 4, under: 0.2 },
+      { y: -1.85, cz: 0.62, hw: 0.98, hh: 0.33, n: 4, under: 0.2 },
+      { y: -2.22, cz: 0.6, hw: 0.88, hh: 0.27, n: 3.6, under: 0.2 },
+      { y: -2.34, cz: 0.58, hw: 0.66, hh: 0.17, n: 3, under: 0.1 },
+    ], { capStart: true, capEnd: true, M: 40, steps: 6 });
+    var cabin = bodyLoft([
+      { y: 1.05, cz: 0.9, hw: 0.74, hh: 0.02, n: 3.2 },
+      { y: 0.45, cz: 1.0, hw: 0.7, hh: 0.17, n: 3.2 },
+      { y: -0.2, cz: 1.04, hw: 0.67, hh: 0.2, n: 3.4 },
+      { y: -0.9, cz: 1.0, hw: 0.65, hh: 0.16, n: 3.4 },
+      { y: -1.55, cz: 0.93, hw: 0.62, hh: 0.04, n: 3.2 },
+    ], { capStart: true, capEnd: true, M: 32, steps: 6 });
+    var roof = bodyLoft([
+      { y: 0.25, cz: 1.205, hw: 0.5, hh: 0.015, n: 3 },
+      { y: -0.2, cz: 1.235, hw: 0.56, hh: 0.02, n: 3 },
+      { y: -0.85, cz: 1.165, hw: 0.52, hh: 0.015, n: 3 },
+    ], { capStart: true, capEnd: true, M: 24, steps: 4 });
+    var list = [[lower.geo, paint], [cabin.geo, glass], [roof.geo, paint]];
+    [lower.capStart, lower.capEnd, cabin.capStart, cabin.capEnd, roof.capStart, roof.capEnd].forEach(function (g, i) { if (g) list.push([g, i < 2 ? black : i < 4 ? glass : paint]); });
+    // splitter, side skirts, rear wing
+    var sp = roundedBox(0.12, 0.04, 1.8, 0.015, 1); sp.translate(2.25, 0.16, 0); list.push([sp, black]);
+    [1, -1].forEach(function (sd) { var sk = roundedBox(2.6, 0.06, 0.06, 0.02, 1); sk.translate(-0.1, 0.27, sd * 0.93); list.push([sk, black]); });
+    var wing = roundedBox(0.28, 0.03, 1.7, 0.012, 1); wing.translate(-2.12, 1.0, 0); list.push([wing, black]);
+    [1, -1].forEach(function (sd) { var st = roundedBox(0.16, 0.12, 0.03, 0.01, 1); st.translate(-2.08, 0.93, sd * 0.6); list.push([st, black]); });
+    var meshes = [];
+    list.forEach(function (e) { var m = new THREE.Mesh(e[0], e[1]); m.castShadow = true; m.receiveShadow = true; body.add(m); meshes.push(m); });
+    // lights
+    var brakeMat = new THREE.MeshStandardMaterial({ color: 0x300606, emissive: 0xff1e1e, emissiveIntensity: 0.6, roughness: 0.4 });
+    var headMat = new THREE.MeshStandardMaterial({ color: 0x888888, emissive: 0xfff4e0, emissiveIntensity: 2.2, roughness: 0.2 });
+    var amber = new THREE.MeshStandardMaterial({ color: 0x402000, emissive: 0xff9a14, emissiveIntensity: 0.4, roughness: 0.3 });
+    var amber2 = amber.clone();
+    var green = new THREE.MeshStandardMaterial({ color: 0x033016, emissive: 0x22e070, emissiveIntensity: 0.3, roughness: 0.3 });
+    [brakeMat, headMat, amber, amber2, green].forEach(function (m) { R.register(m); });
+    [1, -1].forEach(function (sd) {
+      var hl = new THREE.Mesh(roundedBox(0.06, 0.07, 0.34, 0.02, 1), headMat); hl.position.set(2.22, 0.58, sd * 0.62); body.add(hl);
+      var tl = new THREE.Mesh(roundedBox(0.04, 0.06, 0.46, 0.02, 1), brakeMat); tl.position.set(-2.3, 0.72, sd * 0.56); body.add(tl);
+    });
+    var bar = new THREE.Mesh(roundedBox(0.24, 0.07, 1.1, 0.03, 2), black); bar.position.set(-0.3, 1.27, 0); body.add(bar);
+    [[-0.38, amber], [0.38, amber2]].forEach(function (e) { var l = new THREE.Mesh(roundedBox(0.2, 0.06, 0.32, 0.025, 2), e[1]); l.position.set(-0.3, 1.3, e[0]); body.add(l); });
+    var gl = new THREE.Mesh(roundedBox(0.2, 0.06, 0.18, 0.025, 2), green); gl.position.set(-0.3, 1.3, 0); body.add(gl);
+    // SAFETY CAR lettering on both doors
+    var cnv = document.createElement('canvas'); cnv.width = 512; cnv.height = 96;
+    var g2 = cnv.getContext('2d');
+    g2.fillStyle = o.accent; g2.fillRect(0, 70, 512, 14);
+    g2.font = '900 54px Arial Black, Arial, sans-serif'; g2.fillStyle = '#10141a'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+    g2.fillText('SAFETY CAR', 256, 38);
+    var tex = new THREE.CanvasTexture(cnv); R.textures.push(tex);
+    var decal = new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    R.register(decal);
+    [1, -1].forEach(function (sd) {
+      var pl = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.36), decal);
+      pl.position.set(-0.1, 0.62, sd * 0.945);
+      pl.rotation.y = sd > 0 ? 0 : Math.PI;
+      body.add(pl);
+    });
+    // wheels
+    var wheels = [];
+    [[0.82, -1.4, false], [-0.82, -1.4, false], [0.82, 1.42, true], [-0.82, 1.42, true]].forEach(function (w) {
+      var wh = makeWheel(R, { wheel: [w[0], w[1], 0.28, 0.34], front: w[2], rim: '#b9bec6', stripe: '#b9bec6' }, shared);
+      body.add(wh.pivot);
+      wheels.push(wh);
+    });
+    var shadow = new THREE.Mesh(R.blobGeo, R.blobMat);
+    shadow.rotation.x = -Math.PI / 2; shadow.rotation.z = -Math.PI / 2;
+    shadow.position.y = 0.014; shadow.scale.set(2.3, 5.0, 1); shadow.renderOrder = 2;
+    group.add(shadow);
+    return {
+      group: group, body: body, wheels: wheels, brakeMat: brakeMat, cockpitHidden: [], cockpit: null, mirrorGlass: null,
+      materials: [paint, glass], char: char, scale: 1, model: model, cones: [], frontWing: null, rearWing: null,
+      livery: null, hidden: undefined, wrecked: false, lightbar: [amber, amber2, green],
+    };
+  };
+
   // --- First-person cockpit (cockpit.js layout, rounded) ----------------------------------------
   function buildCockpit(R, L, mat, carbon, s, opts) {
     opts = opts || {};
@@ -1087,6 +1179,12 @@
       for (var k2 = 0; k2 < w.sharp.length; k2++) w.sharp[k2].visible = near || opts.camDist < 140;
     }
     car.brakeMat.emissiveIntensity = st.exploded ? 0 : 0.5 + (opts.brake || 0) * 9;
+    if (car.lightbar) { // safety car: amber lights alternate, green on while it leads the field
+      var ph = Math.floor(performance.now() / 260) % 2;
+      car.lightbar[0].emissiveIntensity = ph ? 5 : 0.3;
+      car.lightbar[1].emissiveIntensity = ph ? 0.3 : 5;
+      car.lightbar[2].emissiveIntensity = CR.Real && CR.Real.scEnding ? 0.3 : 3;
+    }
     car.char.value = st.exploded ? 1 : 0;
     var hide = !!opts.cockpit;
     if (hide !== car.hidden) {
