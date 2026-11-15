@@ -403,7 +403,6 @@ if __name__ == '__main__':
     out = sys.argv[1]
     LOOP = 16 * BAR
     mx = Mix(2 * LOOP + 3)
-    global rng
     rng = np.random.default_rng(11); compose_loop(mx, 0.0)
     rng = np.random.default_rng(11); compose_loop(mx, LOOP)
     m = master(mx)
