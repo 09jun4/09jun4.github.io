@@ -30,7 +30,7 @@
     this.carCache = new Map();
     this.fx = null;
     this.disposing = false;
-    this.fovK = 1; this.lon = 0; this.prevSpeed = 0; this.prevHeading = 0; this.lat = 0;
+    this.fovK = 1; this.lon = 0; this.prevSpeed = 0; this.spring = 0;
     this.shakeT = 0;
   }
   var P = HiRenderer.prototype;
@@ -47,7 +47,7 @@
     return m;
   };
   P.std = function (params, name, hook) { return this.lit(new THREE.MeshStandardMaterial(params), name, hook); };
-  P.phys = function (params, name) { return this.lit(new THREE.MeshPhysicalMaterial(params), name); };
+  P.phys = function (params, name, hook) { return this.lit(new THREE.MeshPhysicalMaterial(params), name, hook); };
 
   // CSM needs its own onBeforeCompile; chain ours after it and give every
   // variant a distinct program cache key.
@@ -154,9 +154,10 @@
     this.texPuff = Hi.puff();
     this.texGlow = Hi.glow();
     this.texTread = Hi.tread();
+    this.texCarbon = Hi.carbon(Math.min(this.maxAniso, 8));
     var blob = Hi.blob();
     [this.texAsphalt.map, this.texAsphalt.normal, this.texAsphalt.rough, this.texRunoff, this.texConcrete, this.texGrass.map, this.texGrass.normal, this.texSand,
-      this.texKerb, this.texFence, this.texCrowd, this.texSponsors, this.texPuff, this.texGlow, this.texTread, blob].forEach(function (t) { self.textures.push(t); });
+      this.texKerb, this.texFence, this.texCrowd, this.texSponsors, this.texPuff, this.texGlow, this.texTread, this.texCarbon.map, this.texCarbon.normal, this.texCarbon.rough, blob].forEach(function (t) { self.textures.push(t); });
     this.blobGeo = new THREE.PlaneGeometry(1, 1);
     this.blobMat = new THREE.MeshBasicMaterial({ map: blob, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
     this.register(this.blobMat);
@@ -335,14 +336,15 @@
     this.carCache.clear();
     this.disposeScope('cars');
     this.carShared = null;
+    this.intakeMat = this.rimMat = this.tubMat = this.suitMat = null;
   };
 
-  P.carFor = function (model, number) {
+  P.carFor = function (model, number, cockpit) {
     var c = this.carCache.get(model);
     if (c) return c;
     var prev = this.scope;
     this.useScope('cars');
-    c = Hi.Car.create(this, model, { number: number, night: this.night || 0 });
+    c = Hi.Car.create(this, model, { number: number, night: this.night || 0, cockpit: !!cockpit });
     this.scope.roots.push(c.group);
     this.scope = prev; this.textures = prev.tex;
     this.carCache.set(model, c);
@@ -364,26 +366,24 @@
     var c = CR.Car.state;
     var cockpit = Cam.inCockpit(), finish = Cam.frontT > 0 && !cockpit, chase = !cockpit && !finish;
 
-    // Speed sense: smoothed longitudinal / lateral acceleration, FOV, shake.
+    // Speed sense without any shaking: smoothed longitudinal acceleration
+    // drives a slow camera "spring" (pulled back when accelerating, pushed in
+    // when braking) and a slightly wider lens at speed. No jitter, no haze.
     if (dt > 0) {
       var lon = (c.speed - this.prevSpeed) / dt;
-      var dh = Math.atan2(Math.sin(c.heading - this.prevHeading), Math.cos(c.heading - this.prevHeading));
-      var lat = c.speed * dh / dt;
-      var k = Math.min(1, dt * 4);
-      this.lon += (Math.max(-30, Math.min(20, lon)) - this.lon) * k;
-      this.lat += (Math.max(-40, Math.min(40, lat)) - this.lat) * k;
-      this.shakeT += dt;
+      this.lon += (Math.max(-30, Math.min(20, lon)) - this.lon) * Math.min(1, dt * 3);
+      var springT = chase ? Math.max(-0.9, Math.min(1.1, this.lon * 0.06)) : 0;
+      this.spring += (springT - this.spring) * Math.min(1, dt * 2.2);
     }
-    this.prevSpeed = c.speed; this.prevHeading = c.heading;
+    this.prevSpeed = c.speed;
     var sf = Math.max(0, Math.min(1, (c.speed - 18) / 72));
-    var targetK = chase ? 1 / (1 + 0.15 * sf + Math.max(0, this.lon) * 0.0045 - Math.max(0, -this.lon) * 0.0025) : 1;
-    if (dt > 0) this.fovK += (targetK - this.fovK) * Math.min(1, dt * 3);
+    var targetK = chase ? 1 / (1 + 0.14 * sf) : 1;
+    if (dt > 0) this.fovK += (targetK - this.fovK) * Math.min(1, dt * 2);
     var F = Cam.focal * this.fovK, cy = Cam.centerPx, pitch = Cam.pitch, hd = Cam.viewHeading;
-    var shakeA = chase ? (0.012 * sf + 0.03 * this.fx.rumble) : 0, st = this.shakeT;
-    var sx = shakeA * (Math.sin(st * 37.1) + 0.6 * Math.sin(st * 61.7)), sy = shakeA * (Math.sin(st * 43.3) * 0.8 + 0.4 * Math.sin(st * 71.9));
-    var cam = this.camera, near = cockpit ? 0.1 : 0.3, far = 3200;
-    cam.position.set(Cam.pos.x + Math.sin(hd) * sx, Cam.pos.h + sy, -Cam.pos.y + Math.cos(hd) * sx);
+    var cam = this.camera, near = cockpit ? 0.08 : 0.3, far = 3200;
     tmpV.set(Math.cos(hd) * Math.cos(pitch), -Math.sin(pitch), -Math.sin(hd) * Math.cos(pitch));
+    var back = chase ? this.spring : 0;
+    cam.position.set(Cam.pos.x - Math.cos(hd) * back, Cam.pos.h + back * 0.12, -Cam.pos.y + Math.sin(hd) * back);
     cam.up.set(0, 1, 0);
     cam.lookAt(tmpV2.copy(cam.position).add(tmpV));
     cam.near = near; cam.far = far;
@@ -401,11 +401,15 @@
 
     // Cars
     this.carsGroup.children.length = 0;
-    var player = this.carFor(CR.Car.def.model, Hi.Car.NUMBERS[CR.Car.def.id]);
+    var player = this.carFor(CR.Car.def.model, Hi.Car.NUMBERS[CR.Car.def.id], true);
     this.carsGroup.add(player.group);
     var brake = c.retired || c.autopilot ? 0 : CR.Input.state.brake;
     this.camDistToCar = Math.hypot(Cam.pos.x - c.x, Cam.pos.y - c.y);
-    Hi.Car.update(player, c, { lat: this.lat, lon: this.lon, brake: brake, cockpit: cockpit, camDist: this.camDistToCar });
+    Hi.Car.update(player, c, { lon: this.lon, brake: brake, cockpit: cockpit, camDist: this.camDistToCar });
+    // crash: char the car and throw its wings / two wheels off; back on reset
+    if (c.exploded && !player.wrecked) Hi.Car.detach(player, this.scene, c);
+    else if (!c.exploded && player.wrecked) Hi.Car.reattach(player);
+    Hi.Car.updateWreck(player, dt);
     if (CR.Race && CR.Race.active) {
       var ais = CR.Race.ai;
       for (var i = 0; i < ais.length; i++) {
@@ -438,6 +442,7 @@
     b.stands.uniforms.uTime.value += dt;
     b.sky.material.uniforms.time.value += dt;
     Hi.Track.update(this, b.track, realDt || dt);
+    this.playerCar = player;
     Hi.Fx.update(this.fx, this, dt);
 
     // Shadows follow the view (CSM on a symmetric proxy of the off-centre camera)
@@ -463,21 +468,19 @@
     U.blurAmount.value = finish ? 0 : (chase ? 0.085 : 0.055) * Math.pow(sf, 1.35);
     U.speedLines.value = finish ? 0 : Math.max(0, Math.min(1, (c.speed - 58) / 30)) * 0.8;
     U.vignette.value = 0.32 + 0.28 * sf;
-    U.flash.value = Math.max(0, this.fx.flash) * 1.3;
+    U.flash.value = Math.max(0, this.fx.flash) * 0.9;
     // sun on screen for the flare
     var sd = Hi.Env.sunDir(this.theme);
     tmpV.copy(cam.position).addScaledVector(sd, 1000).project(cam);
     var front = tmpV2.set(0, 0, -1).applyQuaternion(cam.quaternion).dot(sd) > 0;
     U.sunPos.value.set((tmpV.x + 1) / 2, (tmpV.y + 1) / 2, front ? 1 : 0);
     U.flare.value = this.flareBase;
-    // heat haze behind the exhaust (chase view)
-    if (chase && c.speed > 25 && !c.exploded) {
-      var s = player.scale, ch = Math.cos(c.heading), shh = Math.sin(c.heading);
-      tmpV.set(c.x - ch * 2.1 * s, 0.5, -(c.y - shh * 2.1 * s)).project(cam);
-      U.heatPos.value.set((tmpV.x + 1) / 2, (tmpV.y + 1) / 2);
-      U.heatStrength.value = Math.min(1, (c.speed - 25) / 45) * 0.9;
-      U.heatRadius.value = 0.6 / Math.max(6, this.camDistToCar);
-    } else U.heatStrength.value = 0;
+    // keep the car itself sharp: no motion blur over it, only round it
+    if (chase && !c.exploded) {
+      tmpV.set(c.x, 0.45, -c.y).project(cam);
+      U.carPos.value.set((tmpV.x + 1) / 2, (tmpV.y + 1) / 2);
+      U.carRadius.value = Math.min(0.45, 2.6 * F / (Math.max(4, this.camDistToCar) * h));
+    } else U.carRadius.value = 0;
 
     // Draw: background (sky, mountains, city) then the scene, into the HDR target.
     r.setRenderTarget(this.post.targets.scene);

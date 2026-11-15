@@ -38,7 +38,7 @@
     '}'].join('\n');
 
   // Pool of camera-facing quads.
-  function Pool(R, max, additive, texture) {
+  function Pool(R, max, additive, texture, boost) {
     this.max = max;
     this.n = 0;
     var base = new THREE.PlaneGeometry(1, 1);
@@ -54,7 +54,7 @@
     var mat = new THREE.ShaderMaterial({
       vertexShader: PVS, fragmentShader: PFS, transparent: true, depthWrite: false, fog: true,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: texture }, uBoost: { value: additive ? 4 : 1 } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: texture }, uBoost: { value: boost || (additive ? 4 : 1) } }]),
     });
     mat.uniforms.map.value = texture;
     R.register(mat);
@@ -90,8 +90,8 @@
       var t = p.life / p.max;
       this.pos[n * 3] = p.x; this.pos[n * 3 + 1] = p.y; this.pos[n * 3 + 2] = p.z;
       var a = p.a, r = p.r, g = p.g, b = p.b;
-      if (p.kind === 1) { // fire: yellow -> orange -> dark red
-        r = 1; g = 0.25 + 0.6 * t; b = 0.05 + 0.25 * t * t; a = p.a * Math.min(1, t * 1.6);
+      if (p.kind === 1) { // flame: hot yellow core -> orange -> deep red, fading
+        r = 1; g = 0.16 + 0.36 * t * t; b = 0.02 + 0.06 * t * t * t; a = p.a * Math.min(1, t * 2.2) * Math.min(1, (1 - t) * 8);
       } else if (p.kind === 2) { // spark: white-hot -> orange
         r = 1; g = 0.5 + 0.45 * t; b = 0.2 + 0.6 * t * t; a = p.a * t;
       } else {
@@ -195,14 +195,16 @@
       group: new THREE.Group(),
       smoke: new Pool(R, Math.round(520 * Math.max(0.3, q)), false, R.texPuff),
       glow: new Pool(R, Math.round(420 * Math.max(0.3, q)), true, R.texGlow),
+      flames: new Pool(R, Math.round(420 * Math.max(0.35, q)), true, R.texPuff, 0.85),
+      burnT: 0, trails: makeTrails(R),
       skids: new Skids(R, Math.round(2400 * Math.max(0.35, q))),
       time: 0, flash: 0, wreck: 0, rumble: 0, quality: q,
       debris: null, debrisState: [],
-      light: new THREE.PointLight(0xffa040, 0, 60, 2),
+      light: new THREE.PointLight(0xff8a30, 0, 30, 2),
     };
-    fx.group.add(fx.smoke.mesh, fx.glow.mesh, fx.skids.mesh, fx.light);
-    var dg = new THREE.BoxGeometry(0.22, 0.08, 0.3);
-    var dm = R.std({ color: 0x1c1f26, roughness: 0.5, metalness: 0.4 }, 'debris');
+    fx.group.add(fx.smoke.mesh, fx.glow.mesh, fx.flames.mesh, fx.skids.mesh, fx.light, fx.trails.mesh);
+    var dg = new THREE.BoxGeometry(0.24, 0.014, 0.17);
+    var dm = R.std({ map: R.texCarbon.map, color: 0x9a9a9a, roughness: 0.45, metalness: 0.2 }, 'debris');
     fx.debris = new THREE.InstancedMesh(dg, dm, 48);
     fx.debris.count = 0;
     fx.debris.frustumCulled = false;
@@ -229,11 +231,11 @@
     p.a = 1; p.kind = 2; p.drag = 0.6; p.grav = 9.8;
   }
   function fire(fx, x, y, h, vx, vy, vh, size, grow, life) {
-    var p = fx.glow.spawn();
+    var p = fx.flames.spawn();
     if (!p) return;
     p.x = x; p.y = h; p.z = -y; p.vx = vx; p.vy = vh; p.vz = -vy;
     p.size = size; p.grow = grow; p.life = p.max = life; p.rot = Math.random() * 6.28; p.vr = rnd(1.5);
-    p.a = 0.9; p.kind = 1; p.drag = 1.5; p.grav = -1.5;
+    p.a = 0.5; p.kind = 1; p.drag = 1.8; p.grav = -2.2;
   }
 
   // Car-local (right, forward) -> world
@@ -242,20 +244,29 @@
     return [c.x + ly * ch + lx * sh, c.y + ly * sh - lx * ch];
   }
 
+  // Fireball rolling up into black smoke, sparks, carbon shards that stay
+  // on the track; the wreck keeps burning (see update), dying down over ~20 s.
   F.explode = function (fx, car) {
-    fx.flash = 0.45;
+    fx.flash = 0.16;
+    fx.burnT = 0;
     var vx = car.vx * 0.3, vy = car.vy * 0.3;
-    for (var i = 0; i < 90; i++) fire(fx, car.x + rnd(1.2), car.y + rnd(1.2), 0.4 + Math.random(), vx + rnd(7), vy + rnd(7), 1.5 + Math.random() * 4, 0.7 + Math.random() * 0.7, 2.6, 0.5 + Math.random() * 0.5);
-    for (var s = 0; s < 50; s++) puff(fx, car.x + rnd(1.5), car.y + rnd(1.5), 0.8 + Math.random(), vx + rnd(3), vy + rnd(3), 1.4 + Math.random() * 1.4, 1.2, 1.4, 2 + Math.random() * 1.5, 0.12, 0.12, 0.13, 0.75, 1.0);
-    for (var k = 0; k < 40; k++) spark(fx, car.x, car.y, 0.5, vx + rnd(14), vy + rnd(14), 3 + Math.random() * 8, 0.6 + Math.random() * 0.8, 0.12);
+    for (var i = 0; i < 55; i++) {
+      var a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 6;
+      fire(fx, car.x + rnd(1.3), car.y + rnd(1.3), 0.4 + Math.random() * 0.8, vx + Math.cos(a) * sp, vy + Math.sin(a) * sp, 2 + Math.random() * 4.5,
+        1.3 + Math.random() * 1.4, 3.2, 0.55 + Math.random() * 0.6);
+    }
+    for (var s = 0; s < 46; s++) puff(fx, car.x + rnd(1.6), car.y + rnd(1.6), 1 + Math.random() * 1.5, vx + rnd(2.5), vy + rnd(2.5), 2 + Math.random() * 2,
+      1.6 + Math.random() * 1.2, 2.4, 3.2 + Math.random() * 2.4, 0.07, 0.065, 0.065, 0.78, 0.9);
+    for (var k = 0; k < 70; k++) spark(fx, car.x + rnd(0.5), car.y + rnd(0.5), 0.5, vx + rnd(15), vy + rnd(15), 2 + Math.random() * 9, 0.5 + Math.random() * 0.9, 0.1);
     fx.debrisState.length = 0;
     for (var d = 0; d < 48; d++) {
-      fx.debrisState.push({ x: car.x, y: car.y, h: 0.6, vx: vx + rnd(12), vy: vy + rnd(12), vh: 4 + Math.random() * 7, rx: Math.random() * 6, ry: Math.random() * 6, w: rnd(12), life: 2.5 + Math.random() });
+      fx.debrisState.push({ x: car.x + rnd(0.8), y: car.y + rnd(0.8), h: 0.5, vx: vx + rnd(11), vy: vy + rnd(11), vh: 3 + Math.random() * 7,
+        rx: Math.random() * 6, ry: Math.random() * 6, w: rnd(14), life: 1e9 });
     }
   };
 
   F.reset = function (fx) {
-    fx.smoke.clear(); fx.glow.clear(); fx.skids.clear();
+    fx.smoke.clear(); fx.glow.clear(); fx.flames.clear(); fx.skids.clear(); fx.trails.clear();
     fx.flash = 0; fx.wreck = 0; fx.debrisState.length = 0; fx.debris.count = 0; fx.light.intensity = 0;
   };
 
@@ -311,21 +322,28 @@
         var pr = local(c, 0, -1.2);
         for (var k2 = 0; k2 < 10; k2++) spark(fx, pr[0] + rnd(0.3), pr[1] + rnd(0.3), 0.04, c.vx * 0.82 + rnd(2), c.vy * 0.82 + rnd(2), 0.6 + Math.random() * 1.6, 0.25 + Math.random() * 0.25, 0.07);
       }
-      // burning wreck
+      // burning wreck: flames over the chassis, a column of black smoke
+      // drifting downwind, dying down to a smoulder
       if (c.exploded) {
-        fx.wreck += dt * 9;
+        fx.burnT += dt;
+        var burn = Math.max(0.22, 1 - fx.burnT / 20);
+        fx.wreck += dt * 34 * burn;
         while (fx.wreck >= 1) {
           fx.wreck -= 1;
-          if (Math.random() < 0.5) fire(fx, c.x + rnd(0.9), c.y + rnd(1.4), 0.7, rnd(0.8), rnd(0.8), 1.5 + Math.random(), 0.6, 1.3, 0.55);
-          else puff(fx, c.x + rnd(0.8), c.y + rnd(1.2), 1.0, rnd(0.8), rnd(0.8), 1 + Math.random() * 0.7, 0.8, 1.1, 2.6, 0.1, 0.1, 0.11, 0.6, 0.8);
+          var wp = local(c, rnd(0.55), rnd(1.6));
+          fire(fx, wp[0], wp[1], 0.35 + Math.random() * 0.3, rnd(0.5), rnd(0.5), 1.4 + Math.random() * 1.6, (0.7 + Math.random() * 0.8) * (0.6 + 0.4 * burn), 1.6, 0.45 + Math.random() * 0.5);
+          if (Math.random() < 0.38) puff(fx, wp[0], wp[1], 1.2, 0.9 + rnd(0.5), 0.4 + rnd(0.5), 2.0 + Math.random(), 1.2 + Math.random() * 0.8, 1.9, 4 + Math.random() * 2.5, 0.06, 0.055, 0.055, 0.62, 0.35);
         }
       }
+      updateTrails(fx.trails, R.playerCar, c, dt);
     }
     if (dt > 0 && fx.flash > 0) fx.flash -= dt;
-    fx.light.intensity = Math.max(0, fx.flash) * 60 + (CR.Car.state.exploded ? 3 + Math.random() * 2 : 0);
-    if (CR.Car.state.exploded || fx.flash > 0) fx.light.position.set(CR.Car.state.x, 2, -CR.Car.state.y);
+    // fire light: lights the track round the wreck (kept high so it doesn't wash out the charred car)
+    fx.light.intensity = Math.max(0, fx.flash) * 25 + (CR.Car.state.exploded ? (0.7 + Math.random() * 0.6) * Math.max(0.25, 1 - fx.burnT / 20) : 0);
+    if (CR.Car.state.exploded || fx.flash > 0) fx.light.position.set(CR.Car.state.x, 4.5, -CR.Car.state.y);
     fx.smoke.update(dt);
     fx.glow.update(dt);
+    fx.flames.update(dt);
     fx.skids.flush();
     // debris
     var D = fx.debrisState;
@@ -337,7 +355,7 @@
         if (dt > 0) {
           d.life -= dt;
           d.vh -= 18 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.h += d.vh * dt;
-          if (d.h < 0.05) { d.h = 0.05; d.vh = -d.vh * 0.3; d.vx *= 0.55; d.vy *= 0.55; d.w *= 0.5; }
+          if (d.h < 0.02) { d.h = 0.02; d.vh = -d.vh * 0.25; d.vx *= 0.5; d.vy *= 0.5; d.w *= 0.4; if (Math.abs(d.vh) < 0.5) { d.vh = 0; d.rx = Math.round(d.rx / Math.PI) * Math.PI; } }
           d.rx += d.w * dt; d.ry += d.w * 0.7 * dt;
         }
         if (d.life <= 0) continue;
@@ -353,4 +371,64 @@
   };
 
   F.setQuality = function (fx, q) { fx.quality = q; };
+
+  // --- Wingtip vortices: faint trails off the rear-wing endplates at speed ----------------
+  var TN = 40;
+  var TVS = [
+    'attribute float aA;', 'varying float vA;', '#include <fog_pars_vertex>',
+    'void main() { vA = aA; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n');
+  var TFS = ['varying float vA;', '#include <fog_pars_fragment>',
+    'void main() { gl_FragColor = vec4(vec3(0.85, 0.9, 1.0) * vA, vA);', '#include <fog_fragment>', '}'].join('\n');
+  function makeTrails(R) {
+    // two trails x TN points x 4 vertices (a cross of two ribbons)
+    var V = 2 * TN * 4, pos = new Float32Array(V * 3), al = new Float32Array(V), idx = [];
+    for (var t = 0; t < 2; t++) for (var i = 0; i < TN - 1; i++) {
+      var b = (t * TN + i) * 4, n = b + 4;
+      idx.push(b, n, b + 1, b + 1, n, n + 1, b + 2, n + 2, b + 3, b + 3, n + 2, n + 3);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aA', new THREE.BufferAttribute(al, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setIndex(idx);
+    var mat = new THREE.ShaderMaterial({ vertexShader: TVS, fragmentShader: TFS, uniforms: THREE.UniformsUtils.clone(THREE.UniformsLib.fog), fog: true,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    R.register(mat);
+    var mesh = new THREE.Mesh(g, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 7;
+    var tr = { mesh: mesh, pts: [[], []] };
+    tr.clear = function () { tr.pts = [[], []]; };
+    return tr;
+  }
+  function updateTrails(tr, car, c, dt) {
+    if (!car || !car.livery) return;
+    var L = car.livery, sp = c.speed, str = c.exploded ? 0 : Math.max(0, Math.min(1, (sp - 50) / 26));
+    var tipX = 0.52 * L.w + 0.012, tipY = -2.12 * L.s - 0.29, tipZ = L.rw + 0.03;
+    for (var t = 0; t < 2; t++) {
+      var pts = tr.pts[t], wp = local(c, t ? -tipX : tipX, tipY);
+      for (var i = 0; i < pts.length; i++) pts[i].age += dt;
+      var last = pts[0];
+      if (str > 0 && (!last || Math.hypot(wp[0] - last.x, wp[1] - last.y) > 0.9)) pts.unshift({ x: wp[0], y: wp[1], h: tipZ, age: 0, s: str });
+      else if (last && str > 0) { last.x = wp[0]; last.y = wp[1]; }
+      while (pts.length > TN || (pts.length && pts[pts.length - 1].age > 0.55)) pts.pop();
+    }
+    var P = tr.mesh.geometry.attributes.position.array, A = tr.mesh.geometry.attributes.aA.array, w = 0.055;
+    for (var tt = 0; tt < 2; tt++) {
+      var pp = tr.pts[tt];
+      for (var k = 0; k < TN; k++) {
+        var b = (tt * TN + k) * 4, e = pp[Math.min(k, pp.length - 1)];
+        var alpha = 0, x = 0, y = 0, h = 0, nx = 0, ny = 0;
+        if (e) {
+          var nb = pp[Math.min(k + 1, pp.length - 1)] || e, dx = e.x - nb.x, dy = e.y - nb.y, l = Math.hypot(dx, dy) || 1;
+          nx = -dy / l; ny = dx / l; x = e.x; y = e.y; h = e.h;
+          alpha = k < pp.length ? e.s * 0.32 * (1 - e.age / 0.55) * Math.min(1, k / 2) : 0;
+        }
+        var v = [[x + nx * w, h, y + ny * w], [x - nx * w, h, y - ny * w], [x, h + w, y], [x, h - w, y]];
+        for (var q = 0; q < 4; q++) { P[(b + q) * 3] = v[q][0]; P[(b + q) * 3 + 1] = v[q][1]; P[(b + q) * 3 + 2] = -v[q][2]; A[b + q] = Math.max(0, alpha); }
+      }
+    }
+    tr.mesh.geometry.attributes.position.needsUpdate = true;
+    tr.mesh.geometry.attributes.aA.needsUpdate = true;
+  }
+
 })();

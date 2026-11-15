@@ -16,9 +16,10 @@
 // Rules: 높음 can be picked on every device. Only a device with neither WebGL2
 // nor WebGL1 is told it cannot run it (and stays 낮음). Low-end devices get a
 // one-time "느릴 수 있어요" warning; high-end PCs get a "높음 권장" badge but are
-// never switched automatically. While 높음 runs, a frame monitor lowers the
-// detail tier (resolution, shadows, bloom, crowd, trees, particles) step by
-// step; at the lowest tier it only offers to switch to 낮음.
+// never switched automatically. The detail tier of 높음 (resolution, shadows,
+// bloom, crowd, trees, particles) is never lowered automatically: it starts at
+// 높음 (최고 on high-end PCs, 중간 on phones) and the player picks it in the
+// settings (세부 품질), kept per browser.
 (function () {
   'use strict';
   window.CR = window.CR || {};
@@ -26,6 +27,7 @@
   var PREF_KEY = 'track-master.circuit.gfx';
   var WARNED_KEY = 'track-master.circuit.gfx-slow-warned';
   var RECOMMEND_KEY = 'track-master.circuit.gfx-recommend-shown';
+  var DETAIL_KEY = 'track-master.circuit.gfx-detail';
 
   // Detail tiers of 높음, best first. scale: render-target scale; dprCap:
   // devicePixelRatio ceiling; maxPixels: pixel budget (4K screens scale down);
@@ -100,13 +102,14 @@
       software: software, lowEnd: lowEnd, highEnd: highEnd };
   }
 
-  // Starting detail tier for this device (mobile starts low on purpose).
+  // Default detail tier when the player has not picked one: 최고 on a
+  // high-end PC, 높음 on other PCs, 중간 on phones / tablets (heat, battery).
   function startTier(d) {
-    if (d.software) return 4;
-    if (d.mobile) return /Apple GPU|Adreno \(TM\) [6-9]\d\d|Mali-G7\d|Mali-G[6-9]\d\d|Xclipse/i.test(d.gpu) && d.cores >= 6 ? 3 : 4;
-    if (d.highEnd) return 0;
-    if (d.lowEnd) return 2;
-    return 1;
+    var saved = null;
+    try { saved = localStorage.getItem(DETAIL_KEY); } catch (e) { saved = null; }
+    if (saved !== null && saved !== '' && !isNaN(+saved)) return Math.max(0, Math.min(TIERS.length - 1, +saved));
+    if (d.mobile) return 2;
+    return d.highEnd ? 0 : 1;
   }
 
   // --- Storage ---------------------------------------------------------------
@@ -230,7 +233,7 @@
     Gfx.renderers.high = hi;
     Gfx.active = 'high';
     document.body.classList.add('gfx-high');
-    resetMonitor();
+    if (CR.Cockpit) CR.Cockpit.hiBody = true;
     overlayDirty = true;
     return true;
   }
@@ -243,6 +246,7 @@
     glCanvas = null;
     Gfx.active = 'low';
     document.body.classList.remove('gfx-high');
+    if (CR.Cockpit) CR.Cockpit.hiBody = false;
   }
 
   function fallbackLow(message) {
@@ -281,7 +285,7 @@
     }
     if (!opts.quiet && Gfx.device.lowEnd && !flag(WARNED_KEY)) {
       flag(WARNED_KEY, true);
-      toast('이 기기에서는 느릴 수 있어요. 세부 품질을 자동으로 낮추며 실행합니다.', { warn: true, ms: 5500 });
+      toast('이 기기에서는 느릴 수 있어요. 느리면 그래픽 설정의 세부 품질을 낮춰 보세요.', { warn: true, ms: 5500 });
     }
     Gfx.loading = true;
     Gfx.ready = false;
@@ -300,51 +304,17 @@
     });
   };
 
-  // --- Frame monitor: lower the detail tier while frames stay slow ------------
+  // --- Detail tier (player's choice, never changed automatically) ----------------
 
-  var mon = { acc: 0, frames: 0, slowWindows: 0, verySlowWindows: 0, cooldown: 0, prompted: false };
-  function resetMonitor() { mon.acc = 0; mon.frames = 0; mon.slowWindows = 0; mon.verySlowWindows = 0; mon.cooldown = 2.5; }
-
-  function setTier(t, why) {
+  function setTier(t, save) {
     t = Math.max(0, Math.min(TIERS.length - 1, t));
-    if (t === Gfx.tier) return;
+    if (save !== false) { try { localStorage.setItem(DETAIL_KEY, String(t)); } catch (e) { /* storage unavailable */ } }
+    if (t === Gfx.tier) { syncAll(); return; }
     Gfx.tier = t;
     if (hi) hi.setQuality(TIERS[t], t);
-    resetMonitor();
-    mon.cooldown = 3.5; // shaders recompile after a tier change
     syncAll();
-    if (why) console.info('[Gfx] detail tier -> ' + TIERS[t].id + ' (' + why + ')');
   }
-  Gfx.setTier = function (t) { setTier(t, 'manual'); };
-
-  function monitor(realDt) {
-    if (Gfx.tierLocked || !hi || document.hidden) return;
-    if (!(CR.Main && CR.Main.state === 'playing')) return;
-    if (mon.cooldown > 0) { mon.cooldown -= realDt; return; }
-    mon.acc += realDt;
-    mon.frames++;
-    if (mon.acc < 2) return;
-    var fps = mon.frames / mon.acc;
-    mon.acc = 0; mon.frames = 0;
-    var target = Gfx.device.mobile ? 30 : 55;
-    if (fps < target * 0.9) mon.slowWindows++; else mon.slowWindows = 0;
-    if (Gfx.tier < TIERS.length - 1) {
-      if (mon.slowWindows >= 2) setTier(Gfx.tier + 1, Math.round(fps) + ' fps');
-      return;
-    }
-    // Lowest tier and still slow: offer 낮음 (never switch by ourselves).
-    if (fps < target * 0.75) mon.verySlowWindows++; else mon.verySlowWindows = 0;
-    if (mon.verySlowWindows >= 3 && !mon.prompted) {
-      mon.prompted = true;
-      toast('프레임이 낮아요. 낮음으로 바꿀까요?', {
-        ms: 12000, warn: true,
-        actions: [
-          { label: '낮음으로 바꾸기', primary: true, run: function () { Gfx.setPreset('low'); } },
-          { label: '계속 높음', run: function () {} },
-        ],
-      });
-    }
-  }
+  Gfx.setTier = function (t, opts) { setTier(t, !(opts && opts.save === false)); };
 
   // --- Interface used by main.js -------------------------------------------------
 
@@ -353,7 +323,7 @@
   Gfx.render = function (ctx, canvas, dt) {
     if (Gfx.active !== 'high' || !hi) { lowRenderer.render(ctx, canvas, dt); return; }
     var now = performance.now();
-    var realDt = lastNow ? Math.min(1, (now - lastNow) / 1000) : 0.016;
+    var realDt = lastNow ? Math.min(0.25, (now - lastNow) / 1000) : 0.016;
     lastNow = now;
     // 2D canvas = transparent overlay; clear it when the cockpit drew on it.
     if (overlayDirty) {
@@ -372,7 +342,6 @@
       fallbackLow('3D 그래픽 오류로 낮음으로 바꿨어요.');
       return;
     }
-    if (dt > 0) monitor(realDt);
   };
 
   Gfx.resize = function () { if (hi) hi.resize(); };
@@ -398,7 +367,7 @@
 
   Gfx.summary = function () {
     if (Gfx.loading) return '높음 불러오는 중…';
-    if (Gfx.preset === 'high' && Gfx.active === 'high') return '높음 · 세부 ' + TIERS[Gfx.tier].name + (Gfx.tierLocked ? '' : ' (자동)');
+    if (Gfx.preset === 'high' && Gfx.active === 'high') return '높음 · 세부 품질 ' + TIERS[Gfx.tier].name;
     return Gfx.device && Gfx.device.highEnd ? '낮음 · 이 PC는 높음 권장' : '낮음';
   };
 
@@ -425,10 +394,27 @@
     });
     row.appendChild(seg);
     box.appendChild(row);
+    // 세부 품질: five levels of 높음, chosen by the player
+    var drow = el('div', 'gfx-row gfx-detail');
+    drow.appendChild(el('span', 'gfx-name', opts.compact ? '세부' : '세부 품질'));
+    var dseg = el('div', 'gfx-seg gfx-seg5');
+    dseg.setAttribute('role', 'radiogroup');
+    dseg.setAttribute('aria-label', '높음 세부 품질');
+    var dbuttons = [];
+    TIERS.forEach(function (t, i) {
+      var b = el('button', 'gfx-opt', t.name);
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.addEventListener('click', function (e) { e.preventDefault(); setTier(i, true); });
+      dseg.appendChild(b);
+      dbuttons.push(b);
+    });
+    drow.appendChild(dseg);
+    box.appendChild(drow);
     var note = el('p', 'gfx-note');
     box.appendChild(note);
     container.appendChild(box);
-    var copy = { box: box, buttons: buttons, note: note, compact: !!opts.compact };
+    var copy = { box: box, buttons: buttons, note: note, compact: !!opts.compact, detail: drow, dbuttons: dbuttons };
     copies.push(copy);
     sync(copy);
     return box;
@@ -444,12 +430,13 @@
     copy.buttons.high.classList.toggle('is-loading', Gfx.loading);
     copy.buttons.high.classList.toggle('is-unsupported', !d.webgl);
     copy.buttons.badge.hidden = !(d.highEnd && Gfx.preset !== 'high');
+    copy.detail.hidden = Gfx.preset !== 'high';
+    copy.dbuttons.forEach(function (b, i) { b.classList.toggle('is-on', i === Gfx.tier); b.setAttribute('aria-checked', i === Gfx.tier ? 'true' : 'false'); });
     var text;
     if (!d.webgl) text = '이 기기는 3D 그래픽(WebGL)을 지원하지 않아 낮음만 쓸 수 있어요.';
     else if (Gfx.loading) text = '3D 그래픽을 불러오는 중…';
     else if (Gfx.active === 'high') {
-      text = '3D(WebGL' + (hi && hi.webglVersion ? hi.webglVersion : d.webgl) + ') · 세부 품질 ' + TIERS[Gfx.tier].name +
-        (Gfx.tierLocked ? '' : ', 프레임에 맞춰 자동 조절');
+      text = '3D(WebGL' + (hi && hi.webglVersion ? hi.webglVersion : d.webgl) + ') · 세부 품질 ' + TIERS[Gfx.tier].name + ' (자동으로 낮추지 않아요)';
       if (!copy.compact) text += ' · 그림자, 블룸, 모션 블러, 3D 관중석';
     } else {
       text = copy.compact ? '높음: 3D 그림자·조명·속도감 효과' : '높음은 그림자·조명·반사·속도감 효과가 들어간 3D 그래픽이에요.';

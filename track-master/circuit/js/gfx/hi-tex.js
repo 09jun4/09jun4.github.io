@@ -236,6 +236,37 @@
   };
   Hi.SPONSOR_ROWS = 8;
 
+  // Carbon fibre: 2x2 twill weave (each tow shows its fibres and a rounded
+  // highlight across it), as albedo + normal + roughness maps. 8 x 8 tows
+  // per tile; the car builder maps one tile to ~10 cm.
+  Hi.carbon = function (aniso) {
+    var N = 256, T = 8, cell = N / T, noise = makeNoise(77);
+    var c = canvas(N, N), g = c.getContext('2d'), img = g.createImageData(N, N), d = img.data;
+    var height = new Float32Array(N * N);
+    var rc = canvas(N, N), rg = rc.getContext('2d'), rimg = rg.createImageData(N, N), rd = rimg.data;
+    for (var y = 0; y < N; y++) {
+      for (var x = 0; x < N; x++) {
+        var i = Math.floor(x / cell), j = Math.floor(y / cell);
+        var horiz = (((i - j) % 4) + 4) % 4 < 2; // twill: over two, under two, shifted each row
+        var u = (x % cell) / cell, v = (y % cell) / cell;
+        var across = horiz ? v : u, along = horiz ? u : v;
+        var bulge = Math.sin(Math.PI * across); // rounded tow
+        var fib = noise(horiz ? x * 0.35 : x * 6, horiz ? y * 6 : y * 0.35, 256) * 0.5 + 0.5 * noise(horiz ? x * 0.7 : x * 11, horiz ? y * 11 : y * 0.7, 256);
+        var edge = Math.min(1, Math.min(along, 1 - along) * 10) * Math.min(1, Math.min(across, 1 - across) * 12);
+        var lum = (horiz ? 30 : 18) + bulge * (horiz ? 26 : 16) + fib * 10;
+        lum *= 0.55 + 0.45 * edge;
+        var k = (y * N + x) * 4;
+        d[k] = lum * 0.92; d[k + 1] = lum * 0.95; d[k + 2] = lum * 1.04; d[k + 3] = 255;
+        height[y * N + x] = bulge * 0.8 * (0.6 + 0.4 * edge) + fib * 0.15;
+        var r = (0.42 - bulge * 0.16 + (1 - edge) * 0.25) * 255;
+        rd[k] = r; rd[k + 1] = r; rd[k + 2] = r; rd[k + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    rg.putImageData(rimg, 0, 0);
+    return { map: tex(c, { aniso: aniso }), normal: tex(normalFrom(height, N, N, 2.4), { aniso: aniso, srgb: false }), rough: tex(rc, { aniso: aniso, srgb: false }) };
+  };
+
   // Car number roundel.
   Hi.number = function (num, bg, fg) {
     var S = 128, c = canvas(S, S), g = c.getContext('2d');

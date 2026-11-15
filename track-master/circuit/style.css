@@ -1129,3 +1129,7 @@ body.in-menu #gl-canvas { visibility: hidden; }
 .gfx-toast-btn { padding: 8px 12px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08);
   color: #f2f4f8; font: 800 12px/1 inherit; font-family: inherit; cursor: pointer; }
 .gfx-toast-btn.is-primary { background: #ffd23f; border-color: #ffd23f; color: #121212; }
+.gfx-seg.gfx-seg5 { grid-template-columns: repeat(5, 1fr); }
+.gfx-seg5 .gfx-opt { padding: 8px 4px; font-size: 13px; }
+.gfx.is-compact .gfx-seg5 .gfx-opt { font-size: 12px; }
+.gfx-detail[hidden] { display: none; }

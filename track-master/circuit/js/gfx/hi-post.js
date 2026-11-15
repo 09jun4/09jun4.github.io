@@ -1,6 +1,6 @@
 // hi-post.js — post-processing for the 높음 renderer, one compact chain:
 //   scene (HDR half-float target, MSAA on WebGL2) -> bright pass -> bloom
-//   (dual-filter down / up mips) -> composite: heat haze behind the exhaust,
+//   (dual-filter down / up mips) -> composite: (the car itself is kept sharp)
 //   speed-scaled radial motion blur, bloom, sun lens flare (ghosts, halo,
 //   streak; fades when the sun is hidden), speed lines, explosion flash,
 //   exposure + ACES filmic tone mapping + sRGB, vignette, FXAA when there is
@@ -49,7 +49,7 @@
     'uniform sampler2D tScene; uniform sampler2D tBloom; uniform vec2 res; uniform float aspect; uniform float time;',
     'uniform float bloomStrength; uniform float exposure;',
     'uniform vec2 blurCenter; uniform float blurAmount;',
-    'uniform vec2 heatPos; uniform float heatStrength; uniform float heatRadius;',
+    'uniform vec2 carPos; uniform float carRadius;',
     'uniform vec3 sunPos; uniform vec3 sunTint; uniform float flare;',
     'uniform float speedLines; uniform float vignette; uniform float flash; uniform float hdr;',
     'varying vec2 vUv;',
@@ -80,16 +80,11 @@
     '}',
     'void main() {',
     '  vec2 uv = vUv;',
-    // heat haze behind the exhaust
-    '  if (heatStrength > 0.001) {',
-    '    vec2 hd = (uv - heatPos) * vec2(aspect, 1.0);',
-    '    float hm = heatStrength * exp(-dot(hd, hd) / (heatRadius * heatRadius));',
-    '    uv += hm * vec2(sin(uv.y * 160.0 + time * 23.0), cos(uv.x * 130.0 + time * 19.0)) * 0.0022;',
-    '  }',
     // radial motion blur
     '  vec2 dir = uv - blurCenter;',
     '  float r = length(dir * vec2(aspect, 1.0));',
     '  float mask = smoothstep(0.06, 0.55, r) * blurAmount;',
+    '  if (carRadius > 0.0) mask *= smoothstep(carRadius * 0.9, carRadius * 2.0, length((uv - carPos) * vec2(aspect, 1.0)));',
     '  vec3 c;',
     '#ifdef USE_FXAA',
     '  c = fxaa(uv);',
@@ -174,7 +169,7 @@
     this.uniforms = {
       tScene: { value: null }, tBloom: { value: null }, res: { value: new THREE.Vector2(1, 1) }, aspect: { value: 1 }, time: { value: 0 },
       bloomStrength: { value: 0.22 }, exposure: { value: 1 }, blurCenter: { value: new THREE.Vector2(0.5, 0.6) }, blurAmount: { value: 0 },
-      heatPos: { value: new THREE.Vector2(0.5, 0.3) }, heatStrength: { value: 0 }, heatRadius: { value: 0.06 },
+      carPos: { value: new THREE.Vector2(0.5, 0.3) }, carRadius: { value: 0 },
       sunPos: { value: new THREE.Vector3(0, 0, 0) }, sunTint: { value: new THREE.Color(1, 0.9, 0.7) }, flare: { value: 0 },
       speedLines: { value: 0 }, vignette: { value: 0.35 }, flash: { value: 0 }, hdr: { value: R.hdr ? 1 : 0 },
     };

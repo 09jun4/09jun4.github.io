@@ -259,17 +259,32 @@
   ];
   var GLASS_W = 0.2, GLASS_H = 0.07;
 
+  // Quad with rounded corners (fraction f of the shorter side), for the glass.
+  function roundQuad(ctx, q, f) {
+    var n = q.length;
+    for (var i = 0; i < n; i++) {
+      var p0 = q[(i - 1 + n) % n], p1 = q[i], p2 = q[(i + 1) % n];
+      var a = { x: p1.x + (p0.x - p1.x) * f, y: p1.y + (p0.y - p1.y) * f }, b = { x: p1.x + (p2.x - p1.x) * f, y: p1.y + (p2.y - p1.y) * f };
+      if (i === 0) ctx.moveTo(a.x, a.y); else ctx.lineTo(a.x, a.y);
+      ctx.quadraticCurveTo(p1.x, p1.y, b.x, b.y);
+    }
+  }
+
+  // Geometry shared with the 높음 renderer's 3D cockpit (gfx/hi-car.js).
+  Cockpit.hiBody = false;
+  Cockpit.GEO = { HALO_CTRL: HALO_CTRL, HALO_W: HALO_W, HALO_T: HALO_T, PILLAR: PILLAR, MIRRORS: MIRRORS, GLASS_W: GLASS_W, GLASS_H: GLASS_H, COCKPIT_Y: COCKPIT_Y };
+
   function drawMirrors(ctx, w, h) {
     MIRRORS.forEach(function (m) {
       var sg = m.side === 'L' ? -1 : 1, cx = m.c[0], cy = m.c[1], cz = m.c[2];
       // the glass is angled ~20° to face the driver's eyes
       var yaw = 0.35 * sg, ux = Math.cos(yaw), uy = Math.sin(yaw); // across the glass
       var hw = GLASS_W / 2, hh = GLASS_H / 2;
-      // short stalk down to the bodywork
-      poly(ctx, [[cx - 0.01, cy + 0.02, cz - hh], [cx + 0.01, cy + 0.02, cz - hh], [cx * 1.08 + 0.01, cy + 0.04, cz - 0.17], [cx * 1.08 - 0.01, cy + 0.04, cz - 0.17]], '#0d0f12');
+      // short stalk down to the bodywork (높음: modelled in 3D instead)
+      if (!Cockpit.hiBody) poly(ctx, [[cx - 0.01, cy + 0.02, cz - hh], [cx + 0.01, cy + 0.02, cz - hh], [cx * 1.08 + 0.01, cy + 0.04, cz - 0.17], [cx * 1.08 - 0.01, cy + 0.04, cz - 0.17]], '#0d0f12');
       // carbon shell: a rim around the glass, a few mm behind it
       var hx = hw + 0.012, hz = hh + 0.012;
-      poly(ctx, [[cx - ux * hx, cy - uy * hx + 0.012, cz - hz], [cx + ux * hx, cy + uy * hx + 0.012, cz - hz],
+      if (!Cockpit.hiBody) poly(ctx, [[cx - ux * hx, cy - uy * hx + 0.012, cz - hz], [cx + ux * hx, cy + uy * hx + 0.012, cz - hz],
         [cx + ux * hx, cy + uy * hx + 0.012, cz + hz], [cx - ux * hx, cy - uy * hx + 0.012, cz + hz]], '#121418');
       // glass corners on screen
       var tl = P(cx - ux * hw, cy - uy * hw, cz + hh), tr = P(cx + ux * hw, cy + uy * hw, cz + hh);
@@ -277,7 +292,8 @@
       if (!tl || !tr || !bl || !br) return;
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+      if (Cockpit.hiBody) roundQuad(ctx, [tl, tr, br, bl], 0.22);
+      else { ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); }
       ctx.closePath();
       ctx.clip();
       // Map the image half onto the glass (affine through tl, tr, bl),
@@ -375,9 +391,11 @@
     CR.Camera.begin(canvas); // the mirror render changed the view
     CR.Camera.setNear(0.03);
     setCar(c);
-    drawBody(ctx, main);
+    // 높음 (Cockpit.hiBody): the body, halo and mirror housings are rounded 3D
+    // models (gfx/hi-car.js); only the mirror glass and the wheel are drawn here.
+    if (!Cockpit.hiBody) drawBody(ctx, main);
     drawMirrors(ctx, w, h);
-    drawHalo(ctx);
+    if (!Cockpit.hiBody) drawHalo(ctx);
     // ~±45° of wheel at parking speed, ~±13° at racing speed; + = left.
     // This is 50% of the previous ±90° visual range.
     steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 45;
