@@ -6,7 +6,7 @@ import sys
 
 SR = 44100
 REPORT = False
-BPM = 200
+BPM = 180
 BEAT = 60.0 / BPM          # 0.3 s
 STEP = BEAT / 4            # 16th = 0.075 s
 BAR = BEAT * 4             # 1.2 s
@@ -74,12 +74,12 @@ def kick(vel=1.0):
     click = hp(1500, rng.standard_normal(n)) * np.exp(-t / 0.004) * 0.35
     return np.tanh((body + click) * 1.6) * vel * 0.9
 
-def snare(vel=1.0, pitch=1.0, dec=0.075):
+def snare(vel=1.0, pitch=1.0, dec=0.11):
     n = int(0.3 * SR); t = np.arange(n) / SR
-    tone = (np.sin(2 * np.pi * 185 * pitch * t) + 0.5 * np.sin(2 * np.pi * 330 * pitch * t)) * np.exp(-t / 0.05)
-    nz = bp(1500 * pitch, 8000, rng.standard_normal(n)) * np.exp(-t / dec)
+    tone = (np.sin(2 * np.pi * 200 * pitch * t) + 0.4 * np.sin(2 * np.pi * 340 * pitch * t)) * np.exp(-t / 0.018)
+    nz = bp(1800 * pitch, 10000, rng.standard_normal(n)) * np.exp(-t / dec) ** 1.3
     crack = hp(3000, rng.standard_normal(n)) * np.exp(-t / 0.012)
-    return np.tanh((tone * 1.0 + nz * 0.8 + crack * 0.35) * 1.3) * vel * 0.7
+    return np.tanh((tone * 0.6 + nz * 1.0 + crack * 0.45) * 1.2) * vel * 0.72
 
 def hat(vel=1.0, open_=False):
     d = 0.14 if open_ else 0.025
@@ -175,7 +175,7 @@ def drums(mx, t0, kind, hats='8', ride_on=False, ghost=True):
         for s in range(16):  # rim clicks
             if s not in busy and rng.random() < 0.18:
                 mx.add('perc', t0 + s * STEP, rim(rng.uniform(.4, .8), rng.choice([1.0, 1.26, 1.5])), pan=rng.choice([-.6, .6]))
-        if rng.random() < 0.3:  # tom run
+        if False:  # tom run (removed: ringing)
             s0 = rng.choice([12, 13])
             for i, f in enumerate((180, 150, 120)):
                 mx.add('perc', t0 + (s0 + i) * STEP, tom(.7, f), pan=(-.4 + i * .4))
@@ -307,33 +307,20 @@ def compose_loop(mx, T):
                 mx.add('arp', t0 + s * STEP, pluck(tones[seq[s % 8]], .8 if s % 4 == 0 else .55), pan=(-.5 if s % 2 else .5))
 
 def compose_intro(mx):
-    # 8 bars: atmosphere -> filtered break -> snare build -> into loop
-    for c in range(4):
-        t0 = c * 2 * BAR
-        mx.add('pad', t0, pad(CHORDS[c], 2 * BAR) * 1.3)
-        root, iv = CHORDS[c]
-        tones = [root + 12 + k for k in iv] + [root + 24]
-        for s in range(32):
-            a = (c * 32 + s) / 128.0
-            mx.add('arpI', t0 + s * STEP, pluck(tones[[0, 1, 2, 3, 2, 1, 2, 3][s % 8]], 0.35 + 0.5 * a), pan=(-.5 if s % 2 else .5))
-    # lead teaser over bars 4-5 (Fm figure, half speed feel)
-    for st, m, ln in MEL[0][:6]:
-        mx.add('lead', 4 * BAR + st * STEP * 2, lead_note(m, ln * 2, 0.3) * 0.8)
-    # drums: bars 2-3 hats only, 4-5 half-time filtered, 6 build16, 7 build32
-    for b in (2, 3):
-        drums(mx, b * BAR, '', hats='8', ghost=False)
-    for b in (4, 5):
-        drums(mx, b * BAR, 'half', hats='16')
-    drums(mx, 6 * BAR, 'build16', hats='8')
-    drums(mx, 7 * BAR, 'build32', hats=None, ghost=False)
-    # sub bass pedal bars 4-7
-    for b in range(4, 8):
-        r, s = reese(29, 16)
-        mx.add('bass', b * BAR, r * 0.6); mx.add('sub', b * BAR, s)
-    mx.add('fx', 0, down(3.0) * 0.7, pan=.2)
-    mx.add('fx', 4 * BAR, boom() * 0.6)
-    mx.add('fx', 4 * BAR, riser(4 * BAR) * 0.9)
-    mx.add('fx', 8 * BAR - 1.2, revcrash(1.2), pan=.2)
+    # 2 s = 6 beats: pad + riser + snare build (8ths -> 16ths -> 32nds), then the loop drops
+    mx.add('pad', 0, pad(CHORDS[0], 6 * BEAT) * 1.2)
+    mx.add('fx', 0, riser(6 * BEAT) * 1.1)
+    mx.add('fx', 0, boom() * 0.5); mx.add('kick', 0, kick(1.0)); mx.kicks.append(0.0)
+    r, s = reese(29, 24)
+    mx.add('bass', 0, r * 0.5); mx.add('sub', 0, s * 0.8)
+    t = 0.0; k = 0
+    for dt, n in ((BEAT / 2, 4), (BEAT / 4, 8), (BEAT / 8, 16)):   # 8ths, 16ths, 32nds: 2 beats each
+        for i in range(n):
+            mx.add('snare', t, snare(0.3 + 0.6 * k / 28.0, 1.0 + 0.25 * k / 28.0), pan=0)
+            t += dt; k += 1
+    for s_ in range(24):
+        mx.add('hat', s_ * STEP, hat(.3 + .02 * s_), pan=.25)
+    mx.add('fx', 6 * BEAT - 0.8, revcrash(0.8), pan=.2)
 
 # ---------------------------------------------------------------- effects
 def make_ir(seconds, seed):
@@ -383,11 +370,10 @@ def master(mx):
         for k,v in d.items(): print('  stem',k,round(20*np.log10(np.sqrt((v**2).mean())+1e-9),1))
     drums_ = d['kick'] * 1.15 + d['snare'] * 1.5 + d['hat'] * 1.4 + d['ride'] * 1.2 + d['perc'] * 1.3
     dpk = np.percentile(np.abs(drums_), 99.5) + 1e-9
-    drums_ = np.tanh(drums_ / dpk * 1.4) * dpk * 0.85 + drums_ * 0.35   # parallel-crushed drum bus
     music = d['pad'] * sc * 0.8 + d['bass'] * sc * 0.75 + d['sub'] * sc * 0.85 + d['lead'] * 1.0 + d['arp'] * sc * 1.2
     dl0, dl1, amt = pingpong(d['lead'] + d['arp'] * 0.5, BEAT * 0.75, 0.45, 0.22)
-    wet = reverb(d['snare'] * 0.12 + d['perc'] * 0.2 + d['lead'] * 0.6 + d['pad'] * 0.6 + d['arp'] * 0.4 + d['fx'] * 0.5, 0.55)
-    mixb = drums_ * 1.6 + music + d['fx'] + wet + np.stack([dl0, dl1]) * amt
+    wet = reverb(d['snare'] * 0.03 + d['lead'] * 0.6 + d['pad'] * 0.6 + d['arp'] * 0.4 + d['fx'] * 0.5, 0.55)
+    mixb = drums_ * 1.45 + music + d['fx'] + wet + np.stack([dl0, dl1]) * amt
     # glue: highpass the mud, soft clip
     mixb = np.stack([hp(28, mixb[0]), hp(28, mixb[1])])
     pk = np.percentile(np.abs(mixb), 99.9); mixb = np.tanh(mixb / pk * 1.15) / np.tanh(1.15)
@@ -407,7 +393,7 @@ if __name__ == '__main__':
     rng = np.random.default_rng(11); compose_loop(mx, LOOP)
     m = master(mx)
     loop = m[:, int(LOOP * SR): int(2 * LOOP * SR)]
-    INTRO = 8 * BAR
+    INTRO = 6 * BEAT
     mi = Mix(INTRO + 2.0)
     compose_intro(mi)
     intro = master(mi)

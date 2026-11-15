@@ -1,4 +1,4 @@
-// music.js — Track Master menu theme (200 BPM jungle / DnB / breakcore).
+// music.js — Track Master menu theme (180 BPM jungle / DnB / breakcore).
 // The same song plays on the Track Master main screen and on the main menus
 // of every race mode. The intro plays only the first time Track Master is
 // opened in this tab; after that the 16-bar main loop repeats seamlessly.
@@ -10,8 +10,8 @@
 //   TMMusic.stop()  — a race is starting: fade out
 (function (G) {
   'use strict';
-  var INTRO = 9.6;            // 8 bars at 200 BPM (the intro file holds 2 s of tail after this)
-  var LOOP = 19.2;            // 16 bars
+  var INTRO = 2.0;            // 6 beats at 180 BPM (the intro file holds 2 s of tail after this)
+  var LOOP = 64 / 3;          // 16 bars at 180 BPM (21.333 s)
   var PAD = 0.5;              // loop.mp3 = last 0.5 s + loop + first 0.5 s (decoder padding safety)
   var VOL = 0.5;
   var SKEY = 'track-master.music.session', LKEY = 'track-master.music';
