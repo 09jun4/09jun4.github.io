@@ -54,13 +54,13 @@
   // wheel gives an analogue steer; the left / right pads are hidden.
   var CTRL_KEY = 'track-master.circuit.controls';
   var SENS = { low: 34, mid: 24, high: 16 }; // degrees for full lock
-  var tilt = { on: false, live: false, steer: 0, angle: 0, zero: 0, sens: 'mid', invert: false, vibrate: true };
+  var tilt = { on: false, live: false, steer: 0, angle: 0, zero: 0, sens: 'mid', invert: false, vibrate: true, vibLevel: 'mid' };
   try {
     var saved = JSON.parse(localStorage.getItem(CTRL_KEY) || 'null');
-    if (saved) { tilt.on = saved.mode === 'tilt'; tilt.sens = SENS[saved.sens] ? saved.sens : 'mid'; tilt.zero = +saved.zero || 0; tilt.invert = !!saved.invert; tilt.vibrate = saved.vibrate !== false; }
+    if (saved) { tilt.on = saved.mode === 'tilt'; tilt.sens = SENS[saved.sens] ? saved.sens : 'mid'; tilt.zero = +saved.zero || 0; tilt.invert = !!saved.invert; tilt.vibrate = saved.vibrate !== false; if (['low', 'mid', 'high'].indexOf(saved.vibLevel) >= 0) tilt.vibLevel = saved.vibLevel; }
   } catch (e) { /* storage unavailable */ }
   function saveCtrl() {
-    try { localStorage.setItem(CTRL_KEY, JSON.stringify({ mode: tilt.on ? 'tilt' : 'buttons', sens: tilt.sens, zero: tilt.zero, invert: tilt.invert, vibrate: tilt.vibrate })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(CTRL_KEY, JSON.stringify({ mode: tilt.on ? 'tilt' : 'buttons', sens: tilt.sens, zero: tilt.zero, invert: tilt.invert, vibrate: tilt.vibrate, vibLevel: tilt.vibLevel })); } catch (e) { /* ignore */ }
   }
   var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function onMotion(e) {
@@ -89,14 +89,45 @@
   function stopTilt() { window.removeEventListener('devicemotion', onMotion); tilt.live = false; recomputeState(); }
   function applyMode() { document.body.classList.toggle('tilt-steer', tilt.on); }
   Input.tilt = tilt;
+  var VIB_K = { low: 0.55, mid: 1, high: 1.6 };
+  var lastEventVib = 0;
+  function canVibrate() { return tilt.vibrate && document.body.classList.contains('touch') && !!navigator.vibrate; }
+  function scale(p) { var k = VIB_K[tilt.vibLevel] || 1; return Array.isArray(p) ? p.map(function (v, i) { return i % 2 ? v : Math.round(v * k); }) : Math.round(p * k); }
+  // Events: crashes, damage, sausage kerbs (stronger with the level).
   Input.vibrate = function (pattern) {
-    if (!tilt.vibrate || !document.body.classList.contains('touch') || !navigator.vibrate) return;
-    try { navigator.vibrate(pattern); } catch (e) { /* not supported */ }
+    if (!canVibrate()) return;
+    lastEventVib = performance.now();
+    try { navigator.vibrate(scale(pattern)); } catch (e) { /* not supported */ }
+  };
+  // Driving: engine pulses that come faster and stronger with the revs
+  // (stronger with the throttle down), a short kick on every gear change.
+  // Called every playing frame (main.js). Android only (iOS Safari has no vibration API).
+  var vibT = 0, lastGear = 0;
+  Input.driveVibe = function (dt) {
+    if (!canVibrate()) return;
+    var c = CR.Car.state, cfg = CR.Config, now = performance.now();
+    if (c.retired || c.inPit) { lastGear = c.gear; return; }
+    if (now - lastEventVib < 250) return; // let crash / kerb buzzes play out
+    var k = VIB_K[tilt.vibLevel] || 1;
+    if (lastGear && c.gear !== lastGear && c.speed > 3) {
+      lastGear = c.gear; vibT = 0.12;
+      try { navigator.vibrate(Math.round(28 * k)); } catch (e) { /* ignore */ }
+      return;
+    }
+    lastGear = c.gear;
+    var r = Math.max(0, Math.min(1, (c.rpm - cfg.IDLE_RPM) / (cfg.REDLINE_RPM - cfg.IDLE_RPM)));
+    var thr = Input.state.throttle;
+    vibT -= dt;
+    if (vibT > 0 || (r < 0.15 && thr <= 0) || c.speed < 0.5 && thr <= 0) return;
+    vibT = (0.22 - 0.16 * r) / 1; // 4.5 -> 16 pulses a second
+    var len = (4 + 10 * r) * (thr > 0 ? 1 : 0.45) * k;
+    if (r > 0.93) len *= 1.4; // near the limiter
+    try { navigator.vibrate(Math.max(2, Math.round(len))); } catch (e) { /* ignore */ }
   };
   // Settings panel (menu 조작 fold).
   Input.buildSettings = function (panel, onSummary) {
     if (!panel) return;
-    function summary() { return (tilt.on ? '기울기 조향 · 감도 ' + { low: '낮음', mid: '보통', high: '높음' }[tilt.sens] : '버튼 조향') + (tilt.vibrate ? ' · 진동' : ''); }
+    function summary() { return (tilt.on ? '기울기 조향 · 감도 ' + { low: '낮음', mid: '보통', high: '높음' }[tilt.sens] : '버튼 조향') + (tilt.vibrate ? ' · 진동 ' + { low: '약', mid: '중', high: '강' }[tilt.vibLevel] : ''); }
     function render() {
       panel.textContent = '';
       function row(label, items, cur, pick) {
@@ -127,9 +158,14 @@
           saveCtrl(); render();
         });
       }
-      row('진동', [['on', '켜기'], ['off', '끄기']], tilt.vibrate ? 'on' : 'off', function (v) { tilt.vibrate = v === 'on'; saveCtrl(); render(); });
+      row('진동', [['off', '끄기'], ['low', '약'], ['mid', '중'], ['high', '강']], tilt.vibrate ? tilt.vibLevel : 'off', function (v) {
+        tilt.vibrate = v !== 'off';
+        if (v !== 'off') { tilt.vibLevel = v; try { navigator.vibrate && navigator.vibrate(scale([30, 60, 30])); } catch (e) { /* ignore */ } }
+        saveCtrl(); render();
+      });
       var note = document.createElement('p'); note.className = 'ctrl-note';
       note.textContent = tilt.on ? '휴대폰을 핸들처럼 좌우로 돌려 조향해요. 차를 세운 자세에서 \'지금 자세를 중앙으로\'를 눌러 맞추세요.' : '기울기 조향은 휴대폰·태블릿에서 쓸 수 있어요(아이폰은 센서 권한을 물어봐요).';
+      note.textContent += ' 진동은 충돌·파손·연석과 주행(엔진 회전수가 오를수록 빠르고 강하게, 변속 때 툭) 모두에 쓰여요. 아이폰 사파리는 진동을 지원하지 않아요.';
       panel.appendChild(note);
       if (onSummary) onSummary(summary());
     }

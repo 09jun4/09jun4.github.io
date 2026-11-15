@@ -424,6 +424,7 @@
       CR.Hud.updateLaps();
       CR.RaceUI.update(dt);
       if (CR.RealUI) CR.RealUI.update(dt);
+      if (Main.state === 'playing' && CR.Input.driveVibe) CR.Input.driveVibe(dt); // mobile engine / shift vibration
       CR.Minimap.update();
       CR.Audio.update();
     } else if (Main.state === 'paused') {
