@@ -130,6 +130,7 @@
     R.ctx = null;
     R.qIdeal = CR.Race.profileLap();
     R.ctx = CR.Race._ctx();
+    Pit().build();
     RP().reset({ fuel: 6, distance: 2 * ctx().L, tyre: tyre, lifeScale: 1, wet: R.weather.start });
     RP().st.warm = 0.85;
     CR.Track.refreshSpeeds();
@@ -326,7 +327,7 @@
       pen: 0, penServed: 0, warnings: 0, mul: 1, wetPick: (Math.random() * 2 - 1) * 0.07,
       otNext: false, otAvail: false, chase: false, blue: false, prevRel: undefined,
       wetSkill: d.skill,
-      form: 1 + gauss() * 0.0025, // race-day form
+      form: 1 + gauss() * 0.004, // race-day form
       slow: 0, // s left of a small mistake (lock-up, wide moment)
     };
     R.cars.push(car);
@@ -769,6 +770,8 @@
     if (Math.abs(rel - pl.prevRel) < 100 && !race.player.finished) {
       if (pl.prevRel < -300 && rel >= -300) pl.otNext = detection({ isPlayer: true, lap: CR.Laps.history.length });
       if (pl.box && !c.inPit && !c.retired && pl.prevRel < -Pit().ENTRY && rel >= -Pit().ENTRY) playerPitIn();
+      // driving into the pit entry without a request: box anyway
+      else if (!c.inPit && !c.retired && rel > -Pit().ENTRY && rel < -Pit().ENTRY + Pit().RAMP_IN && race.player.offset * Pit().side > CR.Config.TRACK_WIDTH / 2 + 1.5) playerPitIn();
     }
     pl.prevRel = rel;
     // old incidents: wrecks cleared after the caution
@@ -878,7 +881,7 @@
     var L = ctx().L;
     function prog(o) { return o.finished ? lapsOf(o) * L : o.dist; }
     return all.sort(function (a, b) {
-      var ra = a.retired, rb = b.retired;
+      var ra = !!a.retired, rb = !!b.retired;
       if (ra !== rb) return ra ? 1 : -1;
       if (ra && rb) return b.dist - a.dist;
       if (a.finished && b.finished) return lapsOf(b) - lapsOf(a) || a.finishTime - b.finishTime;

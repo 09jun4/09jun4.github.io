@@ -88,6 +88,8 @@
   };
 
   function renderTower() {
+    if (CR.Race.real && CR.RealUI) { CR.RealUI.renderTower(els.tower); return; }
+    els.tower.classList.remove('is-real');
     var order = CR.Race.order(), lead = order[0];
     els.tower.textContent = '';
     order.forEach(function (car, i) {

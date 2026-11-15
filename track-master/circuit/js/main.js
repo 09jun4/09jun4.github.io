@@ -418,6 +418,7 @@
       CR.Hud.update();
       CR.Hud.updateLaps();
       CR.RaceUI.update(dt);
+      if (CR.RealUI) CR.RealUI.update(dt);
       CR.Minimap.update();
       CR.Audio.update();
     } else if (Main.state === 'paused') {

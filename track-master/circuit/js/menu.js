@@ -298,6 +298,7 @@
     els.tabPractice.hidden = tab !== 'practice';
     els.tabRace.hidden = tab !== 'race';
     els.tabRecords.hidden = tab !== 'records';
+    els.tabReal.hidden = tab !== 'real';
     els.tracksSection.hidden = tab !== 'practice'; // AI 대전 circuits are drawn at random
     els.actions.hidden = tab === 'records';
     els.keys.hidden = tab === 'records';
@@ -789,12 +790,18 @@
     renderTracks();
     renderRacePanel();
     if (Menu.tab === 'records') renderRecords();
+    if (Menu.tab === 'real' && CR.RealUI) CR.RealUI.renderMenu(els.realPanel);
     renderFoldSummaries();
     if (!Menu.el.hidden) { drawAllPreviews(); drawTracks(); }
 
     var racing = CR.Main.raceActive && !CR.Race.active;
     els.endRace.hidden = !racing || Menu.tab !== 'practice';
-    if (Menu.tab === 'race') {
+    if (Menu.tab === 'real') {
+      var okR = CR.Race.canEnter();
+      els.play.textContent = okR ? '레이스 주말 시작 ▶' : '🔒 F1 + 입장권 필요';
+      els.play.disabled = !okR;
+      els.sub.textContent = '실제 F1처럼: 20대 그리드, 실제 랩 수 비율, 타이어 전략과 피트스톱, 날씨, 세이프티카, 6라운드 시즌 챔피언십.';
+    } else if (Menu.tab === 'race') {
       var ok = CR.Race.canEnter();
       els.play.textContent = ok ? '대전 시작 ▶' : '🔒 입장권 필요';
       els.play.disabled = !ok;
@@ -814,7 +821,11 @@
   }
 
   function primary() {
-    if (Menu.tab === 'race') {
+    if (Menu.tab === 'real') {
+      if (!CR.Race.canEnter()) return;
+      if (CR.Main.raceActive) { CR.Main.raceActive = false; CR.Laps.reset(false); } // drop a paused practice
+      withLoading('레이스 주말 준비 중', function () { CR.Main.startRealWeekend(); });
+    } else if (Menu.tab === 'race') {
       if (CR.Main.raceActive) { CR.Main.raceActive = false; CR.Laps.reset(false); } // drop a paused practice
       withLoading('레이스 준비 중', function () { CR.Main.startRace(); });
     } else if (CR.Main.raceActive) CR.Main.resume();
@@ -856,6 +867,8 @@
     els.tabPractice = document.getElementById('tab-practice');
     els.tabRace = document.getElementById('tab-race');
     els.tabRecords = document.getElementById('tab-records');
+    els.tabReal = document.getElementById('tab-real');
+    els.realPanel = document.getElementById('real-panel');
     els.racePanel = document.getElementById('race-panel');
     els.recordsPanel = document.getElementById('records-panel');
     els.raceLock = document.getElementById('race-tab-lock');

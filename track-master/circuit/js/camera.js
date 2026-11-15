@@ -52,8 +52,20 @@
   // True while the cockpit view is what's on screen.
   Camera.inCockpit = function () {
     var c = CR.Car.state;
-    return Camera.mode === 'cockpit' && !c.retired && !c.autopilot;
+    return Camera.mode === 'cockpit' && !c.retired && !c.autopilot && !Camera.cine;
   };
+
+  // 리얼리스틱 pit stop: a TV shot that orbits the car at its box, from the
+  // last metres of the approach until it pulls away (real/real-pit.js).
+  Camera.cine = null;
+  function pitShot(c) {
+    var P = CR.RealPit && CR.Config.REAL && c.inPit ? CR.RealPit.player : null;
+    if (!P) return null;
+    var near = P.phase === 'stop' || (P.phase === 'in' && P.box !== null && P.box - P.rel < 45) || (P.phase === 'out' && P.rel - P.box < 25);
+    if (!near) return null;
+    var t = P.phase === 'stop' ? P.t : P.phase === 'in' ? -(P.box - P.rel) / 12 : P.stopTime + (P.rel - P.box) / 10;
+    return { t: t, side: CR.RealPit.side };
+  }
   Camera.setMode = function (m) {
     Camera.mode = m === 'cockpit' ? 'cockpit' : 'chase';
     try { localStorage.setItem(VIEW_KEY, Camera.mode); } catch (e) { /* storage unavailable */ }
@@ -87,6 +99,7 @@
 
   Camera.update = function (dt) {
     var c = CR.Car.state, cfg = CR.Config;
+    Camera.cine = pitShot(c);
     var diff = wrapAngle(targetHeading(c) - Camera.heading);
     Camera.heading += diff * Math.min(1, cfg.CAMERA_ROTATE_RATE * dt);
 
@@ -117,6 +130,15 @@
       var ex = c.x + fx0 * EYE.forward, ey = c.y + fy0 * EYE.forward;
       Camera.setView(canvas.clientWidth, canvas.clientHeight, ex + fx0, ey + fy0, c.heading, 1,
         EYE.height + shake, EYE.pitch + shake * 40, EYE.focal, EYE.centerY);
+      return;
+    }
+    if (Camera.cine) {
+      // From the front quarter on the garage side, sweeping round to the side
+      // as the crew works, then watching the car leave.
+      var sh = Camera.cine, a = 0.75 + Math.max(-0.6, Math.min(3.5, sh.t)) * 0.33;
+      var dir = c.heading + Math.PI - sh.side * a;
+      Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, dir, 8.6, 3.7, 17, cfg.CAM_FOCAL * 0.95, 0.56);
+      Camera.heading = c.heading;
       return;
     }
     var dist = Camera.distance || cfg.CAM_DISTANCE, k = ease(Camera.frontT);

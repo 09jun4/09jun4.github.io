@@ -107,6 +107,7 @@
     <nav class="menu-tabs" role="tablist" aria-label="모드">
       <button type="button" role="tab" class="menu-tab is-active" data-tab="practice" aria-selected="true">연습</button>
       <button type="button" role="tab" class="menu-tab" data-tab="race" aria-selected="false">AI 대전 <span id="race-tab-lock" class="tab-lock"></span></button>
+      <button type="button" role="tab" class="menu-tab" data-tab="real" aria-selected="false">리얼리스틱</button>
       <button type="button" role="tab" class="menu-tab" data-tab="records" aria-selected="false">기록</button>
     </nav>
     <div id="tab-practice" class="tab-panel" role="tabpanel">
@@ -138,6 +139,9 @@
     </div>
     <div id="tab-race" class="tab-panel" role="tabpanel" hidden>
       <div id="race-panel"></div>
+    </div>
+    <div id="tab-real" class="tab-panel" role="tabpanel" hidden>
+      <div id="real-panel" class="real-panel"></div>
     </div>
     <div id="tab-records" class="tab-panel" role="tabpanel" hidden>
       <div id="records-panel"></div>

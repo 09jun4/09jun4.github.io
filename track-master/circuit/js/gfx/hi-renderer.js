@@ -268,7 +268,7 @@
   // --- Circuit-dependent scene ----------------------------------------------------------
   function trackKey() {
     var S = CR.Track.samples;
-    return (CR.Main ? CR.Main.trackIndex : -1) + ':' + S.length + ':' + S[0].x.toFixed(2) + ',' + S[0].y.toFixed(2);
+    return (CR.Main ? CR.Main.trackIndex : -1) + ':' + S.length + ':' + S[0].x.toFixed(2) + ',' + S[0].y.toFixed(2) + (S[0].pit ? ':pit' + S[0].pit.side : '');
   }
 
   P.ensureTrack = function () {
@@ -385,7 +385,7 @@
     if (w !== this.cssW || h !== this.cssH) this.resize();
     Cam.begin(this.canvas);
     var c = CR.Car.state;
-    var cockpit = Cam.inCockpit(), finish = Cam.frontT > 0 && !cockpit, chase = !cockpit && !finish;
+    var cockpit = Cam.inCockpit(), finish = Cam.frontT > 0 && !cockpit, chase = !cockpit && !finish && !Cam.cine;
 
     // Speed sense without any shaking: smoothed longitudinal acceleration
     // drives a slow camera "spring" (pulled back when accelerating, pushed in
@@ -423,6 +423,7 @@
     // Cars
     this.carsGroup.children.length = 0;
     var player = this.carFor(CR.Car.def.model, Hi.Car.NUMBERS[CR.Car.def.id], true);
+    this.playerCar = player; // 리얼리스틱 pit crew (hi-pit.js) lifts it / swaps its wheels
     this.carsGroup.add(player.group);
     var brake = c.retired || c.autopilot ? 0 : CR.Input.state.brake;
     this.camDistToCar = Math.hypot(Cam.pos.x - c.x, Cam.pos.y - c.y);

@@ -563,12 +563,16 @@
     out.towerHeads = headMat;
     out.towers = towerSpots;
 
+    // 리얼리스틱: pit lane, garages and crews (gfx/hi-pit.js)
+    if (S[0].pit && Hi.Pit && CR.RealPit && CR.RealPit.garages) out.pit = Hi.Pit.build(R, S, D, group);
+
     return out;
   };
 
   // Per frame: speed colour, start lights, big screen text.
   T.update = function (R, built, dt) {
     var car = CR.Car.state;
+    if (built.pit) Hi.Pit.update(R, built.pit, dt);
     built.uniforms.uCarSpeed.value = car.speed;
     var lit = CR.Race && CR.Race.active ? CR.Race.lightsOn : 0;
     for (var i = 0; i < built.lamps.length; i++) built.lamps[i].emissiveIntensity = i < lit ? 6 : 0;

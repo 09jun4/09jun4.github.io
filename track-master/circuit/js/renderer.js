@@ -158,6 +158,101 @@
     Cam.endPoly(ctx);
   }
 
+  // --- 리얼리스틱 pit lane (samples carry s.pit only in that mode) ---------------
+  var PIT_ASPHALT = '#3b3e45', PIT_LINE = '#e8e8e8', GARAGE_FACE = '#c3c7ce', GARAGE_ROOF = '#6f757e', GARAGE_DARK = '#15171b';
+  function pitStrip(ctx, samples, i, o1a, o2a, o1b, o2b, h) {
+    var a = samples[i], b = samples[nextIdx[i]];
+    Cam.beginPoly();
+    Cam.vertex(a.x + a.nx * o1a, a.y + a.ny * o1a, h);
+    Cam.vertex(b.x + b.nx * o1b, b.y + b.ny * o1b, h);
+    Cam.vertex(b.x + b.nx * o2b, b.y + b.ny * o2b, h);
+    Cam.vertex(a.x + a.nx * o2a, a.y + a.ny * o2a, h);
+    Cam.endPoly(ctx);
+  }
+  function sideFace(ctx, a, b, o, z0, z1) {
+    Cam.beginPoly();
+    Cam.vertex(a.x + a.nx * o, a.y + a.ny * o, z0);
+    Cam.vertex(b.x + b.nx * o, b.y + b.ny * o, z0);
+    Cam.vertex(b.x + b.nx * o, b.y + b.ny * o, z1);
+    Cam.vertex(a.x + a.nx * o, a.y + a.ny * o, z1);
+    Cam.endPoly(ctx);
+  }
+  // Lane surface, lines and box markings.
+  function drawPitGround(ctx, samples, visible, nv) {
+    var k, idx, a, b, sd;
+    ctx.fillStyle = PIT_ASPHALT;
+    ctx.beginPath();
+    for (k = 0; k < nv; k++) {
+      idx = visible[k]; a = samples[idx].pit; b = samples[nextIdx[idx]].pit;
+      if (!a || !b) continue;
+      sd = a.side;
+      pitStrip(ctx, samples, idx, sd * a.lane0, sd * a.lane1, sd * b.lane0, sd * b.lane1, 0);
+    }
+    ctx.fill();
+    ctx.fillStyle = PIT_LINE;
+    ctx.beginPath();
+    for (k = 0; k < nv; k++) {
+      idx = visible[k]; a = samples[idx].pit; b = samples[nextIdx[idx]].pit;
+      if (!a || !b || !a.lim) continue;
+      sd = a.side;
+      var m = Math.abs(a.off) + 1.6; // fast lane / working lane divider
+      pitStrip(ctx, samples, idx, sd * m, sd * (m + 0.18), sd * m, sd * (m + 0.18), 0.01);
+    }
+    ctx.fill();
+    var G = CR.RealPit && CR.RealPit.garages;
+    if (!G) return;
+    var P = CR.RealPit, n = samples.length;
+    for (var g = 0; g < G.length; g++) {
+      var s0 = samples[G[g].i0], s1 = samples[G[g].i1];
+      if (Cam.forward(s0.x, s0.y) > viewFar || Cam.forward(s1.x, s1.y) < -20) continue;
+      sd = P.side;
+      ctx.fillStyle = G[g].color;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      Cam.beginPoly();
+      var o0 = sd * (P.garage - 3.2), o1 = sd * (P.garage - 0.2);
+      Cam.vertex(s0.x + s0.nx * o0, s0.y + s0.ny * o0, 0.01);
+      Cam.vertex(s1.x + s1.nx * o0, s1.y + s1.ny * o0, 0.01);
+      Cam.vertex(s1.x + s1.nx * o1, s1.y + s1.ny * o1, 0.01);
+      Cam.vertex(s0.x + s0.nx * o1, s0.y + s0.ny * o1, 0.01);
+      Cam.endPoly(ctx);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  // Garage block behind the working lane, one open bay per team.
+  function drawPitBuildings(ctx, samples, visible, nv) {
+    var P = CR.RealPit;
+    if (!P || !P.garages) return;
+    var sd = P.side, k, idx, a, b;
+    ctx.fillStyle = GARAGE_ROOF;
+    ctx.beginPath();
+    for (k = 0; k < nv; k++) {
+      idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
+      if (!a.pit || !b.pit || !a.pit.lim || !b.pit.lim) continue;
+      pitStrip(ctx, samples, idx, sd * P.garage, sd * P.back, sd * P.garage, sd * P.back, 5.6);
+    }
+    ctx.fill();
+    ctx.fillStyle = GARAGE_FACE;
+    ctx.beginPath();
+    for (k = 0; k < nv; k++) {
+      idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
+      if (!a.pit || !b.pit || !a.pit.lim || !b.pit.lim) continue;
+      sideFace(ctx, a, b, sd * P.garage, 0, 5.6);
+    }
+    ctx.fill();
+    var G = P.garages;
+    for (var g = 0; g < G.length; g++) {
+      var s0 = samples[G[g].i0], s1 = samples[G[g].i1];
+      var f0 = Cam.forward(s0.x, s0.y), f1 = Cam.forward(s1.x, s1.y);
+      if (Math.min(f0, f1) > viewFar || Math.max(f0, f1) < -5) continue;
+      ctx.fillStyle = GARAGE_DARK;
+      ctx.beginPath(); sideFace(ctx, s0, s1, sd * (P.garage - 0.02), 0, 3.9); ctx.fill();
+      ctx.fillStyle = G[g].color;
+      ctx.beginPath(); sideFace(ctx, s0, s1, sd * (P.garage - 0.03), 4.2, 5.4); ctx.fill();
+    }
+  }
+
   // Grandstand layout for the current circuit (built once per track).
   var stands = null, standsFor = null;
   var STAND = { depth: 11, rise: 8, parapet: 1.6, back: 11.6, roof: 12.4, roofFront: 2.2, gap: 3.5 };
@@ -220,6 +315,7 @@
         var s = samples[(i0 + j) % n];
         if (s.bridge) return false;
         off = Math.max(off, (side > 0 ? s.wallLeft : s.wallRight) + WALL_THICKNESS + D.gap);
+        if (s.pit && s.pit.side === side) off = Math.max(off, s.pit.back + D.gap); // 리얼리스틱: behind the garages
       }
       if (!free(i0, len, side, off, D)) return false;
       var st = { i0: i0, len: len, side: side, off: off, fascia: fascia, ga: !!D.ga };
@@ -975,6 +1071,8 @@
       }
       if (runBucket >= 0) ctx.fill();
 
+      if (samples[0].pit) drawPitGround(ctx, samples, visible, nv);
+
       // 2c. Kerbs just outside both white lines on corner samples.
       for (var colour = 0; colour < 2; colour++) {
         ctx.fillStyle = colour === 0 ? KERB_RED : KERB_WHITE;
@@ -1027,6 +1125,7 @@
 
       // 2e2. Grandstands (behind the walls, so drawn before them).
       drawStands(ctx, samples, opts.lite);
+      if (samples[0].pit) drawPitBuildings(ctx, samples, visible, nv);
 
       // 2f. Walls: vertical faces plus a lighter top, drawn far to near in
       // chunks of WALL_CHUNK samples (2 fills per chunk) so nearer walls

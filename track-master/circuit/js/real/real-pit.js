@@ -36,12 +36,31 @@
     Pit.edge = Pit.side * (hw - 1.3);
     Pit.lane = Pit.side * (hw + 9); // fast lane, behind the pit wall
     Pit.work = Pit.side * (hw + 12); // working lane in front of the garages
-    // Per-sample marks for the renderers: lane offset and wall gaps.
-    for (var i = 0; i < n; i++) { delete S[i].pit; }
-    for (var r = -Pit.ENTRY; r <= Pit.EXIT; r += 2) {
-      var k = ctx.indexAt(ctx.wrapDist(r), 0);
-      S[k].pit = { rel: r, off: Pit.offsetAt(r), ramp: r < -Pit.ENTRY + Pit.RAMP_IN || r > Pit.EXIT - Pit.RAMP_OUT, side: Pit.side };
+    // Per-sample marks for the renderers and the walls: on the pit side the
+    // wall becomes the pit wall (hw + 5) where the lane runs separately,
+    // and the outer edge of the lane on the ramps (open to the track).
+    // s.pit = {rel, off, side, lim, inner (pit wall offset or 0), lane0, lane1, back}
+    var GAR = hw + 15.5, BACK = hw + 27;
+    Pit.inner = hw + 5; Pit.garage = GAR; Pit.back = BACK;
+    for (var i = 0; i < n; i++) {
+      delete S[i].pit;
+      var rel2 = ctx.cum[i] > ctx.L / 2 ? ctx.cum[i] - ctx.L : ctx.cum[i];
+      if (rel2 < -Pit.ENTRY || rel2 > Pit.EXIT) continue;
+      var off = Pit.offsetAt(rel2), a = Math.abs(off), lim = Pit.inLimiter(rel2);
+      var sep = a - 4 > hw + 4.4; // lane fully off the track: pit wall between
+      var orig = Pit.side > 0 ? S[i].wallLeft : S[i].wallRight;
+      var info = { rel: rel2, off: off, side: Pit.side, lim: lim, inner: sep ? hw + 5 : 0,
+        lane0: sep ? hw + 5.6 : Math.max(hw, a - 4), lane1: lim ? GAR : a + 4, back: lim ? BACK : Math.max(orig, a + 4.5) };
+      S[i].pit = info;
+      var wall = sep ? hw + 5 : Math.max(orig, a + 4.5);
+      if (Pit.side > 0) S[i].wallLeft = wall; else S[i].wallRight = wall;
     }
+    // Team garages (sample ranges) for the renderers.
+    Pit.garages = CR.RealData.TEAMS.map(function (t) {
+      var r0 = Pit.boxRel(t.id) - 6.5, r1 = Pit.boxRel(t.id) + 6.5;
+      return { team: t.id, color: t.player ? CR.Cars.byId('f1').color : t.main, accent: t.player ? '#d4a82a' : t.accent,
+        i0: ctx.indexAt(ctx.wrapDist(r0), 0), i1: ctx.indexAt(ctx.wrapDist(r1), 0), rel: Pit.boxRel(t.id) };
+    });
     Pit.built = true;
     Pit.player = null;
   };
@@ -89,6 +108,7 @@
       p.t += dt;
       if (p.t >= p.stopTime) { p.phase = 'out'; p.t = 0; if (p.onService) p.onService(); }
     } else {
+      p.t += dt;
       var acc = p.rel < zoneOut ? 9 : 15;
       var top = p.rel < zoneOut ? lim : Infinity;
       p.v = Math.min(p.v + acc * dt, top, p.vMax || Infinity);
