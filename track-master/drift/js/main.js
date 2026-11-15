@@ -375,6 +375,7 @@
   function showScreen(id) {
     ['menu', 'pause', 'result'].forEach(function (s) { $(s).hidden = s !== id; });
     document.body.classList.toggle('in-menu', id === 'menu');
+    if (window.TMMusic) { if (id === 'menu') TMMusic.menu(); else TMMusic.stop(); }
   }
 
   // A saved record: score first (old records only have a time).

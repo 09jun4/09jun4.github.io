@@ -887,6 +887,7 @@
 
   Menu.show = function () {
     Menu.el.hidden = false;
+    if (window.TMMusic) TMMusic.menu();
     Menu.refresh(); // draws previews now that the canvases have their size
     els.play.focus();
     if (CR.Gfx && CR.Gfx.menuShown) CR.Gfx.menuShown();
@@ -896,6 +897,7 @@
 
   Menu.hide = function () {
     Menu.el.hidden = true;
+    if (window.TMMusic) TMMusic.stop();
     if (CR.Gfx && CR.Gfx.stopTurntable) CR.Gfx.stopTurntable();
     // Drop focus from the hidden button so Space (brake) can't press it.
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();

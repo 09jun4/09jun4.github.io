@@ -23,6 +23,8 @@
     var inMenu = !!name && name !== 'none';
     document.body.classList.toggle('in-menu', inMenu);
     document.body.classList.toggle('playing', !inMenu);
+    // menu music: rally main menus only (not loading / pause / result / settings opened mid-stage)
+    if (G.TMMusic) { if (!M.playing && /^(home|select|vehicle|rallyset|graphics)$/.test(name)) G.TMMusic.menu(); else G.TMMusic.stop(); }
     if (name === 'select') renderSelect();
     if (name === 'vehicle') renderVehicle();
     if (name === 'rallyset') renderRally();
