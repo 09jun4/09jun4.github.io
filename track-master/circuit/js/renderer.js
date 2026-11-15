@@ -26,7 +26,7 @@
   var EDGE_LINE_COLOR = 'rgba(255, 255, 255, 0.85)';
   var EDGE_LINE_WIDTH = 0.4;
   var EDGE_LINE_INSET = 0.2; // line sits just inside the track limit
-  var KERB_WIDTH = 1.0;
+  var KERB_WIDTH = (CR.Kerb && CR.Kerb.WIDTH) || 1.0; // kerb.js: 1.5 m like real F1 kerbs
   var KERB_MIN_CURVATURE = 1 / 300; // kerbs only on real corners (radius < 300 m)
   var KERB_RED = '#d6322f';
   var KERB_WHITE = '#f2f2f2';

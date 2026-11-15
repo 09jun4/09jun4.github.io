@@ -113,6 +113,8 @@
   Camera.update = function (dt) {
     var c = CR.Car.state, cfg = CR.Config;
     Camera.cine = startShot() || pitShot(c);
+    // kerb vibration for the camera (kerb.js): stronger with speed
+    if (CR.Kerb) CR.Kerb.shake = c.retired ? 0 : CR.Kerb.player() * Math.min(1, c.speed / 30);
     var diff = wrapAngle(targetHeading(c) - Camera.heading);
     Camera.heading += diff * Math.min(1, cfg.CAMERA_ROTATE_RATE * dt);
 
@@ -124,6 +126,14 @@
     else Camera.frontT = 0;
     shakeT += dt;
   };
+
+  // Up-down jolt (m) from the kerb ridges under the wheels.
+  function kerbJitter(c) {
+    var k = CR.Kerb;
+    if (!k || !k.shake) return 0;
+    var ph = (c.wheelDist || 0) * Math.PI / k.PITCH;
+    return k.shake * (0.022 * Math.sin(ph * 2) + 0.01 * Math.sin(ph * 5.3 + 1));
+  }
 
   Camera.snapToCar = function () {
     Camera.heading = CR.Car.state.heading;
@@ -139,6 +149,7 @@
       // grows with speed, plus a slow bob over the road surface.
       var sp = Math.min(1, c.speed / 90);
       var shake = 0.0035 * sp * Math.sin(shakeT * 61) + 0.006 * sp * Math.sin(shakeT * 7.3) + 0.002 * Math.sin(shakeT * 23);
+      shake += kerbJitter(c) * 1.4;
       var fx0 = Math.cos(c.heading), fy0 = Math.sin(c.heading);
       var ex = c.x + fx0 * EYE.forward, ey = c.y + fy0 * EYE.forward;
       Camera.setView(canvas.clientWidth, canvas.clientHeight, ex + fx0, ey + fy0, c.heading, 1,
@@ -180,7 +191,7 @@
       return;
     }
     Camera.setView(canvas.clientWidth, canvas.clientHeight, c.x, c.y, Camera.heading,
-      dist, cfg.CAM_HEIGHT, cfg.CAM_PITCH_DEG, cfg.CAM_FOCAL, cfg.CAM_CENTER_Y);
+      dist, cfg.CAM_HEIGHT + kerbJitter(c) * 0.8, cfg.CAM_PITCH_DEG, cfg.CAM_FOCAL, cfg.CAM_CENTER_Y);
   };
 
   // General view: looking along `heading` at target (tx, ty) from `dist`

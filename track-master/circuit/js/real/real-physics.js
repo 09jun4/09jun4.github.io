@@ -227,6 +227,12 @@
     if (thr > 0) s.fuel = Math.max(0, s.fuel - P.burnPerM * v * dt * (0.55 + 0.45 * thr));
     cfg.CAR_MASS = d.MASS + s.fuel;
     cfg.TIRE_GRIP_TARMAC = P.tyreMu(s.tyre, s.wear, 1, P.wet) * P.tempGrip(s.tyre, s.temp);
+    // kerbs: less grip on the ridged paint (much less when wet) and a twitch of the chassis
+    var kc = CR.Kerb && !c.inPit ? CR.Kerb.player() : 0;
+    if (kc > 0) {
+      cfg.TIRE_GRIP_TARMAC *= 1 - kc * (0.05 + 0.15 * P.wet);
+      c.heading += (Math.random() - 0.5) * 0.008 * kc * Math.min(1, v / 40);
+    }
   };
 
   // New tyres (pit stop / race start). warm: 0..1 (blankets ~0.55).

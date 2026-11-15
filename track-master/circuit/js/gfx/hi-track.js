@@ -16,7 +16,7 @@
 
   var WALL_H = 0.9, WALL_T = 0.6; // as renderer.js
   var FENCE_TOP = 4.1, FENCE_LEAN = 0.55;
-  var KERB_W = 1.0, KERB_MIN_CURV = 1 / 300;
+  var KERB_W = CR.Kerb.WIDTH, KERB_MIN_CURV = CR.Kerb.MIN_CURV; // kerb.js: 1.5 m wide, 4 cm hump
 
   // Cumulative distance along the lap at every sample, D[n] = lap length.
   function cumulative(S) {
@@ -236,8 +236,8 @@
       var ramp = function (r) { var e = Math.min(r, run.count - r); return Math.min(1, e / 1.5); };
       [1, -1].forEach(function (side) {
         kerbs.push(strip(S, D, function (i, r) {
-          var hk = 0.05 * ramp(r), a = half, b = half + KERB_W;
-          var p = [[a, 0.003], [a + 0.12, 0.003 + hk], [b - 0.12, 0.003 + hk], [b, 0.003]];
+          var K = CR.Kerb, hk = K.HEIGHT * ramp(r), a = half, b = half + KERB_W;
+          var p = [[a, 0.003], [a + K.RISE * 0.5, 0.003 + hk * 0.7], [a + K.RISE, 0.003 + hk], [b - 0.25, 0.003 + hk * 0.95], [b - 0.08, 0.003 + hk * 0.5], [b, 0.003]];
           if (side < 0) p = p.map(function (q) { return [-q[0], q[1]]; }).reverse();
           return p;
         }, { from: run.from, count: run.count, vScale: 3, flip: true }));

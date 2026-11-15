@@ -1178,6 +1178,15 @@
       for (var k = 0; k < w.blur.length; k++) w.blur[k].visible = near && blur > 0.02;
       for (var k2 = 0; k2 < w.sharp.length; k2++) w.sharp[k2].visible = near || opts.camDist < 140;
     }
+    // kerbs (kerb.js): each wheel rides up the hump and over the ridges
+    if (CR.Kerb && opts.camDist < 140) {
+      var wi = st.nearestSampleIndex !== undefined ? st.nearestSampleIndex : st.idx;
+      var kw = CR.Kerb.wheels(st.x, st.y, st.heading, wi || 0, dist, car.kerbH || (car.kerbH = [0, 0, 0, 0]));
+      var lift = (kw[0] + kw[1] + kw[2] + kw[3]) / 4;
+      g.position.y = lift;
+      car.body.rotation.x = ((kw[0] + kw[2]) - (kw[1] + kw[3])) / 2 / 1.6;
+      car.body.rotation.z += ((kw[0] + kw[1]) - (kw[2] + kw[3])) / 2 / 2.7;
+    } else { g.position.y = 0; car.body.rotation.x = 0; }
     car.brakeMat.emissiveIntensity = st.exploded ? 0 : 0.5 + (opts.brake || 0) * 9;
     if (car.lightbar) { // safety car: amber lights alternate, green on while it leads the field
       var ph = Math.floor(performance.now() / 260) % 2;
