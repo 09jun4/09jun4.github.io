@@ -105,6 +105,20 @@ def boom():  # sub impact
     f = 32 + 80 * np.exp(-t / 0.08)
     return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.45) * 0.8
 
+def shaker(vel=1.0):
+    n = int(0.06 * SR); t = np.arange(n) / SR
+    return bp(5000, 12000, rng.standard_normal(n)) * env_ad(n, 0.004, 0.012) * vel * 0.22
+
+def rim(vel=1.0, pitch=1.0):
+    n = int(0.08 * SR); t = np.arange(n) / SR
+    x = np.sin(2 * np.pi * 820 * pitch * t) * np.exp(-t / 0.012) + bp(2000, 6000, rng.standard_normal(n)) * np.exp(-t / 0.008) * 0.6
+    return x * vel * 0.3
+
+def tom(vel=1.0, f0=140):
+    n = int(0.25 * SR); t = np.arange(n) / SR
+    f = f0 + f0 * 0.6 * np.exp(-t / 0.03)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.12) * vel * 0.5
+
 # patterns: list of (step, kind, vel, extra)
 def pat(kind):
     K, S, g = 'k', 's', 0.32
@@ -121,6 +135,16 @@ def pat(kind):
     if kind == 'roll':
         base = [(0, K, 1), (2, K, .9), (4, S, 1), (6, S, .7)]
         return base + [(8 + i * 0.5, S, .35 + i * 0.045, 0.85 + i * 0.03) for i in range(16)]
+    if kind == 'think':
+        return [(0, K, 1), (3, S, g), (4, S, 1), (6, K, .8), (7, K, .7), (9, S, .6), (10, K, .9), (12, S, 1), (13, S, g), (14, K, .6), (15, S, .5)]
+    if kind == 'chop2':
+        return [(0, K, 1), (1, S, .5), (2, S, .9), (3, K, .7), (5, K, .8), (6, S, 1), (8, K, .9), (8.5, S, .3), (9, S, .7), (11, K, .8),
+                (12, S, 1), (13, K, .6), (13.5, S, .5), (14, S, .8), (14.5, S, .6), (15, S, .9)]
+    if kind == 'trip':  # sextuplet snare cascade in the 2nd half
+        return [(0, K, 1), (2, K, .9), (4, S, 1), (6, K, .8)] + [(8 + i * (8 / 12.0), S, .4 + i * 0.05, 1.25 - i * 0.03) for i in range(12)]
+    if kind == 'stutter2':
+        base = [(0, K, 1), (2, S, .8), (3, K, .7), (4, S, 1), (6, K, .8)]
+        return base + [(8 + i * 0.25, S, .7, 1.0) for i in range(8)] + [(10 + i * 0.5, S, .4 + i * 0.07, 0.8 + i * 0.06) for i in range(12)]
     if kind == 'half':  # half-time build
         return [(0, K, 1), (8, S, 1), (10, K, .8)]
     if kind == 'build8':
@@ -131,7 +155,7 @@ def pat(kind):
         return [(0, K, 1)] + [(i * 0.5, S, .55 + i * 0.014, 1.2 + i * 0.012) for i in range(24)]
     return []
 
-def drums(mx, t0, kind, hats='8', ride_on=False, hat_hp=False):
+def drums(mx, t0, kind, hats='8', ride_on=False, ghost=True):
     for ev in pat(kind):
         st, k, v = ev[0], ev[1], ev[2]
         t = t0 + st * STEP
@@ -140,12 +164,33 @@ def drums(mx, t0, kind, hats='8', ride_on=False, hat_hp=False):
         else:
             p = ev[3] if len(ev) > 3 else 1.0
             mx.add('snare', t, snare(v, p), pan=rng.uniform(-.08, .08))
+    busy = set(int(ev[0]) for ev in pat(kind) if float(ev[0]).is_integer())
+    if ghost and kind:
+        # ghost snares on the free 16ths + 32nd flams before the backbeats
+        for s in range(16):
+            if s not in busy and s % 2 == 1 and rng.random() < 0.55:
+                mx.add('snare', t0 + s * STEP, snare(rng.uniform(.12, .26), rng.uniform(.95, 1.1), 0.05), pan=rng.uniform(-.2, .2))
+        for s in (4, 12):
+            if rng.random() < 0.6: mx.add('snare', t0 + (s - 0.5) * STEP, snare(.22, 1.05, 0.04), pan=-.15)
+        for s in range(16):  # rim clicks
+            if s not in busy and rng.random() < 0.18:
+                mx.add('perc', t0 + s * STEP, rim(rng.uniform(.4, .8), rng.choice([1.0, 1.26, 1.5])), pan=rng.choice([-.6, .6]))
+        if rng.random() < 0.3:  # tom run
+            s0 = rng.choice([12, 13])
+            for i, f in enumerate((180, 150, 120)):
+                mx.add('perc', t0 + (s0 + i) * STEP, tom(.7, f), pan=(-.4 + i * .4))
     if hats:
         for s in range(16):
-            if hats == '8' or hats == '16':
-                if s % 2 == 0: mx.add('hat', t0 + s * STEP, hat(.75 if s % 4 == 2 else .5), pan=.25)
-                elif hats == '16' or s in (3, 13): mx.add('hat', t0 + s * STEP, hat(.25), pan=.3)
-        if kind in ('amen1', 'amen2'): mx.add('hat', t0 + 14 * STEP, hat(.45, True), pan=.25)
+            if s % 2 == 0: mx.add('hat', t0 + s * STEP, hat(.75 if s % 4 == 2 else .5), pan=.25)
+            elif hats == '16' or s in (3, 13): mx.add('hat', t0 + s * STEP, hat(.3), pan=.3)
+            if hats == '16' and rng.random() < 0.15:  # 32nd hat roll
+                for j in range(1, 3): mx.add('hat', t0 + (s + j * 0.5) * STEP, hat(.22 + j * .06), pan=.35)
+        if kind not in ('', 'half'):
+            mx.add('hat', t0 + 14 * STEP, hat(.45, True), pan=.25)
+            if rng.random() < 0.5: mx.add('hat', t0 + 6 * STEP, hat(.35, True), pan=.25)
+        if hats == '16':
+            for s in range(16):
+                mx.add('perc', t0 + s * STEP, shaker(.9 if s % 4 == 2 else .45), pan=-.45)
     if ride_on:
         for s in (0, 4, 8, 12):
             mx.add('ride', t0 + s * STEP, ride(.9 if s % 8 == 0 else .6), pan=-.35)
@@ -159,11 +204,11 @@ CHORDS = [  # 2 bars each
     (56, [0, 4, 7]),   # Ab
     (51, [0, 4, 7]),   # Eb
 ]
-MEL = [
-    [(0, 77, 3), (3, 80, 3), (6, 84, 2), (8, 82, 4), (12, 80, 2), (14, 79, 2), (16, 77, 3), (19, 75, 3), (22, 72, 2), (24, 75, 4), (28, 77, 4)],
-    [(0, 80, 3), (3, 77, 3), (6, 73, 2), (8, 75, 2), (10, 77, 2), (12, 80, 4), (16, 82, 3), (19, 80, 3), (22, 77, 2), (24, 73, 4), (28, 75, 2), (30, 77, 2)],
-    [(0, 84, 3), (3, 80, 3), (6, 75, 2), (8, 79, 2), (10, 80, 2), (12, 84, 4), (16, 87, 3), (19, 84, 3), (22, 82, 2), (24, 80, 6), (30, 79, 2)],
-    [(0, 79, 3), (3, 82, 3), (6, 87, 2), (8, 86, 4), (12, 82, 2), (14, 79, 2), (16, 75, 4), (20, 79, 2), (22, 82, 2), (24, 84, 4), (28, 86, 4)],
+MEL = [  # simple, long notes (half-time feel over the fast drums)
+    [(0, 77, 12), (12, 75, 4), (16, 72, 16)],
+    [(0, 77, 12), (12, 80, 4), (16, 77, 16)],
+    [(0, 75, 12), (12, 79, 4), (16, 72, 16)],
+    [(0, 75, 12), (12, 74, 4), (16, 70, 16)],
 ]
 BASS_RH = [(0, 6, 0), (6, 4, 0), (10, 2, 12), (12, 4, 0), (16, 6, 0), (22, 2, 12), (24, 3, 0), (27, 5, 7)]
 
@@ -231,10 +276,10 @@ def revcrash(seconds):
 
 # ---------------------------------------------------------------- arrangement
 def compose_loop(mx, T):
-    kinds = ['amen1', 'amen2', 'amen1', 'amen2', 'amen1', 'amen2', 'amen1', 'chop',
-             'amen1', 'stutter', 'amen1', 'chop', 'amen1', 'amen2', 'chop', 'roll']
+    kinds = ['amen1', 'think', 'amen2', 'chop', 'amen1', 'chop2', 'think', 'stutter',
+             'amen1', 'chop2', 'amen2', 'trip', 'think', 'chop', 'stutter2', 'roll']
     for b, k in enumerate(kinds):
-        drums(mx, T + b * BAR, k, hats='16' if b >= 8 else '8', ride_on=b >= 8)
+        drums(mx, T + b * BAR, k, hats='16', ride_on=b >= 8)
     mx.add('fx', T, crash(1.0), pan=-.2); mx.add('fx', T, boom())
     mx.add('fx', T + 8 * BAR, crash(.9), pan=.2); mx.add('fx', T + 8 * BAR, boom() * 0.7)
     mx.add('fx', T + 8 * BAR - 1.0, revcrash(1.0), pan=-.3)
@@ -253,14 +298,12 @@ def compose_loop(mx, T):
                 mx.add('bass', t0 + st * STEP, r); mx.add('sub', t0 + st * STEP, s)
             # lead
             for st, m, ln in MEL[c]:
-                mx.add('lead', t0 + st * STEP, lead_note(m, ln, 0.6 + 0.4 * half), pan=-.05)
-                if half == 1:
-                    mx.add('lead', t0 + st * STEP, lead_note(m - 12, ln, 0.3) * 0.6, pan=.15)
+                mx.add('lead', t0 + st * STEP, lead_note(m, ln, 0.35 + 0.25 * half), pan=-.05)
             # arp
             tones = [root + 12 + k for k in iv] + [root + 24]
             seq = [0, 1, 2, 3, 2, 1, 2, 3] if half == 0 else [0, 2, 1, 3, 2, 3, 1, 2]
             for s in range(32):
-                if half == 0 and s % 2 == 1: continue
+                if s % 2 == 1 or half == 0: continue
                 mx.add('arp', t0 + s * STEP, pluck(tones[seq[s % 8]], .8 if s % 4 == 0 else .55), pan=(-.5 if s % 2 else .5))
 
 def compose_intro(mx):
@@ -278,11 +321,11 @@ def compose_intro(mx):
         mx.add('lead', 4 * BAR + st * STEP * 2, lead_note(m, ln * 2, 0.3) * 0.8)
     # drums: bars 2-3 hats only, 4-5 half-time filtered, 6 build16, 7 build32
     for b in (2, 3):
-        drums(mx, b * BAR, '', hats='8')
+        drums(mx, b * BAR, '', hats='8', ghost=False)
     for b in (4, 5):
         drums(mx, b * BAR, 'half', hats='16')
     drums(mx, 6 * BAR, 'build16', hats='8')
-    drums(mx, 7 * BAR, 'build32', hats=None)
+    drums(mx, 7 * BAR, 'build32', hats=None, ghost=False)
     # sub bass pedal bars 4-7
     for b in range(4, 8):
         r, s = reese(29, 16)
@@ -327,7 +370,7 @@ def sidechain(n, kicks, depth=0.65, rel=0.09):
 def master(mx):
     n = mx.n
     sc = sidechain(n, mx.kicks)
-    d = {k: mx.get(k) for k in ('kick', 'snare', 'hat', 'ride', 'fx', 'pad', 'bass', 'sub', 'lead', 'arp', 'arpI')}
+    d = {k: mx.get(k) for k in ('kick', 'snare', 'hat', 'ride', 'perc', 'fx', 'pad', 'bass', 'sub', 'lead', 'arp', 'arpI')}
     # intro arp opens its filter over 8 bars
     if np.abs(d['arpI']).sum() > 0:
         segs = 16; L = n // segs; out = np.zeros_like(d['arpI'])
@@ -338,11 +381,13 @@ def master(mx):
         d['arp'] = d['arp'] + out
     if REPORT:
         for k,v in d.items(): print('  stem',k,round(20*np.log10(np.sqrt((v**2).mean())+1e-9),1))
-    drums_ = d['kick'] * 1.0 + d['snare'] * 1.0 + d['hat'] + d['ride']
-    music = d['pad'] * sc + d['bass'] * sc * 1.0 + d['sub'] * sc + d['lead'] * 1.6 + d['arp'] * sc * 2.2
+    drums_ = d['kick'] * 1.15 + d['snare'] * 1.5 + d['hat'] * 1.4 + d['ride'] * 1.2 + d['perc'] * 1.3
+    dpk = np.percentile(np.abs(drums_), 99.5) + 1e-9
+    drums_ = np.tanh(drums_ / dpk * 1.4) * dpk * 0.85 + drums_ * 0.35   # parallel-crushed drum bus
+    music = d['pad'] * sc * 0.8 + d['bass'] * sc * 0.75 + d['sub'] * sc * 0.85 + d['lead'] * 1.0 + d['arp'] * sc * 1.2
     dl0, dl1, amt = pingpong(d['lead'] + d['arp'] * 0.5, BEAT * 0.75, 0.45, 0.22)
-    wet = reverb(d['snare'] * 0.15 + d['lead'] * 0.5 + d['pad'] * 0.6 + d['arp'] * 0.4 + d['fx'] * 0.5, 0.55)
-    mixb = drums_ * 1.05 + music + d['fx'] + wet + np.stack([dl0, dl1]) * amt
+    wet = reverb(d['snare'] * 0.12 + d['perc'] * 0.2 + d['lead'] * 0.6 + d['pad'] * 0.6 + d['arp'] * 0.4 + d['fx'] * 0.5, 0.55)
+    mixb = drums_ * 1.6 + music + d['fx'] + wet + np.stack([dl0, dl1]) * amt
     # glue: highpass the mud, soft clip
     mixb = np.stack([hp(28, mixb[0]), hp(28, mixb[1])])
     pk = np.percentile(np.abs(mixb), 99.9); mixb = np.tanh(mixb / pk * 1.15) / np.tanh(1.15)
@@ -358,7 +403,9 @@ if __name__ == '__main__':
     out = sys.argv[1]
     LOOP = 16 * BAR
     mx = Mix(2 * LOOP + 3)
-    compose_loop(mx, 0.0); compose_loop(mx, LOOP)
+    global rng
+    rng = np.random.default_rng(11); compose_loop(mx, 0.0)
+    rng = np.random.default_rng(11); compose_loop(mx, LOOP)
     m = master(mx)
     loop = m[:, int(LOOP * SR): int(2 * LOOP * SR)]
     INTRO = 8 * BAR
