@@ -248,7 +248,7 @@
     this.hemi.color.copy(zen).lerp(new THREE.Color(1, 1, 1), 0.45);
     this.hemi.groundColor.setRGB(0.16 * th.ground[0], 0.2 * th.ground[1], 0.12 * th.ground[2]);
     // night circuits: floodlit, so a stronger neutral fill
-    this.hemi.intensity = 0.34 + (1 - th.night) * 0.14 + th.clouds * 0.12 + th.night * 0.7;
+    this.hemi.intensity = 0.28 + (1 - th.night) * 0.1 + th.clouds * 0.12 + th.night * 0.7;
     if (th.night > 0.3) this.hemi.color.lerp(new THREE.Color(1, 0.95, 0.88), 0.6);
     this.bgHemi.color.copy(hz);
     this.bgHemi.groundColor.copy(hz).multiplyScalar(0.4);
@@ -257,8 +257,9 @@
     this.bgSun.intensity = sun.intensity * 0.45;
     this.scene.fog = new THREE.Fog(hz, th.fog[0], th.fog[1]);
     this.bgScene.fog = new THREE.Fog(hz, 900, 9000);
-    this.renderer.toneMappingExposure = th.exposure;
-    this.post.uniforms.exposure.value = th.exposure;
+    var cine = 0.86; // darker, more cinematic than a flat bright day
+    this.renderer.toneMappingExposure = th.exposure * cine;
+    this.post.uniforms.exposure.value = th.exposure * cine;
     this.post.uniforms.bloomStrength.value = 0.11 + th.night * 0.16;
     this.post.uniforms.sunTint.value.copy(sun.color);
     this.flareBase = 0.55 + Math.max(0, (30 - th.sun[0]) / 30) * 0.6;
@@ -492,7 +493,7 @@
     U.blurCenter.value.set(0.5, Math.max(0.2, Math.min(0.9, 1 - Cam.horizonY / h)));
     U.blurAmount.value = finish ? 0 : (chase ? 0.085 : 0.055) * Math.pow(sf, 1.35);
     U.speedLines.value = finish ? 0 : Math.max(0, Math.min(1, (c.speed - 58) / 30)) * 0.8;
-    U.vignette.value = 0.32 + 0.28 * sf;
+    U.vignette.value = 0.5 + 0.25 * sf;
     U.flash.value = Math.max(0, this.fx.flash) * 0.9;
     // sun on screen for the flare
     var sd = Hi.Env.sunDir(this.theme);

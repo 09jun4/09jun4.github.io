@@ -105,8 +105,8 @@
     if (e.code === 'KeyM') { DR.Audio.setMuted(!DR.Audio.muted); }
     if (e.code === 'KeyE' || e.code === 'KeyQ') { if (G.player && G.state === 'race') { G.player.autoGear = false; P.shift(G.player, e.code === 'KeyE'); hudGearMode(); } }
     if (e.code === 'KeyT' && G.player) { G.player.autoGear = !G.player.autoGear; hudGearMode(); }
-    if (e.code === 'Enter' && G.state === 'menu') start();
-    if (e.code === 'Enter' && G.state === 'done') start();
+    if (e.code === 'Enter' && G.state === 'menu') startL();
+    if (e.code === 'Enter' && G.state === 'done') startL();
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0) e.preventDefault();
   });
   window.addEventListener('keyup', function (e) { keys[e.code] = false; });
@@ -413,6 +413,7 @@
       b.addEventListener('click', function () {
         if (d.slug === C.SLUG) return;
         savePref(d.slug);
+        if (window.TMLoading) TMLoading.show('코스 불러오는 중');
         location.search = '?course=' + d.slug;
       });
       cl.appendChild(b);
@@ -433,6 +434,7 @@
       var g = b.getAttribute('data-gfx');
       if (g === G.gfx) return;
       G.gfx = g; savePref();
+      if (window.TMLoading) TMLoading.show('그래픽 바꾸는 중');
       location.reload(); // the renderer and the world are rebuilt for it
     });
   });
@@ -484,12 +486,14 @@
     showScreen('result');
   }
 
-  $('play').addEventListener('click', start);
+  // a short loading screen while the cars and the race are set up
+  function startL() { if (window.TMLoading) TMLoading.run('출발 준비 중', start); else start(); }
+  $('play').addEventListener('click', startL);
   $('rank-refresh').addEventListener('click', function () { renderRanking(true); });
   $('pause-resume').addEventListener('click', resume);
-  $('pause-restart').addEventListener('click', start);
+  $('pause-restart').addEventListener('click', startL);
   $('pause-menu').addEventListener('click', toMenu);
-  $('result-retry').addEventListener('click', start);
+  $('result-retry').addEventListener('click', startL);
   $('result-menu').addEventListener('click', toMenu);
   $('tc-view').addEventListener('click', toggleView);
   $('tc-reset').addEventListener('click', function () { if (G.state === 'race') resetCar(G.player); });
@@ -513,6 +517,19 @@
   G.aiInput = aiInput;
   DR.Main = G; // for tests
   G.start = start;
+  // graphics recommendation for this device (track-master/js/gfxrec.js)
+  if (window.TMGfxRec) {
+    var recG = TMGfxRec.level >= 2 ? 'high' : 'low';
+    var gfxBox = document.querySelector('.gfx') && document.querySelector('.gfx').parentNode;
+    if (gfxBox) {
+      var holder = document.createElement('div');
+      gfxBox.parentNode.insertBefore(holder, gfxBox.nextSibling);
+      TMGfxRec.row(holder, recG === 'high' ? '높음' : '낮음', function () { return G.gfx === recG; }, function () {
+        var b = document.querySelector('.gfx[data-gfx="' + recG + '"]'); if (b) b.click();
+      });
+    }
+  }
   toMenu();
+  if (window.TMLoading) TMLoading.hide();
   requestAnimationFrame(tick);
 })();

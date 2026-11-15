@@ -808,12 +808,17 @@
     }
   };
 
+  // A short loading screen while the race is built (feels like a freeze otherwise).
+  function withLoading(text, fn) {
+    if (window.TMLoading) TMLoading.run(text, fn); else fn();
+  }
+
   function primary() {
     if (Menu.tab === 'race') {
       if (CR.Main.raceActive) { CR.Main.raceActive = false; CR.Laps.reset(false); } // drop a paused practice
-      CR.Main.startRace();
+      withLoading('레이스 준비 중', function () { CR.Main.startRace(); });
     } else if (CR.Main.raceActive) CR.Main.resume();
-    else CR.Main.start();
+    else withLoading('서킷 준비 중', function () { CR.Main.start(); });
   }
 
   var SAVE_TEXT = {

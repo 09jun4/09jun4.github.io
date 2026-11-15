@@ -280,9 +280,8 @@
     }
     if (p === 'low') {
       Gfx.loading = false;
-      stopHigh();
-      Gfx.ready = true;
-      syncAll();
+      var toLow = function () { stopHigh(); Gfx.ready = true; syncAll(); };
+      if (hi && window.TMLoading && !opts.quiet) TMLoading.run('그래픽 바꾸는 중', toLow); else toLow();
       return;
     }
     if (!opts.quiet && Gfx.device.lowEnd && !flag(WARNED_KEY)) {
@@ -292,14 +291,21 @@
     Gfx.loading = true;
     Gfx.ready = false;
     syncAll();
+    if (window.TMLoading) TMLoading.show('3D 그래픽 불러오는 중');
+    var done = function () { if (window.TMLoading) TMLoading.hide(); };
     loadHigh().then(function () {
+      // one more frame so the loading screen is up before the heavy start
+      return new Promise(function (ok) { requestAnimationFrame(function () { setTimeout(ok, 0); }); });
+    }).then(function () {
       Gfx.loading = false;
-      if (Gfx.preset !== 'high') { Gfx.ready = true; syncAll(); return; } // changed mind while loading
+      if (Gfx.preset !== 'high') { Gfx.ready = true; syncAll(); done(); return; } // changed mind while loading
       if (!startHigh()) fallbackLow('3D 그래픽을 시작하지 못해 낮음으로 유지합니다.');
       Gfx.ready = true;
       syncAll();
+      done();
     }, function (e) {
       console.warn('[Gfx]', e && e.message);
+      done();
       Gfx.loading = false;
       Gfx.ready = true;
       fallbackLow('3D 그래픽 파일을 불러오지 못했어요. 낮음으로 유지합니다.');
@@ -313,10 +319,13 @@
     if (save !== false) { try { localStorage.setItem(DETAIL_KEY, String(t)); } catch (e) { /* storage unavailable */ } }
     if (t === Gfx.tier) { syncAll(); return; }
     Gfx.tier = t;
-    if (hi) hi.setQuality(TIERS[t], t);
-    if (CR.Cockpit && hi) CR.Cockpit.hiMirrors = t === 0;
-    previewCache = {};
-    syncAll();
+    var apply = function () {
+      if (hi) hi.setQuality(TIERS[t], t);
+      if (CR.Cockpit && hi) CR.Cockpit.hiMirrors = t === 0;
+      previewCache = {};
+      syncAll();
+    };
+    if (hi && window.TMLoading && save !== false) TMLoading.run('그래픽 바꾸는 중', apply); else apply();
   }
   Gfx.setTier = function (t, opts) { setTier(t, !(opts && opts.save === false)); };
 
@@ -365,7 +374,7 @@
   // false means the caller draws the 2D picture as before. spin: the card turns
   // the car slowly and can be dragged round (menu, own car); otherwise a still
   // studio image, cached per car and size.
-  var previewCache = {}, turn = null;
+  var previewCache = {}, turns = [], turnRaf = 0, turnLast = 0;
 
   function sizeCanvas(cnv, fallbackW, fallbackH) {
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -407,8 +416,8 @@
       var sz = sizeCanvas(cnv, 200, 110), pw = Math.round(sz.w * sz.dpr), ph = Math.round(sz.h * sz.dpr);
       var ctx = cnv.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      if (opts.spin) { startTurntable(cnv, car, pw, ph); return true; }
-      if (turn && turn.cnv === cnv) stopTurntable();
+      if (opts.spin || Gfx.tier === 0) { startTurntable(cnv, car, pw, ph, !opts.spin); return true; }
+      dropTurn(cnv);
       ctx.clearRect(0, 0, pw, ph);
       ctx.drawImage(stillImage(car, Math.max(1, Math.round(pw / 2)) , Math.max(1, Math.round(ph / 2))), 0, 0, pw, ph);
       return true;
@@ -418,43 +427,62 @@
     }
   };
 
-  function startTurntable(cnv, car, pw, ph) {
-    if (turn && turn.cnv === cnv) { turn.car = car; turn.pw = pw; turn.ph = ph; return; }
-    stopTurntable();
-    turn = { cnv: cnv, car: car, pw: pw, ph: ph, angle: -0.65, vel: 0.32, drag: null, raf: 0, last: 0 };
+  // Turntables: the own-car card always spins; with every setting at the top
+  // (높음 + 세부 품질 최고) every shop card spins too. One animation loop
+  // renders all visible cards; each can be dragged round.
+  function turnOf(cnv) { for (var i = 0; i < turns.length; i++) if (turns[i].cnv === cnv) return turns[i]; return null; }
+  function dropTurn(cnv) { turns = turns.filter(function (t) { return t.cnv !== cnv; }); if (!turns.length) stopTurntable(); }
+  function startTurntable(cnv, car, pw, ph, shop) {
+    var t = turnOf(cnv);
+    if (t) { t.car = car; t.pw = pw; t.ph = ph; }
+    else {
+      t = { cnv: cnv, car: car, pw: pw, ph: ph, angle: -0.65 + (shop ? turns.length * 0.9 : 0), vel: shop ? 0.24 : 0.32, drag: null, resume: 0 };
+      turns.push(t);
+    }
     if (!cnv._gfxDrag) {
       cnv._gfxDrag = true;
-      cnv.addEventListener('pointerdown', function (e) { if (!turn || turn.cnv !== cnv) return; turn.drag = { x: e.clientX, a: turn.angle, t: performance.now() }; });
+      cnv.addEventListener('pointerdown', function (e) { var tt = turnOf(cnv); if (!tt) return; tt.drag = { x: e.clientX, a: tt.angle }; });
       window.addEventListener('pointermove', function (e) {
-        if (!turn || turn.cnv !== cnv || !turn.drag) return;
-        var dx = e.clientX - turn.drag.x;
-        turn.angle = turn.drag.a + dx * 0.012;
+        var tt = turnOf(cnv); if (!tt || !tt.drag) return;
+        tt.angle = tt.drag.a + (e.clientX - tt.drag.x) * 0.012;
       });
-      window.addEventListener('pointerup', function () { if (turn && turn.drag) { turn.drag = null; turn.resume = performance.now() + 1500; } });
+      window.addEventListener('pointerup', function () { var tt = turnOf(cnv); if (tt && tt.drag) { tt.drag = null; tt.resume = performance.now() + 1500; } });
       cnv.style.cursor = 'grab';
     }
-    var step = function (now) {
-      if (!turn || turn.cnv !== cnv) return;
-      if (Gfx.active !== 'high' || !hi || document.hidden || (CR.Menu && CR.Menu.el && CR.Menu.el.hidden)) { stopTurntable(); return; }
-      var dt = turn.last ? Math.min(0.1, (now - turn.last) / 1000) : 0;
-      turn.last = now;
-      if (!turn.drag && (!turn.resume || now > turn.resume)) turn.angle += turn.vel * dt;
+    if (!turnRaf) { turnLast = 0; turnRaf = requestAnimationFrame(turnStep); }
+  }
+  function turnStep(now) {
+    turnRaf = 0;
+    if (!turns.length) return;
+    if (Gfx.active !== 'high' || !hi || document.hidden || (CR.Menu && CR.Menu.el && CR.Menu.el.hidden)) { stopTurntable(); return; }
+    var dt = turnLast ? Math.min(0.1, (now - turnLast) / 1000) : 0;
+    turnLast = now;
+    var vh = window.innerHeight || 800;
+    for (var i = 0; i < turns.length; i++) {
+      var t = turns[i];
+      if (!t.cnv.isConnected) continue;
+      if (!t.drag && (!t.resume || now > t.resume)) t.angle += t.vel * dt;
+      var rc = t.cnv.getBoundingClientRect();
+      if (rc.bottom < 0 || rc.top > vh || rc.width === 0) continue; // off screen: skip the draw
       try {
-        var src = hi.renderPreview(turn.car.model, turn.pw, turn.ph, turn.angle, true);
-        var ctx = cnv.getContext('2d');
+        var src = hi.renderPreview(t.car.model, t.pw, t.ph, t.angle, true);
+        var ctx = t.cnv.getContext('2d');
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(src.source, src.sx, src.sy, src.sw, src.sh, 0, 0, cnv.width, cnv.height);
+        ctx.clearRect(0, 0, t.cnv.width, t.cnv.height);
+        ctx.drawImage(src.source, src.sx, src.sy, src.sw, src.sh, 0, 0, t.cnv.width, t.cnv.height);
       } catch (e) { console.warn('[Gfx] turntable', e); stopTurntable(); return; }
-      turn.raf = requestAnimationFrame(step);
-    };
-    turn.raf = requestAnimationFrame(step);
+    }
+    turns = turns.filter(function (t) { return t.cnv.isConnected; });
+    turnRaf = requestAnimationFrame(turnStep);
   }
   function stopTurntable() {
-    if (turn && turn.raf) cancelAnimationFrame(turn.raf);
-    turn = null;
+    if (turnRaf) cancelAnimationFrame(turnRaf);
+    turnRaf = 0;
+    turns = [];
   }
   Gfx.stopTurntable = stopTurntable;
+  Gfx.spinning = function () { return turns.length; }; // tests
 
   // --- Settings UI (menu 그래픽 panel + pause card) ------------------------------
 
@@ -464,6 +492,16 @@
     if (text != null) n.textContent = text;
     return n;
   }
+
+  // Recommended preset / detail tier for this device: level from gfxrec.js
+  // (3 high-end PC, 2 ordinary PC or strong phone, 1 weak GPU, 0 none).
+  Gfx.recommended = function () {
+    var R = window.TMGfxRec, lv = R ? R.level : (Gfx.device && Gfx.device.highEnd ? 3 : 1), mob = R ? R.device.mobile : Gfx.device && Gfx.device.mobile;
+    if (!Gfx.device || !Gfx.device.webgl || lv === 0) return { preset: 'low', tier: 1 };
+    if (lv >= 3) return { preset: 'high', tier: 0 };
+    if (lv === 2) return { preset: 'high', tier: mob ? 2 : 1 };
+    return mob ? { preset: 'low', tier: 2 } : { preset: 'high', tier: 3 };
+  };
 
   Gfx.summary = function () {
     if (Gfx.loading) return '높음 불러오는 중…';
@@ -513,8 +551,19 @@
     box.appendChild(drow);
     var note = el('p', 'gfx-note');
     box.appendChild(note);
+    // recommendation for this device (track-master/js/gfxrec.js)
+    var recRefresh = null;
+    if (window.TMGfxRec && !opts.compact) {
+      var rec = Gfx.recommended();
+      recRefresh = TMGfxRec.row(box, rec.preset === 'high' ? '높음 · 세부 품질 ' + TIERS[rec.tier].name : '낮음',
+        function () { return Gfx.preset === rec.preset && (rec.preset === 'low' || Gfx.tier === rec.tier); },
+        function () {
+          if (rec.preset === 'high') { if (Gfx.preset === 'high' && Gfx.active === 'high') setTier(rec.tier, true); else { try { localStorage.setItem(DETAIL_KEY, String(rec.tier)); } catch (e) { /* ignore */ } Gfx.tier = rec.tier; } }
+          Gfx.setPreset(rec.preset);
+        });
+    }
     container.appendChild(box);
-    var copy = { box: box, buttons: buttons, note: note, compact: !!opts.compact, detail: drow, dbuttons: dbuttons };
+    var copy = { box: box, buttons: buttons, note: note, compact: !!opts.compact, detail: drow, dbuttons: dbuttons, recRefresh: recRefresh };
     copies.push(copy);
     sync(copy);
     return box;
@@ -522,6 +571,7 @@
 
   function sync(copy) {
     var d = Gfx.device || {};
+    if (copy.recRefresh) copy.recRefresh();
     ['low', 'high'].forEach(function (p) {
       var on = Gfx.preset === p;
       copy.buttons[p].classList.toggle('is-on', on);

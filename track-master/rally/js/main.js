@@ -201,15 +201,24 @@
     chipSet('gx-preset', [['high', 'HIGH'], ['low', 'LOW'], ['custom', '사용자 지정']], g.preset, function (k) {
       if (k === 'custom') { g.preset = 'custom'; }
       else { Object.assign(g, D.GRAPHICS[k]); g.preset = k; }
-      PS.save(); applyGraphics(); renderGraphics();
+      PS.save(); applyGraphics(true); renderGraphics(); if (recRefresh) recRefresh();
     });
-    var custom = function (fn) { return function (x) { var r = fn(x); g.preset = 'custom'; PS.save(); applyGraphics(); markPreset(); return r; }; };
+    var custom = function (fn) { return function (x) { var r = fn(x); g.preset = 'custom'; PS.save(); applyGraphics(); markPreset(); if (recRefresh) recRefresh(); return r; }; };
     slider('gx-res', Math.round(g.resolution * 100), custom(function (x) { g.resolution = x / 100; return x + '%'; }));
     slider('gx-view', g.viewDistance, custom(function (x) { g.viewDistance = x; return x + ' m'; }));
     slider('gx-part', Math.round(g.particles * 100), custom(function (x) { g.particles = x / 100; return x + '%'; }));
     slider('gx-veg', Math.round(g.vegetation * 100), custom(function (x) { g.vegetation = x / 100; return x + '%'; }));
-    $('gx-shadow').checked = g.shadows; $('gx-shadow').onchange = function () { g.shadows = this.checked; g.preset = 'custom'; PS.save(); applyGraphics(); markPreset(); };
+    $('gx-shadow').checked = g.shadows; $('gx-shadow').onchange = function () { g.shadows = this.checked; g.preset = 'custom'; PS.save(); applyGraphics(true); markPreset(); if (recRefresh) recRefresh(); };
     $('gx-fps').checked = S().hud.fps; $('gx-fps').onchange = function () { S().hud.fps = this.checked; PS.save(); RL.HUD.applyVisibility(S().hud); };
+  }
+  var recRefresh = null;
+  if (G.TMGfxRec) {
+    var recP = G.TMGfxRec.level >= 2 ? 'high' : 'low';
+    var recHolder = document.createElement('div');
+    var presetEl = $('gx-preset'); presetEl.parentNode.insertBefore(recHolder, presetEl.nextSibling);
+    recRefresh = G.TMGfxRec.row(recHolder, recP.toUpperCase(), function () { return S().graphics.preset === recP; }, function () {
+      var g = S().graphics; Object.assign(g, D.GRAPHICS[recP]); g.preset = recP; PS.save(); applyGraphics(true); renderGraphics();
+    });
   }
   function markPreset() { qa('#gx-preset [data-k]').forEach(function (b) { b.classList.toggle('on', b.dataset.k === S().graphics.preset); }); }
 
@@ -230,9 +239,12 @@
       if (transChanged && s.transmission === 'AUTOMATIC' && M.car.gear < 1) M.car.gear = 1;
     }
   }
-  function applyGraphics() {
+  // loading: show the loading screen (preset / shadow changes rebuild a lot)
+  function applyGraphics(loading) {
     var g = S().graphics;
-    if (W.renderer) { W.applyGraphics(g); if (M.cam) M.cam.setFar(g.viewDistance + 80); }
+    if (!W.renderer) return;
+    var go = function () { W.applyGraphics(g); if (M.cam) M.cam.setFar(g.viewDistance + 80); };
+    if (loading && G.TMLoading) G.TMLoading.run('그래픽 바꾸는 중', go); else go();
   }
   function applyAll() { applyCarSetup(); applyGraphics(); RL.HUD.applyVisibility(S().hud); }
 
@@ -252,7 +264,9 @@
     RL.Audio.unlock();
     var key = M.seed + '|' + M.length;
     show('loading'); $('loading-text').textContent = '코스 생성 중… (' + D.LENGTHS[M.length].label + ')';
-    setTimeout(function () {
+    if (G.TMLoading) G.TMLoading.show('코스 생성 중 · ' + D.LENGTHS[M.length].label);
+    var later = function (fn) { requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(fn, 0); }); }); };
+    later(function () {
       try {
         ensureWorld();
         if (!M.route || M.routeKey !== key) { M.route = RL.Track.generate(M.seed, M.length); M.routeKey = key; }
@@ -277,10 +291,12 @@
         // warm up: one frame so shaders compile before the clock runs
         M.vehicle.update(M.car); M.cam.update(0.016, M.car, M.vehicle); W.update(0.016, M.cam.cam, M.car); W.render(M.cam.cam);
         last = performance.now();
+        if (G.TMLoading) G.TMLoading.hide();
       } catch (e) {
         console.error(e); $('loading-text').textContent = '코스를 만들지 못했어요: ' + e.message;
+        if (G.TMLoading) G.TMLoading.hide();
       }
-    }, 30);
+    });
   }
 
   function pause(on) {
