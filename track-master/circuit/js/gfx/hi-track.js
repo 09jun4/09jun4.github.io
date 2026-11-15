@@ -250,14 +250,17 @@
     // --- Walls: concrete barrier (inner face, top, outer face) --------------------------
     var wallMat = R.std({ map: R.texConcrete, color: 0xd9dce0, roughness: 0.85, metalness: 0 }, 'wall');
     var notBridge = function (i) { return S[i].bridge || S[(i + 1) % n].bridge; };
+    // 리얼리스틱 pit entry / exit: no wall face where the pit-side wall jumps (openings)
+    var skipL = function (i) { return notBridge(i) || S[i].pitJump === 1; };
+    var skipR = function (i) { return notBridge(i) || S[i].pitJump === -1; };
     var wallL = strip(S, D, function (i) {
       var w = S[i].wallLeft;
       return [[w, 0], [w, WALL_H], [w, WALL_H], [w + WALL_T, WALL_H], [w + WALL_T, WALL_H], [w + WALL_T, 0]];
-    }, { uv: 'world', uScale: 2, vScale: 4, skip: notBridge, flip: true, gap: function (k) { return k === 1 || k === 3; } });
+    }, { uv: 'world', uScale: 2, vScale: 4, skip: skipL, flip: true, gap: function (k) { return k === 1 || k === 3; } });
     var wallR = strip(S, D, function (i) {
       var w = S[i].wallRight;
       return [[-w - WALL_T, 0], [-w - WALL_T, WALL_H], [-w - WALL_T, WALL_H], [-w, WALL_H], [-w, WALL_H], [-w, 0]];
-    }, { uv: 'world', uScale: 2, vScale: 4, skip: notBridge, flip: true, gap: function (k) { return k === 1 || k === 3; } });
+    }, { uv: 'world', uScale: 2, vScale: 4, skip: skipR, flip: true, gap: function (k) { return k === 1 || k === 3; } });
     group.add(mesh(R, merge([wallL, wallR]), wallMat, { cast: true }));
 
     // Sponsor bands on the inner face, board by board (atlas rows vary).
@@ -267,7 +270,7 @@
       var pos = [], uvs = [];
       for (var i = 0; i < n; i++) {
         var j = (i + 1) % n, a = S[i], b = S[j];
-        if (a.bridge || b.bridge) continue;
+        if (a.bridge || b.bridge || a.pitJump === side) continue;
         var chunk = Math.floor(D[i] / BOARD);
         if ((chunk + (side > 0 ? 0 : 1)) % 3 === 2) continue;
         var row = (chunk * 5 + (side > 0 ? 1 : 4)) % rowsN;
@@ -313,8 +316,8 @@
     R.register(fenceMat);
     var fo = WALL_T / 2;
     var fences = [
-      strip(S, D, function (i) { var w = S[i].wallLeft + fo; return [[w, WALL_H], [w - FENCE_LEAN, FENCE_TOP]]; }, { uv: 'world', uScale: 0.32, vScale: 0.32, skip: notBridge }),
-      strip(S, D, function (i) { var w = -S[i].wallRight - fo; return [[w, WALL_H], [w + FENCE_LEAN, FENCE_TOP]]; }, { uv: 'world', uScale: -0.32, vScale: 0.32, skip: notBridge }),
+      strip(S, D, function (i) { var w = S[i].wallLeft + fo; return [[w, WALL_H], [w - FENCE_LEAN, FENCE_TOP]]; }, { uv: 'world', uScale: 0.32, vScale: 0.32, skip: skipL }),
+      strip(S, D, function (i) { var w = -S[i].wallRight - fo; return [[w, WALL_H], [w + FENCE_LEAN, FENCE_TOP]]; }, { uv: 'world', uScale: -0.32, vScale: 0.32, skip: skipR }),
     ];
     // world u = offset/scale is a poor fit for a sloped face: use height instead
     fences.forEach(function (g) {
@@ -327,8 +330,8 @@
     var cableMat = R.std({ color: 0x6d737c, roughness: 0.5, metalness: 0.8 }, 'cable');
     var cables = [];
     [[FENCE_LEAN * 0.45, 2.47, 0.05], [FENCE_LEAN, FENCE_TOP - 0.03, 0.06]].forEach(function (cb) {
-      cables.push(strip(S, D, function (i) { var w = S[i].wallLeft + fo - cb[0]; return [[w, cb[1] - cb[2]], [w, cb[1] + cb[2]]]; }, { skip: notBridge }));
-      cables.push(strip(S, D, function (i) { var w = -S[i].wallRight - fo + cb[0]; return [[w, cb[1] + cb[2]], [w, cb[1] - cb[2]]]; }, { skip: notBridge }));
+      cables.push(strip(S, D, function (i) { var w = S[i].wallLeft + fo - cb[0]; return [[w, cb[1] - cb[2]], [w, cb[1] + cb[2]]]; }, { skip: skipL }));
+      cables.push(strip(S, D, function (i) { var w = -S[i].wallRight - fo + cb[0]; return [[w, cb[1] + cb[2]], [w, cb[1] - cb[2]]]; }, { skip: skipR }));
     });
     var cm = mesh(R, merge(cables), cableMat, { receive: false });
     cm.material.side = THREE.DoubleSide;

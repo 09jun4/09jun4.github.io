@@ -77,17 +77,20 @@
       '<div class="rl-panel">' +
       '  <div class="rl-row rl-tyre-row"><span class="rl-k">타이어</span><span class="rl-cur"></span><span class="rl-wear"><i></i></span><b class="rl-wear-txt"></b></div>' +
       '  <div class="rl-row"><span class="rl-k">배터리</span><span class="rl-bar rl-soc"><i></i></span><b class="rl-soc-txt"></b></div>' +
-      '  <div class="rl-row rl-modes"><span class="rl-mode rl-ot">OVERTAKE</span><span class="rl-mode rl-boost">BOOST</span><span class="rl-mode rl-straight">STRAIGHT</span></div>' +
+      '  <div class="rl-row rl-temps"><span class="rl-k">온도</span><span class="rl-car"><i></i><i></i><i></i><i></i></span><b class="rl-temp-txt"></b></div>' +
+      '  <div class="rl-row rl-modes"><span class="rl-mode rl-ot">OVERTAKE</span><span class="rl-mode rl-boost">BOOST</span><span class="rl-mode rl-straight">STRAIGHT</span><span class="rl-mode rl-tow">TOW</span></div>' +
       '  <div class="rl-row"><span class="rl-k">연료</span><b class="rl-fuel"></b><span class="rl-k">다음</span><span class="rl-next"></span><b class="rl-box"></b></div>' +
       '  <div class="rl-row rl-pen" hidden></div>' +
       '  <div class="rl-row rl-gaps"></div>' +
       '</div>' +
+      '<div class="rl-pitcue" hidden></div>' +
       '<div class="rl-pitstop" hidden><div class="rl-ps-title">PIT STOP</div><div class="rl-ps-time">0.0</div><div class="rl-ps-crew"></div><div class="rl-ps-note"></div></div>' +
       '<div class="rl-q" hidden></div>' +
       '<div class="rl-touch">' +
-      '  <button type="button" data-act="box">BOX<small>P</small></button>' +
+      '  <button type="button" data-act="box">BOX<small>F</small></button>' +
+      '  <button type="button" data-act="stay">STAY<small>X</small></button>' +
       '  <button type="button" data-act="tyre">타이어<small>T</small></button>' +
-      '  <button type="button" data-act="ot">OT<small>O</small></button>' +
+      '  <button type="button" data-act="ot">MOM<small>Shift</small></button>' +
       '  <button type="button" data-act="boost">BOOST<small>B</small></button>' +
       '</div>';
     document.body.appendChild(els.hud);
@@ -100,6 +103,7 @@
     els.ps = q('.rl-pitstop'); els.psTime = q('.rl-ps-time'); els.psCrew = q('.rl-ps-crew'); els.psNote = q('.rl-ps-note');
     els.q = q('.rl-q');
     els.tyreRow = q('.rl-tyre-row');
+    els.temps = q('.rl-car').children; els.tempTxt = q('.rl-temp-txt'); els.tow = q('.rl-tow'); els.pitcue = q('.rl-pitcue');
     els.gaps = q('.rl-gaps');
     // crew dots for the 2D pit stop panel (top view of the car and 4 wheel crews)
     els.psCrew.innerHTML = '<svg viewBox="0 0 120 70" aria-hidden="true"><rect class="ps-car" x="44" y="10" width="32" height="50" rx="10"/>' +
@@ -119,6 +123,7 @@
       if (!b) return;
       var a = b.getAttribute('data-act');
       if (a === 'box') CR.Real.requestBox();
+      else if (a === 'stay') CR.Real.stayOut();
       else if (a === 'tyre') CR.Real.cycleTyre();
       else if (a === 'ot') CR.Real.overtake();
       else if (a === 'boost') { boostLatch = !boostLatch; CR.Real.setBoost(boostLatch); }
@@ -127,9 +132,10 @@
       if (!CR.Real || !CR.Real.on || !CR.Main || CR.Main.state !== 'playing') return;
       if (e.code === 'KeyB') CR.Real.setBoost(true);
       if (e.repeat) return;
-      if (e.code === 'KeyP') CR.Real.requestBox();
+      if (e.code === 'KeyF' || e.code === 'KeyP') CR.Real.requestBox();
+      else if (e.code === 'KeyX') CR.Real.stayOut();
       else if (e.code === 'KeyT') CR.Real.cycleTyre();
-      else if (e.code === 'KeyO') CR.Real.overtake();
+      else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') CR.Real.overtake(); // MOM (Manual Override Mode)
     });
     window.addEventListener('keyup', function (e) { if (e.code === 'KeyB' && CR.Real) CR.Real.setBoost(boostLatch); });
     CR.Real.onMessage = function (m) { pushRadio(m); };
@@ -179,7 +185,7 @@
   function pushRadio(m) {
     if (!els.radio) return;
     var row = el('div', 'rl-msg is-' + m.kind);
-    row.appendChild(el('b', null, m.kind === 'race' ? '레이스 컨트롤' : m.kind === 'flag' ? '플래그' : '엔지니어'));
+    row.appendChild(el('b', null, m.kind === 'race' ? '레이스 컨트롤' : m.kind === 'flag' ? '플래그' : m.kind === 'box' ? '팀 라디오' : '엔지니어'));
     row.appendChild(el('span', null, m.text));
     els.radio.appendChild(row);
     while (els.radio.children.length > 3) els.radio.removeChild(els.radio.firstChild);
@@ -197,6 +203,7 @@
     if (panelT <= 0) { panelT = 0.1; updatePanel(); }
     updatePitStop();
     updateFlag();
+    updatePitCue();
   };
 
   function updatePanel() {
@@ -206,7 +213,18 @@
     var life = Math.max(0, 1 - st.wear);
     els.wear.style.width = Math.round(life * 100) + '%';
     els.wear.style.background = life > 0.5 ? '#5ee39a' : life > 0.2 ? '#ffd23f' : '#ff5a4e';
-    els.wearTxt.textContent = Math.round(life * 100) + '%' + (st.warm < 0.8 ? ' · 저온' : '');
+    els.wearTxt.textContent = Math.round(life * 100) + '%';
+    // tyre temperatures: four corners coloured cold (blue) / window (green) / hot (red)
+    var opt = CR.RealPhys.OPT[st.tyre] || 100;
+    for (var ti = 0; ti < 4; ti++) {
+      var tc = st.corners[ti], dd = tc - opt;
+      els.temps[ti].style.background = dd < -30 ? '#3d7bff' : dd < -12 ? '#5ec8ff' : dd <= 15 ? '#5ee39a' : dd <= 28 ? '#ffb020' : '#ff4e3e';
+      els.temps[ti].title = Math.round(tc) + '°C';
+    }
+    var dAvg = st.temp - opt;
+    els.tempTxt.textContent = Math.round(st.temp) + '°C' + (dAvg < -20 ? ' 저온' : dAvg > 20 ? ' 과열' : '');
+    els.tempTxt.style.color = dAvg < -20 ? '#5ec8ff' : dAvg > 20 ? '#ff8a7a' : '';
+    els.tow.classList.toggle('is-on', st.tow > 0.25);
     els.soc.style.width = Math.round(st.soc / d.BATTERY_MJ * 100) + '%';
     els.socTxt.textContent = st.soc.toFixed(1) + 'MJ';
     els.ot.classList.toggle('is-avail', !!st.otAvail);
@@ -264,6 +282,22 @@
       if (g > -60 && g < 400) return true;
     }
     return false;
+  }
+
+  // Box requested: distance to the pit entry and which side it is on.
+  function updatePitCue() {
+    var R = CR.Real, show = false;
+    if (R.phase === 'race' && R.pl && R.pl.box && !CR.Car.state.inPit && CR.Race.phase === 'green') {
+      var rel = CR.RealPit.relOf(CR.Race.player.dist), to = -CR.RealPit.ENTRY - rel;
+      if (to > 0 && to < 1200) {
+        show = true;
+        var left = CR.RealPit.side > 0;
+        var txt = (left ? '◀ ' : '') + 'PIT ENTRY ' + Math.round(to) + 'm' + (left ? '' : ' ▶');
+        if (els.pitcue.textContent !== txt) els.pitcue.textContent = txt;
+        els.pitcue.classList.toggle('is-near', to < 300);
+      }
+    }
+    els.pitcue.hidden = !show;
   }
 
   // 2D pit stop panel (both presets; the 3D view adds the crew around the car).
@@ -435,7 +469,7 @@
     }
     var keys = el('section', 'race-card rl-keys');
     keys.appendChild(el('div', 'menu-section', '조작'));
-    keys.appendChild(el('p', 'race-card-note rl-left', 'P 피트인 요청 · T 다음 타이어 · O 오버테이크 모드(앞차 1초 이내로 감지선 통과 시) · B 부스트(누르는 동안 배터리 사용) · 직선 구간에서 스트레이트 모드 자동'));
+    keys.appendChild(el('p', 'race-card-note rl-left', 'F 피트인 요청(BOX BOX BOX) · X 스테이 아웃 · T 다음 타이어 · Shift 오버테이크 모드 MOM(앞차 1초 이내로 감지선 통과 시) · B 부스트(누르는 동안 배터리 사용) · 직선 구간 스트레이트 모드 자동 · 앞차 바로 뒤 슬립스트림(TOW)'));
     panel.appendChild(keys);
   };
   function choiceRow(label, items, cur, onPick) {

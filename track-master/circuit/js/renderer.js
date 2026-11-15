@@ -199,6 +199,17 @@
       pitStrip(ctx, samples, idx, sd * m, sd * (m + 0.18), sd * m, sd * (m + 0.18), 0.01);
     }
     ctx.fill();
+    // yellow line along the track edge beside the entry / exit lanes
+    var hwl = CR.Config.TRACK_WIDTH / 2;
+    ctx.fillStyle = '#ffd23f';
+    ctx.beginPath();
+    for (k = 0; k < nv; k++) {
+      idx = visible[k]; a = samples[idx].pit; b = samples[nextIdx[idx]].pit;
+      if (!a || !b || a.lim || a.inner) continue;
+      sd = a.side;
+      pitStrip(ctx, samples, idx, sd * (hwl + 0.45), sd * (hwl + 0.8), sd * (hwl + 0.45), sd * (hwl + 0.8), 0.012);
+    }
+    ctx.fill();
     var G = CR.RealPit && CR.RealPit.garages;
     if (!G) return;
     var P = CR.RealPit, n = samples.length;
@@ -241,6 +252,30 @@
       sideFace(ctx, a, b, sd * P.garage, 0, 5.6);
     }
     ctx.fill();
+    // PIT boards facing the traffic before the entry (yellow, black chevrons)
+    var rc = CR.Race._ctx(), hwb = CR.Config.TRACK_WIDTH / 2;
+    [-P.ENTRY - 60, -P.ENTRY - 15].forEach(function (rel) {
+      var bs = samples[rc.indexAt(rc.wrapDist(rel), 0)];
+      var fwd = Cam.forward(bs.x, bs.y);
+      if (fwd < 2 || fwd > viewFar) return;
+      var o0 = sd * (hwb + 3), o1 = sd * (hwb + 5.2);
+      var quad = function (oa, ob, z0, z1, col) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        Cam.beginPoly();
+        Cam.vertex(bs.x + bs.nx * oa, bs.y + bs.ny * oa, z0);
+        Cam.vertex(bs.x + bs.nx * ob, bs.y + bs.ny * ob, z0);
+        Cam.vertex(bs.x + bs.nx * ob, bs.y + bs.ny * ob, z1);
+        Cam.vertex(bs.x + bs.nx * oa, bs.y + bs.ny * oa, z1);
+        Cam.endPoly(ctx);
+        ctx.fill();
+      };
+      var om = (o0 + o1) / 2;
+      quad(om - 0.06, om + 0.06, 0, 2.2, '#3a3f47');
+      quad(o0, o1, 2.2, 4.4, '#ffd23f');
+      quad(o0 + (o1 - o0) * 0.2, o0 + (o1 - o0) * 0.8, 2.6, 3.0, '#111111');
+      quad(o0 + (o1 - o0) * 0.2, o0 + (o1 - o0) * 0.8, 3.4, 3.8, '#111111');
+    });
     var G = P.garages;
     for (var g = 0; g < G.length; g++) {
       var s0 = samples[G[g].i0], s1 = samples[G[g].i1];
@@ -1137,8 +1172,8 @@
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
           if (a.bridge) continue;
-          wallFace(ctx, samples, idx, n, a.wallLeft, b.wallLeft);
-          wallFace(ctx, samples, idx, n, -a.wallRight, -b.wallRight);
+          if (a.pitJump !== 1) wallFace(ctx, samples, idx, n, a.wallLeft, b.wallLeft);
+          if (a.pitJump !== -1) wallFace(ctx, samples, idx, n, -a.wallRight, -b.wallRight);
         }
         ctx.fill();
         ctx.fillStyle = WALL_TOP_COLOR;
@@ -1146,8 +1181,8 @@
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
           if (a.bridge) continue;
-          strip(ctx, samples, idx, n, a.wallLeft, a.wallLeft + WALL_THICKNESS, b.wallLeft, b.wallLeft + WALL_THICKNESS, WALL_HEIGHT);
-          strip(ctx, samples, idx, n, -a.wallRight, -a.wallRight - WALL_THICKNESS, -b.wallRight, -b.wallRight - WALL_THICKNESS, WALL_HEIGHT);
+          if (a.pitJump !== 1) strip(ctx, samples, idx, n, a.wallLeft, a.wallLeft + WALL_THICKNESS, b.wallLeft, b.wallLeft + WALL_THICKNESS, WALL_HEIGHT);
+          if (a.pitJump !== -1) strip(ctx, samples, idx, n, -a.wallRight, -a.wallRight - WALL_THICKNESS, -b.wallRight, -b.wallRight - WALL_THICKNESS, WALL_HEIGHT);
         }
         ctx.fill();
         // Catch fencing on top of this chunk of wall (near the camera only).
@@ -1164,8 +1199,8 @@
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
           if (a.bridge || Cam.forward(a.x, a.y) > FENCE_NEAR) continue;
-          fenceFace(ctx, samples, idx, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
-          fenceFace(ctx, samples, idx, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
+          if (a.pitJump !== 1) fenceFace(ctx, samples, idx, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
+          if (a.pitJump !== -1) fenceFace(ctx, samples, idx, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN, WALL_HEIGHT, FENCE_TOP);
         }
         ctx.fill();
         ctx.fillStyle = FENCE_CABLE;
@@ -1174,10 +1209,10 @@
           idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
           if (a.bridge || Cam.forward(a.x, a.y) > FENCE_NEAR) continue;
           var lf = FENCE_LEAN * 0.45;
-          fenceFace(ctx, samples, idx, a.wallLeft + fo - lf, a.wallLeft + fo - lf, 2.45, 2.5);
-          fenceFace(ctx, samples, idx, -a.wallRight - fo + lf, -a.wallRight - fo + lf, 2.45, 2.5);
-          fenceFace(ctx, samples, idx, a.wallLeft + fo - FENCE_LEAN, a.wallLeft + fo - FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
-          fenceFace(ctx, samples, idx, -a.wallRight - fo + FENCE_LEAN, -a.wallRight - fo + FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
+          if (a.pitJump !== 1) fenceFace(ctx, samples, idx, a.wallLeft + fo - lf, a.wallLeft + fo - lf, 2.45, 2.5);
+          if (a.pitJump !== -1) fenceFace(ctx, samples, idx, -a.wallRight - fo + lf, -a.wallRight - fo + lf, 2.45, 2.5);
+          if (a.pitJump !== 1) fenceFace(ctx, samples, idx, a.wallLeft + fo - FENCE_LEAN, a.wallLeft + fo - FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
+          if (a.pitJump !== -1) fenceFace(ctx, samples, idx, -a.wallRight - fo + FENCE_LEAN, -a.wallRight - fo + FENCE_LEAN, FENCE_TOP - 0.06, FENCE_TOP);
         }
         ctx.fill();
         ctx.fillStyle = FENCE_POST;
@@ -1185,8 +1220,8 @@
         for (k = end - 1; k >= start; k--) {
           idx = visible[k]; a = samples[idx];
           if (a.bridge || idx % 2 || Cam.forward(a.x, a.y) > FENCE_NEAR * 0.7) continue;
-          fencePost(ctx, a, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN);
-          fencePost(ctx, a, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN);
+          if (a.pitJump !== 1) fencePost(ctx, a, a.wallLeft + fo, a.wallLeft + fo - FENCE_LEAN);
+          if (a.pitJump !== -1) fencePost(ctx, a, -a.wallRight - fo, -a.wallRight - fo + FENCE_LEAN);
         }
         ctx.fill();
       }

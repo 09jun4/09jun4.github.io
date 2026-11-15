@@ -1261,3 +1261,19 @@ body.touch .rl-flag:not([hidden]) ~ .rl-radio { top: 112px; }
 @media (max-width: 560px) { .rl-choice { grid-template-columns: 1fr; gap: 4px; } .rl-choice-label { padding-top: 0; } }
 body.real-wet #game-canvas { filter: saturate(0.82) brightness(0.93); }
 .rl-card .rr-chip, .race-tower.is-real .rt-chip, .rl-grid .rr-chip { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3); }
+/* 리얼리스틱 v2: tyre temps, tow, team radio, pit cue */
+.rl-car { position: relative; width: 34px; height: 30px; flex: none; }
+.rl-car::before { content: ''; position: absolute; left: 12px; top: 3px; width: 10px; height: 24px; border-radius: 4px; background: rgba(255, 255, 255, 0.18); }
+.rl-car i { position: absolute; width: 9px; height: 12px; border-radius: 3px; background: #5ee39a; }
+.rl-car i:nth-child(1) { left: 0; top: 0; } .rl-car i:nth-child(2) { right: 0; top: 0; }
+.rl-car i:nth-child(3) { left: 0; bottom: 0; } .rl-car i:nth-child(4) { right: 0; bottom: 0; }
+.rl-temp-txt { font-size: 12px; }
+.rl-tow.is-on { background: #b58cff; color: #1a0b33; }
+.rl-msg.is-box { border-left-color: #ff4e3e; background: rgba(60, 8, 8, 0.88); font-weight: 700; }
+.rl-msg.is-box b { color: #ff8a7a; }
+.rl-pitcue { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); padding: 6px 16px; border-radius: 8px; background: #ffd23f; color: #141414; font-weight: 900; font-size: 16px; letter-spacing: 0.04em; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
+.rl-pitcue.is-near { animation: rl-blink 0.6s steps(2) infinite; }
+body.touch .rl-pitcue { bottom: auto; top: 118px; font-size: 13px; }
+body.touch .rl-temps { display: none; }
+body.touch .rl-touch { grid-template-columns: repeat(3, 52px); }
+body.touch .rl-touch button { width: 52px; height: 38px; font-size: 11px; }

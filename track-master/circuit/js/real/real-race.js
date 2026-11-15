@@ -133,6 +133,7 @@
     Pit().build();
     RP().reset({ fuel: 6, distance: 2 * ctx().L, tyre: tyre, lifeScale: 1, wet: R.weather.start });
     RP().st.warm = 0.85;
+    RP().st.temp = 88; RP().st.corners = [88, 88, 88, 88];
     CR.Track.refreshSpeeds();
     var start = ctx().indexAt(ctx().wrapDist(-700), 0);
     CR.Car.spawnAt(start, 0);
@@ -380,6 +381,7 @@
   R.paceMul = function (car, i) {
     var m = car.rt.mul;
     if (car.rt.otAvail && car.rt.chase && RP().zone && RP().zone[i]) m *= 0.986;
+    if (car.rt.gapAhead < 45 && car.rt.ahead && !car.rt.ahead.sc && RP().zone && RP().zone[i]) m *= 0.992; // slipstream
     return m;
   };
 
@@ -518,7 +520,7 @@
         rt.plan = [];
       }
     });
-    if (!CR.Car.state.inPit && !R.pl.box) R.radio(R.scMode === 'sc' ? '세이프티카야! 박스할까? (P)' : 'VSC — 피트 손실이 줄어요. 박스? (P)', 'eng');
+    if (!CR.Car.state.inPit && !R.pl.box) boxCall(R.tyreFor(Math.max(1, R.laps - R.pl.lapsDone - 1)), R.scMode === 'sc' ? '세이프티카 — 싸게 피트할 기회' : 'VSC — 피트 손실이 줄어요');
   }
   function stintLaps(car) { return car.rt.stintStart === undefined ? car.lap : car.lap - car.rt.stintStart; }
 
@@ -644,7 +646,7 @@
     st.otAvail = pl.otNext && !R.scMode && lap >= 1 && (R.restartLap === undefined || leaderLaps() > R.restartLap);
     st.otActive = false; st.otBudget = 0;
     pl.otNext = false;
-    if (st.otAvail) R.radio('오버테이크 모드 사용 가능 (O)', 'eng');
+    if (st.otAvail) R.radio('오버테이크 모드(MOM) 사용 가능 — Shift', 'eng');
     engineerLap(lap);
   };
   R.playerDone = function (lap) {
@@ -676,9 +678,29 @@
     var key = tyre + text;
     if (pl.lastAdvice === key && pl.lapsDone - pl.lastAdviceLap < 3) return;
     pl.lastAdvice = key; pl.lastAdviceLap = pl.lapsDone;
-    pl.nextTyre = tyre;
-    R.radio(text + ' (' + RD().tyre(tyre).name + ') — P', 'eng');
+    boxCall(tyre, text);
   }
+  // Team radio pit call: "Box, box, box" — the car comes in at the end of the
+  // lap unless the driver answers "stay out" (X). F confirms.
+  function boxCall(tyre, text) {
+    var pl = R.pl;
+    if (!pl || CR.Car.state.inPit || R.phase !== 'race') return;
+    pl.nextTyre = tyre || pl.nextTyre;
+    pl.box = true;
+    pl.call = { at: performance.now(), tyre: pl.nextTyre };
+    R.radio('BOX, BOX, BOX — ' + text + ' · ' + RD().tyre(pl.nextTyre).name + ' 준비 (F 확인 · X 스테이 아웃)', 'box');
+    speak('Box, box, box.');
+  }
+  function speak(text) {
+    try {
+      if (!window.speechSynthesis || (CR.Audio && CR.Audio.muted)) return;
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-GB'; u.rate = 1.05; u.pitch = 0.85; u.volume = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* no speech */ }
+  }
+  R.speak = speak;
   function gapsMessage() {
     var order = R.order(), i = order.indexOf(CR.Race.player);
     if (i < 0) return;
@@ -694,10 +716,30 @@
   }
 
   // --- Player actions (keys / buttons in real-ui.js) ---------------------------
+  // F: ask to box (or confirm the engineer's call); pressed again = stay out.
   R.requestBox = function () {
-    if (!R.on || R.phase !== 'race' || !R.pl || CR.Car.state.inPit) return;
-    R.pl.box = !R.pl.box;
-    R.radio(R.pl.box ? '박스 박스! 이번 랩 끝에 피트인 — ' + RD().tyre(R.pl.nextTyre).name : '박스 취소, 계속 달려', 'eng');
+    var pl = R.pl;
+    if (!R.on || R.phase !== 'race' || !pl || CR.Car.state.inPit) return;
+    if (pl.box && pl.call && performance.now() - pl.call.at < 12000) {
+      pl.call = null;
+      R.radio('카피, 이번 랩 박스 — ' + RD().tyre(pl.nextTyre).name, 'eng');
+      speak('Copy. Box this lap.');
+      return;
+    }
+    if (pl.box) { R.stayOut(); return; }
+    pl.box = true;
+    pl.call = null;
+    R.radio('BOX, BOX, BOX — 이번 랩 끝에 피트인 · ' + RD().tyre(pl.nextTyre).name + ' (X 스테이 아웃)', 'box');
+    speak('Box, box, box.');
+  };
+  // X: stay out (cancel the stop).
+  R.stayOut = function () {
+    var pl = R.pl;
+    if (!R.on || R.phase !== 'race' || !pl || !pl.box || CR.Car.state.inPit) return;
+    pl.box = false;
+    pl.call = null;
+    R.radio('스테이 아웃, 스테이 아웃 — 계속 달려', 'eng');
+    speak('Stay out, stay out.');
   };
   R.cycleTyre = function () {
     if (!R.pl) return;
@@ -734,6 +776,20 @@
     if (!R.on) return;
     var c = CR.Car.state, inp = CR.Input.state;
     if (R.phase === 'race' && CR.Race.phase === 'lights') return;
+    // slipstream: a car up to 55 m ahead within a car's width
+    var tow = 0;
+    if (R.phase === 'race' && !c.inPit && c.speed > 25) {
+      var fx = Math.cos(c.heading), fy = Math.sin(c.heading), ai = CR.Race.ai;
+      for (var i = 0; i < ai.length; i++) {
+        var o = ai[i];
+        if (o.sc || o.retired || (o.rt && o.rt.pit)) continue;
+        var dx = o.x - c.x, dy = o.y - c.y, along = dx * fx + dy * fy;
+        if (along < 3 || along > 55) continue;
+        if (Math.abs(-dx * fy + dy * fx) < 2.4) tow = Math.max(tow, 1 - along / 55);
+      }
+    }
+    var st = RP().st;
+    st.tow += (tow - st.tow) * Math.min(1, dt * 3);
     RP().update(dt, c, { throttle: c.inPit ? 0.3 : inp.throttle, brake: c.inPit ? 0 : inp.brake }, CR.Track.length || ctx().L);
   };
 

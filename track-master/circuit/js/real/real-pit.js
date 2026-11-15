@@ -55,6 +55,15 @@
       var wall = sep ? hw + 5 : Math.max(orig, a + 4.5);
       if (Pit.side > 0) S[i].wallLeft = wall; else S[i].wallRight = wall;
     }
+    // Openings: where the pit-side wall jumps (lane entry / exit, the start of
+    // the pit wall) no wall face joins the two samples.
+    for (var j = 0; j < n; j++) {
+      delete S[j].pitJump;
+      var j2 = (j + 1) % n;
+      if (!S[j].pit && !S[j2].pit) continue;
+      var wa = Pit.side > 0 ? S[j].wallLeft : S[j].wallRight, wb = Pit.side > 0 ? S[j2].wallLeft : S[j2].wallRight;
+      if (Math.abs(wb - wa) > 1.2) S[j].pitJump = Pit.side;
+    }
     // Team garages (sample ranges) for the renderers.
     Pit.garages = CR.RealData.TEAMS.map(function (t) {
       var r0 = Pit.boxRel(t.id) - 6.5, r1 = Pit.boxRel(t.id) + 6.5;

@@ -305,7 +305,7 @@
     Race.results = null;
     Race.events.length = 0;
     lightsTimer = 0;
-    goAt = 4.0 + 0.4 + Math.random() * 1.0;
+    goAt = 5.0 + 0.3 + Math.random() * 1.6; // 5 lights 1 s apart, out 0.3-1.9 s later
     CR.Car.events.length = 0;
     real.onStart();
   }
@@ -360,7 +360,9 @@
     if (!Race.active) return;
     if (Race.phase === 'lights') {
       lightsTimer += dt;
-      Race.lightsOn = Math.min(5, Math.floor(lightsTimer / 0.8));
+      // 리얼리스틱: lights one second apart, like the real start procedure
+      Race.lightsOn = Math.min(5, Math.floor(lightsTimer / (Race.real ? 1 : 0.8)));
+      Race.lightsT = lightsTimer;
       if (lightsTimer >= goAt) {
         Race.phase = 'green';
         Race.lightsOn = 0;

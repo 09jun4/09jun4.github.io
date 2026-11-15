@@ -28,7 +28,9 @@
     on: false,
     // player car state
     st: { soc: 4, otBudget: 0, otAvail: false, otActive: false, boost: false, straight: false, wing: 0,
-      fuel: 0, tyre: 'M', wear: 0, warm: 1, laps: 0 },
+      fuel: 0, tyre: 'M', wear: 0, warm: 1, laps: 0,
+      temp: 90, corners: [90, 90, 90, 90], // tyre temperature °C (average; FL FR RL RR for the display)
+      tow: 0 }, // slipstream 0..1 (car close ahead)
     wet: 0, // track wetness 0..1
     lifeScale: 1, // tyre life multiplier (shorter races wear faster)
     zone: null, // Uint8Array per sample: 1 = Straight Mode zone
@@ -74,13 +76,24 @@
   P.off = function () { P.on = false; };
 
   // --- Grip --------------------------------------------------------------------
+  // Dirty air behind another car: less downforce; slipstream: less drag.
   P.cla = function () {
     if (P.profile) return P.profileZone ? D().CLA_STRAIGHT : D().CLA;
-    return P.st.straight ? D().CLA + (D().CLA_STRAIGHT - D().CLA) * P.st.wing : D().CLA;
+    var c = P.st.straight ? D().CLA + (D().CLA_STRAIGHT - D().CLA) * P.st.wing : D().CLA;
+    return c * (1 - 0.16 * P.st.tow);
   };
   P.cda = function () {
     if (P.profile) return P.profileZone ? D().CDA_STRAIGHT : D().CDA;
-    return D().CDA + (D().CDA_STRAIGHT - D().CDA) * (P.st.straight ? P.st.wing : 0);
+    return (D().CDA + (D().CDA_STRAIGHT - D().CDA) * (P.st.straight ? P.st.wing : 0)) * (1 - 0.3 * P.st.tow);
+  };
+
+  // --- Tyre temperature -----------------------------------------------------------
+  // Working window per compound (°C): grip falls off either side of it.
+  var OPT = { S: 100, M: 106, H: 113, I: 72, W: 58 };
+  P.OPT = OPT;
+  P.tempGrip = function (id, T) {
+    var d = (T - (OPT[id] || 100)) / 45;
+    return 1 - 0.2 * Math.min(1, d * d);
   };
   // Effective friction coefficient at speed v (downforce adds normal load).
   P.mu = function (v) {
@@ -183,28 +196,53 @@
     if (brk > 0) s.soc += d.HARVEST_KW * brk * Math.min(1, v / 15) * dt / 1000;
     else if (thr <= 0 && v > 10) s.soc += d.COAST_KW * dt / 1000;
     s.soc = Math.min(d.BATTERY_MJ, s.soc);
-    // tyres: wear with distance and sliding, warm-up with speed
+    // tyres: wear with distance and sliding; temperature from rolling,
+    // cornering, braking and sliding, cooled by the air and (a lot) by rain
     var t = CR.RealData.tyre(s.tyre);
     var slide = Math.min(1, Math.abs(c.lateralVelocity || 0) / 6);
-    var overheat = t.wet && P.wet < 0.2 ? (t.wet === 'wet' ? 3 : 1.8) : 1;
+    var steer = Math.abs(c.steerSmoothed || 0);
+    var amb = 32 - 12 * P.wet;
+    var heat = 0.04 * v + 0.05 * steer * v + 0.08 * brk * v + 0.18 * slide * v + (v < 30 ? 0.06 * thr * v : 0);
+    var cool = (s.temp - amb) * (0.01 + 0.0006 * v + 0.085 * P.wet * (t.wet ? 0.45 : 1));
+    s.temp += (heat - cool) * dt;
+    var opt = OPT[s.tyre] || 100, hot = Math.max(0, s.temp - opt - 15) / 20;
+    var overheat = (t.wet && P.wet < 0.2 ? (t.wet === 'wet' ? 3 : 1.8) : 1) * (1 + hot);
     s.wear += (v * dt / Math.max(1, lapLen)) / (t.life * P.lifeScale) * (1 + slide * 2.5) * overheat;
     s.warm = Math.min(1, s.warm + dt * (0.012 + 0.05 * Math.min(1, v / 60) + slide * 0.2));
+    // corner temperatures for the display: outside tyres hotter in a turn,
+    // fronts under braking, rears under traction
+    var side = (c.steerSmoothed || 0) > 0 ? 1 : -1; // turning left: right-hand tyres outside
+    for (var k = 0; k < 4; k++) {
+      var right = k % 2 === 1, front = k < 2;
+      var target = s.temp + steer * 14 * ((right ? 1 : -1) * side) + (front ? brk * 8 : thr * 4 - brk * 3);
+      s.corners[k] += (target - s.corners[k]) * Math.min(1, dt * 1.5);
+    }
+    // wet track / cold tyres: steering can ask for more than the tyres hold,
+    // so the car slides in corners and steps out on the throttle
+    var slick = !t.wet, wetSlip = P.wet * (slick ? 1 : 0.35);
+    var cold = Math.max(0, (opt - 25 - s.temp) / 40);
+    cfg.STEER_GRIP_TARGET = 1 + 0.6 * wetSlip + 0.3 * Math.min(1, cold);
+    cfg.LATERAL_GRIP = 1 - 0.3 * wetSlip;
     // fuel
     if (thr > 0) s.fuel = Math.max(0, s.fuel - P.burnPerM * v * dt * (0.55 + 0.45 * thr));
     cfg.CAR_MASS = d.MASS + s.fuel;
-    cfg.TIRE_GRIP_TARMAC = P.tyreMu(s.tyre, s.wear, s.warm, P.wet);
+    cfg.TIRE_GRIP_TARMAC = P.tyreMu(s.tyre, s.wear, 1, P.wet) * P.tempGrip(s.tyre, s.temp);
   };
 
   // New tyres (pit stop / race start). warm: 0..1 (blankets ~0.55).
+  // New tyres from the blankets (slicks ~80 °C, wets ~55 °C).
   P.fitTyres = function (id, warm) {
-    P.st.tyre = id; P.st.wear = 0; P.st.warm = warm === undefined ? 0.55 : warm;
-    CR.Config.TIRE_GRIP_TARMAC = P.tyreMu(id, 0, P.st.warm, P.wet);
+    var s = P.st;
+    s.tyre = id; s.wear = 0; s.warm = warm === undefined ? 0.55 : warm;
+    s.temp = CR.RealData.tyre(id).wet ? 52 : 70 + 15 * s.warm;
+    s.corners = [s.temp, s.temp, s.temp, s.temp];
+    CR.Config.TIRE_GRIP_TARMAC = P.tyreMu(id, 0, 1, P.wet) * P.tempGrip(id, s.temp);
   };
 
   P.reset = function (opts) {
     var d = D(), s = P.st;
     s.soc = d.BATTERY_MJ; s.otBudget = 0; s.otAvail = false; s.otActive = false; s.boost = false; s.straight = false; s.wing = 0;
-    s.fuel = opts.fuel; s.laps = 0;
+    s.fuel = opts.fuel; s.laps = 0; s.tow = 0;
     P.burnPerM = opts.fuel / Math.max(1, opts.distance) * 0.98;
     P.lifeScale = opts.lifeScale || 1;
     P.wet = opts.wet || 0;

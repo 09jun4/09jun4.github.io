@@ -112,26 +112,57 @@
       group.add(bmesh);
     });
 
-    // crew: instanced torsos, legs, helmets, tyres (MAX_CREWS stops at once)
+    // pit entry / exit markings and signs
+    buildSigns(R, S, group, paint);
+    // overhead gantry over every box (boom from the garage with lamps and the release light)
+    var steel = R.std({ color: lin('#2a2e35'), roughness: 0.5, metalness: 0.7, envMapIntensity: 0.4 }, 'gantry');
+    var lampMat = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xfff6e8, emissiveIntensity: 1.6, roughness: 0.3 });
+    R.register(lampMat);
+    out.relLights = {};
+    P.garages.forEach(function (gar) {
+      var i = ctx.indexAt(ctx.wrapDist(gar.rel), 0), s = S[i];
+      var parts = [], lamps = [];
+      var o0 = sd * (P.garage - 0.1), o1 = sd * (P.work - sd * 0 - 1.6 * sd * sd);
+      o1 = sd * (Math.abs(P.work) - 2.2);
+      var a = vec(s, o0, 4.3), b = vec(s, o1, 4.3), len = a.distanceTo(b);
+      [-1.1, 1.1].forEach(function (f) {
+        var g = new THREE.BoxGeometry(len, 0.14, 0.14);
+        var m = new THREE.Mesh(g, steel);
+        m.position.copy(a).add(b).multiplyScalar(0.5);
+        m.position.x += Math.cos(s.heading) * f; m.position.z -= Math.sin(s.heading) * f;
+        m.rotation.y = s.heading + Math.PI / 2;
+        m.castShadow = true;
+        group.add(m);
+      });
+      var cross = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 2.4), steel);
+      cross.position.copy(b); cross.rotation.y = s.heading + Math.PI / 2; group.add(cross);
+      for (var k = 0; k < 2; k++) {
+        var lb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.5), lampMat);
+        var t = (k + 1) / 3;
+        lb.position.lerpVectors(a, b, t); lb.position.y = 4.12;
+        group.add(lb);
+      }
+      // release light at the end of the boom (red / green)
+      var rl = new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2020, emissiveIntensity: 2.5, roughness: 0.3 });
+      R.register(rl);
+      var light = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.12), rl);
+      light.position.copy(b); light.position.y = 3.95; light.rotation.y = s.heading;
+      group.add(light);
+      out.relLights[gar.team] = rl;
+    });
+
+    // crew (MAX_CREWS stops at once): two poses (standing / kneeling), each as
+    // instanced suit (team colour), trim (second colour), dark (boots, gloves,
+    // visor, belt) and helmet; plus tyres, wheel guns and jacks.
     var N = MAX_CREWS * PER;
-    // matte race suits: low environment reflection so the team colours stay deep
-    var suit = R.std({ color: 0xffffff, roughness: 0.75, metalness: 0, envMapIntensity: 0.25 }, 'crew');
-    var dk = R.std({ color: lin('#15171b'), roughness: 0.85, metalness: 0, envMapIntensity: 0.2 }, 'crewLegs');
-    var hel = R.std({ color: 0xffffff, roughness: 0.25, metalness: 0.1, envMapIntensity: 0.6 }, 'crewHelmet');
+    var suit = R.std({ color: 0xffffff, roughness: 0.78, metalness: 0, envMapIntensity: 0.25 }, 'crew');
+    var trim = R.std({ color: 0xffffff, roughness: 0.7, metalness: 0, envMapIntensity: 0.25 }, 'crewTrim');
+    var dk = R.std({ color: lin('#121317'), roughness: 0.8, metalness: 0, envMapIntensity: 0.2 }, 'crewDark');
+    var hel = R.std({ color: 0xffffff, roughness: 0.22, metalness: 0.15, envMapIntensity: 0.7 }, 'crewHelmet');
     var tyreMat = R.std({ color: lin('#141518'), roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }, 'crewTyre');
     var bandMat = R.std({ color: 0xffffff, roughness: 0.5, metalness: 0, envMapIntensity: 0.3 }, 'crewTyreBand');
-    // figure (1.78 m): suit = torso + upper arms + forearms + collar; dark = legs, boots, gloves, visor
-    function box(w, h, d, x, y, z, rz) { var g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(x, y, z); return g; }
-    var torso = new THREE.CylinderGeometry(0.19, 0.155, 0.6, 10); torso.translate(0, 1.15, 0);
-    var hips = new THREE.CylinderGeometry(0.155, 0.16, 0.16, 10); hips.translate(0, 0.84, 0);
-    var tg = mergeGeos([torso, hips, box(0.1, 0.34, 0.1, 0.25, 1.24, 0, 0.18), box(0.1, 0.34, 0.1, -0.25, 1.24, 0, -0.18),
-      box(0.09, 0.3, 0.09, 0.29, 0.94, 0.06, 0.05), box(0.09, 0.3, 0.09, -0.29, 0.94, 0.06, -0.05), box(0.2, 0.06, 0.18, 0, 1.47, 0)]);
-    var legs = mergeGeos([box(0.13, 0.78, 0.15, 0.085, 0.42, 0), box(0.13, 0.78, 0.15, -0.085, 0.42, 0),
-      box(0.14, 0.08, 0.26, 0.085, 0.04, 0.05), box(0.14, 0.08, 0.26, -0.085, 0.04, 0.05),
-      box(0.09, 0.1, 0.1, 0.3, 0.75, 0.08), box(0.09, 0.1, 0.1, -0.3, 0.75, 0.08), box(0.2, 0.07, 0.06, 0, 1.63, 0.12)]);
-    var head = new THREE.SphereGeometry(0.16, 14, 10); head.scale(1, 1.08, 1.12); head.translate(0, 1.62, 0);
-    var tyre = new THREE.CylinderGeometry(0.36, 0.36, 0.36, 18); tyre.rotateX(Math.PI / 2);
-    var tband = new THREE.TorusGeometry(0.33, 0.025, 6, 24); tband.translate(0, 0, 0.181);
+    var toolMat = R.std({ color: lin('#2b2f36'), roughness: 0.4, metalness: 0.8, envMapIntensity: 0.6 }, 'crewTool');
+    var F = figureGeos();
     function inst(geo, mat, count, colors) {
       var m = new THREE.InstancedMesh(geo, mat, count);
       m.count = 0;
@@ -142,24 +173,100 @@
       group.add(m);
       return m;
     }
-    out.torso = inst(tg, suit, N, true);
-    out.legs = inst(legs, dk, N, false);
-    out.head = inst(head, hel, N, true);
-    out.tyres = inst(tyre, tyreMat, MAX_CREWS * 8, false);
-    out.bands = inst(tband, bandMat, MAX_CREWS * 8, true);
-    out.geos = [tg, legs, head, tyre, tband];
+    out.pose = ['stand', 'kneel'].map(function (k) {
+      var f = F[k];
+      return { suit: inst(f.suit, suit, N, true), trim: inst(f.trim, trim, N, true), dark: inst(f.dark, dk, N, false), helmet: inst(f.helmet, hel, N, true) };
+    });
+    out.tyres = inst(F.tyre, tyreMat, MAX_CREWS * 8, false);
+    out.bands = inst(F.band, bandMat, MAX_CREWS * 8, true);
+    out.guns = inst(F.gun, toolMat, MAX_CREWS * 4, false);
+    out.jacks = inst(F.jack, toolMat, MAX_CREWS * 2, false);
     out.dummy = new THREE.Object3D();
     out.color = new THREE.Color();
     return out;
   };
 
+  // --- Pit entry / exit markings ---------------------------------------------------------
+  function textTex(lines, bg, fg, w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+    lines.forEach(function (l) { g.font = l.font; g.fillText(l.text, w / 2, l.y * h); });
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    return t;
+  }
+  function buildSigns(R, S, group, paint) {
+    var P = CR.RealPit, sd = P.side, ctx = CR.Race._ctx(), hw = CR.Config.TRACK_WIDTH / 2;
+    var yellow = R.std({ color: lin('#ffd23f'), roughness: 0.6, metalness: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }, 'pitYellow');
+    // solid yellow line along the track edge where the entry / exit lanes run beside it
+    var Tr = T(), n = S.length, lines = [];
+    [[-P.ENTRY, -P.ENTRY + P.RAMP_IN + 20], [P.EXIT - P.RAMP_OUT - 20, P.EXIT]].forEach(function (r) {
+      var i0 = ctx.indexAt(ctx.wrapDist(r[0]), 0), i1 = ctx.indexAt(ctx.wrapDist(r[1]), 0);
+      var count = (i1 - i0 + n) % n;
+      if (count < 2) return;
+      lines.push(Tr.strip(S, T().cumulative(S), function () { var a = [sd * (hw + 0.45), 0.012], b = [sd * (hw + 0.75), 0.012]; return sd > 0 ? [a, b] : [b, a]; }, { from: i0, count: count, flip: true }));
+    });
+    var lg = Tr.merge(lines);
+    if (lg) group.add(Tr.mesh(R, lg, yellow, { order: 2 }));
+    // painted PIT IN / PIT OUT and 80 on the lane
+    var words = [['PIT IN', -P.ENTRY + 55], ['PIT OUT', P.EXIT - 50], ['80', -P.ENTRY + P.RAMP_IN + 12], ['80', P.EXIT - P.RAMP_OUT - 12]];
+    words.forEach(function (wd) {
+      var i = ctx.indexAt(ctx.wrapDist(wd[1]), 0), s = S[i], p = s.pit;
+      if (!p) return;
+      var tex = textTex([{ text: wd[0], font: '900 150px Arial Black, Arial, sans-serif', y: 0.52 }], null, '#f4f4f0', 512, 200);
+      R.textures.push(tex);
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(wd[0] === '80' ? 3 : 7, 2.6), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
+      R.register(m.material);
+      var off = sd * ((p.lane0 + p.lane1) / 2);
+      m.position.set(s.x + s.nx * off, 0.016, -(s.y + s.ny * off));
+      m.rotation.x = -Math.PI / 2;
+      m.rotation.z = s.heading - Math.PI / 2; // text reads along the driving direction
+      m.renderOrder = 3;
+      group.add(m);
+    });
+    // signboards: big PIT arrow board at the entry, 80 km/h boards at the limiter lines
+    var boards = [[-P.ENTRY - 60, 'PIT', true], [-P.ENTRY - 15, 'PIT', true], [-P.ENTRY + P.RAMP_IN, '80', false], [P.EXIT - P.RAMP_OUT, 'END', false]];
+    var post = R.std({ color: lin('#3a3f47'), roughness: 0.5, metalness: 0.6 }, 'signPost');
+    boards.forEach(function (bd) {
+      var i = ctx.indexAt(ctx.wrapDist(bd[0]), 0), s = S[i];
+      var wall = sd > 0 ? s.wallLeft : s.wallRight;
+      var off = sd * (bd[2] ? Math.max(hw + 3, Math.min(wall - 0.5, hw + 6)) : Math.abs(s.pit ? P.inner || hw + 5 : hw + 5));
+      var tex = bd[1] === 'PIT'
+        ? textTex([{ text: 'PIT', font: '900 120px Arial Black, Arial, sans-serif', y: 0.36 }, { text: sd > 0 ? '◀ ◀ ◀' : '▶ ▶ ▶', font: '900 80px Arial, sans-serif', y: 0.78 }], '#ffd23f', '#111111', 256, 256)
+        : bd[1] === '80'
+          ? textTex([{ text: '80', font: '900 120px Arial Black, Arial, sans-serif', y: 0.5 }], '#f4f4f4', '#111111', 256, 256)
+          : textTex([{ text: 'END', font: '900 70px Arial Black, Arial, sans-serif', y: 0.38 }, { text: '80', font: '900 80px Arial Black, Arial, sans-serif', y: 0.72 }], '#f4f4f4', '#555555', 256, 256);
+      R.textures.push(tex);
+      var mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 });
+      R.register(mat);
+      var size = bd[2] ? 2.2 : 1.1, h = bd[2] ? 2.2 : 1.6;
+      var x = s.x + s.nx * off, y = s.y + s.ny * off;
+      // thin along the driving direction: the big faces look at the oncoming cars
+      var board = new THREE.Mesh(new THREE.BoxGeometry(0.08, size, size), [mat, mat, post, post, post, post]);
+      board.position.set(x, h + size / 2, -y);
+      board.rotation.y = s.heading;
+      board.castShadow = true;
+      group.add(board);
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, h, 8), post);
+      pole.position.set(x, h / 2, -y);
+      group.add(pole);
+      if (bd[1] === 'PIT') { // a ring of red / white on the pole top for night visibility
+        var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshStandardMaterial({ color: 0x402000, emissive: 0xffb020, emissiveIntensity: 2 }));
+        R.register(lamp.material);
+        lamp.position.set(x, h + size + 0.18, -y);
+        group.add(lamp);
+      }
+    });
+  }
+
   function mergeGeos(list) {
     var pos = [], nor = [], idx = [], base = 0;
     list.forEach(function (g) {
-      var gi = g.index ? g : g;
-      var p = gi.attributes.position, nn = gi.attributes.normal;
+      var p = g.attributes.position, nn = g.attributes.normal;
       for (var i = 0; i < p.count; i++) { pos.push(p.getX(i), p.getY(i), p.getZ(i)); nor.push(nn.getX(i), nn.getY(i), nn.getZ(i)); }
-      if (gi.index) for (var k = 0; k < gi.index.count; k++) idx.push(gi.index.getX(k) + base);
+      if (g.index) for (var k = 0; k < g.index.count; k++) idx.push(g.index.getX(k) + base);
       base += p.count;
     });
     var g = new THREE.BufferGeometry();
@@ -169,6 +276,74 @@
     return g;
   }
 
+  // Crew figures (1.78 m, facing +z). Rounded limbs (capsule-like cylinders),
+  // race suit with shoulder / side panels in the second team colour, belt,
+  // gloves and boots, full-face helmet with a dark visor (like the pit crews
+  // in the reference photos). Kneeling pose: one knee down, leaning forward,
+  // hands low in front (wheel gun).
+  function limb(r0, r1, a, b) {
+    // cylinder from point a to b (arrays x, y, z)
+    var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], L = Math.hypot(dx, dy, dz);
+    var g = new THREE.CylinderGeometry(r1, r0, L, 8);
+    var q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / L, dy / L, dz / L));
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    return g;
+  }
+  function ball(r, p) { var g = new THREE.SphereGeometry(r, 8, 6); g.translate(p[0], p[1], p[2]); return g; }
+  function boxAt(w, h, d, p, rx) { var g = new THREE.BoxGeometry(w, h, d); if (rx) g.rotateX(rx); g.translate(p[0], p[1], p[2]); return g; }
+  function figure(j) {
+    // j: joints {hip, chest, neck, head, shL, shR, elL, elR, haL, haR, hipL, hipR, knL, knR, anL, anR, lean}
+    var suit = [], trim = [], dark = [], helmet = [];
+    var torso = new THREE.CylinderGeometry(0.2, 0.165, 0.56, 12);
+    torso.translate(0, 0.28, 0);
+    torso.rotateX(j.lean);
+    torso.translate(j.hip[0], j.hip[1] + 0.06, j.hip[2]);
+    suit.push(torso);
+    // side panels / shoulder yoke in the second colour
+    var yoke = new THREE.CylinderGeometry(0.205, 0.2, 0.14, 12, 1, true);
+    yoke.translate(0, 0.48, 0); yoke.rotateX(j.lean); yoke.translate(j.hip[0], j.hip[1] + 0.06, j.hip[2]);
+    trim.push(yoke);
+    var band = new THREE.CylinderGeometry(0.168, 0.17, 0.07, 12, 1, true);
+    band.translate(j.hip[0], j.hip[1] + 0.06, j.hip[2]);
+    dark.push(band); // belt
+    suit.push(ball(0.17, [j.hip[0], j.hip[1], j.hip[2]]));
+    ['L', 'R'].forEach(function (k) {
+      var sh = j['sh' + k], el = j['el' + k], ha = j['ha' + k], hp = j['hip' + k], kn = j['kn' + k], an = j['an' + k];
+      suit.push(limb(0.06, 0.055, sh, el), limb(0.052, 0.045, el, ha), ball(0.065, sh));
+      trim.push(limb(0.062, 0.058, sh, [sh[0] + (el[0] - sh[0]) * 0.35, sh[1] + (el[1] - sh[1]) * 0.35, sh[2] + (el[2] - sh[2]) * 0.35]));
+      dark.push(ball(0.055, ha)); // gloves
+      suit.push(limb(0.085, 0.07, hp, kn), limb(0.07, 0.055, kn, an), ball(0.075, kn));
+      trim.push(limb(0.072, 0.06, [kn[0] + (an[0] - kn[0]) * 0.55, kn[1] + (an[1] - kn[1]) * 0.55, kn[2] + (an[2] - kn[2]) * 0.55], an));
+      dark.push(boxAt(0.12, 0.09, 0.27, [an[0], an[1] - 0.02, an[2] + 0.06], j.footRx || 0));
+    });
+    var hg = new THREE.SphereGeometry(0.165, 16, 12);
+    hg.scale(1, 1.1, 1.12);
+    hg.translate(j.head[0], j.head[1], j.head[2]);
+    helmet.push(hg);
+    var visor = new THREE.SphereGeometry(0.168, 14, 6, Math.PI / 2 - 0.9, 1.8, 1.15, 0.5);
+    visor.rotateY(Math.PI / 2 * 0); visor.scale(1.01, 1.1, 1.14);
+    visor.translate(j.head[0], j.head[1], j.head[2]);
+    dark.push(visor);
+    dark.push(limb(0.07, 0.07, j.neck, [j.head[0], j.head[1] - 0.12, j.head[2]]));
+    return { suit: mergeGeos(suit), trim: mergeGeos(trim), dark: mergeGeos(dark), helmet: mergeGeos(helmet) };
+  }
+  function figureGeos() {
+    var stand = figure({ lean: 0.04, hip: [0, 0.92, 0], neck: [0, 1.52, 0.02], head: [0, 1.68, 0.03],
+      shL: [0.22, 1.42, 0.02], shR: [-0.22, 1.42, 0.02], elL: [0.27, 1.15, 0.1], elR: [-0.27, 1.15, 0.1], haL: [0.2, 0.98, 0.26], haR: [-0.2, 0.98, 0.26],
+      hipL: [0.1, 0.9, 0], hipR: [-0.1, 0.9, 0], knL: [0.11, 0.48, 0.03], knR: [-0.11, 0.48, 0.03], anL: [0.11, 0.08, 0], anR: [-0.11, 0.08, 0] });
+    var kneel = figure({ lean: 0.55, hip: [0, 0.55, -0.12], neck: [0, 1.05, 0.2], head: [0, 1.2, 0.27],
+      shL: [0.22, 0.98, 0.17], shR: [-0.22, 0.98, 0.17], elL: [0.25, 0.72, 0.35], elR: [-0.25, 0.72, 0.35], haL: [0.12, 0.58, 0.55], haR: [-0.12, 0.58, 0.55],
+      hipL: [0.11, 0.53, -0.1], hipR: [-0.11, 0.53, -0.1], knL: [0.12, 0.5, 0.35], knR: [-0.12, 0.08, -0.05], anL: [0.12, 0.08, 0.32], anR: [-0.12, 0.08, -0.48], footRx: 0 });
+    var tyre = new THREE.CylinderGeometry(0.36, 0.36, 0.36, 18); tyre.rotateX(Math.PI / 2);
+    var band = new THREE.TorusGeometry(0.33, 0.025, 6, 24); band.translate(0, 0, 0.181);
+    // wheel gun in the kneeling man's hands, hose to the gantry side
+    var gun = mergeGeos([limb(0.05, 0.05, [0, 0.6, 0.5], [0, 0.6, 0.85]), boxAt(0.1, 0.18, 0.12, [0, 0.52, 0.55]), limb(0.025, 0.025, [0, 0.45, 0.5], [0, 0.4, 0.1])]);
+    // front / rear jack: a long bar with a cradle at the far end, held at hip height
+    var jack = mergeGeos([limb(0.035, 0.035, [0, 0.95, 0.25], [0, 0.25, 1.75]), boxAt(0.6, 0.1, 0.12, [0, 0.22, 1.8]), boxAt(0.3, 0.08, 0.3, [0, 0.95, 0.2])]);
+    return { stand: stand, kneel: kneel, tyre: tyre, band: band, gun: gun, jack: jack };
+  }
+
   // Crew positions (car-local: x right, y forward, metres) for the four wheel
   // corners, the jacks, stabilisers and release man.
   var WX = 0.82, WF = 1.72, WR = -1.62;
@@ -176,15 +351,15 @@
     var L = [];
     [[WX, WF], [-WX, WF], [WX, WR], [-WX, WR]].forEach(function (w) {
       var sx = w[0] > 0 ? 1 : -1;
-      L.push({ role: 'gun', corner: w, x: w[0] + sx * 0.55, y: w[1] });
-      L.push({ role: 'off', corner: w, x: w[0] + sx * 0.5, y: w[1] - 0.55 });
-      L.push({ role: 'on', corner: w, x: w[0] + sx * 1.35, y: w[1] + 0.55 });
+      L.push({ role: 'gun', corner: w, x: w[0] + sx * 0.62, y: w[1] });
+      L.push({ role: 'off', corner: w, x: w[0] + sx * 0.55, y: w[1] - 0.6 });
+      L.push({ role: 'on', corner: w, x: w[0] + sx * 1.4, y: w[1] + 0.6 });
     });
-    L.push({ role: 'jackF', x: 0, y: 3.05 });
-    L.push({ role: 'jackR', x: 0, y: -2.95 });
-    L.push({ role: 'stab', x: 1.25, y: 0.2 });
-    L.push({ role: 'stab', x: -1.25, y: 0.2 });
-    L.push({ role: 'rel', x: 0, y: 4.4 });
+    L.push({ role: 'jackF', x: 0, y: 4.1 });
+    L.push({ role: 'jackR', x: 0, y: -3.9 });
+    L.push({ role: 'stab', x: 1.2, y: 0.25 });
+    L.push({ role: 'stab', x: -1.2, y: 0.25 });
+    L.push({ role: 'rel', x: 0, y: 5.4 });
     return L;
   }
   var LAYOUT = null;
@@ -193,14 +368,14 @@
   function stops(R) {
     var list = [], P = CR.RealPit;
     var pp = P.player, c = CR.Car.state;
-    if (pp && c.inPit && pp.box !== null && Math.abs(pp.box - pp.rel) < 60) list.push({ key: 'you', run: pp, x: c.x, y: c.y, h: c.heading, team: 'you', car: R.playerCar, tyre: pp.tyre });
+    if (pp && c.inPit && pp.box !== null && pp.rel - pp.box < 60 && pp.box - pp.rel < 70) list.push({ key: 'you', run: pp, team: 'you', car: R.playerCar, tyre: pp.tyre });
     var ai = CR.Race.ai;
     for (var i = 0; i < ai.length && list.length < MAX_CREWS; i++) {
       var a = ai[i], run = a.rt && a.rt.pit;
-      if (!run || run.box === null || Math.abs(run.box - run.rel) > 60) continue;
+      if (!run || run.box === null || run.rel - run.box > 60 || run.box - run.rel > 70) continue;
       if (Math.hypot(a.x - c.x, a.y - c.y) > 260) continue;
       var obj = R.carCache && R.carFor(a.model, a.driver && (Hi.Car.NUMBERS[a.driver.id] || a.driver.num));
-      list.push({ key: a.driver.id, run: run, x: a.x, y: a.y, h: a.heading, team: a.rt.team, car: obj, tyre: run.tyre });
+      list.push({ key: a.driver.id, run: run, team: a.rt.team, car: obj, tyre: run.tyre });
     }
     return list;
   }
@@ -211,78 +386,81 @@
   PIT.update = function (R, st, dt) {
     if (!st || !CR.RealPit || !CR.RealPit.built) return;
     LAYOUT = LAYOUT || layout();
-    var list = stops(R), d = st.dummy, col = st.color, P = CR.RealPit;
-    var k = 0, kt = 0;
-    // restore any car we moved last frame that is no longer stopping
+    var list = stops(R), d = st.dummy, col = st.color, P = CR.RealPit, ctx = CR.Race._ctx(), S = CR.Track.samples;
+    var cnt = [0, 0], kt = 0, kg = 0, kj = 0;
     Object.keys(st.used).forEach(function (key) {
       if (!list.some(function (s) { return s.key === key; })) { restoreCar(st.used[key]); delete st.used[key]; }
     });
+    Object.keys(st.relLights).forEach(function (k) { st.relLights[k].emissive.setHex(0xff2020); });
     list.forEach(function (s) {
       var run = s.run, team = CR.RealData.team(s.team);
       var po = CR.Cars.byId('f1').model && CR.Cars.byId('f1').model.opts;
-      var suitC = team.player ? (po ? po.main : '#16181d') : team.main, helmC = team.player ? (po ? po.accent : '#d4a82a') : team.accent;
-      // stop timeline: 0..1 approach (crew walk out), work phases, release
-      var approach = run.phase === 'in' ? sm(1 - (run.box - run.rel) / 60) : 1;
+      var suitC = team.player ? (po ? po.main : '#16181d') : team.main;
+      var trimC = team.player ? (po ? po.accent : '#d4a82a') : team.accent;
+      var helmC = team.player ? (po ? po.accent : '#d4a82a') : (team.id === 'vel' ? '#f4f4f4' : team.accent);
+      // the crew always works in the box frame (not the car's): where the car stops
+      var i = ctx.indexAt(ctx.wrapDist(run.box), 0), sb = S[i];
+      var bx = sb.x + sb.nx * P.work, by = sb.y + sb.ny * P.work, cs = Math.cos(sb.heading), sn = Math.sin(sb.heading);
+      var toW = function (lx, ly) { return { x: bx + ly * cs + lx * sn, y: by + ly * sn - lx * cs }; };
+      var approach = run.phase === 'in' ? sm(1 - (run.box - run.rel) / 70) : 1;
       var serve = run.serve || 0, T = Math.max(1.6, (run.stopTime || 2.5) - serve);
-      var t = run.phase === 'stop' ? Math.max(0, run.t - serve) / T : run.phase === 'out' ? 1 + Math.min(1, (run.rel - run.box) / 30) : 0;
+      var t = run.phase === 'stop' ? Math.max(0, run.t - serve) / T : run.phase === 'out' ? 1 + (run.t || 0) : 0;
       var lift = run.phase === 'stop' ? sm(t / 0.12) * (1 - sm((t - 0.86) / 0.08)) : 0;
-      var cs = Math.cos(s.h), sn = Math.sin(s.h);
-      var toW = function (lx, ly) { return { x: s.x + ly * cs + lx * sn, y: s.y + ly * sn - lx * cs }; };
-      // box centre while the car is still coming: stand where it will stop
-      if (run.phase === 'in') {
-        var ctx = CR.Race._ctx(), i = ctx.indexAt(ctx.wrapDist(run.box), 0), sb = CR.Track.samples[i];
-        var off = P.work;
-        var bx = sb.x + sb.nx * off, by = sb.y + sb.ny * off;
-        cs = Math.cos(sb.heading); sn = Math.sin(sb.heading);
-        toW = function (lx, ly) { return { x: bx + ly * cs + lx * sn, y: by + ly * sn - lx * cs }; };
-      }
-      var garageSide = -P.side; // car-local x of the garage (+x = right of the car)
+      var back = run.phase === 'out' ? sm((t - 1.6) / 1.2) : 0; // walk back after the car has gone
+      if (run.phase === 'out' && st.relLights[s.team]) st.relLights[s.team].emissive.setHex(0x22ff55);
+      var garageSide = -P.side;
       LAYOUT.forEach(function (m, idx) {
-        if (k >= st.torso.count + 1000) return;
-        // waiting spot: lined up on the garage side, walk in with the approach
-        var wait = { x: garageSide * (2.6 + (idx % 3) * 0.5), y: (idx - 8) * 0.55 };
-        var lx = lerp(wait.x, m.x, approach), ly = lerp(wait.y, m.y, approach), crouch = 0, carry = 0;
+        var wait = { x: garageSide * (2.4 + (idx % 3) * 0.55), y: (idx - 8) * 0.6 };
+        var lx = lerp(wait.x, m.x, approach), ly = lerp(wait.y, m.y, approach), kneel = false, carry = 0;
         var w = m.corner;
-        if (m.role === 'gun') { crouch = run.phase === 'stop' ? 1 : approach * 0.5; }
+        if (m.role === 'gun') kneel = approach > 0.8;
         if (m.role === 'off' && w) {
-          var off2 = sm((t - 0.22) / 0.2);
-          lx += (w[0] > 0 ? 1 : -1) * off2 * 1.1; ly -= off2 * 0.6;
-          carry = run.phase === 'stop' && t > 0.22 ? 1 : 0;
+          var off2 = sm((t - 0.22) / 0.2) * (1 - back);
+          lx += (w[0] > 0 ? 1 : -1) * off2 * 1.2; ly -= off2 * 0.7;
+          carry = t > 0.22 && t < 2.2 ? 1 : 0;
+          kneel = approach > 0.8 && t < 0.22;
         }
         if (m.role === 'on' && w) {
-          var on = sm((t - 0.42) / 0.22);
-          lx = lerp(lx, w[0] + (w[0] > 0 ? 0.75 : -0.75), on); ly = lerp(ly, w[1] + 0.1, on);
-          carry = run.phase === 'stop' && t < 0.66 ? 2 : 0;
+          var on = sm((t - 0.42) / 0.22) * (1 - sm((t - 1.3) / 0.6));
+          lx = lerp(lx, w[0] + (w[0] > 0 ? 0.8 : -0.8), on); ly = lerp(ly, w[1] + 0.15, on);
+          carry = t < 0.66 ? 2 : 0;
         }
-        if (m.role === 'jackF' || m.role === 'jackR') { crouch = 0.35 * lift; if (t > 0.9) ly += (m.role === 'jackF' ? 1 : -1) * sm((t - 0.9) / 0.1) * 1.2; }
+        if (m.role === 'jackF' || m.role === 'jackR') { if (t > 0.9) ly += (m.role === 'jackF' ? 1 : -1) * sm((t - 0.9) / 0.1) * 1.4; }
+        if (m.role === 'stab') kneel = run.phase === 'stop';
         if (m.role === 'rel' && run.phase === 'out') lx = lerp(lx, garageSide * 2.5, sm(t - 1));
-        if (run.phase === 'out') { var back = sm((t - 1) * 1.5); lx = lerp(lx, wait.x, back); ly = lerp(ly, wait.y, back); }
+        if (back > 0) { lx = lerp(lx, wait.x, back); ly = lerp(ly, wait.y, back); }
         var p = toW(lx, ly);
-        // face the car: world direction to its centre (three: x, -y)
         var dxw = -ly * cs - lx * sn, dyw = -ly * sn + lx * cs;
-        if (m.role === 'rel' || m.role === 'jackF' || m.role === 'jackR') { dxw = -ly * cs; dyw = -ly * sn; }
+        if (m.role === 'jackF' || m.role === 'jackR' || m.role === 'rel') { dxw = -ly * cs; dyw = -ly * sn; }
+        if (m.role === 'off' && carry) { dxw = -dxw; dyw = -dyw; } // walking away with the old wheel
+        var yaw = Math.atan2(dxw, -dyw);
         d.position.set(p.x, 0, -p.y);
-        d.rotation.set(0, Math.atan2(dxw, -dyw), 0);
-        d.scale.set(1, 1 - crouch * 0.38, 1);
+        d.rotation.set(0, yaw, 0);
+        d.scale.set(1, 1, 1);
         d.updateMatrix();
-        st.torso.setMatrixAt(k, d.matrix); st.legs.setMatrixAt(k, d.matrix); st.head.setMatrixAt(k, d.matrix);
-        col.set(suitC).convertSRGBToLinear(); st.torso.setColorAt(k, col);
-        col.set(helmC).convertSRGBToLinear(); st.head.setColorAt(k, col);
-        // tyres carried
+        var pz = kneel ? 1 : 0, ps = st.pose[pz], k = cnt[pz]++;
+        ps.suit.setMatrixAt(k, d.matrix); ps.trim.setMatrixAt(k, d.matrix); ps.dark.setMatrixAt(k, d.matrix); ps.helmet.setMatrixAt(k, d.matrix);
+        col.set(suitC).convertSRGBToLinear(); ps.suit.setColorAt(k, col);
+        col.set(trimC).convertSRGBToLinear(); ps.trim.setColorAt(k, col);
+        col.set(helmC).convertSRGBToLinear(); ps.helmet.setColorAt(k, col);
+        if (m.role === 'gun' && kneel && kg < st.guns.instanceMatrix.count) st.guns.setMatrixAt(kg++, d.matrix);
+        if ((m.role === 'jackF' || m.role === 'jackR') && approach > 0.6 && kj < st.jacks.instanceMatrix.count) {
+          d.position.y = -0.15 * lift; d.updateMatrix();
+          st.jacks.setMatrixAt(kj++, d.matrix);
+          d.position.y = 0;
+        }
         if (carry && kt < st.tyres.instanceMatrix.count) {
-          var tp = toW(lx + (w[0] > 0 ? -0.35 : 0.35), ly);
-          d.position.set(tp.x, 0.62 - crouch * 0.2, -tp.y);
-          d.rotation.set(0, s.h, 0);
-          d.scale.set(1, 1, 1);
+          var fwd = 0.42;
+          var tp = { x: p.x + Math.sin(yaw) * fwd, y: p.y - Math.cos(yaw) * fwd };
+          d.position.set(tp.x, 0.72, -tp.y);
+          d.rotation.set(0, yaw + Math.PI / 2, 0);
           d.updateMatrix();
           st.tyres.setMatrixAt(kt, d.matrix); st.bands.setMatrixAt(kt, d.matrix);
           col.set(carry === 2 ? CR.RealData.tyre(s.tyre).color : '#555a62').convertSRGBToLinear();
           st.bands.setColorAt(kt, col);
           kt++;
         }
-        k++;
       });
-      // the car: up on the jacks, wheels off between gun-off and gun-on
       if (s.car) {
         st.used[s.key] = s.car;
         s.car.group.position.y = lift * 0.07;
@@ -296,9 +474,12 @@
         });
       }
     });
-    st.torso.count = st.legs.count = st.head.count = k;
+    st.pose.forEach(function (ps, pz) { ps.suit.count = ps.trim.count = ps.dark.count = ps.helmet.count = cnt[pz]; });
     st.tyres.count = st.bands.count = kt;
-    [st.torso, st.legs, st.head, st.tyres, st.bands].forEach(function (m) {
+    st.guns.count = kg; st.jacks.count = kj;
+    var all = [st.tyres, st.bands, st.guns, st.jacks];
+    st.pose.forEach(function (ps) { all.push(ps.suit, ps.trim, ps.dark, ps.helmet); });
+    all.forEach(function (m) {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });

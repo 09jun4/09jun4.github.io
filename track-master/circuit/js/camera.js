@@ -97,9 +97,22 @@
     return c.heading;
   }
 
+  // 리얼리스틱 start: TV shots while the first three lights come on, then the
+  // player's own view from the fourth light. 1: along the whole grid, 2: own
+  // car from the nose round to the side, 3: the same from the other end.
+  function startShot() {
+    var R = CR.Race;
+    if (!CR.Config.REAL || !R || !R.active || !R.real || R.phase !== 'lights') return null;
+    var t = R.lightsT || 0;
+    if (t < 2) return { kind: 'grid', t: t / 2 };
+    if (t < 3) return { kind: 'front', t: t - 2 };
+    if (t < 4) return { kind: 'rear', t: t - 3 };
+    return null;
+  }
+
   Camera.update = function (dt) {
     var c = CR.Car.state, cfg = CR.Config;
-    Camera.cine = pitShot(c);
+    Camera.cine = startShot() || pitShot(c);
     var diff = wrapAngle(targetHeading(c) - Camera.heading);
     Camera.heading += diff * Math.min(1, cfg.CAMERA_ROTATE_RATE * dt);
 
@@ -132,9 +145,22 @@
         EYE.height + shake, EYE.pitch + shake * 40, EYE.focal, EYE.centerY);
       return;
     }
+    if (Camera.cine && Camera.cine.kind) {
+      var sh2 = Camera.cine, e2 = ease(sh2.t), W = canvas.clientWidth, Hh = canvas.clientHeight;
+      if (sh2.kind === 'grid') {
+        // camera flies beside the grid from the back row to the front row
+        var x = CR.Race._ctx(), S = CR.Track.samples, rows = (CR.Race.ai.length + 1) * CR.Race.GRID_SPACING + 12;
+        var rel = -rows + (rows - 6) * e2, i = x.indexAt(x.wrapDist(rel), 0), s = S[i];
+        Camera.setView(W, Hh, s.x, s.y, s.heading - Math.PI / 2 + 0.55, 12, 3.4, 11, cfg.CAM_FOCAL, 0.55);
+      } else {
+        var b0 = sh2.kind === 'front' ? 0 : Math.PI, b1 = sh2.kind === 'front' ? Math.PI / 2 : Math.PI * 1.5;
+        var bearing = c.heading + b0 + (b1 - b0) * e2;
+        Camera.setView(W, Hh, c.x, c.y, bearing + Math.PI, 5.6, 1.3, 4, cfg.CAM_FOCAL, 0.55);
+      }
+      Camera.heading = c.heading;
+      return;
+    }
     if (Camera.cine) {
-      // From the front quarter on the garage side, sweeping round to the side
-      // as the crew works, then watching the car leave.
       // Bearing from the car to the camera sweeps from the front quarter to the
       // pit-wall side, inside the lane and above the fence: the crew with the
       // garage behind them, like the TV pit cameras.
