@@ -68,7 +68,7 @@
   function snapshot() {
     return { money: Garage.money, owned: Garage.owned, selected: Garage.selected, track: Garage.track, tune: Garage.tune,
       f1Laps: Garage.f1Laps, practice: Garage.practice, practiceFP: Garage.practiceFP, raceDifficulty: Garage.raceDifficulty,
-      season: Garage.season, seasons: Garage.seasons, gfx: Garage.gfx, savedAt: Garage.savedAt };
+      season: Garage.season, seasons: Garage.seasons, gfx: Garage.gfx, real: Garage.real, savedAt: Garage.savedAt };
   }
 
   function setStatus(st) {
@@ -131,7 +131,9 @@
     Garage.season = { num: 1, races: [] };
     Garage.seasons = [];
     Garage.gfx = null; // graphics preset 'low' | 'high' (gfx/gfx-preset.js); null = not chosen
+    Garage.real = null; // 리얼리스틱 mode: settings + championship (realSave())
     if (data) {
+      if (data.real && typeof data.real === 'object') Garage.real = cleanReal(data.real);
       if (data.gfx === 'low' || data.gfx === 'high') Garage.gfx = data.gfx;
       Garage.f1Laps = Math.max(0, Math.floor(Number(data.f1Laps)) || 0);
       [['practice', Garage.practice], ['practiceFP', Garage.practiceFP]].forEach(function (pair) {
@@ -174,6 +176,68 @@
     if (!Garage.owned[Garage.selected]) Garage.selected = starter;
     emit('apply');
   }
+
+  // --- 리얼리스틱 mode (real/real-race.js) ------------------------------------
+  // {settings: {length, weather, level, quali}, season: {num, races: [...]}, seasons: [...]}
+  var REAL_DEFAULT = function () {
+    return { settings: { length: 25, weather: 'auto', level: 'normal', quali: true }, season: { num: 1, races: [] }, seasons: [] };
+  };
+  function cleanReal(r) {
+    var out = REAL_DEFAULT(), st = r.settings || {};
+    if ([10, 25, 50, 100].indexOf(st.length) >= 0) out.settings.length = st.length;
+    if (['auto', 'dry', 'mixed', 'wet'].indexOf(st.weather) >= 0) out.settings.weather = st.weather;
+    if (['amateur', 'normal', 'pro', 'legend'].indexOf(st.level) >= 0) out.settings.level = st.level;
+    if (typeof st.quali === 'boolean') out.settings.quali = st.quali;
+    if (r.season && Array.isArray(r.season.races)) out.season = { num: Math.max(1, Math.floor(Number(r.season.num)) || 1), races: r.season.races.slice(0, 6) };
+    if (Array.isArray(r.seasons)) out.seasons = r.seasons.filter(function (x) { return x && typeof x === 'object'; }).slice(-50);
+    return out;
+  }
+  Garage.realSave = function () {
+    if (!Garage.real) Garage.real = REAL_DEFAULT();
+    return Garage.real;
+  };
+  Garage.setRealSetting = function (key, value) {
+    Garage.realSave().settings[key] = value;
+    save();
+  };
+  Garage.addMoney = function (amount) {
+    Garage.money += Math.max(0, Math.round(amount));
+    save();
+  };
+  // A finished realistic race: championship points, prize money; the
+  // season is archived after its last round. Returns {race, season, finishedSeason, prize}.
+  Garage.recordReal = function (results, prize) {
+    var rs = Garage.realSave(), season = rs.season;
+    var race = {
+      track: results.track, at: Date.now(), laps: results.laps, length: results.length, weather: results.weather,
+      playerPos: results.playerPos, retired: !!results.retired,
+      fastest: results.fastest ? { id: results.fastest.id, time: Math.round(results.fastest.time * 1000) / 1000 } : null,
+      entries: results.entries.map(function (e) {
+        var x = { id: e.id, pos: e.pos, points: e.points };
+        if (e.dnf) x.dnf = 1;
+        if (e.isPlayer) { x.time = e.time === null ? null : Math.round(e.time * 1000) / 1000; x.best = e.best === null ? null : Math.round(e.best * 1000) / 1000; x.grid = e.grid; x.stops = e.stops; }
+        return x;
+      }),
+    };
+    season.races.push(race);
+    Garage.money += Math.max(0, Math.round(prize || 0));
+    var finished = null;
+    if (season.races.length >= 6 && CR.Real) {
+      var st = CR.Real.standings(season);
+      finished = {
+        num: season.num, at: Date.now(),
+        drivers: st.drivers.map(function (s) { return { id: s.id, points: s.points, wins: s.wins }; }),
+        teams: st.teams.map(function (s) { return { id: s.id, points: s.points }; }),
+        playerRank: st.drivers.map(function (s) { return s.id; }).indexOf('you') + 1,
+        teamRank: st.teams.map(function (s) { return s.id; }).indexOf('you') + 1,
+        races: season.races.map(function (r) { return { track: r.track, playerPos: r.playerPos, retired: r.retired }; }),
+      };
+      rs.seasons.push(finished);
+      rs.season = { num: season.num + 1, races: [] };
+    }
+    save();
+    return { race: race, season: season, finishedSeason: finished, prize: Math.round(prize || 0) };
+  };
 
   Garage.load = function () {
     activeKey = STORAGE_KEY;

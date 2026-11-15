@@ -62,6 +62,7 @@
   Main.applyCar = function (car, levels) {
     car = car || CR.Garage.car();
     for (var k in baseConfig) CR.Config[k] = baseConfig[k];
+    delete CR.Config.REAL; // 리얼리스틱 physics off (real/real-physics.js turns it back on)
     Object.assign(CR.Config, CR.Tuning.physics(car, levels));
     CR.Config.STEER_RESPONSE_RATE *= CR.Config.STEER_RESPONSE_BOOST;
     CR.Config.TIRE_GRIP_TARMAC *= CR.Config.GRIP_BOOST;
@@ -138,6 +139,78 @@
     CR.Menu.showTab('race');
   };
 
+  // --- 리얼리스틱 (real/real-race.js, real/real-ui.js) ---------------------------
+  // Weekend on the next round of the championship: qualifying (Q1-Q3, one
+  // flying lap each) or a simulated grid, then the race in the player's F1.
+  Main.startRealWeekend = function () {
+    if (!CR.Race.canEnter()) return;
+    if (CR.Race.active) CR.Race.end();
+    CR.Real.prepare();
+    Main.trackIndex = CR.Real.trackIndex;
+    if (CR.Real.settings.quali) {
+      CR.Real.startQuali();
+      beginRealRun();
+    } else {
+      CR.Real.skipQuali();
+      CR.RealUI.showGrid();
+    }
+  };
+  function beginRealRun() {
+    var tracks = CR.Tracks.list, R = CR.Real;
+    CR.Gfx.resetEffects();
+    CR.Car.events.length = 0;
+    Main.mode = 'real';
+    Main.raceActive = true;
+    resultsIn = -1;
+    enterPlaying();
+    CR.RaceUI.setRaceHud(false);
+    CR.Audio.startEngine(CR.Car.def);
+    CR.Minimap.setTrack();
+    CR.Hud.showTrack(R.trackIndex + 1, tracks.length, tracks[R.trackIndex].name, '리얼리스틱 · 예선 Q' + R.q.session + ' · 플라잉 랩 1회');
+    if (CR.RealUI) CR.RealUI.onSession();
+  }
+  // Next qualifying session (after the knockout screen).
+  Main.nextQualiRun = function () {
+    CR.Real.setupQualiRun();
+    beginRealRun();
+  };
+  // Race (grid in CR.Real.grid), starting on `tyre`.
+  Main.startRealRace = function (tyre) {
+    var tracks = CR.Tracks.list, R = CR.Real;
+    if (CR.Race.active) CR.Race.end();
+    R.prepareRace(tyre);
+    Main.trackIndex = R.trackIndex;
+    CR.Race.start(R.trackIndex, 'normal', R);
+    CR.Gfx.resetEffects();
+    CR.Car.events.length = 0;
+    Main.mode = 'real';
+    Main.raceActive = true;
+    resultsIn = -1;
+    enterPlaying();
+    CR.RaceUI.setRaceHud(true);
+    CR.Audio.startEngine(CR.Car.def);
+    CR.Minimap.setTrack();
+    CR.Hud.showTrack(R.trackIndex + 1, tracks.length, tracks[R.trackIndex].name,
+      '리얼리스틱 · 라운드 ' + (R.nextRound() + 1) + ' · ' + R.laps + '랩 · P' + CR.Race.PLAYER_GRID + ' 출발');
+    if (CR.RealUI) CR.RealUI.onSession();
+  };
+  // Back to the menu's 리얼리스틱 tab (after results, or abandoning qualifying).
+  Main.leaveReal = function () {
+    if (CR.Race.active) CR.Race.end();
+    CR.Real.abandon();
+    CR.RaceUI.setRaceHud(false);
+    if (CR.RealUI) CR.RealUI.onSession();
+    Main.mode = 'practice';
+    Main.raceActive = false;
+    CR.Laps.reset(false);
+    CR.Car.state.coasting = false;
+    CR.Car.state.autopilot = false;
+    CR.Car.state.inPit = false;
+    Main.applyCar();
+    Main.toGarage();
+    CR.Menu.showTab('real');
+  };
+
   Main.start = function () {
     var tracks = CR.Tracks.list;
     if (CR.Race.active) CR.Race.end();
@@ -195,6 +268,12 @@
   // Pause overlay / shop -> 레이스 종료하기: drop the race and all its lap
   // records and go back to the start screen.
   Main.endRace = function () {
+    if (CR.Real && CR.Real.on && CR.Real.phase === 'quali') {
+      CR.Hud.hidePause();
+      Main.state = 'playing';
+      CR.Real.qualiCrash();
+      return;
+    }
     if (CR.Race.active) {
       // AI 대전: forfeit = classified last; the results follow.
       CR.Race.forfeit();
@@ -211,7 +290,7 @@
   // Same track, from the start line: fresh car and lap times.
   // Offered (R key / button) once the car has retired.
   Main.restart = function () {
-    if (CR.Race.active) return; // a retirement ends an AI 대전
+    if (CR.Race.active || (CR.Real && CR.Real.on)) return; // a retirement ends an AI 대전
     CR.Car.spawnAtTrackStart();
     CR.Gfx.resetEffects();
     CR.Input.clear();
@@ -235,6 +314,7 @@
         CR.Audio.explode();
         CR.Gfx.explode(CR.Car.state);
         retireOverlayIn = CR.Config.RETIRE_OVERLAY_DELAY;
+        if (CR.Real && CR.Real.on && CR.Real.phase === 'quali') { CR.Real.qualiCrash(); retireOverlayIn = -1; }
       }
     }
     ev.length = 0;
@@ -259,8 +339,13 @@
       if (resultsIn < 0) {
         Main.state = 'results';
         CR.Audio.silence();
-        var record = CR.Garage.recordRace(CR.Race.results);
-        CR.RaceUI.showResults(CR.Race.results, record);
+        if (CR.Race.real) {
+          var prize = CR.Real.prize(CR.Race.results);
+          CR.RealUI.showResults(CR.Race.results, CR.Garage.recordReal(CR.Race.results, prize));
+        } else {
+          var record = CR.Garage.recordRace(CR.Race.results);
+          CR.RaceUI.showResults(CR.Race.results, record);
+        }
       }
     }
   }
@@ -284,7 +369,11 @@
   function handleLapEvents() {
     var ev = CR.Laps.events;
     for (var i = 0; i < ev.length; i++) {
-      if (ev[i].type === 'lap') {
+      if (ev[i].type === 'lap' && CR.Real && CR.Real.on) {
+        // 리얼리스틱: no lap pay or practice records (prize money at the end)
+        if (CR.Real.phase === 'quali') CR.Real.qualiLap(ev[i]);
+        else if (CR.Race.active) CR.Race.onPlayerLap(CR.Laps.history.length);
+      } else if (ev[i].type === 'lap') {
         ev[i].money = CR.Garage.payLap(ev[i].value, CR.Track.length, ev[i].best);
         CR.Hud.moneyPop();
         var trackId = CR.Tracks.list[Main.trackIndex].realName;
@@ -307,6 +396,7 @@
       var onGrid = CR.Race.active && CR.Race.phase === 'lights';
       if (!onGrid) {
         if (CR.Input.autoShift || CR.Car.state.autopilot) CR.Car.autoShift();
+        if (CR.Real && CR.Real.on) CR.Real.frame(dt);
         CR.Car.update(dt);
         if (!(CR.Race.active && CR.Race.phase === 'done')) CR.Laps.update(dt);
       }

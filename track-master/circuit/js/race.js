@@ -116,19 +116,26 @@
   // the stock F1 physics in CR.Config and the track built with it.
   function buildProfile() {
     var S = CR.Track.samples, cfg = CR.Config, v = new Float64Array(n), i, k;
+    // 리얼리스틱: sustained deployment, Straight Mode per zone, grip-limited braking.
+    var RP = cfg.REAL ? CR.RealPhys : null;
+    if (RP) RP.profile = true;
     for (i = 0; i < n; i++) v[i] = Math.min(S[i].maxSafeSpeed, 120);
     for (var pass = 0; pass < 2; pass++) {
       for (k = 0; k < 2 * n; k++) {
         i = k % n;
         var j = (i + 1) % n, ds = cum[i + 1] - cum[i];
+        if (RP) RP.profileZone = RP.zone ? RP.zone[i] : 0;
         var a = Math.max(0, CR.Car.maxAccelAt(v[i]));
         v[j] = Math.min(v[j], Math.sqrt(v[i] * v[i] + 2 * a * ds));
       }
+      if (RP) RP.profileZone = 0;
       for (k = 2 * n; k > 0; k--) {
         var jj = k % n, ii = (jj - 1 + n) % n, d2 = cum[ii + 1] - cum[ii];
-        v[ii] = Math.min(v[ii], Math.sqrt(v[jj] * v[jj] + 2 * cfg.MAX_BRAKE_DECEL * d2));
+        var dec = RP ? RP.brakeDecel(v[jj]) : cfg.MAX_BRAKE_DECEL;
+        v[ii] = Math.min(v[ii], Math.sqrt(v[jj] * v[jj] + 2 * dec * d2));
       }
     }
+    if (RP) RP.profile = false;
     var t = 0;
     for (i = 0; i < n; i++) t += (cum[i + 1] - cum[i]) / v[i];
     profile = v;
@@ -160,6 +167,11 @@
     return idealLap;
   };
 
+  // 리얼리스틱: ideal lap of the current track with the current CR.Config.
+  Race.profileLap = function () { buildCumulative(); buildProfile(); return idealLap; };
+  // Internals for real/real-race.js (read-only use).
+  Race._ctx = function () { return { L: L, n: n, cum: cum, profile: profile, idealLap: idealLap, indexAt: indexAt, wrapDist: wrapDist, gridSlot: gridSlot }; };
+
   // Expected AI lap time (s) for a difficulty on a track.
   Race.expectedLap = function (trackIndex, difficultyId) {
     return Race.idealLapFor(trackIndex) * Race.difficultyById(difficultyId).factor;
@@ -172,10 +184,15 @@
     return { dist: -(Race.GRID_SPACING + k * Race.GRID_SPACING), offset: k % 2 === 0 ? Race.GRID_LATERAL : -Race.GRID_LATERAL };
   }
 
-  Race.start = function (trackIndex, difficultyId) {
+  // real (optional): the 리얼리스틱 race (real/real-race.js) — 20-car grid,
+  // its own laps, realistic physics and the race-weekend rules.
+  Race.start = function (trackIndex, difficultyId, real) {
     var f1 = CR.Cars.byId('f1');
     Race.trackIndex = trackIndex;
     Race.difficulty = Race.difficultyById(difficultyId);
+    Race.real = real || null;
+    Race.LAPS = real ? real.laps : 3;
+    if (real) { startReal(trackIndex, real); return; }
 
     // Pace profile with the STOCK F1, then the track again with the
     // player's tuned F1 (corner colours follow its grip).
@@ -236,6 +253,63 @@
     CR.Car.events.length = 0;
   };
 
+  // 리얼리스틱 race start: realistic physics, profile with Straight Mode,
+  // grid from qualifying (real.grid: [{driver, isPlayer}] in grid order).
+  function startReal(trackIndex, real) {
+    var log = console.log;
+    console.log = function () {};
+    real.configureProfile(); // realistic car, reference tyre / fuel
+    CR.Track.buildTrack(CR.Tracks.list[trackIndex].segments);
+    CR.RealPhys.buildZones();
+    buildCumulative();
+    buildProfile();
+    // grip / fuel sensitivity of the lap (AI tyre wear and fuel pace), then the reference profile back
+    var baseProfile = profile, baseLap = idealLap;
+    real.calibrate(function () { CR.Track.refreshSpeeds(); buildProfile(); return idealLap; }, baseLap);
+    profile = baseProfile; idealLap = baseLap;
+    real.afterProfile();
+    real.configurePlayer(); // the player's starting tyre / fuel
+    CR.Track.refreshSpeeds();
+    console.log = log;
+    Race.ai = [];
+    var pg = 0;
+    real.grid.forEach(function (entry, g) {
+      if (entry.isPlayer) { pg = g; return; }
+      var gs = gridSlot(g);
+      var car = {
+        driver: entry.driver, model: entry.driver.model, isAI: true, grid: g + 1,
+        dist: gs.dist, offset: gs.offset, laneTarget: gs.offset, laneVel: 0,
+        prefLane: (Math.random() * 2 - 1) * 1.2,
+        v: 0, pace: real.paceOf(entry.driver), lapPace: 1,
+        idx: 0, x: 0, y: 0, heading: 0,
+        wheelDist: 0, wheelSteer: 0, forwardSpeed: 0,
+        reaction: 0.15 + Math.random() * 0.35 + g * 0.02,
+        lap: 0, lapStart: 0, laps: [], best: null, finished: false, finishTime: null,
+      };
+      newLapPace(car);
+      real.initCar(car, entry);
+      Race.ai.push(car);
+    });
+    var ps = gridSlot(pg);
+    var pIndex = indexAt(wrapDist(ps.dist), 0);
+    CR.Car.spawnAt(pIndex, ps.offset);
+    CR.Laps.reset(false, pIndex === 0 ? 0 : pIndex - n);
+    Race.PLAYER_GRID = pg + 1;
+    Race.player = { driver: CR.RealData.PLAYER, isPlayer: true, grid: pg + 1, idx: pIndex, offset: ps.offset,
+      dist: cum[pIndex] - L, v: 0, x: 0, y: 0, finished: false, retired: false };
+    Race.ai.forEach(placeAI);
+    Race.active = true;
+    Race.phase = 'lights';
+    Race.lightsOn = 0;
+    Race.clock = 0;
+    Race.results = null;
+    Race.events.length = 0;
+    lightsTimer = 0;
+    goAt = 4.0 + 0.4 + Math.random() * 1.0;
+    CR.Car.events.length = 0;
+    real.onStart();
+  }
+
   // Small lap-to-lap variation of an AI's pace (±0.4 %).
   function newLapPace(car) {
     car.lapPace = 1 + (Math.random() * 2 - 1) * 0.004;
@@ -259,6 +333,7 @@
   function profileSpeed(car, ahead) {
     var d = wrapDist(car.dist + ahead);
     var i = indexAt(d, car.idx);
+    if (Race.real) return profile[i] / (car.pace * car.lapPace * Race.real.paceMul(car, i));
     return profile[i] / (car.pace * car.lapPace);
   }
 
@@ -296,6 +371,7 @@
     }
     Race.clock += dt;
     trackPlayer();
+    if (Race.real) Race.real.update(dt);
     for (var i = 0; i < Race.ai.length; i++) driveAI(Race.ai[i], dt);
     collide();
     for (var j = 0; j < Race.ai.length; j++) placeAI(Race.ai[j]);
@@ -312,9 +388,10 @@
   // Called by main.js for every lap the player completes (lap events).
   Race.onPlayerLap = function (lapNumber) {
     if (!Race.active || Race.phase !== 'green') return;
-    if (lapNumber >= Race.LAPS) {
+    if (Race.real) Race.real.onPlayerLap(lapNumber);
+    if (Race.real ? Race.real.playerDone(lapNumber) : lapNumber >= Race.LAPS) {
       Race.player.finished = true;
-      Race.player.finishTime = CR.Laps.history.reduce(function (s, l) { return s + l.time; }, 0);
+      Race.player.finishTime = Race.real ? Race.clock : CR.Laps.history.reduce(function (s, l) { return s + l.time; }, 0);
       // Autopilot takes over (no crash into the next wall) and the camera
       // swings round to look at the car from the front.
       CR.Car.state.autopilot = true;
@@ -341,10 +418,13 @@
     var cfg = CR.Config;
     MAX_OFFSET = cfg.TRACK_WIDTH / 2 - 1.3;
     if (Race.clock < car.reaction) return;
+    // 리얼리스틱: pit lane / retired cars are driven by real-race.js.
+    if (Race.real && Race.real.preDrive(car, dt)) { advance(car, dt, car.dist - car.v * dt); return; }
 
     // Target speed: the profile a little ahead (anticipates braking).
     var vt = Math.min(profileSpeed(car, 0), profileSpeed(car, car.v * 0.25));
     if (car.finished) vt = Math.min(vt, 45); // cool-down lap
+    if (Race.real) vt = Race.real.targetSpeed(car, vt);
 
     // Traffic ahead within the car's width.
     var block = null, blockGap = Infinity, beside = null;
@@ -360,7 +440,7 @@
     }
     if (block) {
       var ov = block.isPlayer ? CR.Car.state.speed : block.v;
-      if (vt > ov * 1.005 || ov < 5) {
+      if ((vt > ov * 1.005 || ov < 5) && (!Race.real || Race.real.mayPass(car, block))) {
         // Pass on the side with more room.
         var leftRoom = MAX_OFFSET - block.offset, rightRoom = block.offset + MAX_OFFSET;
         car.laneTarget = leftRoom >= rightRoom ? Math.min(MAX_OFFSET, block.offset + 3.4) : Math.max(-MAX_OFFSET, block.offset - 3.4);
@@ -377,10 +457,11 @@
       if (Math.abs(car.offset - beside.offset) < 2.8) car.laneTarget = car.offset + away * 1.5;
     }
     car.laneTarget = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, car.laneTarget));
+    if (Race.real) Race.real.lane(car);
 
     // Speed and lane dynamics.
     var dv = vt - car.v;
-    car.v += Math.max(-42 * dt, Math.min(22 * dt, dv));
+    car.v += Math.max(-42 * dt, Math.min((Race.real ? Race.real.accelCap(car) : 22) * dt, dv));
     if (car.v < 0) car.v = 0;
     var wantLat = Math.max(-4, Math.min(4, (car.laneTarget - car.offset) * 1.8));
     car.laneVel += (wantLat - car.laneVel) * Math.min(1, 5 * dt);
@@ -390,6 +471,13 @@
 
     var prevDist = car.dist;
     car.dist += car.v * dt;
+    advance(car, dt, prevDist);
+  }
+
+  // Wheels and lap counting after the car has moved from prevDist to car.dist.
+  function advance(car, dt, prevDist) {
+    var cfg = CR.Config;
+    if (car.retired) return;
     car.forwardSpeed = car.v;
     car.wheelDist += car.v * dt;
     var S = CR.Track.samples;
@@ -405,10 +493,11 @@
       if (car.best === null || t < car.best) car.best = t;
       car.lapStart = Race.clock;
       newLapPace(car);
-      if (car.lap >= Race.LAPS && !car.finished) {
+      if (Race.real) Race.real.onAILap(car);
+      if ((Race.real ? Race.real.lapDone(car) : car.lap >= Race.LAPS) && !car.finished) {
         car.finished = true;
         // Exact crossing time: back off the part of this frame past the line.
-        car.finishTime = Race.clock - (car.dist - Race.LAPS * L) / Math.max(car.v, 1);
+        car.finishTime = Race.clock - (car.dist - Math.floor(car.dist / L) * L) / Math.max(car.v, 1);
       }
     }
   }
@@ -441,6 +530,7 @@
 
   function collide() {
     var all = [Race.player].concat(Race.ai);
+    if (Race.real) all = all.filter(Race.real.collides);
     for (var a = 0; a < all.length; a++) {
       for (var b = a + 1; b < all.length; b++) {
         var A = body(all[a]), B = body(all[b]);
@@ -471,6 +561,7 @@
   // Live order: finished cars by finish time, then by distance.
   Race.order = function () {
     var all = [Race.player].concat(Race.ai);
+    if (Race.real) return Race.real.order(all);
     return all.slice().sort(function (a, b) {
       if (a.isPlayer && a.retired) return 1;
       if (b.isPlayer && b.retired) return -1;
@@ -487,6 +578,11 @@
   function finishRace(retired) {
     if (Race.phase === 'done') return;
     Race.phase = 'done';
+    if (Race.real) {
+      Race.results = Race.real.classify(retired);
+      Race.events.push({ type: retired ? 'retire' : 'finish' });
+      return;
+    }
     var full = Race.LAPS * L;
     var entries = Race.ai.map(function (car) {
       // Still running: projected from its own pace (lap = ideal x pace factor).
@@ -519,6 +615,10 @@
   }
 
   Race.end = function () {
+    if (Race.real && Race.real.onEnd) Race.real.onEnd();
+    Race.real = null;
+    Race.LAPS = 3;
+    Race.PLAYER_GRID = 3;
     Race.active = false;
     Race.phase = 'idle';
     Race.ai = [];

@@ -434,7 +434,7 @@
     if (CR.Race && CR.Race.active) {
       var ais = CR.Race.ai;
       for (var i = 0; i < ais.length; i++) {
-        var a = ais[i], ac = this.carFor(a.model, Hi.Car.NUMBERS[a.driver && a.driver.id]);
+        var a = ais[i], ac = this.carFor(a.model, a.driver && (Hi.Car.NUMBERS[a.driver.id] || a.driver.num));
         var dist = Math.hypot(Cam.pos.x - a.x, Cam.pos.y - a.y);
         if (dist > 900) continue;
         var dec = dt > 0 && a._hiPrevV !== undefined ? (a._hiPrevV - a.v) / dt : 0;

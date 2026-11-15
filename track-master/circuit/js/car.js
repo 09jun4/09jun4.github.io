@@ -116,6 +116,17 @@
     var driveTorque = engineTorque * gearRatio * cfg.FINAL_DRIVE * cfg.DRIVETRAIN_EFFICIENCY;
     var tractiveForce = (driveTorque / cfg.WHEEL_RADIUS) * throttle;
 
+    if (cfg.REAL) {
+      // 리얼리스틱 mode (real/real-physics.js): + electrical power, traction
+      // limit, aero drag from the active-aero state, grip-limited braking.
+      var RP = CR.RealPhys;
+      tractiveForce = Math.min(tractiveForce + RP.elecForce(vf, throttle), RP.tractionLimit(vf));
+      var drag = 0.5 * cfg.AIR_DENSITY * RP.cda() * vf * Math.abs(vf);
+      var roll = vf > 0 ? cfg.ROLLING_RESISTANCE_COEF * cfg.CAR_MASS * cfg.GRAVITY : 0;
+      var brk = vf > 0 ? brake * RP.brakeDecel(vf) * cfg.CAR_MASS : 0;
+      return (tractiveForce - drag - roll - brk) / cfg.CAR_MASS;
+    }
+
     // Resistive forces (oppose forward motion).
     var dragForce = 0.5 * cfg.AIR_DENSITY * cfg.DRAG_COEF * cfg.FRONTAL_AREA * vf * Math.abs(vf);
     var rollResist = vf > 0 ? cfg.ROLLING_RESISTANCE_COEF * cfg.CAR_MASS * cfg.GRAVITY : 0;
@@ -179,7 +190,8 @@
 
   Car.update = function (dt) {
     var c = Car.state, cfg = CR.Config, input = CR.Input.state;
-    var mu = cfg.TIRE_GRIP_TARMAC;
+    if (c.inPit && cfg.REAL) { CR.RealPit.drivePlayer(dt); return; } // 리얼리스틱 pit lane: driven for the player
+    var mu = cfg.REAL ? CR.RealPhys.mu(c.speed) : cfg.TIRE_GRIP_TARMAC; // 리얼리스틱: + downforce
     // A car with fewer gears (switched to mid-race, e.g. single-speed
     // Formula E) can't be in a gear it doesn't have.
     if (c.gear > cfg.GEAR_RATIOS.length) c.gear = cfg.GEAR_RATIOS.length;
@@ -274,11 +286,12 @@
   Car.autoShift = function () {
     var c = Car.state, cfg = CR.Config, ratios = cfg.GEAR_RATIOS;
     if (c.retired) return;
+    var down = cfg.REAL ? cfg.REDLINE_RPM * 0.62 : 3200, roomUp = cfg.REAL ? cfg.REDLINE_RPM * 0.08 : 900;
     if (c.rpm > cfg.REDLINE_RPM - 250 && c.gear < ratios.length) {
       Car.shiftUp();
-    } else if (c.gear > 1 && c.rpm < 3200) {
+    } else if (c.gear > 1 && c.rpm < down) {
       var lowerRpm = (c.rpm * ratios[c.gear - 2]) / ratios[c.gear - 1];
-      if (lowerRpm < cfg.REDLINE_RPM - 900) Car.shiftDown();
+      if (lowerRpm < cfg.REDLINE_RPM - roomUp) Car.shiftDown();
     }
   };
 
@@ -295,6 +308,7 @@
     }
     c.coasting = false;
     c.autopilot = false;
+    c.inPit = false;
     c.vx = 0;
     c.vy = 0;
     c.speed = 0;

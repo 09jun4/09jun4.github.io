@@ -118,7 +118,8 @@
 
     for (var i = 0; i < L.events.length; i++) {
       var e = L.events[i];
-      if (e.type === 'penalty') notice('트랙 이탈 · +' + e.value + '초 페널티', 'is-penalty');
+      if (e.type === 'lap' && CR.Real && CR.Real.on) notice((e.best ? '베스트 랩! ' : '랩 ') + L.format(e.value), e.best ? 'is-best' : 'is-lap');
+      else if (e.type === 'penalty') notice('트랙 이탈 · +' + e.value + '초 페널티', 'is-penalty');
       else if (e.type === 'lap' && e.best) notice('베스트 랩! ' + L.format(e.value) + ' · +' + CR.Garage.format(e.money) + ' (×' + CR.Garage.BEST_LAP_MULTIPLIER + ')', 'is-best');
       else if (e.type === 'lap') notice('랩 ' + L.format(e.value) + ' · +' + CR.Garage.format(e.money), 'is-lap');
     }
@@ -164,9 +165,9 @@
 
   Hud.showPause = function () {
     // In AI 대전 the shop is closed until the race ends: resume or forfeit.
-    var racing = CR.Race && CR.Race.active;
-    document.getElementById('pause-menu').hidden = racing;
-    document.getElementById('pause-end').textContent = racing ? '기권하기 (최하위 처리)' : '레이스 종료하기';
+    var racing = CR.Race && CR.Race.active, quali = CR.Real && CR.Real.on && CR.Real.phase === 'quali';
+    document.getElementById('pause-menu').hidden = racing || quali;
+    document.getElementById('pause-end').textContent = quali ? '이번 예선 랩 포기' : racing && CR.Race.real ? '기권하기 (리타이어 처리)' : racing ? '기권하기 (최하위 처리)' : '레이스 종료하기';
     Hud.pauseEl.hidden = false;
     document.getElementById('pause-resume').focus();
   };

@@ -93,6 +93,12 @@
     }
     // What the tyres actually hold: steering may ask for more (STEER_GRIP_TARGET
     // > LATERAL_GRIP, e.g. Formula E) but then the car just slides.
+    if (cfg.REAL) {
+      // 리얼리스틱: grip grows with speed (downforce, corner-mode wings).
+      var vr = 20, kf = Math.min(cfg.STEER_GRIP_TARGET, cfg.LATERAL_GRIP) * cfg.GRAVITY, cla = CR.RealData.CAR.CLA;
+      for (var it2 = 0; it2 < 40; it2++) vr = Math.min(120, Math.sqrt(kf * CR.RealPhys.muWith(vr, cla) * CR.turnBoost(vr) * lo));
+      return vr;
+    }
     var latAccel = Math.min(cfg.STEER_GRIP_TARGET, cfg.LATERAL_GRIP) * cfg.TIRE_GRIP_TARMAC * cfg.GRAVITY;
     // Slow corners get the low-speed turning boost (CR.turnBoost), which
     // itself depends on the speed: v = sqrt(a * boost(v) * R), solved by
@@ -253,6 +259,7 @@
           var px = x + length * t * Math.cos(heading);
           var py = y + length * t * Math.sin(heading);
           pushSample(samples, px, py, heading, seg.maxSafeSpeed, halfWidth, 0);
+          samples[samples.length - 1].di = i;
         }
 
         x = res.endX;
@@ -284,6 +291,7 @@
           var tc = c / nCorner;
           var p = cornerPointAt(x, y, heading, radius, turnAngle, tc);
           pushSample(samples, p.x, p.y, p.heading, seg.maxSafeSpeed, halfWidth, cornerCurvature);
+          samples[samples.length - 1].di = i;
         }
 
         x = endRes.x;
@@ -298,6 +306,7 @@
 
     Track.segments = segments;
     Track.samples = samples;
+    Track.def = def; // kept for refreshSpeeds()
     Track.length = segments.reduce(function (sum, seg) { return sum + seg.length; }, 0); // m, one lap
     computeRunoff(samples);
 
@@ -469,6 +478,17 @@
     var dy = y - s.y;
     var perpDist = Math.abs(dx * nx + dy * ny);
     return perpDist <= CR.Config.TRACK_WIDTH / 2;
+  };
+
+  // Recomputes every sample's corner speed for the current CR.Config (the
+  // 리얼리스틱 mode's grip changes with tyres and rain), in place.
+  Track.refreshSpeeds = function () {
+    if (!Track.def || !Track.samples.length) return;
+    var speeds = computeGroupSpeeds(Track.def), cap = computeMaxSafeSpeed('straight', Infinity);
+    for (var i = 0; i < Track.samples.length; i++) {
+      var s = Track.samples[i], v = speeds[s.di];
+      s.maxSafeSpeed = v !== null && v !== undefined ? v : cap;
+    }
   };
 
   // Exposed for isolated/unit testing (e.g. `node -e`).

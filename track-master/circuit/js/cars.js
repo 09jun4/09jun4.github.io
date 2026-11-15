@@ -153,6 +153,7 @@
       { box: [0, ry - 0.06, 1.04 * w, 0.3], z: [rw - 0.14, rw - 0.06], color: o.main }, // main plane
       { box: [0, ry + 0.1, 1.04 * w, 0.14], z: [rw - 0.06, rw], color: o.accent } // flap
     );
+    m.opts = o; // livery / proportions, read by the 높음 renderer and the 리얼리스틱 mode
     return m;
   }
 

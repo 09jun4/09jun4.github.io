@@ -57,7 +57,10 @@
     Laps.time += dt;
 
     // Track limits.
-    if (c.beyondTrackLimit && penaltyArmed) {
+    if (c.beyondTrackLimit && penaltyArmed && CR.Config.REAL) {
+      penaltyArmed = false; // 리얼리스틱: warnings, then race-time penalties (real-race.js)
+      if (CR.Real) CR.Real.trackLimit();
+    } else if (c.beyondTrackLimit && penaltyArmed) {
       Laps.penalty += CR.Config.TRACK_LIMIT_PENALTY;
       penaltyArmed = false;
       Laps.events.push({ type: 'penalty', value: CR.Config.TRACK_LIMIT_PENALTY });
