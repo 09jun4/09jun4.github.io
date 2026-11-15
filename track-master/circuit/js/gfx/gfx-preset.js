@@ -172,7 +172,8 @@
 
   // --- Lazy loading ----------------------------------------------------------
 
-  var HI_SCRIPTS = ['../js/vendor/three.min.js', '../js/vendor/three-csm.js', 'js/gfx/hi-tex.js', 'js/gfx/hi-track.js', 'js/gfx/hi-pit.js',
+  var SHARED = window.TM_SHARED || '../js/'; // the artifact build serves the shared scripts elsewhere
+  var HI_SCRIPTS = [SHARED + 'vendor/three.min.js', SHARED + 'vendor/three-csm.js', 'js/gfx/hi-tex.js', 'js/gfx/hi-track.js', 'js/gfx/hi-pit.js',
     'js/gfx/hi-env.js', 'js/gfx/hi-car.js', 'js/gfx/hi-fx.js', 'js/gfx/hi-post.js', 'js/gfx/hi-renderer.js'];
   var loadPromise = null;
   function loadHigh() {

@@ -94,6 +94,7 @@
   }
 
   function save() {
+    if (Garage.noSave) return; // 자동 플레이 데모: never touches the save
     Garage.savedAt = Date.now();
     writeSlot();
     if (cloud.doc) {

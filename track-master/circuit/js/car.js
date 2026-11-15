@@ -70,27 +70,29 @@
   function autopilotInput(c) {
     var S = CR.Track.samples, n = S.length;
     if (!n) return RETIRED_INPUT;
+    // demoDrive (리얼리스틱 자동 플레이, real-demo.js): race pace instead of a cruise
+    var demo = !!c.demoDrive, cruise = demo ? 200 : AP_CRUISE, cornerK = demo ? 0.9 : 0.75, decel = demo ? 32 : AP_DECEL;
     var want = AP_LOOKAHEAD + c.speed * 0.4; // aim point distance
     // Speed plan: every corner within braking range caps the speed now at
     // sqrt(v_corner^2 + 2 * AP_DECEL * distance).
-    var scan = Math.max(want, c.speed * c.speed / (2 * AP_DECEL) + 20);
-    var j = c.nearestSampleIndex || 0, walked = 0, aim = null, allowed = AP_CRUISE;
+    var scan = Math.max(want, c.speed * c.speed / (2 * decel) + 20);
+    var j = c.nearestSampleIndex || 0, walked = 0, aim = null, allowed = cruise;
     while (walked < scan) {
       var a = S[j], b = S[(j + 1) % n];
       walked += Math.hypot(b.x - a.x, b.y - a.y) || 1;
       j = (j + 1) % n;
       if (!aim && walked >= want) aim = S[j];
-      var vc = S[j].maxSafeSpeed * 0.75;
-      allowed = Math.min(allowed, Math.sqrt(vc * vc + 2 * AP_DECEL * walked));
+      var vc = S[j].maxSafeSpeed * cornerK;
+      allowed = Math.min(allowed, Math.sqrt(vc * vc + 2 * decel * walked));
     }
-    allowed = Math.min(allowed, S[c.nearestSampleIndex || 0].maxSafeSpeed * 0.75);
+    allowed = Math.min(allowed, S[c.nearestSampleIndex || 0].maxSafeSpeed * cornerK);
     var ang = Math.atan2(aim.y - c.y, aim.x - c.x) - c.heading;
     ang = Math.atan2(Math.sin(ang), Math.cos(ang));
     apInput.steerTarget = clamp(ang * 3, -1, 1);
     var target = allowed;
     var err = c.speed - target;
     apInput.brake = err > 1 ? clamp(err / 6, 0.2, 1) : 0;
-    apInput.throttle = err < -1 ? clamp(-err / 8, 0, 0.6) : 0;
+    apInput.throttle = err < -1 ? clamp(-err / 8, 0, demo ? 1 : 0.6) : 0;
     return apInput;
   }
   Car.autopilotInput = apInput;
@@ -218,7 +220,7 @@
     // Formula E) can't be in a gear it doesn't have.
     if (c.gear > cfg.GEAR_RATIOS.length) c.gear = cfg.GEAR_RATIOS.length;
     if (c.retired || c.coasting) input = RETIRED_INPUT; // no control; rolls to a stop (coasting: after a forfeit)
-    else if (c.autopilot) input = autopilotInput(c); // after the chequered flag
+    else if (c.autopilot || c.demoDrive) input = autopilotInput(c); // after the chequered flag / 자동 플레이
 
     // Body-frame split of the world velocity.
     var fx = Math.cos(c.heading), fy = Math.sin(c.heading);

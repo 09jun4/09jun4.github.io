@@ -79,7 +79,7 @@
   R.prepare = function (trackIndex) {
     RD().buildModels();
     var save = CR.Garage.realSave();
-    R.settings = save.settings;
+    R.settings = R.demoSettings || save.settings; // 자동 플레이: its own settings, nothing saved
     if (trackIndex === undefined) trackIndex = R.trackIndexOf(RD().CALENDAR[R.nextRound()]);
     R.trackIndex = trackIndex;
     var t = CR.Tracks.list[trackIndex];
@@ -780,7 +780,7 @@
   // Every playing frame while a realistic session runs (main.js), before the car moves.
   R.frame = function (dt) {
     if (!R.on) return;
-    var c = CR.Car.state, inp = CR.Input.state;
+    var c = CR.Car.state, inp = c.demoDrive ? CR.Car.autopilotInput : CR.Input.state;
     if (R.phase === 'race' && CR.Race.phase === 'lights') return;
     // slipstream: a car up to 55 m ahead within a car's width
     var tow = 0;

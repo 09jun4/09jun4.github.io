@@ -346,7 +346,8 @@
         CR.Audio.silence();
         if (CR.Race.real) {
           var prize = CR.Real.prize(CR.Race.results);
-          CR.RealUI.showResults(CR.Race.results, CR.Garage.recordReal(CR.Race.results, prize));
+          CR.RealUI.showResults(CR.Race.results, CR.Demo ? { season: CR.Garage.realSave().season, prize: 0, finishedSeason: null }
+            : CR.Garage.recordReal(CR.Race.results, prize));
         } else {
           var record = CR.Garage.recordRace(CR.Race.results);
           CR.RaceUI.showResults(CR.Race.results, record);
