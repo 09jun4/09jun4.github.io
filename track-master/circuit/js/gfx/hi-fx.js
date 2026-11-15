@@ -265,6 +265,17 @@
     }
   };
 
+  // Carbon shards and sparks from a damaged car; count by graphics tier.
+  F.shards = function (fx, car, amount, tierIndex) {
+    var per = [18, 14, 9, 6, 3][tierIndex || 0], n = Math.round(per * Math.max(0.3, amount));
+    var vx = car.vx * 0.4, vy = car.vy * 0.4;
+    for (var d = 0; d < n && fx.debrisState.length < 48; d++) {
+      fx.debrisState.push({ x: car.x + rnd(0.8), y: car.y + rnd(0.8), h: 0.4, vx: vx + rnd(8), vy: vy + rnd(8), vh: 2 + Math.random() * 5,
+        rx: Math.random() * 6, ry: Math.random() * 6, w: rnd(12), life: 1e9 });
+    }
+    for (var k = 0; k < n * 2; k++) spark(fx, car.x + rnd(0.5), car.y + rnd(0.5), 0.3, vx + rnd(10), vy + rnd(10), 1 + Math.random() * 5, 0.3 + Math.random() * 0.5, 0.08);
+  };
+
   F.reset = function (fx) {
     fx.smoke.clear(); fx.glow.clear(); fx.flames.clear(); fx.skids.clear(); fx.trails.clear();
     fx.flash = 0; fx.wreck = 0; fx.debrisState.length = 0; fx.debris.count = 0; fx.light.intensity = 0;

@@ -894,6 +894,13 @@
     }
   };
 
+  Renderer.shards = function (car, amount) {
+    var vx = car.vx * 0.4, vy = car.vy * 0.4, n = Math.round(6 + 14 * amount);
+    for (var d = 0; d < n; d++) {
+      spawn(DEBRIS, car.x + rnd(0.8), car.y + rnd(0.8), 0.4, vx + rnd(8), vy + rnd(8), 2 + Math.random() * 5, 0.08 + Math.random() * 0.12, 0, 1 + Math.random() * 0.6);
+    }
+  };
+
   function updateParticles(car, dt) {
     // A burning wreck keeps smoking.
     if (car.exploded) {
@@ -1088,6 +1095,17 @@
       }
       ctx.fill();
 
+      // 2a2. Gravel traps on the outside of corners (track.js).
+      ctx.fillStyle = '#b8a27a';
+      ctx.beginPath();
+      for (k = 0; k < nv; k++) {
+        idx = visible[k]; a = samples[idx]; b = samples[nextIdx[idx]];
+        if (a.bridge) continue;
+        if (a.gravelL && b.gravelL) strip(ctx, samples, idx, n, a.gravelL, a.wallLeft, b.gravelL, b.wallLeft, 0.005);
+        if (a.gravelR && b.gravelR) strip(ctx, samples, idx, n, -a.gravelR, -a.wallRight, -b.gravelR, -b.wallRight, 0.005);
+      }
+      ctx.fill();
+
       // 2b. Asphalt with the speed colour already blended in (opaque, one
       // layer); consecutive quads in the same colour bucket share one fill.
       var runBucket = -1;
@@ -1121,6 +1139,17 @@
         }
         ctx.fill();
       }
+
+      // 2c2. Sausage kerbs (yellow) behind the kerb on some corner exits.
+      ctx.fillStyle = '#ffd23f';
+      ctx.beginPath();
+      for (k = 0; k < nv; k++) {
+        idx = visible[k]; a = samples[idx];
+        if (!a.sausage || a.sausage !== samples[nextIdx[idx]].sausage) continue;
+        var so = a.sausage * (half + KERB_WIDTH + 0.05), so2 = a.sausage * (half + KERB_WIDTH + 0.6);
+        strip(ctx, samples, idx, n, so, so2, so, so2, 0.1);
+      }
+      ctx.fill();
 
       // 2d. White lines = track limits.
       var lo = half - EDGE_LINE_INSET - EDGE_LINE_WIDTH / 2, hi = lo + EDGE_LINE_WIDTH;
@@ -1248,7 +1277,7 @@
     // far to near so nearer objects cover farther ones.
     if (CR.Car.def) {
       drawList.length = 0;
-      drawList.push({ kind: 'car', obj: car, model: CR.Car.def.model, tint: car.exploded ? 0.22 : 1,
+      drawList.push({ kind: 'car', obj: car, model: (CR.RealDmg && CR.RealDmg.model2D(CR.Car.def.model)) || CR.Car.def.model, tint: car.exploded ? 0.22 : 1,
         hw: cfg.CAR_HALF_WIDTH, hl: cfg.CAR_HALF_LENGTH });
       if (CR.Race && CR.Race.active) {
         var ais = CR.Race.ai;

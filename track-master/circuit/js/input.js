@@ -44,7 +44,99 @@
     // (heading increases CCW = turning left; car.js: steerAngle>0 -> yawRate>0
     // -> heading increases). Left key -> +1, right key -> -1.
     Input.state.steerTarget = left && right ? 0 : left ? 1 : right ? -1 : 0;
+    if (!left && !right && tilt.on && tilt.live) Input.state.steerTarget = tilt.steer;
   }
+
+  // --- Tilt (gyro / accelerometer) steering and haptics ------------------------------
+  // Settings (this browser): steering 'buttons' | 'tilt', sensitivity, zero
+  // angle, invert, vibration. Tilt steering reads the gravity direction in
+  // screen coordinates (devicemotion): turning the phone like a steering
+  // wheel gives an analogue steer; the left / right pads are hidden.
+  var CTRL_KEY = 'track-master.circuit.controls';
+  var SENS = { low: 34, mid: 24, high: 16 }; // degrees for full lock
+  var tilt = { on: false, live: false, steer: 0, angle: 0, zero: 0, sens: 'mid', invert: false, vibrate: true };
+  try {
+    var saved = JSON.parse(localStorage.getItem(CTRL_KEY) || 'null');
+    if (saved) { tilt.on = saved.mode === 'tilt'; tilt.sens = SENS[saved.sens] ? saved.sens : 'mid'; tilt.zero = +saved.zero || 0; tilt.invert = !!saved.invert; tilt.vibrate = saved.vibrate !== false; }
+  } catch (e) { /* storage unavailable */ }
+  function saveCtrl() {
+    try { localStorage.setItem(CTRL_KEY, JSON.stringify({ mode: tilt.on ? 'tilt' : 'buttons', sens: tilt.sens, zero: tilt.zero, invert: tilt.invert, vibrate: tilt.vibrate })); } catch (e) { /* ignore */ }
+  }
+  var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function onMotion(e) {
+    var g = e.accelerationIncludingGravity;
+    if (!g || g.x === null) return;
+    var ax = IOS ? -g.x : g.x, ay = IOS ? -g.y : g.y;
+    var th = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
+    var sx = ax * Math.cos(th) - ay * Math.sin(th), sy = ax * Math.sin(th) + ay * Math.cos(th);
+    tilt.angle = Math.atan2(sx, sy) * 180 / Math.PI;
+    var a = tilt.angle - tilt.zero;
+    a = ((a + 540) % 360) - 180;
+    if (Math.abs(a) < 2) a = 0; else a -= a > 0 ? 2 : -2; // small dead zone
+    var s = Math.max(-1, Math.min(1, a / SENS[tilt.sens]));
+    tilt.steer = tilt.invert ? -s : s;
+    tilt.live = true;
+    recomputeState();
+  }
+  function startTilt() {
+    var go = function () { window.addEventListener('devicemotion', onMotion); };
+    if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+      return DeviceMotionEvent.requestPermission().then(function (r) { if (r === 'granted') { go(); return true; } return false; }).catch(function () { return false; });
+    }
+    go();
+    return Promise.resolve(!!window.DeviceMotionEvent);
+  }
+  function stopTilt() { window.removeEventListener('devicemotion', onMotion); tilt.live = false; recomputeState(); }
+  function applyMode() { document.body.classList.toggle('tilt-steer', tilt.on); }
+  Input.tilt = tilt;
+  Input.vibrate = function (pattern) {
+    if (!tilt.vibrate || !document.body.classList.contains('touch') || !navigator.vibrate) return;
+    try { navigator.vibrate(pattern); } catch (e) { /* not supported */ }
+  };
+  // Settings panel (menu 조작 fold).
+  Input.buildSettings = function (panel, onSummary) {
+    if (!panel) return;
+    function summary() { return (tilt.on ? '기울기 조향 · 감도 ' + { low: '낮음', mid: '보통', high: '높음' }[tilt.sens] : '버튼 조향') + (tilt.vibrate ? ' · 진동' : ''); }
+    function render() {
+      panel.textContent = '';
+      function row(label, items, cur, pick) {
+        var r = document.createElement('div'); r.className = 'ctrl-row';
+        var l = document.createElement('span'); l.className = 'ctrl-label'; l.textContent = label; r.appendChild(l);
+        items.forEach(function (it) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'ctrl-opt' + (it[0] === cur ? ' is-on' : '');
+          b.textContent = it[1]; b.setAttribute('aria-pressed', it[0] === cur ? 'true' : 'false');
+          b.addEventListener('click', function () { pick(it[0]); });
+          r.appendChild(b);
+        });
+        panel.appendChild(r);
+      }
+      row('조향', [['buttons', '버튼'], ['tilt', '기울기(자이로)']], tilt.on ? 'tilt' : 'buttons', function (v) {
+        if (v === 'tilt') {
+          startTilt().then(function (ok) {
+            if (!ok) { note.textContent = '이 기기·브라우저에서 기울기 센서를 쓸 수 없어요.'; return; }
+            tilt.on = true; applyMode(); saveCtrl(); render();
+            setTimeout(function () { if (tilt.live) { tilt.zero = tilt.angle; saveCtrl(); } }, 300);
+          });
+        } else { tilt.on = false; stopTilt(); applyMode(); saveCtrl(); render(); }
+      });
+      if (tilt.on) {
+        row('감도', [['low', '낮음'], ['mid', '보통'], ['high', '높음']], tilt.sens, function (v) { tilt.sens = v; saveCtrl(); render(); });
+        row('보정', [['zero', '지금 자세를 중앙으로'], ['inv', tilt.invert ? '방향 반전 켜짐' : '방향 반전']], null, function (v) {
+          if (v === 'zero' && tilt.live) tilt.zero = tilt.angle;
+          if (v === 'inv') tilt.invert = !tilt.invert;
+          saveCtrl(); render();
+        });
+      }
+      row('진동', [['on', '켜기'], ['off', '끄기']], tilt.vibrate ? 'on' : 'off', function (v) { tilt.vibrate = v === 'on'; saveCtrl(); render(); });
+      var note = document.createElement('p'); note.className = 'ctrl-note';
+      note.textContent = tilt.on ? '휴대폰을 핸들처럼 좌우로 돌려 조향해요. 차를 세운 자세에서 \'지금 자세를 중앙으로\'를 눌러 맞추세요.' : '기울기 조향은 휴대폰·태블릿에서 쓸 수 있어요(아이폰은 센서 권한을 물어봐요).';
+      panel.appendChild(note);
+      if (onSummary) onSummary(summary());
+    }
+    render();
+    applyMode();
+    if (tilt.on) startTilt(); // permission persists on Android; iOS asks again on the next tap
+  };
 
   function onKeyDown(e) {
     pressedKeys.add(e.code);

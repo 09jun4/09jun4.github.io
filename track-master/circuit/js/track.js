@@ -342,7 +342,7 @@
     for (var i = 0; i < n; i++) {
       var k = samples[i].curvature;
       if (k === 0) continue;
-      var w = Math.min(cfg.RUNOFF_MAX, cfg.RUNOFF_CORNER_K * Math.abs(k));
+      var w = Math.min(cfg.RUNOFF_MAX, cfg.RUNOFF_CORNER_K * Math.abs(k) + (Math.abs(k) > 1 / 500 ? cfg.RUNOFF_CORNER_BASE || 0 : 0));
       for (var d = -spread; d <= spread; d++) {
         var j = ((i + d) % n + n) % n;
         var f = 1 - Math.abs(d) / (spread + 1);
@@ -409,6 +409,36 @@
     for (var w = 0; w < n; w++) {
       samples[w].wallLeft = half + oL[w];
       samples[w].wallRight = half + oR[w];
+    }
+    markGravelAndSausages(samples, outL, outR);
+  }
+
+  // Gravel traps on the outside of corners where the run-off is wide
+  // (s.gravelL / s.gravelR: offset where the gravel starts, 0 = none), and
+  // sausage kerbs behind the kerb at the exit of tight corners
+  // (s.sausage: +1 left / -1 right / 0). kerb.js / car.js / renderers use them.
+  function markGravelAndSausages(samples, outL, outR) {
+    var cfg = CR.Config, n = samples.length, half = cfg.TRACK_WIDTH / 2;
+    var gFrom = half + (cfg.GRAVEL_FROM || 4.5), gMin = cfg.GRAVEL_MIN_RUNOFF || 9;
+    for (var i = 0; i < n; i++) {
+      var s = samples[i];
+      s.gravelL = !s.bridge && outL[i] > 6 && s.wallLeft - half >= gMin ? gFrom : 0;
+      s.gravelR = !s.bridge && outR[i] > 6 && s.wallRight - half >= gMin ? gFrom : 0;
+      s.sausage = 0;
+    }
+    // corner runs tighter than 120 m radius: sausage on the outside of the last third + exit
+    var i0 = -1, count = 0;
+    for (var k = 0; k <= n; k++) {
+      var tight = k < n && Math.abs(samples[k].curvature) > 1 / 120 && !samples[k].bridge;
+      if (tight && i0 < 0) i0 = k;
+      if (!tight && i0 >= 0) {
+        var len = k - i0;
+        if (len >= 3 && (count++ % 2 === 0)) { // every other tight corner, like real circuits
+          var sign = samples[i0 + (len >> 1)].curvature > 0 ? -1 : 1; // left turn -> outside is right
+          for (var q = Math.max(i0 + Math.floor(len * 0.6), k - 6); q < k + 2 && q < n; q++) samples[q].sausage = sign; // ~30 m at the exit
+        }
+        i0 = -1;
+      }
     }
   }
 

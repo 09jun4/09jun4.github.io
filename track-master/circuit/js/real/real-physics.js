@@ -36,6 +36,7 @@
     zone: null, // Uint8Array per sample: 1 = Straight Mode zone
     profile: false, // true while race.js builds the AI pace profile (sustained deployment, zone per sample)
     profileZone: 0,
+    dmg: { grip: 1, cla: 1, cda: 1, pull: 0 }, // real-damage.js effects on the player car
   };
 
   // Configures CR.Config for the realistic car (on top of the player's F1).
@@ -80,11 +81,11 @@
   P.cla = function () {
     if (P.profile) return P.profileZone ? D().CLA_STRAIGHT : D().CLA;
     var c = P.st.straight ? D().CLA + (D().CLA_STRAIGHT - D().CLA) * P.st.wing : D().CLA;
-    return c * (1 - 0.16 * P.st.tow);
+    return c * (1 - 0.16 * P.st.tow) * P.dmg.cla;
   };
   P.cda = function () {
     if (P.profile) return P.profileZone ? D().CDA_STRAIGHT : D().CDA;
-    return (D().CDA + (D().CDA_STRAIGHT - D().CDA) * (P.st.straight ? P.st.wing : 0)) * (1 - 0.3 * P.st.tow);
+    return (D().CDA + (D().CDA_STRAIGHT - D().CDA) * (P.st.straight ? P.st.wing : 0)) * (1 - 0.3 * P.st.tow) * P.dmg.cda;
   };
 
   // --- Tyre temperature -----------------------------------------------------------
@@ -227,6 +228,10 @@
     if (thr > 0) s.fuel = Math.max(0, s.fuel - P.burnPerM * v * dt * (0.55 + 0.45 * thr));
     cfg.CAR_MASS = d.MASS + s.fuel;
     cfg.TIRE_GRIP_TARMAC = P.tyreMu(s.tyre, s.wear, 1, P.wet) * P.tempGrip(s.tyre, s.temp);
+    // damage (real-damage.js): less downforce / grip, a broken corner pulls
+    P.dmg = CR.RealDmg ? CR.RealDmg.effects() : P.dmg;
+    cfg.TIRE_GRIP_TARMAC *= P.dmg.grip;
+    if (P.dmg.pull && !c.inPit) c.heading += P.dmg.pull * dt * Math.min(1, v / 30);
     // kerbs: less grip on the ridged paint (much less when wet) and a twitch of the chassis
     var kc = CR.Kerb && !c.inPit ? CR.Kerb.player() : 0;
     if (kc > 0) {

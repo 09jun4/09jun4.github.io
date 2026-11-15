@@ -81,6 +81,7 @@
       '  <div class="rl-row rl-modes"><span class="rl-mode rl-ot">OVERTAKE</span><span class="rl-mode rl-boost">BOOST</span><span class="rl-mode rl-straight">STRAIGHT</span><span class="rl-mode rl-tow">TOW</span></div>' +
       '  <div class="rl-row"><span class="rl-k">연료</span><b class="rl-fuel"></b><span class="rl-k">다음</span><span class="rl-next"></span><b class="rl-box"></b></div>' +
       '  <div class="rl-row rl-pen" hidden></div>' +
+      '  <div class="rl-row rl-dmg" hidden></div>' +
       '  <div class="rl-row rl-gaps"></div>' +
       '</div>' +
       '<div class="rl-pitcue" hidden></div>' +
@@ -105,6 +106,7 @@
     els.tyreRow = q('.rl-tyre-row');
     els.temps = q('.rl-car').children; els.tempTxt = q('.rl-temp-txt'); els.tow = q('.rl-tow'); els.pitcue = q('.rl-pitcue');
     els.gaps = q('.rl-gaps');
+    els.dmg = q('.rl-dmg');
     // crew dots for the 2D pit stop panel (top view of the car and 4 wheel crews)
     els.psCrew.innerHTML = '<svg viewBox="0 0 120 70" aria-hidden="true"><rect class="ps-car" x="44" y="10" width="32" height="50" rx="10"/>' +
       '<g class="ps-w" data-w="0"><rect x="34" y="14" width="10" height="14" rx="3"/></g><g class="ps-w" data-w="1"><rect x="76" y="14" width="10" height="14" rx="3"/></g>' +
@@ -225,6 +227,9 @@
     els.tempTxt.textContent = Math.round(st.temp) + '°C' + (dAvg < -20 ? ' 저온' : dAvg > 20 ? ' 과열' : '');
     els.tempTxt.style.color = dAvg < -20 ? '#5ec8ff' : dAvg > 20 ? '#ff8a7a' : '';
     els.tow.classList.toggle('is-on', st.tow > 0.25);
+    var Dm = CR.RealDmg, dtx = Dm && Dm.any() ? '파손: ' + (Dm.repairText() || '경미') : '';
+    els.dmg.hidden = !dtx;
+    if (els.dmg.textContent !== dtx) els.dmg.textContent = dtx;
     els.soc.style.width = Math.round(st.soc / d.BATTERY_MJ * 100) + '%';
     els.socTxt.textContent = st.soc.toFixed(1) + 'MJ';
     els.ot.classList.toggle('is-avail', !!st.otAvail);
@@ -263,6 +268,7 @@
       if (R.chequered) { f = '체커기'; cls = 'is-cheq'; }
       else if (R.scMode === 'sc') { f = R.scEnding ? 'SC 이번 랩 피트인' : 'SAFETY CAR'; cls = 'is-sc'; }
       else if (R.scMode === 'vsc') { f = 'VIRTUAL SAFETY CAR · 델타 ' + (R.pl.vscDelta >= 0 ? '+' : '') + R.pl.vscDelta.toFixed(1); cls = R.pl.vscDelta < 0 ? 'is-sc is-bad' : 'is-sc'; }
+      else if (CR.RealDmg && CR.RealDmg.meatball && !CR.RealDmg.meatball.done && CR.RealDmg.dangerous()) { f = '흑색·주황 깃발 · 위험 차량 — 피트인'; cls = 'is-meatball'; }
       else if (R.pl && R.pl.blue) { f = '블루 플래그 · 뒤차에 길을 비켜'; cls = 'is-blue'; }
       else if (yellowAhead()) { f = '옐로 플래그'; cls = 'is-yellow'; }
       else if (R.pl && R.pl.warnings === 3 && !R.pl.bwShown) { f = '흑백기 · 다음 트랙 리밋은 5초'; cls = 'is-bw'; }

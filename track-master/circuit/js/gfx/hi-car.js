@@ -1116,6 +1116,7 @@
   // --- Crash: charred car, wings and two wheels fly off --------------------------------------------
   C.detach = function (car, scene, carState) {
     if (car.wrecked) return;
+    if (car.dmgFly) restoreDamage(car);
     car.wrecked = true;
     car.group.updateMatrixWorld(true);
     var parts = [car.frontWing, car.rearWing, car.wheels[0].pivot, car.wheels[3] ? car.wheels[3].pivot : car.wheels[1].pivot];
@@ -1139,6 +1140,61 @@
     });
     car.flying = null;
   };
+  // --- 리얼리스틱 damage (real-damage.js): bent / hanging / torn-off wings,
+  // broken suspension (the wheel leans in and drops), parts that fly off.
+  C.damage = function (car, D, scene, st, dt) {
+    var on = CR.Config.REAL && CR.Real && CR.Real.on && D.any() && !st.exploded;
+    if (!on) { if (car.dmgOn) restoreDamage(car); return; }
+    car.dmgOn = true;
+    var s = D.st;
+    function base(o) { if (!o.userData.dmgBase) o.userData.dmgBase = { p: o.position.clone(), r: o.rotation.clone(), parent: o.parent }; return o.userData.dmgBase; }
+    function wing(o, amount, gone, sign) {
+      if (!o) return;
+      var b = base(o);
+      if (gone && !o.userData.dmgGone) {
+        o.userData.dmgGone = true;
+        car.group.updateMatrixWorld(true);
+        scene.attach(o);
+        var a = st.heading + Math.PI * (sign > 0 ? 0 : 1) + (Math.random() - 0.5) * 1.6, sp = 4 + Math.random() * 5;
+        (car.dmgFly = car.dmgFly || []).push({ obj: o, v: new THREE.Vector3(st.vx * 0.6 + Math.cos(a) * sp, 2.5 + Math.random() * 3, -(st.vy * 0.6 + Math.sin(a) * sp)),
+          w: new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 10) });
+      } else if (!o.userData.dmgGone) {
+        var hang = amount >= 0.55;
+        o.position.copy(b.p); o.position.y -= hang ? 0.07 : amount * 0.06;
+        o.rotation.set(b.r.x + (hang ? 0.2 : amount * 0.25), b.r.y, b.r.z + sign * (hang ? 0.12 : 0.03));
+      }
+    }
+    wing(car.frontWing, s.fw, s.fw >= 1, 1);
+    wing(car.rearWing, s.rw, s.rw >= 1, -1);
+    car.wheels.forEach(function (wh) {
+      var b = base(wh.pivot), left = b.p.z < 0, front = wh.front;
+      var broken = front ? (left ? s.fl : s.fr) : (left ? s.rl : s.rr);
+      if (!broken) return;
+      wh.pivot.position.y = b.p.y - 0.07;
+      wh.pivot.rotation.x = (left ? -1 : 1) * 0.38; // top of the wheel leans in
+      if (front) wh.pivot.rotation.y += (left ? 1 : -1) * 0.18;
+    });
+    (car.dmgFly || []).forEach(function (r) {
+      if (!(dt > 0)) return;
+      r.v.y -= 9.8 * dt;
+      r.obj.position.addScaledVector(r.v, dt);
+      if (r.obj.position.y < 0.05) { r.obj.position.y = 0.05; r.v.multiplyScalar(0.55); r.v.y = Math.abs(r.v.y) * 0.3; r.w.multiplyScalar(0.6); }
+      tmpE.set(r.w.x * dt, r.w.y * dt, r.w.z * dt);
+      r.obj.quaternion.multiply(tmpQ.setFromEuler(tmpE));
+    });
+  };
+  function restoreDamage(car) {
+    car.dmgOn = false;
+    var objs = [car.frontWing, car.rearWing].concat(car.wheels.map(function (w) { return w.pivot; }));
+    objs.forEach(function (o) {
+      if (!o || !o.userData.dmgBase) return;
+      var b = o.userData.dmgBase;
+      if (o.userData.dmgGone) { b.parent.add(o); o.userData.dmgGone = false; }
+      o.position.copy(b.p); o.rotation.copy(b.r);
+    });
+    car.dmgFly = null;
+  }
+
   var tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
   C.updateWreck = function (car, dt) {
     if (!car.flying || !(dt > 0)) return;

@@ -773,6 +773,8 @@
     CR.Volume.onSummary = function (text) { folds.sound.sum.textContent = text; };
     CR.Volume.init();
     folds.sound.sum.textContent = CR.Volume.summary();
+    makeFold(document.querySelector('.controls'), 'ctrl', '조작');
+    CR.Input.buildSettings(document.getElementById('controls-panel'), function (text) { folds.ctrl.sum.textContent = text; });
     makeFold(document.querySelector('.graphics'), 'gfx', '그래픽');
     CR.Gfx.buildUI(document.getElementById('graphics-panel'));
     CR.Gfx.buildUI(document.getElementById('pause-gfx'), { compact: true });

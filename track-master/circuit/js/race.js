@@ -553,7 +553,10 @@
         var jimp = rv < 0 ? (-(1 + RESTITUTION) * rv) / 2 : 0;
         applyToCar(all[a], -best.nx * push, -best.ny * push, -best.nx * jimp, -best.ny * jimp);
         applyToCar(all[b], best.nx * push, best.ny * push, best.nx * jimp, best.ny * jimp);
-        if ((all[a].isPlayer || all[b].isPlayer) && -rv > 2.5) CR.Car.events.push({ type: 'bump', impact: -rv });
+        if ((all[a].isPlayer || all[b].isPlayer) && -rv > 2.5) {
+          var pa = all[a].isPlayer, sg = pa ? 1 : -1; // normal from the player towards the other car
+          CR.Car.events.push({ type: 'bump', impact: -rv, nx: best.nx * sg, ny: best.ny * sg, other: pa ? all[b] : all[a] });
+        }
       }
     }
   }

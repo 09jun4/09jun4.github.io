@@ -27,9 +27,14 @@
 
   // Kerb surface height at a lateral offset (m, + = left) on sample s,
   // `along` = metres rolled (for the ridges). 0 off the kerb.
+  K.SAUSAGE = 0.1; // m, sausage kerb height (real ones 5-12 cm)
   K.heightAt = function (s, offset, along) {
-    if (!K.on(s)) return 0;
     var hw = CR.Config.TRACK_WIDTH / 2, d = Math.abs(offset) - hw;
+    if (s && s.sausage && s.sausage === (offset > 0 ? 1 : -1) && d > K.WIDTH && d < K.WIDTH + 0.6) {
+      var u = (d - K.WIDTH) / 0.6;
+      return K.SAUSAGE * Math.sin(u * Math.PI);
+    }
+    if (!K.on(s)) return 0;
     if (d < 0 || d > K.WIDTH) return 0;
     var hump = Math.min(1, d / K.RISE) * (d > K.WIDTH - 0.1 ? (K.WIDTH - d) / 0.1 : 1);
     return K.HEIGHT * hump + K.RIDGE * hump * Math.abs(Math.sin(along * Math.PI / K.PITCH));
@@ -42,7 +47,7 @@
     var S = CR.Track.samples;
     out = out || [0, 0, 0, 0];
     var s = S[i];
-    if (!s || !K.on(s)) { out[0] = out[1] = out[2] = out[3] = 0; return out; }
+    if (!s || (!K.on(s) && !s.sausage)) { out[0] = out[1] = out[2] = out[3] = 0; return out; }
     var fx = Math.cos(h), fy = Math.sin(h), lx = -fy, ly = fx;
     var pts = [[WX, WF], [-WX, WF], [WX, WR], [-WX, WR]]; // car-local (left +, forward +)
     for (var k = 0; k < 4; k++) {

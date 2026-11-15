@@ -337,6 +337,7 @@
   R.onStart = function () {
     R.ctx = CR.Race._ctx();
     Pit().build();
+    if (CR.RealDmg) CR.RealDmg.reset();
     R.cars.forEach(function (car) { car.rt.prevRel = Pit().relOf(car.dist); });
     R.chequered = false;
     R.scMode = null; R.sc = null; R.scTimer = 0; R.scLaps = 0; R.scEnding = false;
@@ -427,11 +428,12 @@
   function startPit(car, rel) {
     var rt = car.rt, mate = null;
     R.cars.forEach(function (o) { if (o !== car && o.rt.team === rt.team && o.rt.pit && o.rt.pit.phase !== 'out') mate = o; });
-    var stop = Pit().stopTime() + rt.pen + (mate ? 3 + Math.random() * 2 : 0);
+    var stop = Pit().stopTime() + rt.pen + (rt.repair || 0) + (mate ? 3 + Math.random() * 2 : 0);
     rt.nextTyre = rt.nextTyre || R.tyreFor(R.laps - car.lap - 1);
     rt.pit = Pit().newRun(rel, car.v, car.offset, Pit().boxRel(rt.team), stop);
     rt.pit.tyre = rt.nextTyre;
     rt.pit.onService = function () {
+      rt.repair = 0;
       rt.tyre = rt.nextTyre; rt.wear = 0; rt.warm = 0.55; rt.stops++;
       rt.penServed += rt.pen; rt.pen = 0; rt.box = false; rt.nextTyre = null;
       if (rt.plan.length && rt.plan[0].lap <= car.lap + 2) rt.plan.shift();
@@ -457,6 +459,7 @@
     return list;
   }
 
+  R.retireCar = function (car, why) { retire(car, why); };
   function retire(car, why) {
     car.retired = true;
     car.rt.why = why;
@@ -648,6 +651,7 @@
     pl.otNext = false;
     if (st.otAvail) R.radio('오버테이크 모드(MOM) 사용 가능 — Shift', 'eng');
     engineerLap(lap);
+    if (CR.RealDmg) CR.RealDmg.onLap(lap);
   };
   R.playerDone = function (lap) {
     if (lap >= R.laps || R.chequered) {
@@ -701,6 +705,7 @@
     } catch (e) { /* no speech */ }
   }
   R.speak = speak;
+  R.boxCall = boxCall;
   function gapsMessage() {
     var order = R.order(), i = order.indexOf(CR.Race.player);
     if (i < 0) return;
@@ -764,6 +769,7 @@
     if (pl.warnings <= 3) R.radio('트랙 리밋 경고 ' + pl.warnings + '/3' + (pl.warnings === 3 ? ' — 흑백기' : ''), 'race');
     else penalise(5, '트랙 리밋');
   };
+  R.penalty = function (s, why) { penalise(s, why); };
   function penalise(s, why) {
     R.pl.pen += s;
     R.radio(s + '초 페널티 (' + why + ') — 다음 피트스톱에서 소화', 'race');
@@ -843,11 +849,13 @@
 
   function playerPitIn() {
     var pl = R.pl, tyre = pl.nextTyre;
-    var stop = Pit().stopTime();
+    var stop = Pit().stopTime(), Dm = CR.RealDmg, fix = Dm ? Dm.repairTime() : 0;
+    if (fix) R.radio('수리: ' + Dm.repairText() + ' (+' + fix.toFixed(1) + '초)', 'eng');
     Pit().enterPlayer({
-      box: Pit().boxRel('you'), stopTime: stop + pl.pen, tyre: tyre, serve: pl.pen,
+      box: Pit().boxRel('you'), stopTime: stop + fix + pl.pen, tyre: tyre, serve: pl.pen,
       onService: function () {
         RP().fitTyres(tyre, 0.55);
+        if (Dm) Dm.reset();
         pl.stops++;
         pl.penServed += pl.pen; pl.pen = 0;
         pl.wearWarn = 0;

@@ -149,6 +149,28 @@
     c.beyondTrackLimit = Math.abs(offset) - extent > cfg.TRACK_WIDTH / 2;
     c.insideTrackLimit = Math.abs(offset) <= cfg.TRACK_WIDTH / 2; // centre back inside
 
+    // Gravel trap (track.js): heavy drag and rumble, the car digs in.
+    var gStart = offset > 0 ? s.gravelL : s.gravelR;
+    c.onGravel = !!gStart && Math.abs(offset) > gStart;
+    if (c.onGravel) {
+      var spd = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+      if (spd > 0.1) {
+        var kk = Math.max(0, spd - (6 + 0.006 * spd * spd) * dt) / spd;
+        c.vx *= kk; c.vy *= kk;
+      }
+    }
+    // Sausage kerb behind the kerb on some corner exits: a hard jolt.
+    var sd = offset > 0 ? 1 : -1, dk = Math.abs(offset) - cfg.TRACK_WIDTH / 2;
+    var onSausage = s.sausage === sd && dk > 1.4 && dk < 2.3;
+    if (onSausage && !c.onSausage) {
+      var sp0 = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+      c.heading += (Math.random() - 0.5) * 0.06 * Math.min(1, sp0 / 40);
+      var kz = Math.max(0, sp0 - 2) / Math.max(sp0, 0.01);
+      c.vx *= kz; c.vy *= kz;
+      Car.events.push({ type: 'sausage', impact: sp0 });
+    }
+    c.onSausage = onSausage;
+
     // Walls sit at the outer edge of the run-off (width varies per sample).
     var side = offset > 0 ? 1 : -1;
     var limit = (side > 0 ? s.wallLeft : s.wallRight) - extent;
@@ -171,7 +193,7 @@
         c.exploded = true;
         Car.events.push({ type: 'explode', impact: impact });
       } else if (impact > cfg.BUMP_IMPACT_SPEED) {
-        Car.events.push({ type: 'bump', impact: impact });
+        Car.events.push({ type: 'bump', impact: impact, nx: nx * side, ny: ny * side, wall: true });
       }
       var remove = vn * (1 + cfg.WALL_BOUNCE);
       c.vx -= nx * remove;

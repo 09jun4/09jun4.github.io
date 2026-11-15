@@ -432,6 +432,7 @@
     if (c.exploded && !player.wrecked) Hi.Car.detach(player, this.scene, c);
     else if (!c.exploded && player.wrecked) Hi.Car.reattach(player);
     Hi.Car.updateWreck(player, dt);
+    if (CR.RealDmg) Hi.Car.damage(player, CR.RealDmg, this.scene, c, dt);
     if (CR.Race && CR.Race.active) {
       var ais = CR.Race.ai;
       for (var i = 0; i < ais.length; i++) {
@@ -697,6 +698,7 @@
   };
 
   P.explode = function (car) { if (this.fx) Hi.Fx.explode(this.fx, car); };
+  P.shards = function (car, amount) { if (this.fx) Hi.Fx.shards(this.fx, car, amount, this.tierIndex); };
   P.resetEffects = function () { if (this.fx) Hi.Fx.reset(this.fx); };
 
   P.info = function () {

@@ -307,8 +307,13 @@
   function handleCarEvents(dt) {
     var ev = CR.Car.events;
     for (var i = 0; i < ev.length; i++) {
-      if (ev[i].type === 'bump') {
+      if (CR.RealDmg) CR.RealDmg.onEvent(ev[i]);
+      if (ev[i].type === 'sausage') {
+        CR.Audio.crash(Math.min(6, ev[i].impact * 0.12));
+        if (CR.Input.vibrate) CR.Input.vibrate(35);
+      } else if (ev[i].type === 'bump') {
         CR.Audio.crash(ev[i].impact);
+        if (CR.Input.vibrate && ev[i].impact > 3) CR.Input.vibrate(Math.min(160, 20 + ev[i].impact * 8));
       } else if (ev[i].type === 'explode') {
         CR.Audio.silence();
         CR.Audio.explode();

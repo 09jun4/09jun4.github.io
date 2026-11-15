@@ -362,6 +362,11 @@
     CR.Renderer.explode(car);
     if (hi) hi.explode(car);
   };
+  // Bits of carbon flying off a damaged car (real-damage.js); amount 0..1.3.
+  Gfx.shards = function (car, amount) {
+    if (CR.Renderer.shards) CR.Renderer.shards(car, amount);
+    if (hi && hi.shards) hi.shards(car, amount);
+  };
   Gfx.resetEffects = function () {
     CR.Renderer.resetEffects();
     if (hi) hi.resetEffects();

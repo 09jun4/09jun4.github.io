@@ -218,6 +218,37 @@
     var roR = strip(S, D, function (i) { var s = S[i], w = s.bridge ? half : s.wallRight; return [[-w - 0.05, 0], [-half, 0]]; }, { uv: 'world', uScale: 6, vScale: 6, flip: true });
     group.add(mesh(R, merge([roL, roR]), runoffMat));
 
+    // --- Gravel traps and sausage kerbs (track.js marks) ------------------------------
+    var gravelMat = R.std({ map: R.texRunoff, color: 0xd2bc8e, roughness: 1, metalness: 0, envMapIntensity: 0.15,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }, 'gravel');
+    var gr = [];
+    [1, -1].forEach(function (side) {
+      var key = side > 0 ? 'gravelL' : 'gravelR', wk = side > 0 ? 'wallLeft' : 'wallRight';
+      runs(n, function (i) { return !!S[i][key] && !!S[(i + 1) % n][key]; }).forEach(function (run) {
+        if (run.count < 2 || run.count >= n) return;
+        gr.push(strip(S, D, function (i) {
+          var a0 = [side * S[i][key], 0.012], b0 = [side * (S[i][wk] - 0.05), 0.012];
+          return side > 0 ? [a0, b0] : [b0, a0];
+        }, { from: run.from, count: run.count, uv: 'world', uScale: 3, vScale: 3, flip: true }));
+      });
+    });
+    var grg = merge(gr);
+    if (grg) group.add(mesh(R, grg, gravelMat, { order: 1 }));
+    var sausMat = R.std({ color: new THREE.Color('#ffcf1f').convertSRGBToLinear(), roughness: 0.5, metalness: 0, envMapIntensity: 0.4 }, 'sausage');
+    var sa = [];
+    [1, -1].forEach(function (side) {
+      runs(n, function (i) { return S[i].sausage === side && S[(i + 1) % n].sausage === side; }).forEach(function (run) {
+        if (run.count < 1 || run.count >= n) return;
+        sa.push(strip(S, D, function () {
+          var o0 = half + CR.Kerb.WIDTH + 0.02, p = [];
+          for (var q = 0; q <= 6; q++) { var u = q / 6; p.push([o0 + 0.6 * u, 0.005 + CR.Kerb.SAUSAGE * Math.sin(u * Math.PI)]); }
+          return side > 0 ? p : p.map(function (x) { return [-x[0], x[1]]; }).reverse();
+        }, { from: run.from, count: run.count, flip: true, vScale: 2 }));
+      });
+    });
+    var sag = merge(sa);
+    if (sag) group.add(mesh(R, sag, sausMat, { cast: true }));
+
     // --- White lines (track limits) ------------------------------------------------
     var lo = half - 0.2 - 0.2, hi = lo + 0.4;
     var lineMat = R.std({ color: 0xf2f2f0, roughness: 0.55, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }, 'line');

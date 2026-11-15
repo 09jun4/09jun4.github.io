@@ -105,10 +105,17 @@
     // room), and their offset changes by at most WALL_SLOPE m per metre.
     WALL_MIN_GAP: 2.5,
     WALL_SLOPE: 0.12,
-    RUNOFF_MAX: 11,
-    RUNOFF_CORNER_K: 420, // m^2: radius 40m -> 10.5m, radius 100m -> 4.2m
-    RUNOFF_SPREAD: 18, // m; fades with the square of the distance, so it widens late
-    RUNOFF_INSIDE_FRACTION: 0.3,
+    // 2026-11: wider corner run-off like modern F1 circuits (tarmac then
+    // gravel on the outside), so a mistake costs a track-limit penalty or
+    // time in the gravel rather than a crash: every real corner gets
+    // RUNOFF_CORNER_BASE plus K / radius, up to RUNOFF_MAX, spread further.
+    RUNOFF_MAX: 24,
+    RUNOFF_CORNER_K: 900, // m^2: radius 40m -> 22.5m, radius 100m -> 9m (+ base)
+    RUNOFF_CORNER_BASE: 6, // m on the outside of any corner tighter than 500 m
+    RUNOFF_SPREAD: 40, // m; fades with the square of the distance, so it widens late
+    RUNOFF_INSIDE_FRACTION: 0.35,
+    GRAVEL_FROM: 4.5, // m past the white line: gravel beyond this where the run-off is wide
+    GRAVEL_MIN_RUNOFF: 9, // m of run-off needed for a gravel trap
     TRACK_LIMIT_PENALTY: 5, // s
     TRACK_SAMPLE_SPACING: 4,
     STRAIGHT_SPEED_CAP: 999, // m/s sentinel — keeps color ratio near 0 on straights
