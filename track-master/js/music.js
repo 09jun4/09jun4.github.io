@@ -1,17 +1,18 @@
-// music.js — Track Master menu theme (180 BPM jungle / DnB / breakcore).
+// music.js — Track Master menu theme:
+//   "Glass Buildings" (liquid jungle / breakbeat drum and bass, loopable edit)
+//   by musinova, Pixabay (Pixabay Content License). 174 BPM, 72 bars.
 // The same song plays on the Track Master main screen and on the main menus
-// of every race mode. The intro plays only the first time Track Master is
-// opened in this tab; after that the 16-bar main loop repeats seamlessly.
-// Moving between pages continues the song at the right position (saved in
-// sessionStorage). Starting a race fades it out; going back to a menu brings
-// it back. The MUSIC button (menus only) turns it off and is remembered.
+// of every race mode, looping seamlessly. Moving between pages continues the
+// song at the right position (saved in sessionStorage). Starting a race fades
+// it out; going back to a menu starts it again from the top. The MUSIC
+// button (menus only) turns it off and is remembered.
 //
 //   TMMusic.menu()  — a menu is showing: play / keep playing
 //   TMMusic.stop()  — a race is starting: fade out
 (function (G) {
   'use strict';
-  var INTRO = 2.0;            // 6 beats at 180 BPM (the intro file holds 2 s of tail after this)
-  var LOOP = 64 / 3;          // 16 bars at 180 BPM (21.333 s)
+  var INTRO = 0;              // no separate intro file: the song starts from its own beginning
+  var LOOP = 72 * 240 / 174;  // 72 bars at 174 BPM (99.31 s)
   var PAD = 0.5;              // loop.mp3 = last 0.5 s + loop + first 0.5 s (decoder padding safety)
   var VOL = 0.5;
   var SKEY = 'track-master.music.session', LKEY = 'track-master.music';
