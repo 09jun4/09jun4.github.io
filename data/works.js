@@ -12,4 +12,5 @@ window.WORKS = [
   { title: 'KF-21 BORAMAE', url: '/kf21-boramae/', thumb: 'assets/thumbs/kf21-boramae.jpg', date: '2026-11-11', desc: '보라매를 몰고 적기를 격추하는 로우폴리 3D 전투기 슈팅' },
   { title: 'BLACKSITE', url: '/blacksite/', thumb: 'assets/thumbs/blacksite.jpg', date: '2026-11-04',
     desc: '비밀 연구시설 잠입 1인칭 FPS · 암살 · 데이터 탈취' },
+  { title: 'f(x) Synth', url: '/fx-synth/', thumb: 'assets/thumbs/fx-synth.jpg', date: '2026-11-16', desc: '함수 그래프를 소리로 — x는 시간, y는 주파수. EDM·DnB 함수 랜덤 생성기' },
 ];
