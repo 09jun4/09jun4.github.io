@@ -13,4 +13,5 @@ window.WORKS = [
   { title: 'BLACKSITE', url: '/blacksite/', thumb: 'assets/thumbs/blacksite.jpg', date: '2026-11-04',
     desc: '비밀 연구시설 잠입 1인칭 FPS · 암살 · 데이터 탈취' },
   { title: 'f(x) Synth', url: '/fx-synth/', thumb: 'assets/thumbs/fx-synth.jpg', date: '2026-11-16', desc: '함수 그래프를 소리로 — x는 시간, y는 주파수. EDM·DnB 함수 랜덤 생성기' },
+  { title: '진자 시뮬레이터', url: '/pendulum/', thumb: 'assets/thumbs/pendulum.jpg', date: '2026-11-16', desc: '단진자 · 2중진자 · 3중진자의 운동과 끝 추의 경로를 추적하는 물리 시뮬레이션' },
 ];

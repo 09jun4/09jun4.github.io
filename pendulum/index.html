@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>진자 시뮬레이터</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c222b;
+    --line: #2b323c;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --c1: #4cc9f0;
+    --c2: #f72585;
+    --c3: #ffb703;
+    --danger: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.top {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 20px 16px 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header.top h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  header.top p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .global-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .speed {
+    display: flex;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .speed-label { font-size: 12px; color: var(--muted); padding: 0 6px 0 6px; }
+  .speed button {
+    border: none;
+    background: transparent;
+    padding: 4px 9px;
+    border-radius: 7px;
+    font-variant-numeric: tabular-nums;
+  }
+  .speed button:hover { background: #242b35; }
+  .speed button[aria-pressed="true"] { background: #1f6feb; color: #fff; }
+
+  main.grid {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 8px 16px 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-head h2 { font-size: 16px; margin: 0; font-weight: 650; }
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 8px;
+    font-weight: 500;
+  }
+  .status[data-state="running"] { color: #3fb950; }
+  .actions { display: flex; gap: 6px; }
+
+  button {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color .15s, border-color .15s, transform .08s;
+    white-space: nowrap;
+  }
+  button:hover { background: #242b35; border-color: #3a434f; }
+  button:active { transform: scale(0.97); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; }
+  button.primary:hover { background: #388bfd; border-color: #388bfd; }
+  button.reset { color: var(--danger); }
+
+  .stage {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: radial-gradient(circle at 50% 50%, #121820 0%, #0b0f14 100%);
+  }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .stat {
+    padding: 8px 10px;
+    margin: 0 -1px -1px 0;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .stat .k { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .stat .v { font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 550; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+  .graph-wrap { padding: 10px 14px 6px; }
+  .graph-wrap .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .graph { position: relative; height: 120px; }
+  .graph canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .controls { padding: 6px 14px 14px; }
+  .arm {
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .arm:first-child { border-top: none; margin-top: 0; }
+  .arm-title { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .row {
+    display: grid;
+    grid-template-columns: 38px 1fr 64px;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+  }
+  .row label { font-size: 12px; color: var(--muted); }
+  .row output { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .hint { font-size: 11px; color: var(--muted); margin: 10px 0 0; }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>진자 시뮬레이터</h1>
+      <p>단진자 · 2중진자 · 3중진자. 슬라이더를 움직이면 그 진자는 초기화되고, ▶ 재생을 누르면 다시 시작합니다.</p>
+    </div>
+    <div class="global-actions">
+      <div class="speed" role="group" aria-label="재생 속도">
+        <span class="speed-label">배속</span>
+        <button data-speed="0.25">0.25×</button>
+        <button data-speed="0.5">0.5×</button>
+        <button data-speed="1" aria-pressed="true">1×</button>
+        <button data-speed="2">2×</button>
+        <button data-speed="4">4×</button>
+      </div>
+      <button id="allPlay" class="primary">▶ 전체 재생</button>
+      <button id="allPause">❚❚ 전체 일시정지</button>
+      <button id="allReset" class="reset">↺ 전체 초기화</button>
+    </div>
+  </header>
+
+  <main class="grid" id="grid"></main>
+
+<script>
+(() => {
+  'use strict';
+
+  const G = 9.81;                 // 중력 가속도 (m/s²)
+  const H = 1 / 600;              // 물리 적분 시간 간격 (s)
+  const GRAPH_WINDOW = 10;        // 그래프에 보이는 시간 범위 (s)
+  const GRAPH_SAMPLE = 1 / 30;    // 그래프 샘플 간격 (s)
+  const COLORS = ['#4cc9f0', '#f72585', '#ffb703'];
+
+  const CONFIGS = [
+    { n: 1, title: '단진자',  angles: [60],          lengths: [1.0],           masses: [1.0] },
+    { n: 2, title: '2중진자', angles: [120, -10],    lengths: [1.0, 1.0],      masses: [1.0, 1.0] },
+    { n: 3, title: '3중진자', angles: [120, 90, 60], lengths: [1.0, 1.0, 1.0], masses: [1.0, 1.0, 1.0] },
+  ];
+
+  const deg = r => r * 180 / Math.PI;
+  const rad = d => d * Math.PI / 180;
+  const wrap = a => { const t = 2 * Math.PI; return ((a + Math.PI) % t + t) % t - Math.PI; };
+
+  // 가우스 소거법 (부분 피벗)
+  function solve(A, b) {
+    const n = b.length;
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      if (p !== c) { [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]]; }
+      for (let r = c + 1; r < n; r++) {
+        const f = A[r][c] / A[c][c];
+        for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+        b[r] -= f * b[c];
+      }
+    }
+    const x = new Array(n);
+    for (let r = n - 1; r >= 0; r--) {
+      let s = b[r];
+      for (let k = r + 1; k < n; k++) s -= A[r][k] * x[k];
+      x[r] = s / A[r][r];
+    }
+    return x;
+  }
+
+  // N중 진자 운동방정식 (라그랑주 역학)
+  //   Σ_j μ_ij l_j cos(θi−θj) θj'' = −Σ_j μ_ij l_j sin(θi−θj) θj'² − g μ_ii sin θi
+  //   μ_ij = Σ_{k ≥ max(i,j)} m_k
+  function derivs(s, L, M) {
+    const n = L.length;
+    const th = s.slice(0, n), w = s.slice(n);
+    const tail = new Array(n);
+    let acc = 0;
+    for (let k = n - 1; k >= 0; k--) { acc += M[k]; tail[k] = acc; }
+    const A = [], b = [];
+    for (let i = 0; i < n; i++) {
+      A.push(new Array(n));
+      let rhs = -G * tail[i] * Math.sin(th[i]);
+      for (let j = 0; j < n; j++) {
+        const mu = tail[Math.max(i, j)];
+        const d = th[i] - th[j];
+        A[i][j] = mu * L[j] * Math.cos(d);
+        rhs -= mu * L[j] * Math.sin(d) * w[j] * w[j];
+      }
+      b.push(rhs);
+    }
+    return w.concat(solve(A, b));
+  }
+
+  function rk4(s, h, L, M) {
+    const add = (a, k, f) => a.map((v, i) => v + k[i] * f);
+    const k1 = derivs(s, L, M);
+    const k2 = derivs(add(s, k1, h / 2), L, M);
+    const k3 = derivs(add(s, k2, h / 2), L, M);
+    const k4 = derivs(add(s, k3, h), L, M);
+    return s.map((v, i) => v + (h / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+  }
+
+  class Pendulum {
+    constructor(cfg, mount) {
+      this.n = cfg.n;
+      this.cfg = cfg;
+      this.params = { angles: [...cfg.angles], lengths: [...cfg.lengths], masses: [...cfg.masses] };
+      this.dpr = window.devicePixelRatio || 1;
+      this.build(mount);
+      this.reset();
+    }
+
+    // ---------- DOM ----------
+    build(mount) {
+      const n = this.n;
+      const id = 'p' + n;
+      const el = document.createElement('section');
+      el.className = 'panel';
+      el.setAttribute('aria-labelledby', id + '-title');
+
+      const statKeys = [`<div class="stat"><div class="k">시간</div><div class="v" data-k="t">0.00 s</div></div>`];
+      for (let i = 0; i < n; i++) {
+        statKeys.push(`<div class="stat"><div class="k"><span class="dot" style="background:${COLORS[i]}"></span>θ${i + 1}</div><div class="v" data-k="a${i}">0°</div></div>`);
+      }
+      statKeys.push(
+        `<div class="stat"><div class="k">운동 에너지</div><div class="v" data-k="ke">0 J</div></div>`,
+        `<div class="stat"><div class="k">위치 에너지</div><div class="v" data-k="pe">0 J</div></div>`,
+        `<div class="stat"><div class="k">총 에너지</div><div class="v" data-k="e">0 J</div></div>`,
+        `<div class="stat"><div class="k">에너지 오차</div><div class="v" data-k="de">0%</div></div>`
+      );
+
+      let arms = '';
+      for (let i = 0; i < n; i++) {
+        arms += `
+          <div class="arm">
+            <div class="arm-title"><span class="dot" style="background:${COLORS[i]}"></span>${n === 1 ? '진자' : `팔 ${i + 1}`}</div>
+            <div class="row">
+              <label for="${id}-a${i}">각도</label>
+              <input type="range" id="${id}-a${i}" data-p="angles" data-i="${i}" min="-180" max="180" step="1" value="${this.params.angles[i]}">
+              <output for="${id}-a${i}"></output>
+            </div>
+            <div class="row">
+              <label for="${id}-l${i}">길이</label>
+              <input type="range" id="${id}-l${i}" data-p="lengths" data-i="${i}" min="0.3" max="2" step="0.05" value="${this.params.lengths[i]}">
+              <output for="${id}-l${i}"></output>
+            </div>
+            <div class="row">
+              <label for="${id}-m${i}">질량</label>
+              <input type="range" id="${id}-m${i}" data-p="masses" data-i="${i}" min="0.2" max="5" step="0.1" value="${this.params.masses[i]}">
+              <output for="${id}-m${i}"></output>
+            </div>
+          </div>`;
+      }
+
+      el.innerHTML = `
+        <div class="panel-head">
+          <h2 id="${id}-title">${this.cfg.title}<span class="status" aria-live="polite"></span></h2>
+          <div class="actions">
+            <button class="primary" data-act="toggle"></button>
+            <button class="reset" data-act="reset" aria-label="${this.cfg.title} 초기화">↺ 초기화</button>
+          </div>
+        </div>
+        <div class="stage"><canvas role="img" aria-label="${this.cfg.title} 애니메이션과 추의 경로"></canvas></div>
+        <div class="stats">${statKeys.join('')}</div>
+        <div class="graph-wrap">
+          <div class="label">각도-시간 그래프 (최근 ${GRAPH_WINDOW}초, −180° ~ 180°)</div>
+          <div class="graph"><canvas role="img" aria-label="${this.cfg.title} 각도-시간 그래프"></canvas></div>
+        </div>
+        <div class="controls">${arms}
+          <p class="hint">슬라이더를 움직이면 경로가 지워지고 시작 자세로 돌아갑니다.</p>
+        </div>`;
+      mount.appendChild(el);
+
+      this.el = el;
+      this.statusEl = el.querySelector('.status');
+      this.toggleBtn = el.querySelector('[data-act="toggle"]');
+      this.canvas = el.querySelector('.stage canvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.gCanvas = el.querySelector('.graph canvas');
+      this.gctx = this.gCanvas.getContext('2d');
+      this.trailCanvas = document.createElement('canvas');
+      this.tctx = this.trailCanvas.getContext('2d');
+      this.statEls = {};
+      el.querySelectorAll('[data-k]').forEach(v => { this.statEls[v.dataset.k] = v; });
+
+      this.toggleBtn.addEventListener('click', () => (this.running ? this.pause() : this.play()));
+      el.querySelector('[data-act="reset"]').addEventListener('click', () => this.reset());
+
+      el.querySelectorAll('input[type="range"]').forEach(inp => {
+        this.updateOutput(inp);
+        inp.addEventListener('input', () => {
+          this.params[inp.dataset.p][+inp.dataset.i] = parseFloat(inp.value);
+          this.updateOutput(inp);
+          this.reset();
+        });
+      });
+
+      new ResizeObserver(() => this.resize()).observe(this.canvas.parentElement);
+      new ResizeObserver(() => this.resizeGraph()).observe(this.gCanvas.parentElement);
+    }
+
+    updateOutput(inp) {
+      const v = parseFloat(inp.value);
+      const out = inp.parentElement.querySelector('output');
+      out.textContent = inp.dataset.p === 'angles' ? `${v}°` : inp.dataset.p === 'lengths' ? `${v.toFixed(2)} m` : `${v.toFixed(1)} kg`;
+    }
+
+    // ---------- 상태 ----------
+    reset() {
+      const { angles, lengths, masses } = this.params;
+      this.L = [...lengths];
+      this.M = [...masses];
+      this.state = angles.map(rad).concat(new Array(this.n).fill(0));
+      this.t = 0;
+      this.acc = 0;
+      this.trails = Array.from({ length: this.n }, () => []);
+      this.graph = [];
+      this.nextSample = 0;
+      this.E0 = this.energy().e;
+      this.running = false;
+      this.mode = 'idle';
+      this.computeScale();
+      this.clearTrailCanvas();
+      this.record(true);
+      this.sampleGraph();
+      this.updateButton();
+      this.updateStats(true);
+    }
+    play()  { this.running = true;  this.mode = 'running'; this.updateButton(); }
+    pause() { this.running = false; this.mode = 'paused';  this.updateButton(); }
+
+    updateButton() {
+      this.toggleBtn.textContent = this.running ? '❚❚ 일시정지' : '▶ 재생';
+      this.toggleBtn.setAttribute('aria-label', `${this.cfg.title} ${this.running ? '일시정지' : '재생'}`);
+      this.statusEl.dataset.state = this.mode;
+      this.statusEl.textContent = { running: '실행 중', paused: '일시정지', idle: '대기' }[this.mode];
+    }
+
+    // 추의 위치 (m, 아래쪽이 +y)
+    positions() {
+      const pts = [];
+      let x = 0, y = 0;
+      for (let i = 0; i < this.n; i++) {
+        x += this.L[i] * Math.sin(this.state[i]);
+        y += this.L[i] * Math.cos(this.state[i]);
+        pts.push([x, y]);
+      }
+      return pts;
+    }
+
+    energy() {
+      let ke = 0, pe = 0, vx = 0, vy = 0, h = 0;
+      for (let i = 0; i < this.n; i++) {
+        const th = this.state[i], w = this.state[this.n + i], l = this.L[i];
+        vx += l * Math.cos(th) * w;
+        vy += l * Math.sin(th) * w;
+        h += l * (1 - Math.cos(th));        // 가장 낮은 자세를 위치 에너지 기준(0)으로
+        ke += 0.5 * this.M[i] * (vx * vx + vy * vy);
+        pe += this.M[i] * G * h;
+      }
+      return { ke, pe, e: ke + pe };
+    }
+
+    // ---------- 시뮬레이션 ----------
+    update(dt) {
+      if (!this.running) return;
+      this.acc += dt;
+      while (this.acc >= H) {
+        this.state = rk4(this.state, H, this.L, this.M);
+        this.t += H;
+        this.acc -= H;
+        this.record(false);
+        if (this.t >= this.nextSample) this.sampleGraph();
+      }
+    }
+
+    // 경로 기록 (가장 끝의 추만): 이전 점에서 화면상 1px 이상 움직였을 때만 저장
+    record(force) {
+      const pts = this.positions();
+      const minDist = 1 / this.scale;
+      for (let i = this.n - 1; i < this.n; i++) {
+        const tr = this.trails[i];
+        const [x, y] = pts[i];
+        const len = tr.length;
+        if (!force && len) {
+          const dx = x - tr[len - 2], dy = y - tr[len - 1];
+          if (dx * dx + dy * dy < minDist * minDist) continue;
+        }
+        tr.push(x, y);
+        if (len >= 2) this.drawTrailSegment(i, tr[len - 2], tr[len - 1], x, y);
+      }
+    }
+
+    sampleGraph() {
+      const a = [];
+      for (let i = 0; i < this.n; i++) a.push(wrap(this.state[i]));
+      this.graph.push(this.t, ...a);
+      const stride = 1 + this.n;
+      while (this.graph.length > stride && this.graph[0] < this.t - GRAPH_WINDOW - 0.5) this.graph.splice(0, stride);
+      this.nextSample = this.t + GRAPH_SAMPLE;
+    }
+
+    // ---------- 그리기 ----------
+    computeScale() {
+      const size = this.canvas.width / this.dpr || 300;
+      const total = this.L.reduce((s, v) => s + v, 0);
+      this.scale = (size / 2 - 14) / total;        // px per m
+    }
+
+    toPx(x, y) {
+      const size = this.canvas.width / this.dpr;
+      return [size / 2 + x * this.scale, size / 2 + y * this.scale];
+    }
+
+    resize() {
+      const r = this.canvas.parentElement.getBoundingClientRect();
+      this.dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(r.width * this.dpr));
+      const h = Math.max(1, Math.round(r.height * this.dpr));
+      if (this.canvas.width === w && this.canvas.height === h) return;
+      this.canvas.width = this.trailCanvas.width = w;
+      this.canvas.height = this.trailCanvas.height = h;
+      this.computeScale();
+      this.redrawTrails();
+    }
+
+    resizeGraph() {
+      const r = this.gCanvas.parentElement.getBoundingClientRect();
+      const d = window.devicePixelRatio || 1;
+      this.gCanvas.width = Math.max(1, Math.round(r.width * d));
+      this.gCanvas.height = Math.max(1, Math.round(r.height * d));
+    }
+
+    clearTrailCanvas() {
+      this.tctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.tctx.clearRect(0, 0, this.trailCanvas.width, this.trailCanvas.height);
+    }
+
+    styleTrail(i) {
+      const c = this.tctx;
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      c.strokeStyle = COLORS[i];
+      c.globalAlpha = 0.75;
+      c.lineWidth = 1.25;
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+    }
+
+    drawTrailSegment(i, x0, y0, x1, y1) {
+      this.styleTrail(i);
+      const [a, b] = this.toPx(x0, y0), [c, d] = this.toPx(x1, y1);
+      this.tctx.beginPath();
+      this.tctx.moveTo(a, b);
+      this.tctx.lineTo(c, d);
+      this.tctx.stroke();
+    }
+
+    redrawTrails() {
+      this.clearTrailCanvas();
+      for (let i = this.n - 1; i < this.n; i++) {
+        const tr = this.trails[i];
+        if (tr.length < 4) continue;
+        this.styleTrail(i);
+        this.tctx.beginPath();
+        let [x, y] = this.toPx(tr[0], tr[1]);
+        this.tctx.moveTo(x, y);
+        for (let k = 2; k < tr.length; k += 2) {
+          [x, y] = this.toPx(tr[k], tr[k + 1]);
+          this.tctx.lineTo(x, y);
+        }
+        this.tctx.stroke();
+      }
+    }
+
+    render() {
+      const c = this.ctx, d = this.dpr;
+      const size = this.canvas.width / d;
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+      // 기준선
+      c.setTransform(d, 0, 0, d, 0, 0);
+      c.strokeStyle = 'rgba(255,255,255,0.06)';
+      c.lineWidth = 1;
+      c.setLineDash([4, 6]);
+      c.beginPath();
+      c.moveTo(size / 2, 0); c.lineTo(size / 2, size);
+      c.moveTo(0, size / 2); c.lineTo(size, size / 2);
+      c.stroke();
+      c.setLineDash([]);
+      const total = this.L.reduce((s, v) => s + v, 0) * this.scale;
+      c.beginPath();
+      c.arc(size / 2, size / 2, total, 0, Math.PI * 2);
+      c.stroke();
+
+      // 경로
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.drawImage(this.trailCanvas, 0, 0);
+      c.setTransform(d, 0, 0, d, 0, 0);
+
+      // 막대
+      const pts = this.positions().map(([x, y]) => this.toPx(x, y));
+      const [px, py] = this.toPx(0, 0);
+      c.strokeStyle = '#c9d1d9';
+      c.lineWidth = 2.5;
+      c.lineCap = 'round';
+      c.beginPath();
+      c.moveTo(px, py);
+      for (const [x, y] of pts) c.lineTo(x, y);
+      c.stroke();
+
+      // 고정점
+      c.fillStyle = '#8b949e';
+      c.beginPath();
+      c.arc(px, py, 4, 0, Math.PI * 2);
+      c.fill();
+
+      // 추 (반지름 ∝ 질량의 세제곱근)
+      pts.forEach(([x, y], i) => {
+        const r = 6 + 4 * Math.cbrt(this.M[i]);
+        c.fillStyle = COLORS[i];
+        c.shadowColor = COLORS[i];
+        c.shadowBlur = 12;
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.fill();
+        c.shadowBlur = 0;
+        c.strokeStyle = 'rgba(0,0,0,0.35)';
+        c.lineWidth = 1;
+        c.stroke();
+      });
+
+      this.renderGraph();
+    }
+
+    renderGraph() {
+      const c = this.gctx, d = window.devicePixelRatio || 1;
+      const W = this.gCanvas.width / d, Hh = this.gCanvas.height / d;
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, this.gCanvas.width, this.gCanvas.height);
+      c.setTransform(d, 0, 0, d, 0, 0);
+
+      const pad = 4;
+      const yOf = a => pad + (1 - (a + Math.PI) / (2 * Math.PI)) * (Hh - 2 * pad);
+      const tEnd = Math.max(this.t, GRAPH_WINDOW);
+      const tStart = tEnd - GRAPH_WINDOW;
+      const xOf = t => ((t - tStart) / GRAPH_WINDOW) * W;
+
+      // 격자: 0, ±90°, ±180°
+      c.lineWidth = 1;
+      for (const a of [-Math.PI, -Math.PI / 2, 0, Math.PI / 2, Math.PI]) {
+        c.strokeStyle = a === 0 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)';
+        c.beginPath();
+        c.moveTo(0, yOf(a)); c.lineTo(W, yOf(a));
+        c.stroke();
+      }
+      c.fillStyle = 'rgba(139,148,158,0.8)';
+      c.font = '10px system-ui, sans-serif';
+      c.fillText('0°', 3, yOf(0) - 3);
+
+      const stride = 1 + this.n, g = this.graph;
+      c.lineWidth = 1.5;
+      c.lineJoin = 'round';
+      for (let i = 0; i < this.n; i++) {
+        c.strokeStyle = COLORS[i];
+        c.beginPath();
+        let prev = null;
+        for (let k = 0; k < g.length; k += stride) {
+          const t = g[k];
+          if (t < tStart) { prev = null; continue; }
+          const a = g[k + 1 + i];
+          const x = xOf(t), y = yOf(a);
+          // ±180° 경계를 넘을 때는 선을 끊음
+          if (prev === null || Math.abs(a - prev) > Math.PI) c.moveTo(x, y); else c.lineTo(x, y);
+          prev = a;
+        }
+        c.stroke();
+      }
+    }
+
+    updateStats(force) {
+      const now = performance.now();
+      if (!force && now - (this.lastStats || 0) < 100) return;
+      this.lastStats = now;
+      const s = this.statEls;
+      s.t.textContent = `${this.t.toFixed(2)} s`;
+      for (let i = 0; i < this.n; i++) s['a' + i].textContent = `${deg(wrap(this.state[i])).toFixed(1)}°`;
+      const { ke, pe, e } = this.energy();
+      s.ke.textContent = `${ke.toFixed(2)} J`;
+      s.pe.textContent = `${pe.toFixed(2)} J`;
+      s.e.textContent = `${e.toFixed(3)} J`;
+      s.de.textContent = this.E0 > 1e-9 ? `${(((e - this.E0) / this.E0) * 100).toFixed(4)}%` : '—';
+    }
+  }
+
+  // ---------- 초기화 ----------
+  const grid = document.getElementById('grid');
+  const pendulums = CONFIGS.map(cfg => new Pendulum(cfg, grid));
+
+  document.getElementById('allPlay').addEventListener('click', () => pendulums.forEach(p => p.play()));
+  document.getElementById('allPause').addEventListener('click', () => pendulums.forEach(p => p.pause()));
+  document.getElementById('allReset').addEventListener('click', () => pendulums.forEach(p => p.reset()));
+
+  let speed = 1;
+  const speedBtns = document.querySelectorAll('[data-speed]');
+  const setSpeed = v => {
+    speed = v;
+    speedBtns.forEach(o => o.setAttribute('aria-pressed', String(parseFloat(o.dataset.speed) === v)));
+  };
+  speedBtns.forEach(b => b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.speed))));
+  // 주소로 배속 지정 가능: ?speed=2
+  const qs = parseFloat(new URLSearchParams(location.search).get('speed'));
+  if ([...speedBtns].some(b => parseFloat(b.dataset.speed) === qs)) setSpeed(qs);
+
+  // 처음 열면 바로 실행
+  pendulums.forEach(p => p.play());
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05) * speed;   // 탭 전환 등으로 인한 큰 점프 방지 + 배속
+    last = now;
+    for (const p of pendulums) {
+      p.update(dt);
+      p.render();
+      p.updateStats(false);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
