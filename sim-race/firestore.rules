@@ -1,0 +1,44 @@
+rules_version = '2';
+// Sim Race — Firestore 보안 규칙 (Sim Race 전용 Firebase 프로젝트).
+// Firebase 콘솔 > Firestore Database > 규칙 탭에 이 내용을 통째로 붙여 넣고 "게시"하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validName(n) {
+      return n is string && n.size() >= 2 && n.size() <= 12 && !n.matches('.*[<>"\'`\\\\].*');
+    }
+    function count(n, max) {
+      return n is int && n >= 0 && n <= max;
+    }
+
+    // 개인 저장 데이터(설정·시즌·지난 시즌): 본인만 읽고 쓸 수 있어요.
+    match /users/{uid} {
+      allow read, delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['save', 'nickname', 'updatedAt'])
+        && (!('save' in request.resource.data) || (request.resource.data.save is string && request.resource.data.save.size() < 800000))
+        && (!('nickname' in request.resource.data) || validName(request.resource.data.nickname));
+    }
+
+    // 커리어 랭킹(챔피언십 포인트·우승·포디움·챔피언·레이스 수): 누구나 보고, 본인 기록만 쓸 수 있어요.
+    // 레이스당 최대 25점(우승).
+    match /career/{uid} {
+      allow read: if true;
+      allow delete: if signedIn(uid);
+      allow create, update: if signedIn(uid)
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'points', 'wins', 'podiums', 'titles', 'races', 'device', 'at'])
+        && (!('device' in request.resource.data) || request.resource.data.device in ['mobile', 'pc'])
+        && request.resource.data.uid == uid
+        && validName(request.resource.data.name)
+        && count(request.resource.data.races, 100000)
+        && count(request.resource.data.points, request.resource.data.races * 25)
+        && count(request.resource.data.wins, request.resource.data.races)
+        && count(request.resource.data.podiums, request.resource.data.races)
+        && count(request.resource.data.titles, request.resource.data.races)
+        && request.resource.data.at == request.time;
+    }
+  }
+}
