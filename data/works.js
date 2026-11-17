@@ -14,4 +14,5 @@ window.WORKS = [
     desc: '비밀 연구시설 잠입 1인칭 FPS · 암살 · 데이터 탈취' },
   { title: 'f(x) Synth', url: '/fx-synth/', thumb: 'assets/thumbs/fx-synth.jpg', date: '2026-11-16', desc: '함수 그래프를 소리로 — x는 시간, y는 주파수. EDM·DnB 함수 랜덤 생성기' },
   { title: '진자 시뮬레이터', url: '/pendulum/', thumb: 'assets/thumbs/pendulum.jpg', date: '2026-11-16', desc: '단진자 · 2중진자 · 3중진자의 운동과 끝 추의 경로를 추적하는 물리 시뮬레이션' },
+  { title: 'Pixel Warrior Forge', url: '/pixel-warrior-forge/', thumb: 'assets/thumbs/pixel-warrior-forge.jpg', date: '2026-11-17', desc: '망치로 장비를 소환하고 스킬을 모아 성장하는 픽셀 전사 자동 전투 RPG' },
 ];
