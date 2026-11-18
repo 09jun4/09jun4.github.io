@@ -17,7 +17,7 @@
   var Guard = {};
 
   // Elements whose own taps / scrolling must keep working during play.
-  var ALLOW = 'a, input, textarea, select, button:not(.tc-btn), #pause, #race-results, #retired';
+  var ALLOW = 'a, input, textarea, select, button:not(.tc-btn), #pause, #race-results, #retired, .race-results';
 
   function inGame() {
     return !document.body.classList.contains('in-menu');

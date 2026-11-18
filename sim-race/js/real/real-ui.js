@@ -93,6 +93,7 @@
       '  <button type="button" data-act="tyre">타이어<small>T</small></button>' +
       '  <button type="button" data-act="ot">MOM<small>Shift</small></button>' +
       '  <button type="button" data-act="boost">BOOST<small>B</small></button>' +
+      '  <div class="rl-tpick" role="group" aria-label="다음 타이어 선택" hidden></div>' +
       '</div>';
     document.body.appendChild(els.hud);
     var q = function (s) { return els.hud.querySelector(s); };
@@ -120,13 +121,30 @@
     els.rain.hidden = true;
     document.body.appendChild(els.rain);
     els.touch = q('.rl-touch');
+    els.tpick = q('.rl-tpick');
+    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) {
+      var b = el('button', null);
+      b.type = 'button';
+      b.setAttribute('data-ty', id);
+      b.appendChild(tyreChip(id));
+      b.appendChild(el('small', null, RD().tyre(id).name));
+      els.tpick.appendChild(b);
+    });
     els.touch.addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) return;
+      var ty = b.getAttribute('data-ty');
+      if (ty) { if (CR.Real.pl) CR.Real.pl.nextTyre = ty; els.tpick.hidden = true; return; }
       var a = b.getAttribute('data-act');
+      if (a === 'tyre') { // tyre popup: pick the next tyre directly
+        var cur = CR.Real.pl && CR.Real.pl.nextTyre;
+        Array.prototype.forEach.call(els.tpick.children, function (c) { c.classList.toggle('is-on', c.getAttribute('data-ty') === cur); });
+        els.tpick.hidden = !els.tpick.hidden;
+        return;
+      }
+      els.tpick.hidden = true;
       if (a === 'box') CR.Real.requestBox();
       else if (a === 'stay') CR.Real.stayOut();
-      else if (a === 'tyre') CR.Real.cycleTyre();
       else if (a === 'ot') CR.Real.overtake();
       else if (a === 'boost') { boostLatch = !boostLatch; CR.Real.setBoost(boostLatch); }
     });
