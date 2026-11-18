@@ -58,6 +58,23 @@
     return td;
   }
 
+  // Tyre popup (T key or the 타이어 button): pick the next tyre by click or 1-5.
+  var TYRES = ['S', 'M', 'H', 'I', 'W'];
+  function toggleTyrePick(show) {
+    show = show === undefined ? els.tpick.hidden : show;
+    if (show && !(CR.Real.pl && CR.Real.phase === 'race')) show = false;
+    if (show) {
+      var cur = CR.Real.pl.nextTyre;
+      Array.prototype.forEach.call(els.tpick.children, function (c) { c.classList.toggle('is-on', c.getAttribute('data-ty') === cur); });
+    }
+    els.tpick.hidden = !show;
+    els.touch.classList.toggle('is-picking', show);
+  }
+  function pickTyre(id) {
+    if (CR.Real.pl) CR.Real.pl.nextTyre = id;
+    toggleTyrePick(false);
+  }
+
   // --- Init -----------------------------------------------------------------
   UI.init = function () {
     // overlay for weekend screens
@@ -122,10 +139,11 @@
     document.body.appendChild(els.rain);
     els.touch = q('.rl-touch');
     els.tpick = q('.rl-tpick');
-    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) {
+    TYRES.forEach(function (id, i) {
       var b = el('button', null);
       b.type = 'button';
       b.setAttribute('data-ty', id);
+      b.appendChild(el('kbd', null, String(i + 1)));
       b.appendChild(tyreChip(id));
       b.appendChild(el('small', null, RD().tyre(id).name));
       els.tpick.appendChild(b);
@@ -134,15 +152,10 @@
       var b = e.target.closest('button');
       if (!b) return;
       var ty = b.getAttribute('data-ty');
-      if (ty) { if (CR.Real.pl) CR.Real.pl.nextTyre = ty; els.tpick.hidden = true; return; }
+      if (ty) { pickTyre(ty); return; }
       var a = b.getAttribute('data-act');
-      if (a === 'tyre') { // tyre popup: pick the next tyre directly
-        var cur = CR.Real.pl && CR.Real.pl.nextTyre;
-        Array.prototype.forEach.call(els.tpick.children, function (c) { c.classList.toggle('is-on', c.getAttribute('data-ty') === cur); });
-        els.tpick.hidden = !els.tpick.hidden;
-        return;
-      }
-      els.tpick.hidden = true;
+      if (a === 'tyre') { toggleTyrePick(); return; }
+      toggleTyrePick(false);
       if (a === 'box') CR.Real.requestBox();
       else if (a === 'stay') CR.Real.stayOut();
       else if (a === 'ot') CR.Real.overtake();
@@ -154,7 +167,9 @@
       if (e.repeat) return;
       if (e.code === 'KeyF' || e.code === 'KeyP') CR.Real.requestBox();
       else if (e.code === 'KeyX') CR.Real.stayOut();
-      else if (e.code === 'KeyT') CR.Real.cycleTyre();
+      else if (e.code === 'KeyT') toggleTyrePick();
+      else if (!els.tpick.hidden && /^(Digit|Numpad)[1-5]$/.test(e.code)) pickTyre(TYRES[+e.code.slice(-1) - 1]);
+      else if (e.code === 'Escape' && !els.tpick.hidden) toggleTyrePick(false);
       else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') CR.Real.overtake(); // MOM (Manual Override Mode)
     });
     window.addEventListener('keyup', function (e) { if (e.code === 'KeyB' && CR.Real) CR.Real.setBoost(boostLatch); });
