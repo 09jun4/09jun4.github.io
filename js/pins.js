@@ -11,7 +11,10 @@ const writeLocal = v => { try { v ? localStorage.setItem(LS, JSON.stringify(v)) 
 let remote = null; // 서버 목록 (null = 아직 못 읽음)
 let local = readLocal(); // 서버에 못 올린 목록
 let admin = false;
-const effective = () => remote !== null ? remote : (admin && local ? local : []);
+// Sim Race 는 사이트 주인이 가장 아끼는 작품이라 항상 맨 위에 고정이에요 (index.html 의 첫 렌더와 같은 값)
+const TOP = '/sim-race/';
+const base = () => remote !== null ? remote : (admin && local ? local : []);
+const effective = () => [TOP, ...base().filter(u => u !== TOP)];
 
 const PIN_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6z"/><path d="M12 14v7"/></svg>';
 
@@ -23,7 +26,7 @@ window.addEventListener('works-rendered', () => {
   const pinned = effective();
   document.querySelectorAll('#works .card').forEach(card => {
     const url = card.getAttribute('href'), on = pinned.includes(url), thumb = card.querySelector('.thumb');
-    if (!thumb) return;
+    if (!thumb || url === TOP) return; // 항상 맨 위인 작품에는 핀 버튼을 달지 않아요
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'pin-btn' + (on ? ' on' : '');
     b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', on ? '고정 해제' : '맨 위에 고정'); b.title = on ? '고정 해제' : '맨 위에 고정';
@@ -46,7 +49,7 @@ async function save(urls) {
   paint();
 }
 function toggle(url) {
-  const cur = effective().slice(), i = cur.indexOf(url);
+  const cur = base().filter(u => u !== TOP), i = cur.indexOf(url);
   if (i >= 0) cur.splice(i, 1); else cur.unshift(url); // 새로 고정하면 맨 위로
   save(cur);
 }

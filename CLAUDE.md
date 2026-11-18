@@ -37,6 +37,7 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
 
 ## 사이트 구조 (디자인: 검정 바탕 모노, 이모지 없이 단순하게)
 - `index.html` — 작품 카드 목록(예전 메인 화면, 어두운 회색 UI). 새 작품은 `data/works.js` 한 줄이면 카드로 나와요.
+  - Sim Race(`/sim-race/`)는 사이트 주인이 가장 아끼는 작품이라 항상 맨 위에 고정이에요(`index.html` 첫 렌더와 `js/pins.js` 의 `TOP`). 다른 작품은 아래 핀 기능으로 그 밑에 고정할 수 있어요.
   - 작품 고정(pin): 관리자 계정에만 카드 위 핀 버튼이 보이고, 고정한 작품은 모두에게 Works 맨 위에 "고정" 표시로 떠요. `js/pins.js`, Firestore `site/pins`(읽기 누구나·쓰기 관리자, 규칙은 `firestore.rules`). 규칙 게시 전에는 관리자 브라우저에만 저장(localStorage `pins:local`)했다가 게시 뒤 자동으로 서버에 올려요.
 - `portfolio/` — 인터랙티브 3D 포트폴리오 메인(크롬 조형물·스크롤 변형, 영어 제목·메뉴, 설명글만 한글). 지금은 메인에서 쓰지 않고 `/portfolio/` 로만 열려요(코드는 보존). 스타일 `assets/home.css`, 동작 `js/home.js`, 3D `js/home-scene.js`(Three.js r128 + 셰이더). 다크 기본·화이트 지원(localStorage `theme`), 모션 감소 설정은 따르지 않고 항상 움직여요(사이트 주인 요청). 갤러리는 `data/works.js` 를 읽어요. 경로는 `<base>` 없이 루트 기준 절대 경로(`/assets/...`)를 써요.
 - `classic/` — 예전 주소. 메인(`/`)으로 이동만 해요.

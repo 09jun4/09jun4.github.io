@@ -50,7 +50,7 @@
     if (latest) document.getElementById('updated').textContent = latest.slice(0, 7).replace('-', '.');
     window.dispatchEvent(new Event('works-rendered'));
   };
-  renderWorks([]);
+  renderWorks(['/sim-race/']); // Sim Race 는 항상 맨 위 (js/pins.js 의 TOP 과 같아야 해요)
 </script>
 <script type="module" src="js/pins.js"></script>
 </body>
