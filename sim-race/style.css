@@ -541,14 +541,18 @@ body.touch #touch-controls { display: block; }
   font: 700 13px/1 'Segoe UI', system-ui, -apple-system, Roboto, 'Malgun Gothic', Arial, sans-serif;
   touch-action: manipulation;
 }
-/* In touch mode the gauges move to the top so the buttons don't cover them. */
-body.touch #hud { top: 6px; bottom: auto; transform: scale(0.6); transform-origin: top center; }
+/* Mobile UI (body.touch = phones and tablets; PC layout above is untouched).
+   The middle of the screen stays clear: gauges go top-right under the lap box,
+   all messages share one short line at the top centre. */
+body.touch #hud { top: 84px; right: 10px; bottom: auto; left: auto; padding: 0; transform: scale(0.5); transform-origin: top right; }
+body.touch #hud-laps { min-width: 0; padding: 6px 10px 8px; }
 body.touch #hud-rpm { display: none; } /* automatic gearbox in touch play */
-body.touch #hud-help { display: none; }
-body.touch #hud-track { top: 84px; }
-body.touch #hud-notice { top: 124px; font-size: 14px; padding: 6px 14px; }
+body.touch #hud-help, body.touch #hud-track { display: none; }
+body.touch #hud-notice { top: 46px; z-index: 7; font-size: 13px; padding: 4px 12px; }
 body.touch .laps-history li:nth-last-child(n+4) { display: none; }
 body.touch #minimap { width: 110px; height: 110px; }
+body.touch .tc-side { top: 128px; transform: none; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
+body.touch .tc-side .tc-small { padding: 7px 9px; font-size: 12px; }
 @media (max-height: 420px) {
   .tc-btn { width: 64px; height: 64px; }
   .tc-gas { width: 78px; height: 78px; }
@@ -1092,8 +1096,7 @@ body.cockpit #hud, body.cockpit #hud-help { display: none; }
 body.cockpit #minimap { width: clamp(170px, 24vw, 290px); height: clamp(170px, 24vw, 290px); }
 body.touch.cockpit #minimap { width: 140px; height: 140px; }
 /* ...and its buttons move under it as a 2 x 2 grid. */
-body.touch.cockpit .tc-side { top: 160px; transform: none; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
-body.touch.cockpit .tc-side .tc-small { padding: 7px 9px; font-size: 12px; }
+body.touch.cockpit .tc-side { top: 160px; }
 .rec-sub { display: block; font-size: 11px; font-weight: 600; color: var(--menu-dim); }
 .rank-views { margin-top: 8px; }
 
@@ -1210,10 +1213,21 @@ body.touch .rl-panel .rl-row:nth-child(4) { display: none; } /* fuel / next tyre
 .rl-gaps { display: none; font-size: 11px; font-weight: 800; color: #ffe48a; white-space: nowrap; }
 body.touch .rl-gaps { display: flex; }
 body.touch.in-real .race-tower { display: none !important; }
-body.touch .rl-radio { top: 74px; left: 45%; width: min(380px, 44%); min-width: 0; }
-body.touch .rl-msg { font-size: 12px; padding: 4px 8px; }
-body.touch .rl-flag { top: 74px; }
-body.touch .rl-flag:not([hidden]) ~ .rl-radio { top: 112px; }
+body.touch .rl-radio { top: 46px; width: min(420px, calc(100% - 300px)); min-width: 200px; }
+body.touch .rl-msg { font-size: 12px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+body.touch .rl-msg:not(:last-child), body.touch .rl-msg b { display: none; } /* latest message only; the colour shows its kind */
+body.touch .rl-hud:has(.rl-pitcue:not([hidden])) .rl-radio { display: none; }
+body.touch .rl-flag, body.touch .rl-q { top: 8px; padding: 5px 12px; font-size: 13px; }
+body.touch .rl-q b { font-size: 15px; }
+body.touch .rl-q span:not(.rl-q-cut) { display: none; }
+body.touch .rl-ps-crew { display: none; }
+/* Portrait phones: smaller map so the message line fits between it and the lap box. */
+@media (max-width: 560px) {
+  body.touch #minimap { width: 84px; height: 84px; }
+  body.touch .tc-side { top: 102px; }
+  body.touch .rl-radio { width: calc(100% - 210px); min-width: 0; }
+  body.touch .rl-flag, body.touch .rl-q, body.touch #hud-notice, body.touch .rl-pitcue { max-width: calc(100% - 210px); overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+}
 .rl-rain { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 .race-tower.is-real { width: 196px; padding: 3px; }
 .race-tower.is-real li { grid-template-columns: 18px 4px 1fr auto 15px; gap: 5px; padding: 2px 5px; font-size: 11px; }
@@ -1273,7 +1287,7 @@ body.real-wet #game-canvas { filter: saturate(0.82) brightness(0.93); }
 .rl-msg.is-box b { color: #ff8a7a; }
 .rl-pitcue { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); padding: 6px 16px; border-radius: 8px; background: #ffd23f; color: #141414; font-weight: 900; font-size: 16px; letter-spacing: 0.04em; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
 .rl-pitcue.is-near { animation: rl-blink 0.6s steps(2) infinite; }
-body.touch .rl-pitcue { bottom: auto; top: 118px; font-size: 13px; }
+body.touch .rl-pitcue { bottom: auto; top: 46px; font-size: 13px; padding: 4px 12px; }
 body.touch .rl-temps { display: none; }
 body.touch .rl-touch { grid-template-columns: repeat(3, 52px); }
 body.touch .rl-touch button { width: 52px; height: 38px; font-size: 11px; }
