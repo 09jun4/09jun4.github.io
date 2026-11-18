@@ -37,9 +37,10 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
 
 ## 사이트 구조 (디자인: 검정 바탕 모노, 이모지 없이 단순하게)
 - `index.html` — 작품 카드 목록(예전 메인 화면, 어두운 회색 UI). 새 작품은 `data/works.js` 한 줄이면 카드로 나와요.
+  - 작품 고정(pin): 관리자 계정에만 카드 위 핀 버튼이 보이고, 고정한 작품은 모두에게 Works 맨 위에 "고정" 표시로 떠요. `js/pins.js`, Firestore `site/pins`(읽기 누구나·쓰기 관리자, 규칙은 `firestore.rules`). 규칙 게시 전에는 관리자 브라우저에만 저장(localStorage `pins:local`)했다가 게시 뒤 자동으로 서버에 올려요.
 - `portfolio/` — 인터랙티브 3D 포트폴리오 메인(크롬 조형물·스크롤 변형, 영어 제목·메뉴, 설명글만 한글). 지금은 메인에서 쓰지 않고 `/portfolio/` 로만 열려요(코드는 보존). 스타일 `assets/home.css`, 동작 `js/home.js`, 3D `js/home-scene.js`(Three.js r128 + 셰이더). 다크 기본·화이트 지원(localStorage `theme`), 모션 감소 설정은 따르지 않고 항상 움직여요(사이트 주인 요청). 갤러리는 `data/works.js` 를 읽어요. 경로는 `<base>` 없이 루트 기준 절대 경로(`/assets/...`)를 써요.
 - `classic/` — 예전 주소. 메인(`/`)으로 이동만 해요.
-- `feedback/` — 방문자 의견 남기기(구글 로그인 필요). 읽기·정리는 관리자만. 작품에서 `/feedback/?work=/작품-이름/`으로 링크하면 그 작품이 골라져요.
+- `feedback/` — 방문자 의견 남기기(구글 로그인 필요). 읽기·정리·삭제는 관리자만(미처리·해결·실패 탭, 항목마다 삭제 버튼은 두 번 눌러야 지워져요). 작품에서 `/feedback/?work=/작품-이름/`으로 링크하면 그 작품이 골라져요.
 - `js/auth.js`, `js/firebase-config.js`, `js/bridge.html` — 사이트 공통 구글 로그인 (머리말 login 버튼, 연결된 작품 같이 로그인·로그아웃)
 - `firestore.rules` — 사이트 프로젝트(chiikawa-tobatsu)에 게시된 규칙에 덧붙이는 `notes`·`feedback` 규칙. 콘솔에 있는 기존 규칙(치이카와, `private/**`)은 지우지 않아요.
 - `notes/` — 위키식 공개 노트(바이브 코딩하며 공부한 내용). `[[노트 제목]]` 링크·역링크·분류·태그·목차 지원. 누구나 읽고, 쓰기·수정·삭제는 관리자 계정만. 내용은 Firestore `private/notes/items`에 있고(이름만 private), 저장소에 파일로 올리지 않아요.

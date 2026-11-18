@@ -23,6 +23,15 @@
       allow write: if siteAdmin();
     }
 
+    // 작품 고정(맨 위 표시): 누구나 읽고, 쓰기는 관리자만 할 수 있어요.
+    match /site/pins {
+      allow read: if true;
+      allow write: if siteAdmin()
+        && request.resource.data.keys().hasOnly(['urls', 'updatedAt'])
+        && request.resource.data.urls is list
+        && request.resource.data.urls.size() <= 30;
+    }
+
     // 피드백: 구글 로그인한 사람은 자기 이름으로 쓰기만, 읽기·정리·삭제는 관리자만 할 수 있어요.
     match /feedback/{id} {
       // 관리자는 의견을 미처리(new) · 해결(done) · 실패(fail)로 나눠요. read 는 미처리가 아니면 true.

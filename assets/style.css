@@ -394,3 +394,12 @@ h1,h2,.lede{text-wrap:balance}
 @keyframes vt-in{from{opacity:0}}
 @media (max-width:720px){.hero-grid{grid-template-columns:1fr;gap:6px}.logo3d{max-width:220px;justify-self:center;order:-1}}
 @media (prefers-reduced-motion:reduce){.logo3d{opacity:1;transform:none}}
+
+/* 작품 고정(pin) · 피드백 삭제 */
+.card.pinned{border-color:rgba(94,234,212,.4)}
+.pin-flag{position:absolute;top:12px;right:12px;z-index:2;padding:4px 9px;border:1px solid rgba(94,234,212,.5);border-radius:6px;background:rgba(94,234,212,.16);color:var(--accent);font:600 10px/1 var(--mono);letter-spacing:.08em}
+.pin-btn{position:absolute;right:10px;bottom:10px;z-index:3;display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line-2);border-radius:50%;background:rgba(22,24,29,.78);color:var(--ink);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:border-color .18s,color .18s,background .18s,transform .14s ease-out}
+.pin-btn:hover,.pin-btn.on{border-color:var(--accent);color:var(--accent)}
+.pin-btn.on{background:rgba(94,234,212,.18)}
+.pin-btn:active{transform:scale(.9)}
+.fb-foot .btn.del:hover,.fb-foot .btn.del.armed{border-color:#f87171;color:#f87171}

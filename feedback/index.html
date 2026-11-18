@@ -123,11 +123,22 @@ function drawInbox(){
       <div class="fb-meta"><span class="dot"></span><span>${esc(when(x.at))}</span><span class="w">${esc(workTitle(x.work))}</span><span>${esc(x.device || '')}</span></div>
       <div class="fb-text">${esc(x.text)}</div>
       <div class="fb-foot"><span class="who">${esc(x.name || '이름 없음')}${x.email ? ` · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : ''}</span>
-        <span class="right">${MOVES[statusOf(x)].map(([k, t]) => `<button class="btn mv-${k}" data-to="${k}" type="button">${t}</button>`).join('')}</span></div></li>`).join('')
+        <span class="right">${MOVES[statusOf(x)].map(([k, t]) => `<button class="btn mv-${k}" data-to="${k}" type="button">${t}</button>`).join('')}<button class="btn del" data-del type="button">삭제</button></span></div></li>`).join('')
       || `<li class="empty">${{ new: '처리할 의견이 없어요', done: '아직 해결한 의견이 없어요', fail: '실패로 모아 둔 의견이 없어요' }[tab]}</li>`}</ul>
     <a class="more" href="#write">의견 쓰기 화면 보기 →</a>
   </div>`;
   $app.querySelectorAll('.fb-tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; drawInbox(); });
+  // 삭제: 한 번 누르면 확인 문구, 3초 안에 한 번 더 누르면 지워요
+  $app.querySelectorAll('.fb-item [data-del]').forEach(b => b.onclick = async () => {
+    if (!b.dataset.armed) {
+      b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 삭제'; b.classList.add('armed');
+      clearTimeout(b._t); b._t = setTimeout(() => { delete b.dataset.armed; b.textContent = '삭제'; b.classList.remove('armed'); }, 3000);
+      return;
+    }
+    b.disabled = true;
+    try { await F.deleteDoc(F.doc(COL, b.closest('.fb-item').dataset.id)); }
+    catch (e) { b.disabled = false; toast(e && e.code === 'permission-denied' ? '삭제하지 못했어요. 콘솔에서 firestore.rules 의 사이트 규칙을 다시 게시해 주세요.' : '삭제하지 못했어요 (' + ((e && e.code) || 'error') + ')', 6000); }
+  });
   $app.querySelectorAll('.fb-item [data-to]').forEach(b => b.onclick = async () => {
     const status = b.dataset.to;
     b.disabled = true;

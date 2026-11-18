@@ -32,10 +32,10 @@ function header(active){
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const byDate = (a, b) => String(b.date || '').localeCompare(String(a.date || ''));
 
-const workCard = (w, i = 0) => `<a class="card" href="${esc(w.url)}">
+const workCard = (w, i = 0, pinned = false) => `<a class="card${pinned ? ' pinned' : ''}" href="${esc(w.url)}">
   <div class="thumb">${w.thumb
     ? `<img src="${esc(BASE + w.thumb)}" alt="${esc(w.title)} 화면" width="1200" height="900" loading="lazy">`
-    : '<span class="none">no image</span>'}<span class="idx">${pad(i + 1)}</span></div>
+    : '<span class="none">no image</span>'}<span class="idx">${pad(i + 1)}</span>${pinned ? '<span class="pin-flag">고정</span>' : ''}</div>
   <div class="card-body">
     <div class="title-row"><h3>${esc(w.title)}</h3>${ARROW}</div>
     ${w.desc ? `<p class="desc">${esc(w.desc)}</p>` : ''}

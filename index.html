@@ -38,12 +38,20 @@
 <script src="assets/site.js"></script>
 <script>
   header('works');
-  const list = WORKS.slice().sort(byDate);
-  document.getElementById('works').innerHTML = list.map((w, i) => workCard(w, i)).join('') || '<p class="empty">아직 없어요</p>';
-  document.getElementById('count').textContent = list.length;
-  document.getElementById('countTab').textContent = pad(list.length);
-  const latest = list.map(w => w.date || '').filter(Boolean).sort().pop();
-  if (latest) document.getElementById('updated').textContent = latest.slice(0, 7).replace('-', '.');
+  // 고정(pin)한 작품은 맨 위에, 나머지는 날짜순. 고정 목록은 js/pins.js 가 불러와서 다시 그려요.
+  window.renderWorks = function (pinned) {
+    pinned = pinned || [];
+    const rank = u => { const i = pinned.indexOf(u); return i < 0 ? 1e9 : i; };
+    const list = WORKS.slice().sort((a, b) => rank(a.url) - rank(b.url) || byDate(a, b));
+    document.getElementById('works').innerHTML = list.map((w, i) => workCard(w, i, pinned.includes(w.url))).join('') || '<p class="empty">아직 없어요</p>';
+    document.getElementById('count').textContent = list.length;
+    document.getElementById('countTab').textContent = pad(list.length);
+    const latest = list.map(w => w.date || '').filter(Boolean).sort().pop();
+    if (latest) document.getElementById('updated').textContent = latest.slice(0, 7).replace('-', '.');
+    window.dispatchEvent(new Event('works-rendered'));
+  };
+  renderWorks([]);
 </script>
+<script type="module" src="js/pins.js"></script>
 </body>
 </html>
