@@ -89,6 +89,8 @@
     hideOverlays();
     document.body.classList.remove('in-menu');
     CR.Input.clear();
+    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {}); // works in fullscreen on Android only
+    checkPortrait();
   }
 
   // Play: the circuit chosen in the menu, or a random one (never the same one twice in a
@@ -255,6 +257,12 @@
     CR.Audio.silence();
     CR.Hud.showPause();
   };
+
+  // Phones and tablets race in landscape only: turning to portrait pauses under
+  // the rotate hint (style.css #rotate-hint); turning back shows the pause card.
+  var portrait = window.matchMedia('(orientation: portrait)');
+  function checkPortrait() { if (portrait.matches && document.body.classList.contains('touch')) Main.pause(); }
+  portrait.addEventListener('change', checkPortrait);
 
   // Pause overlay -> 메뉴로 돌아가기: the shop, race kept for resuming.
   Main.toGarage = function () {
