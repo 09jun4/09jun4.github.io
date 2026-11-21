@@ -12,6 +12,7 @@
 //  - Shift: short metallic "clunk" (the engine voice adds its own cut).
 //  - Crash: noise burst + thump scaled by wall impact speed.
 //  - Explosion: long roar + deep boom when the car blows up.
+//  - Pit stop: wheel guns, wheels off / on, jacks, repair tools (pit-sound.js).
 // The AudioContext is created on the first Play (browsers only allow audio
 // after a user gesture). M toggles mute (remembered per browser).
 //
@@ -354,6 +355,15 @@
     thump.connect(tg).connect(sfxBus);
     thump.start(t);
     thump.stop(t + 0.3);
+  };
+
+  // Pit stop sounds (pit-sound.js), placed by the pit crew renderer:
+  // gain by distance, pan by side of the camera.
+  var pitSnd = null;
+  Audio.pit = function (kind, gain, pan, dur, hard) {
+    if (!ac || !CR.PitSound) return;
+    if (!pitSnd) pitSnd = CR.PitSound.make(ac, sfxBus);
+    pitSnd.play(kind, gain, pan, dur, hard);
   };
 
   // Explosion: long low noise roar + deep boom.

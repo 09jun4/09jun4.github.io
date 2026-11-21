@@ -433,6 +433,8 @@
     else if (!c.exploded && player.wrecked) Hi.Car.reattach(player);
     Hi.Car.updateWreck(player, dt);
     if (CR.RealDmg) Hi.Car.damage(player, CR.RealDmg, this.scene, c, dt);
+    var realOn = CR.Real && CR.Real.on && CR.RealPhys; // rain tyres show their grooves
+    Hi.Car.setTyre(this, player, realOn ? CR.RealPhys.st.tyre : 'S');
     if (CR.Race && CR.Race.active) {
       var ais = CR.Race.ai;
       for (var i = 0; i < ais.length; i++) {
@@ -442,6 +444,7 @@
         var dec = dt > 0 && a._hiPrevV !== undefined ? (a._hiPrevV - a.v) / dt : 0;
         if (dt > 0) a._hiPrevV = a.v;
         Hi.Car.update(ac, a, { brake: Math.max(0, Math.min(1, (dec - 2) / 10)), camDist: dist });
+        Hi.Car.setTyre(this, ac, realOn && a.rt ? a.rt.tyre : 'S');
         this.carsGroup.add(ac.group);
       }
     }

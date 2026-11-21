@@ -281,17 +281,27 @@
   }
   function L(h) { return new THREE.Color(h).convertSRGBToLinear(); }
   Crew.materials = function (R) {
-    var tex = fabricNormal();
-    if (R) R.textures.push(tex);
-    tex.repeat.set(1, 1);
+    var fab = fabricNormal(), tex = [fab];
+    if (R) R.textures.push(fab);
     return {
-      fabric: tex,
-      tex: [tex],
+      fabric: fab,
+      tex: tex,
       tyre: std(R, { color: L('#141518'), roughness: 0.9, metalness: 0, envMapIntensity: 0.35 }, 'crewTyre'),
       rim: std(R, { color: L('#17191d'), roughness: 0.45, metalness: 0.5, envMapIntensity: 0.45 }, 'crewRim'),
       metal: std(R, { color: L('#8a9099'), roughness: 0.3, metalness: 0.9, envMapIntensity: 0.8 }, 'crewMetal'),
       black: std(R, { color: L('#141518'), roughness: 0.5, metalness: 0.3 }, 'crewBlack'),
       hose: std(R, { color: L('#18191c'), roughness: 0.6, metalness: 0 }, 'crewHose'),
+      tread: (function () { // rain tyres with their grooves (hi-tex.js)
+        if (!Hi.treadWet) return {};
+        var o = {};
+        ['wet', 'inter'].forEach(function (k) {
+          var t = Hi.treadWet(k);
+          tex.push(t.map, t.normal);
+          if (R) R.textures.push(t.map, t.normal);
+          o[k] = std(R, { map: t.map, normalMap: t.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.8, metalness: 0 }, 'crewTread_' + k);
+        });
+        return o;
+      })(),
       R: R,
     };
   };
@@ -492,7 +502,9 @@
     for (var i = 0; i <= 6; i++) { var a = -Math.PI / 2 + (i / 6) * Math.PI / 2; pts.push([r - sh + Math.cos(a) * sh, -w / 2 + sh + Math.sin(a) * sh]); }
     for (var j = 0; j <= 6; j++) { var b2 = (j / 6) * Math.PI / 2; pts.push([r - sh + Math.cos(b2) * sh, w / 2 - sh + Math.sin(b2) * sh]); }
     pts.push([r - sh * 1.2, w / 2], [r * 0.64, w / 2 - 0.01]);
-    var tg = lathe(pts, 32); tg.rotateX(Math.PI / 2);
+    var tg = lathe(pts, 32);
+    if (Hi.tyreTreadUV) Hi.tyreTreadUV(tg, pts.length);
+    tg.rotateX(Math.PI / 2);
     var tyre = new THREE.Mesh(tg, M.tyre); tyre.castShadow = true; g.add(tyre);
     // rim with a wheel cover, centre nut
     var cover = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.64, r * 0.64, w - 0.05, 28, 1, true), M.rim); cover.rotation.x = Math.PI / 2; g.add(cover);
@@ -508,6 +520,7 @@
       ring.position.z = sd * (w / 2 + 0.002); if (sd < 0) ring.rotation.y = Math.PI; g.add(ring);
     });
     g.userData.band = band;
+    g.userData.tyre = tyre;
     return g;
   }
   // Wheel gun: socket +z, body, side handle, pistol grip; hose to the gantry.
@@ -604,7 +617,44 @@
   var SP = Crew.Stop.prototype;
 
   // A new car comes in: people start fresh (no stepping from old places).
-  SP.reset = function () { this.people.forEach(function (p) { p.init = false; }); };
+  SP.reset = function () { this.people.forEach(function (p) { p.init = false; }); this.prevTau = null; };
+
+  // Sounds of the stop: each event once, when the work clock passes it.
+  // this.onSound(kind, {pos (stop frame), dur, hard}) is set by the user (game / viewer).
+  SP.sounds = function (Pn, tau) {
+    var prev = this.prevTau, self = this;
+    this.prevTau = tau;
+    if (!this.onSound || tau === null || prev === null || tau <= prev || tau - prev > 0.5) return;
+    function at(x, kind, pos, dur, hard) { if (prev < x && tau >= x) self.onSound(kind, { pos: pos, dur: dur, hard: hard }); }
+    var k = Pn.k;
+    this.W.forEach(function (w, c) {
+      var T = Pn.c[c], s = w.z < 0 ? -1 : 1, hub = new THREE.Vector3(w.x, w.r, w.z), nut = new THREE.Vector3(w.x, w.r, w.z + s * 0.25);
+      at(T.engage, 'gun', nut, T.loose - T.engage, !!T.struggle);
+      at(T.offA + 0.05, 'off', hub);
+      at(T.backB, 'drop', new THREE.Vector3(w.x - 1.05, 0.2, w.z + s * 1.05));
+      at(T.onB, 'on', hub);
+      at(T.onB + 0.03, 'gun', nut, T.tightB - T.onB - 0.03);
+    });
+    var front = new THREE.Vector3(this.nose - 0.4, 0.2, 0), rear = new THREE.Vector3(this.tail + 0.3, 0.2, 0);
+    at(0.03, 'jackUp', front); at(0.06 * k, 'jackUp', rear);
+    at(Pn.drop + 0.02, 'jackDown', new THREE.Vector3(0, 0.3, 0));
+    Pn.jobs.forEach(function (j) {
+      var d = j.b - j.a, u = function (x) { return j.a + d * x; };
+      if (j.k === 'nose' || j.k === 'rw') {
+        var p = j.k === 'nose' ? self.fwBox.getCenter(new THREE.Vector3()) : self.rwBox.getCenter(new THREE.Vector3());
+        var rem = j.k === 'nose' ? 0.18 : 0.22, fit = j.k === 'nose' ? 0.64 : 0.68;
+        at(u(0.05), 'ratchet', p, d * 0.1);
+        at(u(rem), 'unlatch', p);
+        at(u(fit), 'clack', p);
+        at(u(fit + 0.03), 'ratchet', p, d * 0.17);
+      } else if (j.k === 'susp' || j.k === 'floor') {
+        var w = j.k === 'susp' ? self.W[CORNER[j.c]] : null;
+        var q = w ? new THREE.Vector3(w.x, w.r, w.z) : new THREE.Vector3(-0.35, 0.1, 0);
+        if (w) at(u(0.3), 'clack', q);
+        for (var x = j.a + 0.8; x < j.b - 0.8; x += j.k === 'susp' ? 2.3 : 1.4) at(x, 'ratchet', q, 0.9);
+      }
+    });
+  };
 
   // Team colours: {main, accent, helmet, dark?}
   SP.setTeam = function (key, col) {
@@ -616,6 +666,15 @@
     a.needsUpdate = true;
     var jc = new THREE.Color(col.accent).convertSRGBToLinear();
     this.jackF.userData.paint.color.copy(jc); this.jackR.userData.paint.color.copy(jc);
+  };
+
+  // Compounds coming off / going on (S/M/H/I/W) and their stripe colours.
+  SP.setCompounds = function (oldId, newId, oldCol, newCol) {
+    var M = this.M;
+    function mat(id) { return id === 'W' && M.tread.wet ? M.tread.wet : id === 'I' && M.tread.inter ? M.tread.inter : M.tyre; }
+    var oc = new THREE.Color(oldCol).convertSRGBToLinear(), nc = new THREE.Color(newCol).convertSRGBToLinear();
+    this.oldT.forEach(function (g) { g.userData.band.color.copy(oc); g.userData.tyre.material = mat(oldId); });
+    this.newT.forEach(function (g) { g.userData.band.color.copy(nc); g.userData.tyre.material = mat(newId); });
   };
 
   // The car this crew services (hi-car.js object): wheel corners, nose and wing props.
@@ -667,12 +726,12 @@
     var jobs = [], t0 = 0.45;
     items.forEach(function (it) { jobs.push({ k: it.k, c: it.c, a: t0, b: t0 + it.d }); t0 += it.d; });
     var corners = [0, 1, 2, 3].map(function (c) {
-      var slow = S.slow === c ? slowD : 0;
-      var loose = 0.4 * k + slow;
+      var slow = S.slow === c ? slowD : 0, jit = [0, 0.035, -0.02, 0.05][c] * k; // crews are never quite in step
+      var loose = 0.4 * k + slow + jit;
       var onA = loose + 0.07 * k, onB = loose + 0.32 * k;
       jobs.forEach(function (j) { if (j.k === 'susp' && CORNER[j.c] === c) { onB = j.b - 0.08; onA = onB - 0.3; } });
       var tightB = onB + 0.36 * k;
-      return { engage: 0.08 * k, loose: loose, struggle: slow, offA: loose - 0.02, offB: loose + 0.18 * k, backB: loose + 0.46 * k, onA: onA, onB: onB, tightB: tightB, done: tightB + 0.06 };
+      return { engage: 0.08 * k + jit, loose: loose, struggle: slow, offA: loose - 0.02, offB: loose + 0.18 * k, backB: loose + 0.46 * k, onA: onA, onB: onB, tightB: tightB, done: tightB + 0.06 };
     });
     return { W: W, k: k, drop: drop, jobs: jobs, c: corners };
   }
@@ -693,6 +752,7 @@
     var lift = phase === 'stop' && tau >= 0 ? seg(tau, 0.02, 0.2 * k) * (1 - seg(tau, Pn.drop, Pn.drop + 0.14)) : 0;
     var L = 0.085 * lift;
     var ctl = { lift: L, wheel: [true, true, true, true], fw: 'car', rw: 'car', green: phase === 'out' || (phase === 'stop' && tau > Pn.W - 0.12) };
+    this.sounds(Pn, phase === 'stop' ? tau : null);
     var home = function (i) { return { x: -2.2 + (i % 7) * 0.75, z: G * (4.4 + Math.floor(i / 7) * 0.7) }; };
     // run out of the garage while the car comes down the lane, back in after it left
     function place(i, x, z, yaw) {

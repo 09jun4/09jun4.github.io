@@ -6,7 +6,7 @@
 //  - front corner: front wing corner, then a broken front suspension (the
 //    wheel leans in, the car pulls to that side, less grip)
 //  - rear: rear wing damaged / torn off; rear corner: broken rear suspension
-//  - sausage kerb at speed: floor / front wing damage now and then
+//  - sausage kerb flat out: rarely a little floor damage (ordinary kerbs: none)
 // Damage costs downforce, grip and top speed, and the team calls the car in
 // ("Box, box, box") for a new nose (+8.5 s) or repairs (rear wing +10 s,
 // suspension +25 s each, real-race.js adds them to the stop).
@@ -79,7 +79,8 @@
     if (!active() || CR.Car.state.exploded || CR.Car.state.inPit) return;
     var now = performance.now();
     if (ev.type === 'sausage') {
-      if (ev.impact > 45 && Math.random() < 0.3) hit('floor', clamp((ev.impact - 45) / 40, 0.15, 0.6), '소시지 연석');
+      // real cars ride kerbs all race: only a sausage kerb taken flat out now and then chips the floor
+      if (ev.impact > 55 && Math.random() < 0.1) hit('floor', clamp((ev.impact - 55) / 50, 0.1, 0.35), '소시지 연석');
       return;
     }
     if (ev.type !== 'bump' || ev.impact < 5 || now - lastHit < 250) return;
@@ -89,15 +90,18 @@
     var fwd = nx * Math.cos(h) + ny * Math.sin(h), left = -nx * Math.sin(h) + ny * Math.cos(h);
     var sev = clamp((ev.impact - 5) / (CR.Config.EXPLODE_IMPACT_SPEED - 5), 0, 1);
     var s = D.st;
+    // A suspension only breaks on a hard hit; brushing a wall or a car (e.g.
+    // running wide over a kerb) at most clips the front wing endplate.
     if (fwd > 0.55) {
       s.fw = Math.max(s.fw, sev < 0.3 ? s.fw + 0.25 : sev < 0.65 ? 0.6 : 1);
-      if (sev > 0.75 && Math.random() < 0.5) s[left >= 0 ? 'fl' : 'fr'] = true;
+      if (sev > 0.82 && Math.random() < 0.35) s[left >= 0 ? 'fl' : 'fr'] = true;
     } else if (fwd < -0.55) {
       s.rw = Math.max(s.rw, sev < 0.35 ? s.rw + 0.3 : sev < 0.7 ? 0.6 : 1);
-      if (sev > 0.8 && Math.random() < 0.5) s[left >= 0 ? 'rl' : 'rr'] = true;
+      if (sev > 0.85 && Math.random() < 0.35) s[left >= 0 ? 'rl' : 'rr'] = true;
     } else if (fwd > -0.15) {
-      if (sev > 0.42) s[left >= 0 ? 'fl' : 'fr'] = true; else s.fw = Math.min(1, s.fw + 0.25);
-    } else if (sev > 0.6) s[left >= 0 ? 'rl' : 'rr'] = true;
+      if (sev > 0.72) s[left >= 0 ? 'fl' : 'fr'] = true;
+      else if (sev > 0.25) s.fw = Math.min(1, s.fw + 0.15);
+    } else if (sev > 0.8) s[left >= 0 ? 'rl' : 'rr'] = true;
     s.fw = Math.min(1, s.fw); s.rw = Math.min(1, s.rw);
     changed(sev, ev);
     if (ev.other) collisionRules(ev, fwd, sev);

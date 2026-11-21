@@ -264,6 +264,20 @@
     return { main: team.main, accent: team.accent, helmet: team.id === 'vel' ? '#f4f4f4' : team.accent, dark: '#141518' };
   }
 
+  // Pit stop sounds (audio.js Audio.pit): louder near the camera, panned to its side.
+  var tmpP = new THREE.Vector3();
+  function sound(R, stop) {
+    return function (kind, o) {
+      var cam = R.camera;
+      if (!CR.Audio || !CR.Audio.pit || !cam) return;
+      tmpP.copy(o.pos); stop.group.localToWorld(tmpP);
+      var d = tmpP.distanceTo(cam.position);
+      if (d > 90) return;
+      tmpP.applyMatrix4(cam.matrixWorldInverse);
+      CR.Audio.pit(kind, 1 / (1 + d / 5), Math.max(-1, Math.min(1, tmpP.x / (Math.abs(tmpP.z) + 2))), o.dur, o.hard);
+    };
+  }
+
   PIT.update = function (R, st, dt) {
     if (!st || !st.pool || !CR.RealPit || !CR.RealPit.built) return;
     var list = stops(R), P = CR.RealPit, ctx = CR.Race._ctx(), S = CR.Track.samples, RD = CR.RealData;
@@ -289,10 +303,9 @@
       var tk = (s.old || 'M') + s.tyre;
       if (slot.tyres !== tk) {
         slot.tyres = tk;
-        var oc = new THREE.Color(RD.tyre(s.old || 'M').color).convertSRGBToLinear(), nc = new THREE.Color(RD.tyre(s.tyre).color).convertSRGBToLinear();
-        stop.oldT.forEach(function (g) { g.userData.band.color.copy(oc); });
-        stop.newT.forEach(function (g) { g.userData.band.color.copy(nc); });
+        stop.setCompounds(s.old || 'M', s.tyre, RD.tyre(s.old || 'M').color, RD.tyre(s.tyre).color);
       }
+      stop.onSound = sound(R, stop);
       // the crew works in the box frame (where the car stops), placed like a car there
       var i = ctx.indexAt(ctx.wrapDist(run.box), 0), sb = S[i];
       var bx = sb.x + sb.nx * P.work, by = sb.y + sb.ny * P.work;

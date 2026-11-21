@@ -523,9 +523,31 @@
       spin.add(b);
       discs.push(d, b);
     });
-    return { pivot: pivot, spin: spin, r: r, front: !!part.front, blurMat: mats.blur,
+    return { pivot: pivot, spin: spin, r: r, front: !!part.front, blurMat: mats.blur, tyre: tyre, key: key, size: [r, width],
       blur: discs.filter(function (x, i) { return i % 2 === 1; }), sharp: discs.filter(function (x, i) { return i % 2 === 0; }) };
   }
+
+  // Rain tyres: full wets / intermediates show their grooves (hi-tex treadWet on
+  // a lathe with tread UVs); slicks keep the plain tread. id: compound S/M/H/I/W.
+  C.setTyre = function (R, car, id) {
+    var kind = id === 'W' ? 'wet' : id === 'I' ? 'inter' : 'slick';
+    if (!car || car.tyreKind === kind || !R.carShared) return;
+    car.tyreKind = kind;
+    var sh = R.carShared;
+    if (kind !== 'slick' && !sh['tread_' + kind]) {
+      var t = Hi.treadWet(kind);
+      R.textures.push(t.map, t.normal);
+      sh['tread_' + kind] = R.std({ map: t.map, normalMap: t.normal, normalScale: new THREE.Vector2(1.3, 1.3), color: 0xffffff, roughness: kind === 'wet' ? 0.78 : 0.82, metalness: 0 }, 'tyre_' + kind);
+    }
+    sh.tyresTread = sh.tyresTread || {};
+    car.wheels.forEach(function (wh) {
+      if (!wh.tyre) return;
+      if (kind === 'slick') { wh.tyre.geometry = sh.tyres[wh.key]; wh.tyre.material = sh.tyreMat; return; }
+      if (!sh.tyresTread[wh.key]) sh.tyresTread[wh.key] = Hi.tyreTreadUV(tyreGeometry(wh.size[0], wh.size[1]), 18);
+      wh.tyre.geometry = sh.tyresTread[wh.key];
+      wh.tyre.material = sh['tread_' + kind];
+    });
+  };
 
   // --- The car ------------------------------------------------------------------------------------
   // Monocoque / nose keyframes for scale s (top of the cockpit at z 0.5).

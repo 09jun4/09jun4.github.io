@@ -372,6 +372,52 @@
     return tex(c);
   };
 
+  // Rain tyres (tyre lathes with Hi.tyreTreadUV: v 0.2-0.8 = the tread face,
+  // shoulders to 0.12 / 0.88, sidewall beyond). u = round the tyre; one tile
+  // holds two blocks, the caller repeats it ~14x round the tyre.
+  //  'wet' (풀 웨트): deep arrow grooves that throw the water out sideways, two
+  //  circumferential channels; 'inter' (인터미디엇): shallow, finer grooves.
+  Hi.treadWet = function (kind) {
+    var W = 256, H = 128, c = canvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+    var wet = kind === 'wet', hgt = new Float32Array(W * H);
+    for (var y = 0; y < H; y++) {
+      var v = (y + 0.5) / H, dv = Math.abs(v - 0.5), side = v < 0.12 || v > 0.88;
+      for (var x = 0; x < W; x++) {
+        var u = (x + 0.5) / W, h = 1;
+        if (!side) {
+          var t = ((u * (wet ? 2 : 3) - dv * (wet ? 2.4 : 1.8)) % 1 + 1) % 1;
+          if (t < (wet ? 0.13 : 0.07) && dv > 0.03) h = wet ? 0 : 0.45; // arrow grooves
+          if (wet && Math.abs(dv - 0.14) < 0.022) h = 0; // channels
+          if (!wet && Math.abs(dv - 0.17) < 0.012) h = 0.45;
+          if (dv > 0.3) h = Math.max(h, (dv - 0.3) / 0.08); // grooves run out on the shoulder
+        }
+        hgt[y * W + x] = h;
+        var k = (y * W + x) * 4, col = side ? 34 : 18 + 24 * h + (Math.random() * 4);
+        d[k] = col; d[k + 1] = col; d[k + 2] = col + 1; d[k + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    var map = tex(c), normal = tex(normalFrom(hgt, W, H, wet ? 3.2 : 1.8), { srgb: false });
+    map.repeat.set(14, 1); normal.repeat.set(14, 1);
+    return { map: map, normal: normal };
+  };
+  // Tread UVs for a tyre lathe (profile: 2 rim points, two 7-point shoulder
+  // arcs, 2 rim points; the flat tread lies between the arcs): v by arc
+  // length, the flat face stretched over 0.2-0.8 so its pattern has room.
+  Hi.tyreTreadUV = function (g, npts) {
+    var pos = g.attributes.position, uv = g.attributes.uv, j0 = npts / 2 - 1, j1 = npts / 2;
+    var cum = [0];
+    for (var j = 1; j < npts; j++) {
+      cum.push(cum[j - 1] + Math.hypot(pos.getX(j) - pos.getX(j - 1), pos.getY(j) - pos.getY(j - 1), pos.getZ(j) - pos.getZ(j - 1)));
+    }
+    var V = cum.map(function (c, j) {
+      return j <= j0 ? 0.2 * c / (cum[j0] || 1) : j >= j1 ? 0.8 + 0.2 * (c - cum[j1]) / ((cum[npts - 1] - cum[j1]) || 1) : 0.5;
+    });
+    for (var i = 0; i < uv.count; i++) uv.setY(i, V[i % npts]);
+    uv.needsUpdate = true;
+    return g;
+  };
+
   // Lit windows for city silhouettes (emissive at dusk).
   Hi.windows = function () {
     var W = 64, H = 128, c = canvas(W, H), g = c.getContext('2d'), s = 99;
