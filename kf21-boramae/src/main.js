@@ -435,6 +435,8 @@ if (isDebugEnabled()) {
       go: (name, payload) => fsm.go(name, payload),
       startMission: (id) => { const m = missionById(id); if (fsm.name === STATE.PLAYING) { currentMission = m; session.startMission(m); } else { if (fsm.name === STATE.MENU) fsm.go(STATE.SELECT); if (fsm.name !== STATE.BRIEFING) fsm.go(STATE.BRIEFING, { mission: m }); fsm.go(STATE.PLAYING, { mission: m }); } },
       advance: (seconds) => loop.advance(seconds),
+      /** 영상 캡처: 실시간 루프를 멈추고 게임 시간을 dt만큼 정확히 넘긴 뒤 한 프레임을 그린다(슬로모션 배율은 그대로) */
+      captureStep: (dt = 1 / 60) => { if (loop.running) loop.stop(); loop.timeScale = baseTimeScale * session.timeScale; loop.advance(dt); },
       timeScale: (s) => { baseTimeScale = s; loop.timeScale = s; },
       setInput: (o) => { session.inputOverride = o; },
       setTrigger: (v) => { session.triggerOverride = v; },
