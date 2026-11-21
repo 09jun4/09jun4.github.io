@@ -167,6 +167,8 @@
     p.onService = opts.onService;
     p.base = CR.Race.player.dist - rel; // unwrapped distance of the line
     p.serve = opts.serve || 0; // penalty seconds served before the crew works
+    p.items = opts.items || []; // repair jobs (real-damage.js repairItems)
+    p.old = opts.old; // compound coming off
     Pit.player = p;
     c.inPit = true;
     c.steerSmoothed = 0;

@@ -52,13 +52,17 @@
     return e;
   };
 
+  // The repair jobs for the pit crew (hi-crew.js does each one in its own window).
+  D.repairItems = function () {
+    var s = D.st, list = [];
+    if (s.fw > 0.25) list.push({ k: 'nose', d: 8.5 });
+    if (s.rw > 0.3) list.push({ k: 'rw', d: 10 });
+    ['fl', 'fr', 'rl', 'rr'].forEach(function (k) { if (s[k]) list.push({ k: 'susp', c: k, d: 25 }); });
+    if (s.floor > 0.4) list.push({ k: 'floor', d: 6 });
+    return list;
+  };
   D.repairTime = function () {
-    var s = D.st, t = 0;
-    if (s.fw > 0.25) t += 8.5;
-    if (s.rw > 0.3) t += 10;
-    ['fl', 'fr', 'rl', 'rr'].forEach(function (k) { if (s[k]) t += 25; });
-    if (s.floor > 0.4) t += 6;
-    return t;
+    return D.repairItems().reduce(function (t, it) { return t + it.d; }, 0);
   };
   D.repairText = function () {
     var s = D.st, list = [];
