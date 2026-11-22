@@ -19,7 +19,7 @@
   window.CR = window.CR || {};
   var Hi = CR.Hi = CR.Hi || {};
 
-  var FP = {};
+  var FP = { tilt: 0.35 }; // tilt: how far the back of the hand turns from facing out towards the driver (rad)
   var canvas = null, renderer = null, scene = null, camera = null, arms = null, colKey = null, failed = false;
 
   // --- Arm mesh (bind pose: hanging down from the shoulder at the origin) -----------------------
@@ -176,18 +176,23 @@
     var jit = (H && H.kerb || 0) * 0.002, eye = view.eye;
     arms.forEach(function (a, k) {
       var s = k ? 1 : -1, b = a.b, sd = a.sd; // s: -1 left, +1 right
-      var gx = k ? 1000 - 128 : 128, palm = S(gx, 320, 0.05);
-      palm.x += (Math.random() - 0.5) * jit; palm.y += (Math.random() - 0.5) * jit;
-      var fingerDir = Uv.clone().multiplyScalar(0.72).addScaledVector(Rv, 0.69 * s).normalize();
-      var wrist = palm.clone().addScaledVector(fingerDir, -0.05);
+      // straight wrist: the hand carries on along the forearm and the fingers close round the grip;
+      // the back of the hand faces out, turned only a little towards the driver (FP.tilt)
+      var gx = k ? 1000 - 48 : 48, grip = S(gx, 380, -0.022); // outer part of the grip: the hand stays off the wheel face
+      grip.x += (Math.random() - 0.5) * jit; grip.y += (Math.random() - 0.5) * jit;
       var shoulder = W([s * 0.19, eye[1] - 0.2, eye[2] - 0.3]);
       a.mesh.position.copy(shoulder);
       a.mesh.updateMatrixWorld(true);
       var pole = Uv.clone().multiplyScalar(-0.8).addScaledVector(Rv, 0.55 * s).addScaledVector(Nv, 0.2);
-      Hi.Crew.lib.ik(b.upper, b.fore, b.hand, wrist, pole, pole.clone().negate());
-      // hand frame: fingers along -y, the back of the hand (+x for the left hand) towards the driver
-      var y = fingerDir.clone().negate(), x = Nv.clone().multiplyScalar(sd);
-      x.addScaledVector(y, -x.dot(y)).normalize();
+      var tilt = FP.tilt, back = Rv.clone().multiplyScalar(s * Math.cos(tilt)).addScaledVector(Nv, Math.sin(tilt));
+      var d = Uv.clone().multiplyScalar(0.6).addScaledVector(Nv, -0.8).normalize(), bb = new THREE.Vector3(), wrist = new THREE.Vector3();
+      for (var it = 0; it < 3; it++) {
+        bb.copy(back).addScaledVector(d, -back.dot(d)).normalize();
+        wrist.copy(grip).addScaledVector(bb, 0.035).addScaledVector(d, -0.075); // the grip sits inside the curled fingers
+        Hi.Crew.lib.ik(b.upper, b.fore, b.hand, wrist, pole, pole.clone().negate());
+        d = wrist.clone().sub(b.fore.getWorldPosition(new THREE.Vector3())).normalize();
+      }
+      var y = d.clone().negate(), x = bb.copy(back).addScaledVector(y, -back.dot(y)).normalize().multiplyScalar(sd);
       var z = new THREE.Vector3().crossVectors(x, y);
       _m.makeBasis(x, y, z); _q.setFromRotationMatrix(_m);
       b.fore.getWorldQuaternion(_q2);
@@ -196,9 +201,9 @@
       var flick = H ? H.flick[k] : 0, th = H ? H.thumb[k] : 0;
       for (var i = 0; i < 4; i++) {
         var extra = i === 0 ? flick * 0.5 : 0;
-        b['f' + i + '0'].rotation.set(0, 0, -sd * (1.0 + extra + i * 0.04));
-        b['f' + i + '1'].rotation.set(0, 0, -sd * (1.25 + extra));
-        b['f' + i + '2'].rotation.set(0, 0, -sd * (0.95 + extra * 0.6));
+        b['f' + i + '0'].rotation.set(0, 0, -sd * (1.15 + extra + i * 0.05));
+        b['f' + i + '1'].rotation.set(0, 0, -sd * (1.45 + extra));
+        b['f' + i + '2'].rotation.set(0, 0, -sd * (1.1 + extra * 0.6));
       }
       // thumb: lies on the wheel face pointing up and in; pressing = reaching further in and down on the button
       b.t0.rotation.set(0.15 - th * 0.3, 0, -sd * (0.25 + th * 0.25));
