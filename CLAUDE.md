@@ -35,7 +35,7 @@ Claude Code에서 새로 만든 웹 게임·프로그램은 다른 저장소가 
 - 관리자: 사이트 주인의 구글 계정에 관리자 권한을 줘요. 이 저장소는 공개라서 **이메일 주소를 파일에 쓰지 않고**, 소문자 이메일의 SHA-256 해시만 넣어요:
   `c94452ff79ea035becf03e8b1575c2728bd33fd4fab06e92a8091383399f1991` (판별 방법은 `track-master/circuit/js/cloud.js`의 `checkAdmin` 참고, 이메일 인증된 계정만 인정)
 
-## 사이트 구조 (디자인: 검정 바탕 모노, 이모지 없이 단순하게)
+## 사이트 구조 (디자인: Claymorphism — 파스텔 바탕, 말랑하게 부푼 둥근 점토 카드·버튼, 보라 포인트, 이모지 없이 단순하게. `assets/style.css` 맨 아래 Claymorphism 섹션이 위 스타일을 덮어써요)
 - `index.html` — 작품 카드 목록(예전 메인 화면, 어두운 회색 UI). 새 작품은 `data/works.js` 한 줄이면 카드로 나와요.
   - Sim Race(`/sim-race/`)는 사이트 주인이 가장 아끼는 작품이라 항상 맨 위에 고정이에요(`index.html` 첫 렌더와 `js/pins.js` 의 `TOP`). 다른 작품은 아래 핀 기능으로 그 밑에 고정할 수 있어요.
   - 작품 고정(pin): 관리자 계정에만 카드 위 핀 버튼이 보이고, 고정한 작품은 모두에게 Works 맨 위에 "고정" 표시로 떠요. `js/pins.js`, Firestore `site/pins`(읽기 누구나·쓰기 관리자, 규칙은 `firestore.rules`). 규칙 게시 전에는 관리자 브라우저에만 저장(localStorage `pins:local`)했다가 게시 뒤 자동으로 서버에 올려요.
