@@ -243,15 +243,24 @@
   function stops(R) {
     var list = [], P = CR.RealPit;
     var pp = P.player, c = CR.Car.state;
-    if (pp && c.inPit && near(pp)) list.push({ key: 'you', run: pp, team: 'you', car: R.playerCar, tyre: pp.tyre, old: pp.old });
+    // one crew per team box: a car queued behind its team-mate gets no crew of its own,
+    // and the crew turns to the next car as soon as it comes in (double stack)
+    var best = {}, RANK = { stop: 3, 'in': 2, out: 1 };
+    function offer(e) {
+      if (e.run.queue) return;
+      var k = 'team:' + e.team, o = best[k];
+      if (!o || RANK[e.run.phase] > RANK[o.run.phase]) best[k] = e;
+    }
+    if (pp && c.inPit && near(pp)) offer({ id: 'you', run: pp, team: 'you', car: R.playerCar, tyre: pp.tyre, old: pp.old });
     var ai = CR.Race.ai;
-    for (var i = 0; i < ai.length && list.length < MAX_CREWS; i++) {
+    for (var i = 0; i < ai.length; i++) {
       var a = ai[i], run = a.rt && a.rt.pit;
       if (!run || !near(run)) continue;
       if (Math.hypot(a.x - c.x, a.y - c.y) > 260) continue;
       var obj = R.carCache && R.carFor(a.model, a.driver && (Hi.Car.NUMBERS[a.driver.id] || a.driver.num));
-      list.push({ key: a.driver.id, run: run, team: a.rt.team, car: obj, tyre: run.tyre, old: run.old });
+      offer({ id: a.driver.id, run: run, team: a.rt.team, car: obj, tyre: run.tyre, old: run.old });
     }
+    Object.keys(best).forEach(function (k) { var e = best[k]; e.key = k; if (list.length < MAX_CREWS) list.push(e); });
     return list;
   }
 
@@ -301,7 +310,10 @@
       }
       var run = s.run, stop = slot.stop, team = RD.team(s.team);
       stop.setTeam(s.team, colours(team));
-      if (s.car && slot.car !== s.car) { Hi.Crew.tagWheels(s.car); stop.setCar(s.car); }
+      if (s.car && slot.car !== s.car) { // a new car for this crew (or the team-mate after a double stack)
+        if (slot.car) Hi.Crew.restoreCar(slot.car);
+        Hi.Crew.tagWheels(s.car); stop.setCar(s.car); stop.prevTau = null;
+      }
       slot.car = s.car;
       var tk = (s.old || 'M') + s.tyre;
       if (slot.tyres !== tk) {
@@ -320,7 +332,7 @@
       var work = Math.max(1.6, (run.stopTime || 2.4) - serve);
       var ctl = stop.update({
         phase: run.phase, approach: run.phase === 'in' ? sm(1 - (run.box - run.rel) / 70) : 1, t: run.t, outT: run.t,
-        serve: serve, work: work, items: run.items || [], slow: work - fix > 2.7 ? hash(s.key) % 4 : -1, garage: -P.side,
+        serve: serve, work: work, items: run.items || [], slow: work - fix > 2.7 ? hash(s.id) % 4 : -1, garage: -P.side, carX: run.rel - run.box,
       }, dt);
       if (s.car) Hi.Crew.applyCar(s.car, ctl, run.phase !== 'stop');
       if (ctl.green && st.relLights[s.team]) st.relLights[s.team].emissive.setHex(0x22ff55);

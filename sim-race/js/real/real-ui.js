@@ -348,6 +348,7 @@
     var t = p.phase === 'stop' ? p.t : p.stopTime;
     els.psTime.textContent = t.toFixed(1) + '초';
     var serve = p.serve || 0, work = t - serve;
+    if (p.queue) { els.psTime.textContent = '대기'; els.psNote.textContent = '팀메이트 정비 중 · 뒤에서 대기'; return; }
     els.psNote.textContent = serve > 0 && work < 0 ? '페널티 ' + serve + '초 소화 중' : p.phase === 'out' ? '출발! ' + RD().tyre(p.tyre).name : '타이어 교체 · ' + RD().tyre(p.tyre).name;
     var wf = Math.max(0, Math.min(1, (work - 0.25) / Math.max(0.6, p.stopTime - serve - 0.6)));
     for (var i = 0; i < 4; i++) {

@@ -348,6 +348,7 @@
     var self = this;
     bones.forEach(function (o) { self.b[o.name] = o; });
     this.x = 0; this.z = 0; this.yaw = 0; this.init = false;
+    this.pace = 5 + Math.random() * 1.6; // running speed (m/s)
     this.feet = [{ p: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, dur: 0.3, y: 0, pitch: 0 },
       { p: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, dur: 0.3, y: 0, pitch: 0 }];
     this.vx = 0; this.vz = 0; this.speed = 0; this.phase = 0;
@@ -392,6 +393,25 @@
     return (out || new THREE.Vector3()).set(this.x + lx * c + lz * s, ly, this.z - lx * s + lz * c);
   };
 
+  // Standing about while others work (long repairs, waiting): sway, small
+  // shuffles, looking around, hands on the hips / arms folded / pointing at the job.
+  Person.prototype.idleLife = function (A, dt) {
+    this.idleT += dt;
+    var t = this.idleT + this.seed, ph = Math.floor(t / 4.5), mode = Math.floor(Math.abs(Math.sin(ph * 12.99 + this.seed)) * 4);
+    A.x += Math.sin(t * 0.35) * 0.12; A.z += Math.cos(t * 0.27 + 1) * 0.1;
+    A.yaw += Math.sin(t * 0.5) * 0.35;
+    A.lean = (A.lean || 0) + Math.sin(t * 0.8) * 0.04;
+    A.twist = (A.twist || 0) + Math.sin(t * 0.6 + 2) * 0.15;
+    if (A.look) A.look = A.look.clone().add(new THREE.Vector3(Math.sin(t * 0.9) * 1.2, 0, Math.cos(t * 0.7) * 1.2));
+    if (!A.hands && A.pose !== 'kneel') {
+      var P = POSE[A.pose || 'stand'], hy = P.hipY;
+      if (mode === 1) A.hands = [this.toStop(0.2, hy + 0.06, 0.03), this.toStop(-0.2, hy + 0.06, 0.03)]; // hands on the hips
+      else if (mode === 2) A.hands = [this.toStop(-0.1, hy + 0.27, 0.16), this.toStop(0.1, hy + 0.25, 0.17)]; // arms folded
+      else if (mode === 3 && A.look) A.hands = [A.look.clone().sub(new THREE.Vector3(this.x, 0, this.z)).setY(0).normalize().multiplyScalar(0.55).add(new THREE.Vector3(this.x, hy + 0.45, this.z)), null]; // pointing
+      if (A.hands) A.keepHands = true;
+    }
+  };
+
   // Postures: hips, lean and the feet (person-local) the stepping aims for.
   var POSE = {
     stand: { hipY: 0.95, hipZ: 0, lean: 0.04, feet: [[0.11, 0, 0.02, 0], [-0.11, 0, 0.02, 0]] },
@@ -410,7 +430,13 @@
   Person.prototype.update = function (A, dt, group) {
     var self = this, P = POSE[A.pose || 'stand'];
     dt = Math.min(dt, 0.1);
-    if (!this.init) { this.x = A.x; this.z = A.z; this.yaw = A.yaw; }
+    if (!this.init) { this.x = A.x; this.z = A.z; this.yaw = A.yaw; this.seed = Math.random() * 100; this.idleT = 0; }
+    if (A.idle) this.idleLife(A, dt);
+    // the root follows the script at a human pace (no jumps when a plan changes)
+    if (this.init && dt > 0) {
+      var ddx = A.x - this.x, ddz = A.z - this.z, dl = Math.hypot(ddx, ddz), mx = (A.run || this.pace || 6) * dt;
+      if (dl > mx) { A.x = this.x + ddx / dl * mx; A.z = this.z + ddz / dl * mx; }
+    }
     // velocity from the scripted root
     var vx = dt > 0 ? (A.x - this.x) / dt : 0, vz = dt > 0 ? (A.z - this.z) / dt : 0;
     var kk = Math.min(1, dt * 12);
@@ -791,14 +817,19 @@
     var tau = phase === 'stop' ? (S.t || 0) - (S.serve || 0) : phase === 'out' ? Pn.W + (S.outT || 0) : -1;
     var serving = phase === 'stop' && tau < 0;
     var out = phase === 'out' ? (S.outT || 0) : 0;
-    var lift = phase === 'stop' && tau >= 0 ? seg(tau, 0.02, 0.2 * k) * (1 - seg(tau, Pn.drop, Pn.drop + 0.14)) : 0;
-    var L = 0.085 * lift;
-    var ctl = { lift: L, wheel: [true, true, true, true], fw: 'car', rw: 'car', green: phase === 'out' || (phase === 'stop' && tau > Pn.W - 0.12) };
+    // front jack lifts at once; the rear jack man swings in from the side first, so the rear goes up a beat later
+    var down = 1 - seg(tau, Pn.drop, Pn.drop + 0.14);
+    var liftF = phase === 'stop' && tau >= 0 ? seg(tau, 0.02, 0.2 * k) * down : 0;
+    var liftR = phase === 'stop' && tau >= 0 ? seg(tau, 0.3 * k, 0.45 * k) * down : 0;
+    var lift = (liftF + liftR) / 2, L = 0.085 * lift, LF = 0.085 * liftF, LR = 0.085 * liftR;
+    var carX = S.carX === undefined ? (phase === 'in' ? -70 * (1 - a) : 0) : S.carX; // where the car is (stop frame x)
+    var ctl = { lift: L, liftF: LF, liftR: LR, wb: (W[0].x - W[2].x) || 3.3, wheel: [true, true, true, true], fw: 'car', rw: 'car', green: phase === 'out' || (phase === 'stop' && tau > Pn.W - 0.12) };
     this.sounds(Pn, phase === 'stop' ? tau : null);
     var home = function (i) { return { x: -2.2 + (i % 7) * 0.75, z: G * (4.4 + Math.floor(i / 7) * 0.7) }; };
     // run out of the garage while the car comes down the lane, back in after it left
     function place(i, x, z, yaw) {
-      var h = home(i), u = seg(a, 0.04 + (i % 7) * 0.015, 0.5 + (i % 5) * 0.02), v = seg(out, 1.2 + (i % 6) * 0.12, 3.6 + (i % 4) * 0.2);
+      var u0 = 0.02 + rnd(i, 1) * 0.24, v0 = 0.9 + rnd(i, 3) * 1.1; // everyone on their own timing
+      var h = home(i), u = seg(a, u0, u0 + 0.28 + rnd(i, 2) * 0.14), v = seg(out, v0, v0 + 2.1 + rnd(i, 4) * 0.9);
       var px = lerp(h.x, x, u), pz = lerp(h.z, z, u);
       px = lerp(px, h.x, v); pz = lerp(pz, h.z, v);
       var moving = (u > 0 && u < 1) || (v > 0 && v < 1);
@@ -806,12 +837,16 @@
       return { x: px, z: pz, yaw: ty, away: v, moving: moving };
     }
     var people = this.people, car = { x: 0, z: 0 };
-    function look(x, y, z) { return new THREE.Vector3(x, y, z); }
+    function rnd(i, n) { var x = Math.sin((i + 1) * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); }
+    // heads follow the car while it comes in and as it leaves
+    var watchCar = (phase === 'in' && a > 0.25) || (phase === 'out' && out < 2.5);
+    function look(x, y, z) { return watchCar ? new THREE.Vector3(carX + (phase === 'out' ? 1.5 : 0.5), 0.5, 0) : new THREE.Vector3(x, y, z); }
+    var tense = phase === 'in' ? seg(a, 0.75, 1) * 0.12 : 0; // crouch lower just before the car stops
     function yawTo(fx, fz, tx, tz) { return Math.atan2(tx - fx, tz - fz); }
 
     // --- wheel teams ---
     W.forEach(function (w, c) {
-      var s = w.z < 0 ? -1 : 1, T = Pn.c[c], hub = new THREE.Vector3(w.x, w.r + L, w.z);
+      var s = w.z < 0 ? -1 : 1, T = Pn.c[c], hub = new THREE.Vector3(w.x, w.r + (w.front ? LF : LR), w.z);
       var nut = hub.clone(); nut.z += s * 0.215;
       var gun = people[c * 3], off = people[c * 3 + 1], on = people[c * 3 + 2];
       // long repairs: a wheel team that is done stands back until the jacks come down
@@ -841,7 +876,7 @@
       var side = new THREE.Vector3(0, 0.13, -0.12).applyEuler(gunG.rotation).add(gunG.position);
       var hands = [side, rear];
       if (signal) hands = [gun.toStop(0.18, 1.55, 0.25), rear];
-      gun.update({ x: Pg.x, z: Pg.z, yaw: Pg.yaw, pose: kneel ? 'kneel' : (phase === 'stop' || a > 0.6) && !Pg.moving && !idle ? 'ready' : 'stand', look: look(w.x, w.r, w.z), hands: hands, keepHands: signal, quick: phase === 'stop' }, dt, grp);
+      gun.update({ x: Pg.x, z: Pg.z, yaw: Pg.yaw, pose: kneel ? 'kneel' : (phase === 'stop' || a > 0.6) && !Pg.moving && !idle ? 'ready' : 'stand', look: look(w.x, w.r, w.z), hands: hands, keepHands: signal, quick: phase === 'stop', lean: tense, idle: idle || serving }, dt, grp);
       // hose from the gun tail up to the gantry
       var hose = self.hoses[c], top = new THREE.Vector3(w.x + (w.front ? 0.4 : -0.4), 4.15, w.z + s * 1.4);
       var tail = new THREE.Vector3(0, 0, -0.33).applyEuler(gunG.rotation).add(gunG.position);
@@ -884,7 +919,7 @@
         oh = [new THREE.Vector3(tc.x - 0.16, tc.y + 0.24, tc.z + s * 0.2), new THREE.Vector3(tc.x + 0.16, tc.y + 0.24, tc.z + s * 0.2)];
         if (phase === 'out' && out > 1.0) oh = [new THREE.Vector3(op.x, op.y + 0.1, op.z).add(new THREE.Vector3(Math.cos(off.yaw) * 0.2, 0, -Math.sin(off.yaw) * 0.2)), new THREE.Vector3(op.x, op.y + 0.1, op.z).add(new THREE.Vector3(-Math.cos(off.yaw) * 0.2, 0, Math.sin(off.yaw) * 0.2))];
       }
-      off.update({ x: Po.x, z: Po.z, yaw: Po.yaw, pose: Po.moving ? 'stand' : (tau > T.backB ? 'lean' : (a > 0.6 ? 'ready' : 'stand')), look: look(op.x, op.y, op.z), hands: oh, quick: phase === 'stop' }, dt, grp);
+      off.update({ x: Po.x, z: Po.z, yaw: Po.yaw, pose: Po.moving ? 'stand' : (tau > T.backB ? 'lean' : (a > 0.6 ? 'ready' : 'stand')), look: look(op.x, op.y, op.z), hands: oh, quick: phase === 'stop', lean: tense, idle: serving || (tau > T.backB + 1 && Pn.drop - tau > 1.5) }, dt, grp);
       // ON man
       var nx = w.x + 0.78, nz = w.z + s * 1.12;
       if (onU > 0) { nx = lerp(nx, w.x + 0.5, onU); nz = lerp(nz, w.z + s * 0.72, onU); }
@@ -898,32 +933,40 @@
           onHands = [on.toStop(0.22, 0.72, 0.34), on.toStop(-0.22, 0.72, 0.34)];
         }
       }
-      on.update({ x: Pn2.x, z: Pn2.z, yaw: Pn2.yaw, pose: Pn2.moving || idle ? 'stand' : (onU > 0 && tau < T.onB + 0.3 ? 'lean' : 'ready'), look: look(w.x, w.r, w.z), hands: onHands, quick: phase === 'stop' }, dt, grp);
+      on.update({ x: Pn2.x, z: Pn2.z, yaw: Pn2.yaw, pose: Pn2.moving || idle ? 'stand' : (onU > 0 && tau < T.onB + 0.3 ? 'lean' : 'ready'), look: look(w.x, w.r, w.z), hands: onHands, quick: phase === 'stop', lean: tense, idle: idle || serving }, dt, grp);
     });
 
     // --- jacks ---
     function jack(J, man, idx, front) {
-      var sgn = front ? 1 : -1, end = front ? self.nose : self.tail;
+      var sgn = front ? 1 : -1, end = front ? self.nose : self.tail, my = front ? liftF : liftR, LL = front ? LF : LR;
       var under = front ? end - 0.38 : end + 0.3, wait = front ? end + 0.45 : end - 0.45;
-      var inU = phase === 'stop' ? seg(tau, -0.15, 0.08 * k) : (phase === 'in' && a > 0.97 ? 0.0 : 0);
-      if (phase === 'stop' && serving) inU = 0;
       var outU = phase === 'stop' ? seg(tau, Pn.drop + 0.12, Pn.drop + 0.4) : phase === 'out' ? 1 : 0;
-      var cx = lerp(wait, under, inU), cz = 0;
-      if (outU > 0) { cx = lerp(under, front ? end + 0.9 : end - 0.9, outU); cz = front ? G * 1.3 * outU : 0; }
+      var cx, cz, ry;
+      if (front) { // waits in front of the box: the car stops short of him
+        var inF = phase === 'stop' && !serving ? seg(tau, -0.15, 0.08 * k) : 0;
+        cx = lerp(wait, under, inF); cz = 0; ry = 0;
+        if (outU > 0) { cx = lerp(under, end + 0.9, outU); cz = G * 1.3 * outU; ry = -G * 0.9 * outU; }
+      } else { // waits beside the tail (the car would run him over), swings in behind it once it has stopped
+        var inR = phase === 'stop' && !serving ? seg(tau, 0.0, 0.3 * k) : 0;
+        var side = { x: end + 0.15, z: G * 1.25 };
+        cx = lerp(side.x, under, inR); cz = lerp(side.z, 0, inR); ry = Math.PI + G * 1.25 * (1 - inR);
+        if (outU > 0) { cx = lerp(under, side.x, outU); cz = lerp(0, side.z, outU); ry = Math.PI + G * 1.25 * outU; } // clears the lane for the next car
+      }
       J.position.set(cx, 0, cz);
-      J.rotation.y = front ? (outU > 0 ? -G * 0.9 * outU : 0) : Math.PI;
-      var ang = lerp(0.62, 0.32, lift);
-      J.userData.lever.rotation.z = ang;
-      J.userData.cradle.position.y = 0.1 + L * 1.05;
+      J.rotation.y = ry;
+      J.userData.lever.rotation.z = lerp(0.62, 0.32, my);
+      J.userData.cradle.position.y = 0.1 + LL * 1.05;
       J.visible = a > 0.35 || phase !== 'in';
       J.updateMatrixWorld(true);
       var hdl = new THREE.Vector3(1.25, 0, 0); J.userData.lever.localToWorld(hdl);
       self.group.worldToLocal(hdl);
-      var mx = hdl.x + sgn * 0.45, mz = hdl.z;
-      var Pj = place(idx, mx, mz, yawTo(mx, mz, hdl.x - sgn, hdl.z));
-      var hh = J.visible && !Pj.moving ? [hdl.clone().add(new THREE.Vector3(0, 0, 0.14)), hdl.clone().add(new THREE.Vector3(0, 0, -0.14))] : null;
-      if (hh && !front) hh = [hh[1], hh[0]];
-      man.update({ x: Pj.x, z: Pj.z, yaw: Pj.yaw, pose: Pj.moving ? 'stand' : 'brace', lean: lift * 0.35, look: look(front ? end : end, 0.5, 0), hands: hh, quick: phase === 'stop' }, dt, grp);
+      var dir = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry)); // jack +x (towards its handle) in the stop frame
+      var mx = hdl.x + dir.x * 0.45, mz = hdl.z + dir.z * 0.45;
+      var Pj = place(idx, mx, mz, yawTo(mx, mz, hdl.x - dir.x, hdl.z - dir.z));
+      var side2 = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(0.14);
+      var hh = J.visible && !Pj.moving ? [hdl.clone().add(side2), hdl.clone().sub(side2)] : null;
+      var waiting = phase === 'in' || serving;
+      man.update({ x: Pj.x, z: Pj.z, yaw: Pj.yaw, pose: Pj.moving ? 'stand' : 'brace', lean: my * 0.35 + tense, look: look(end, 0.5, 0), hands: hh, quick: phase === 'stop', run: front ? undefined : 7 }, dt, grp);
     }
     jack(this.jackF, people[12], 12, true);
     jack(this.jackR, people[13], 13, false);
@@ -933,7 +976,7 @@
       var man = people[14 + i], hold = phase === 'stop' && tau > -0.1 && tau < Pn.drop + 0.12;
       var x = 0.1, z = s * (hold ? 0.98 : 1.25);
       var P = place(14 + i, x, z, yawTo(x, z, 0, 0));
-      man.update({ x: P.x, z: P.z, yaw: P.yaw, pose: P.moving ? 'stand' : hold ? 'lean' : 'ready', look: look(0.6, 0.6, 0),
+      man.update({ x: P.x, z: P.z, yaw: P.yaw, pose: P.moving ? 'stand' : hold ? 'lean' : 'ready', look: look(0.6, 0.6, 0), lean: tense, idle: serving,
         hands: hold && !P.moving ? [new THREE.Vector3(0.38, 0.63 + L, s * 0.52), new THREE.Vector3(-0.22, 0.62 + L, s * 0.55)] : null, quick: true }, dt, grp);
     });
 
@@ -941,7 +984,7 @@
     var rm = people[16], rx = this.nose + 0.4, rz = G * 1.7;
     var Pr = place(16, rx, rz, yawTo(rx, rz, 0, 0));
     var clear = ctl.green;
-    rm.update({ x: Pr.x, z: Pr.z, yaw: Pr.yaw, pose: 'stand', twist: phase === 'stop' ? -G * 0.5 : 0, look: phase === 'stop' ? look(-30, 1, -G * 3) : look(0, 0.5, 0),
+    rm.update({ x: Pr.x, z: Pr.z, yaw: Pr.yaw, pose: 'stand', idle: phase === 'stop' && Pn.drop - tau > 1.5, twist: phase === 'stop' ? -G * 0.5 : 0, look: phase === 'stop' ? look(-30, 1, -G * 3) : look(0, 0.5, 0),
       hands: !Pr.moving && phase === 'stop' ? [rm.toStop(0.25, clear ? 1.95 : 1.45, clear ? 0.35 : 0.3), null] : null }, dt, grp);
 
     // --- repair crew: one job after another ---
@@ -950,7 +993,7 @@
     var parts = this.parts;
     ['fwOld', 'fwNew', 'rwOld', 'rwNew'].forEach(function (key) { parts[key].visible = false; });
     this.rod.visible = false; this.tools[0].visible = this.tools[1].visible = false;
-    var acts = R4.map(function (m, i) { var h = home(14 + i); return { x: 0.55 * i - 1.6, z: G * 3.55, yaw: yawTo(0, G * 3.55, 0, 0), pose: 'stand', hands: null, look: look(0, 0.5, 0) }; });
+    var acts = R4.map(function (m, i) { var h = home(14 + i); return { x: 0.55 * i - 1.6, z: G * 3.55, yaw: yawTo(0, G * 3.55, 0, 0), pose: 'stand', hands: null, look: look(0, 0.5, 0), idle: true }; });
     // repair status of the nose / rear wing for the whole stop
     Pn.jobs.forEach(function (j) {
       var u = clamp((tau - j.a) / (j.b - j.a), 0, 1);
@@ -1024,7 +1067,7 @@
     if (ctl.rw === 'fitted' && car0 && car0.rearWing && car0.rearWing.userData.dmgGone) { parts.rwNew.visible = true; parts.rwNew.position.set(0, L, 0); }
     R4.forEach(function (m, i) {
       var A = acts[i], P = place(17 + i, A.x, A.z, A.yaw);
-      m.update({ x: P.x, z: P.z, yaw: P.yaw, pose: P.moving ? 'stand' : A.pose, look: A.look, hands: P.moving ? null : A.hands, quick: phase === 'stop' }, dt, grp);
+      m.update({ x: P.x, z: P.z, yaw: P.yaw, pose: P.moving ? 'stand' : A.pose, look: A.look, hands: P.moving ? null : A.hands, quick: phase === 'stop', idle: !!A.idle && !P.moving }, dt, grp);
     });
     return ctl;
   };
@@ -1081,6 +1124,7 @@
   Crew.applyCar = function (car, ctl, done) {
     if (!car || !car.group) return;
     car.group.position.y += ctl.lift;
+    if (ctl.liftF !== undefined && car.body) car.body.rotation.z += Math.atan2(ctl.liftF - ctl.liftR, ctl.wb || 3.3); // nose up first
     car.wheels.forEach(function (wh, i) {
       // car.wheels order is the model's; match by corner
       var c = wh.userData && wh.userData.crewCorner;

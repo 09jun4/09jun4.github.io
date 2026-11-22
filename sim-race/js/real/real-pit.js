@@ -114,6 +114,12 @@
       if (p.box !== null && p.rel >= p.box - 0.15) { p.rel = p.box; p.v = 0; p.phase = 'stop'; p.t = 0; }
     } else if (p.phase === 'stop') {
       p.v = 0;
+      if (p.queue) { // double stack: wait behind the box until the team-mate has gone
+        var q = p.queue;
+        p.wait = (p.wait || 0) + dt;
+        if ((q.phase === 'out' && q.rel - q.box > 6) || p.wait > 40) { p.queue = null; p.box = p.boxFinal; p.phase = 'in'; }
+        return false;
+      }
       p.t += dt;
       if (p.t >= p.stopTime) { p.phase = 'out'; p.t = 0; if (p.onService) p.onService(); }
     } else {
@@ -137,8 +143,13 @@
     var blend = smooth((p.rel - p.rel0) / 70);
     return p.off0 + (off - p.off0) * blend;
   }
-  Pit.newRun = function (rel, v, off, boxRel, stopTime) {
-    return { phase: 'in', rel: rel, v: v, vIn: Math.max(v, CR.RealData.CAR.PIT_LIMIT), box: boxRel, off0: off, rel0: rel, t: 0, stopTime: stopTime, offset: off };
+  // queue: the team-mate's run when it is still at the box (double stack): this
+  // car stops QUEUE_GAP m behind the box, waits, then moves up and is serviced.
+  Pit.QUEUE_GAP = 7;
+  Pit.newRun = function (rel, v, off, boxRel, stopTime, queue) {
+    var p = { phase: 'in', rel: rel, v: v, vIn: Math.max(v, CR.RealData.CAR.PIT_LIMIT), box: boxRel, off0: off, rel0: rel, t: 0, stopTime: stopTime, offset: off };
+    if (queue && queue.phase !== 'out') { p.queue = queue; p.boxFinal = boxRel; p.box = boxRel - Pit.QUEUE_GAP; }
+    return p;
   };
 
   // AI / safety car: car.dist / offset / v from the run. Returns true at the exit.
@@ -162,7 +173,7 @@
     var along = (c.x - s.x) * Math.cos(s.heading) + (c.y - s.y) * Math.sin(s.heading);
     var rel = Pit.relOf(ctx.cum[c.nearestSampleIndex] + along);
     var off = (c.x - s.x) * s.nx + (c.y - s.y) * s.ny;
-    var p = Pit.newRun(rel, Math.max(5, c.speed), off, opts.box, opts.stopTime);
+    var p = Pit.newRun(rel, Math.max(5, c.speed), off, opts.box, opts.stopTime, opts.queue);
     p.tyre = opts.tyre;
     p.onService = opts.onService;
     p.base = CR.Race.player.dist - rel; // unwrapped distance of the line

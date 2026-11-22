@@ -427,14 +427,14 @@
 
   function startPit(car, rel) {
     var rt = car.rt, mate = null;
-    R.cars.forEach(function (o) { if (o !== car && o.rt.team === rt.team && o.rt.pit && o.rt.pit.phase !== 'out') mate = o; });
-    var wait = mate ? 3 + Math.random() * 2 : 0; // stacked behind the team-mate
-    var stop = Pit().stopTime() + rt.pen + (rt.repair || 0) + wait;
+    R.cars.forEach(function (o) { if (o !== car && o.rt && o.rt.team === rt.team && o.rt.pit && o.rt.pit.phase !== 'out') mate = o.rt.pit; });
+    if (rt.team === 'you' && Pit().player && Pit().player.phase !== 'out') mate = Pit().player; // the player's team-mate
+    var stop = Pit().stopTime() + rt.pen + (rt.repair || 0);
     rt.nextTyre = rt.nextTyre || R.tyreFor(R.laps - car.lap - 1);
-    rt.pit = Pit().newRun(rel, car.v, car.offset, Pit().boxRel(rt.team), stop);
+    rt.pit = Pit().newRun(rel, car.v, car.offset, Pit().boxRel(rt.team), stop, mate); // double stack: waits behind the team-mate
     rt.pit.tyre = rt.nextTyre;
     rt.pit.old = rt.tyre;
-    rt.pit.serve = rt.pen + wait; // the crew waits (penalty / team-mate), then works
+    rt.pit.serve = rt.pen; // the crew waits out the penalty, then works
     rt.pit.items = rt.repair ? [{ k: 'nose', d: rt.repair }] : [];
     rt.pit.onService = function () {
       rt.repair = 0;
@@ -855,7 +855,10 @@
     var pl = R.pl, tyre = pl.nextTyre;
     var stop = Pit().stopTime(), Dm = CR.RealDmg, fix = Dm ? Dm.repairTime() : 0;
     if (fix) R.radio('수리: ' + Dm.repairText() + ' (+' + fix.toFixed(1) + '초)', 'eng');
+    var mate = null; // AI team-mate still at the box: the player queues behind it
+    R.cars.forEach(function (o) { if (!o.isPlayer && o.rt && o.rt.team === 'you' && o.rt.pit && o.rt.pit.phase !== 'out') mate = o.rt.pit; });
     Pit().enterPlayer({
+      queue: mate,
       box: Pit().boxRel('you'), stopTime: stop + fix + pl.pen, tyre: tyre, serve: pl.pen, items: Dm ? Dm.repairItems() : [], old: RP().st.tyre,
       onService: function () {
         RP().fitTyres(tyre, 0.55);
