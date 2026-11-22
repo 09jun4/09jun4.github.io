@@ -301,7 +301,9 @@
       dist: cum[pIndex] - L, v: 0, x: 0, y: 0, finished: false, retired: false };
     Race.ai.forEach(placeAI);
     Race.active = true;
-    Race.phase = 'lights';
+    Race.phase = real.formation && real.formation() ? 'formation' : 'lights';
+    Race.formStart = Race.player.dist;
+    Race.formTime = 0;
     Race.lightsOn = 0;
     Race.clock = 0;
     Race.results = null;
@@ -311,6 +313,47 @@
     CR.Car.events.length = 0;
     real.onStart();
   }
+
+  // Puts the cars back on the grid in `order` (Race.player / AI cars), for a
+  // standing start: after the formation lap (keepLaps false: the race has not
+  // started) or a red-flag restart (laps done are kept).
+  Race.regrid = function (order, keepLaps) {
+    order.forEach(function (car, g) {
+      var gs = gridSlot(g);
+      if (car.isPlayer) {
+        var pIndex = indexAt(wrapDist(gs.dist), 0), laps = keepLaps ? CR.Laps.history.length : 0;
+        CR.Car.spawnAt(pIndex, gs.offset);
+        Race.player.dist = laps * L + cum[pIndex] - L;
+        Race.player.offset = gs.offset; Race.player.idx = pIndex; Race.player.v = 0;
+        if (keepLaps) CR.Laps.setProgress(pIndex === 0 ? 0 : pIndex - n);
+        else CR.Laps.reset(false, pIndex === 0 ? 0 : pIndex - n);
+      } else {
+        car.dist = (keepLaps ? car.lap : 0) * L + gs.dist;
+        car.offset = gs.offset; car.laneTarget = gs.offset; car.laneVel = 0; car.v = 0;
+        car.reaction = Race.clock + 0.15 + Math.random() * 0.35 + g * 0.02;
+        if (!keepLaps) car.lapStart = 0;
+      }
+    });
+    Race.ai.forEach(placeAI);
+    Race.phase = 'lights';
+    Race.lightsOn = 0;
+    lightsTimer = 0;
+    goAt = 5.3 + Math.random() * 1.6;
+    CR.Car.events.length = 0;
+  };
+  // Formation lap over (back near the grid, after ~4 minutes, or skipped): line up, lights.
+  Race.endFormation = function () {
+    if (Race.phase !== 'formation') return;
+    var order = Race.real.grid.map(function (e, g) {
+      if (e.isPlayer) return Race.player;
+      for (var i = 0; i < Race.ai.length; i++) if (Race.ai[i].grid === g + 1) return Race.ai[i];
+      return null;
+    }).filter(Boolean);
+    Race.clock = 0;
+    Race.regrid(order, false);
+    Race.real.gridPos = { x: CR.Car.state.x, y: CR.Car.state.y };
+    if (Race.real.onFormationEnd) Race.real.onFormationEnd();
+  };
 
   // Small lap-to-lap variation of an AI's pace (±0.4 %).
   function newLapPace(car) {
@@ -360,6 +403,16 @@
 
   Race.update = function (dt) {
     if (!Race.active) return;
+    if (Race.phase === 'formation') { // 리얼리스틱: one lap behind the leader at a gentle pace, then the grid
+      Race.clock += dt; Race.formTime += dt;
+      trackPlayer();
+      if (Race.real) Race.real.update(dt);
+      for (var f = 0; f < Race.ai.length; f++) driveAI(Race.ai[f], dt);
+      collide();
+      for (var g = 0; g < Race.ai.length; g++) placeAI(Race.ai[g]);
+      if (Race.player.dist >= Race.formStart + L - 140 || Race.formTime > 240) Race.endFormation();
+      return;
+    }
     if (Race.phase === 'lights') {
       lightsTimer += dt;
       // 리얼리스틱: lights one second apart, like the real start procedure
@@ -490,7 +543,7 @@
 
     // Laps: crossing k * L.
     // (Leaving the grid across the line is not a lap: laps count from lights out.)
-    if (Math.floor(car.dist / L) > Math.floor(prevDist / L) && Math.floor(car.dist / L) >= 1) {
+    if (Race.phase !== 'formation' && Math.floor(car.dist / L) > Math.floor(prevDist / L) && Math.floor(car.dist / L) >= 1) {
       var t = Race.clock - car.lapStart;
       car.lap++;
       car.laps.push(t);

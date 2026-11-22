@@ -76,7 +76,7 @@
   var lastHit = 0;
   // Car events (main.js): bumps (walls, cars) and sausage kerbs.
   D.onEvent = function (ev) {
-    if (!active() || CR.Car.state.exploded || CR.Car.state.inPit) return;
+    if (!active() || CR.Car.state.exploded || CR.Car.state.inPit || (CR.Race && CR.Race.phase === 'formation')) return;
     var now = performance.now();
     if (ev.type === 'sausage') {
       // real cars ride kerbs all race: only a sausage kerb taken flat out now and then chips the floor

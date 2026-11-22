@@ -149,6 +149,14 @@
     if (CR.Race.active) CR.Race.end();
     CR.Real.prepare();
     Main.trackIndex = CR.Real.trackIndex;
+    if (CR.Real.settings.practice !== false) { // a short practice first (real-race.js)
+      CR.Real.startPractice();
+      beginRealRun();
+    } else Main.realQualiStage();
+  };
+  // Qualifying for the current stage (sprint qualifying / qualifying), or the simulated grid.
+  Main.realQualiStage = function () {
+    if (CR.Race.active) CR.Race.end();
     if (CR.Real.settings.quali) {
       CR.Real.startQuali();
       beginRealRun();
@@ -168,7 +176,8 @@
     CR.RaceUI.setRaceHud(false);
     CR.Audio.startEngine(CR.Car.def);
     CR.Minimap.setTrack();
-    CR.Hud.showTrack(R.trackIndex + 1, tracks.length, tracks[R.trackIndex].name, '리얼리스틱 · 예선 Q' + R.q.session + ' · 플라잉 랩 1회');
+    CR.Hud.showTrack(R.trackIndex + 1, tracks.length, tracks[R.trackIndex].name, R.phase === 'practice' ? '리얼리스틱 · 연습 주행 · 타이어를 바꿔 가며 랩타임 비교'
+      : '리얼리스틱 · ' + (R.qPrefix() === 'SQ' ? '스프린트 예선 SQ' : '예선 Q') + R.q.session + ' · 플라잉 랩 1회');
     if (CR.RealUI) CR.RealUI.onSession();
   }
   // Next qualifying session (after the knockout screen).
@@ -193,7 +202,7 @@
     CR.Audio.startEngine(CR.Car.def);
     CR.Minimap.setTrack();
     CR.Hud.showTrack(R.trackIndex + 1, tracks.length, tracks[R.trackIndex].name,
-      '리얼리스틱 · 라운드 ' + (R.nextRound() + 1) + ' · ' + R.laps + '랩 · P' + CR.Race.PLAYER_GRID + ' 출발');
+      '리얼리스틱 · 라운드 ' + (R.nextRound() + 1) + (R.wk && R.wk.stage === 'sprint' ? ' · 스프린트' : '') + ' · ' + R.laps + '랩 · P' + CR.Race.PLAYER_GRID + ' 출발');
     if (CR.RealUI) CR.RealUI.onSession();
   };
   // Back to the menu's 리얼리스틱 tab (after results, or abandoning qualifying).
@@ -276,6 +285,12 @@
   // Pause overlay / shop -> 레이스 종료하기: drop the race and all its lap
   // records and go back to the start screen.
   Main.endRace = function () {
+    if (CR.Real && CR.Real.on && CR.Real.phase === 'practice') { // end the practice session: its times, then qualifying
+      CR.Hud.hidePause();
+      Main.state = 'playing';
+      CR.RealUI.finishPractice();
+      return;
+    }
     if (CR.Real && CR.Real.on && CR.Real.phase === 'quali') {
       CR.Hud.hidePause();
       Main.state = 'playing';
@@ -328,6 +343,7 @@
         CR.Gfx.explode(CR.Car.state);
         retireOverlayIn = CR.Config.RETIRE_OVERLAY_DELAY;
         if (CR.Real && CR.Real.on && CR.Real.phase === 'quali') { CR.Real.qualiCrash(); retireOverlayIn = -1; }
+        if (CR.Real && CR.Real.on && CR.Real.phase === 'practice') { CR.Real.practiceCrash(); retireOverlayIn = -1; }
       }
     }
     ev.length = 0;
@@ -352,7 +368,10 @@
       if (resultsIn < 0) {
         Main.state = 'results';
         CR.Audio.silence();
-        if (CR.Race.real) {
+        if (CR.Race.real && CR.Race.results.sprint) { // sprint: points kept for the weekend, qualifying next
+          CR.Real.wk.sprintRes = CR.Race.results;
+          CR.RealUI.showSprintResults(CR.Race.results);
+        } else if (CR.Race.real) {
           var prize = CR.Real.prize(CR.Race.results);
           CR.RealUI.showResults(CR.Race.results, CR.Demo ? { season: CR.Garage.realSave().season, prize: 0, finishedSeason: null }
             : CR.Garage.recordReal(CR.Race.results, prize));
@@ -386,6 +405,7 @@
       if (ev[i].type === 'lap' && CR.Real && CR.Real.on) {
         // 리얼리스틱: no lap pay or practice records (prize money at the end)
         if (CR.Real.phase === 'quali') CR.Real.qualiLap(ev[i]);
+        else if (CR.Real.phase === 'practice') CR.Real.practiceLap(ev[i]);
         else if (CR.Race.active) CR.Race.onPlayerLap(CR.Laps.history.length);
       } else if (ev[i].type === 'lap') {
         ev[i].money = CR.Garage.payLap(ev[i].value, CR.Track.length, ev[i].best);
@@ -412,7 +432,11 @@
         if (CR.Input.autoShift || CR.Car.state.autopilot) CR.Car.autoShift();
         if (CR.Real && CR.Real.on) CR.Real.frame(dt);
         CR.Car.update(dt);
-        if (!(CR.Race.active && CR.Race.phase === 'done')) CR.Laps.update(dt);
+        if (!(CR.Race.active && (CR.Race.phase === 'done' || CR.Race.phase === 'formation'))) CR.Laps.update(dt);
+      } else if (CR.Real && CR.Real.on && CR.Real.gridCreep()) {
+        // 리얼리스틱 grid: the car is held on the brake; on the throttle alone it rolls (a jump start)
+        CR.Car.autoShift();
+        CR.Car.update(dt);
       }
       CR.Race.update(dt);
       handleLapEvents();

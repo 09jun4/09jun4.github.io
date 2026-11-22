@@ -27,7 +27,7 @@
   var P = {
     on: false,
     // player car state
-    st: { soc: 4, otBudget: 0, otAvail: false, otActive: false, boost: false, straight: false, wing: 0,
+    st: { brakeT: 300, lock: 0, flat: 0, soc: 4, otBudget: 0, otAvail: false, otActive: false, boost: false, straight: false, wing: 0,
       fuel: 0, tyre: 'M', wear: 0, warm: 1, laps: 0,
       temp: 90, corners: [90, 90, 90, 90], // tyre temperature °C (average; FL FR RL RR for the display)
       tow: 0 }, // slipstream 0..1 (car close ahead)
@@ -74,7 +74,7 @@
     P.on = true;
   };
 
-  P.off = function () { P.on = false; };
+  P.off = function () { P.on = false; P.brakeMul = 1; };
 
   // --- Grip --------------------------------------------------------------------
   // Dirty air behind another car: less downforce; slipstream: less drag.
@@ -106,8 +106,9 @@
     var cfg = CR.Config;
     return (tyreMu || cfg.TIRE_GRIP_TARMAC) * (1 + 0.5 * RHO * cla * v * v / (cfg.CAR_MASS * G));
   };
+  P.brakeMul = 1; // brake temperature / lock-up (update), 1 for the lap profile
   P.brakeDecel = function (v) {
-    return Math.min(D().BRAKE_MAX_G * G, P.mu(Math.abs(v)) * G);
+    return Math.min(D().BRAKE_MAX_G * G, P.mu(Math.abs(v)) * G) * (P.profile ? 1 : P.brakeMul);
   };
   P.tractionLimit = function (v) {
     return P.mu(Math.abs(v)) * CR.Config.CAR_MASS * G * 0.64;
@@ -224,6 +225,22 @@
     var cold = Math.max(0, (opt - 25 - s.temp) / 40);
     cfg.STEER_GRIP_TARGET = 1 + 0.6 * wetSlip + 0.3 * Math.min(1, cold);
     cfg.LATERAL_GRIP = 1 - 0.3 * wetSlip;
+    // brakes: carbon discs work at ~350-1000 °C. Hard stops heat them, the airflow
+    // cools them (less in a car's wake). Cold or cooked brakes bite less and lock
+    // a wheel under a big stop: the car slides further and the tyre gets a flat spot.
+    var bt = s.brakeT;
+    var bheat = brk * v * 2.3, bcool = (bt - amb) * (0.004 + 0.0011 * v) * (1 - 0.4 * (s.tow || 0));
+    s.brakeT = bt = Math.max(amb, bt + (bheat - bcool) * dt);
+    var eff = bt < 300 ? 0.82 + 0.18 * bt / 300 : bt > 1000 ? Math.max(0.68, 1 - (bt - 1000) / 900) : 1;
+    var risk = brk > 0.85 && v > 22 ? (bt < 300 ? 0.9 : bt > 1050 ? 1.2 : 0.12) + P.wet * 1.4 + Math.max(0, 70 - s.temp) / 60 + steer * 0.8 : 0;
+    if (s.lock > 0) s.lock -= dt;
+    else if (risk > 0 && Math.random() < risk * dt * 0.9) {
+      s.lock = 0.35 + Math.random() * 0.25;
+      s.wear += 0.006 + 0.01 * Math.min(1, v / 80); // flat spot
+      s.flat = Math.min(1, (s.flat || 0) + 0.25);
+      if (P.onLock) P.onLock(v);
+    }
+    P.brakeMul = eff * (s.lock > 0 ? 0.72 : 1);
     // fuel
     if (thr > 0) s.fuel = Math.max(0, s.fuel - P.burnPerM * v * dt * (0.55 + 0.45 * thr));
     cfg.CAR_MASS = d.MASS + s.fuel;
@@ -245,6 +262,7 @@
   P.fitTyres = function (id, warm) {
     var s = P.st;
     s.tyre = id; s.wear = 0; s.warm = warm === undefined ? 0.55 : warm;
+    s.flat = 0; // new tyres: no flat spots
     s.temp = CR.RealData.tyre(id).wet ? 52 : 70 + 15 * s.warm;
     s.corners = [s.temp, s.temp, s.temp, s.temp];
     CR.Config.TIRE_GRIP_TARMAC = P.tyreMu(id, 0, 1, P.wet) * P.tempGrip(id, s.temp);
@@ -254,6 +272,7 @@
     var d = D(), s = P.st;
     s.soc = d.BATTERY_MJ; s.otBudget = 0; s.otAvail = false; s.otActive = false; s.boost = false; s.straight = false; s.wing = 0;
     s.fuel = opts.fuel; s.laps = 0; s.tow = 0;
+    s.brakeT = opts.brakeT || 260; s.lock = 0; s.flat = 0; P.brakeMul = 1;
     P.burnPerM = opts.fuel / Math.max(1, opts.distance) * 0.98;
     P.lifeScale = opts.lifeScale || 1;
     P.wet = opts.wet || 0;

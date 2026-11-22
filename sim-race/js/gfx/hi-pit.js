@@ -330,6 +330,7 @@
       var serve = run.serve || 0, fix = 0;
       (run.items || []).forEach(function (it) { fix += it.d; });
       var work = Math.max(1.6, (run.stopTime || 2.4) - serve);
+      if (run.game && run.game.goEnd !== undefined) work = Math.max(1.6, run.game.goEnd); // timing game: the crew is done, the car waits for the release
       var ctl = stop.update({
         phase: run.phase, approach: run.phase === 'in' ? sm(1 - (run.box - run.rel) / 70) : 1, t: run.t, outT: run.t,
         serve: serve, work: work, items: run.items || [], slow: work - fix > 2.7 ? hash(s.id) % 4 : -1, garage: -P.side, carX: run.rel - run.box,

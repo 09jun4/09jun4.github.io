@@ -95,6 +95,7 @@
       '  <div class="rl-row rl-tyre-row"><span class="rl-k">타이어</span><span class="rl-cur"></span><span class="rl-wear"><i></i></span><b class="rl-wear-txt"></b></div>' +
       '  <div class="rl-row"><span class="rl-k">배터리</span><span class="rl-bar rl-soc"><i></i></span><b class="rl-soc-txt"></b></div>' +
       '  <div class="rl-row rl-temps"><span class="rl-k">온도</span><span class="rl-car"><i></i><i></i><i></i><i></i></span><b class="rl-temp-txt"></b></div>' +
+      '  <div class="rl-row rl-brakes"><span class="rl-k">브레이크</span><span class="rl-bar rl-brk"><i></i></span><b class="rl-brk-txt"></b></div>' +
       '  <div class="rl-row rl-modes"><span class="rl-mode rl-ot">OVERTAKE</span><span class="rl-mode rl-boost">BOOST</span><span class="rl-mode rl-straight">STRAIGHT</span><span class="rl-mode rl-tow">TOW</span></div>' +
       '  <div class="rl-row"><span class="rl-k">연료</span><b class="rl-fuel"></b><span class="rl-k">다음</span><span class="rl-next"></span><b class="rl-box"></b></div>' +
       '  <div class="rl-row rl-pen" hidden></div>' +
@@ -102,8 +103,13 @@
       '  <div class="rl-row rl-gaps"></div>' +
       '</div>' +
       '<div class="rl-pitcue" hidden></div>' +
-      '<div class="rl-pitstop" hidden><div class="rl-ps-title">PIT STOP</div><div class="rl-ps-time">0.0</div><div class="rl-ps-crew"></div><div class="rl-ps-note"></div></div>' +
+      '<div class="rl-pitstop" hidden><div class="rl-ps-title">PIT STOP</div><div class="rl-ps-time">0.0</div><div class="rl-ps-crew"></div><div class="rl-ps-note"></div>' +
+      '<div class="rl-pg" hidden><div class="rl-pg-step"></div><div class="rl-pg-bar"><i class="rl-pg-zone"></i><i class="rl-pg-good"></i><b class="rl-pg-needle"></b></div>' +
+      '<div class="rl-pg-res"><span></span><span></span><span></span></div><div class="rl-pg-hint">F · 스페이스 · 화면 탭</div></div></div>' +
       '<div class="rl-q" hidden></div>' +
+      '<button type="button" class="rl-skip" hidden>포메이션 랩 건너뛰기 <small>N</small></button>' +
+      '<div class="rl-prac" hidden><div class="rl-prac-t">연습 주행</div><div class="rl-prac-best"></div><div class="rl-prac-tyres"></div>' +
+      '<button type="button" class="rl-prac-end">연습 종료 · 예선으로 ▶</button></div>' +
       '<div class="rl-touch">' +
       '  <button type="button" data-act="box">BOX<small>F</small></button>' +
       '  <button type="button" data-act="stay">STAY<small>X</small></button>' +
@@ -121,8 +127,25 @@
     els.fuel = q('.rl-fuel'); els.next = q('.rl-next'); els.box = q('.rl-box'); els.pen = q('.rl-pen');
     els.ps = q('.rl-pitstop'); els.psTime = q('.rl-ps-time'); els.psCrew = q('.rl-ps-crew'); els.psNote = q('.rl-ps-note');
     els.q = q('.rl-q');
+    els.skip = q('.rl-skip');
+    els.prac = q('.rl-prac'); els.pracBest = q('.rl-prac-best'); els.pracTyres = q('.rl-prac-tyres');
+    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) {
+      var b = el('button', null); b.type = 'button'; b.setAttribute('data-ty', id); b.appendChild(tyreChip(id)); b.appendChild(el('small', null, RD().tyre(id).name));
+      b.addEventListener('click', function () { CR.Real.practiceTyre(id); });
+      els.pracTyres.appendChild(b);
+    });
+    q('.rl-prac-end').addEventListener('click', function () { UI.finishPractice(); });
+    els.skip.addEventListener('click', function () { CR.Real.skipFormation(); });
+    els.fade = el('div', 'rl-fade'); document.body.appendChild(els.fade);
+    els.pg = q('.rl-pg'); els.pgStep = q('.rl-pg-step'); els.pgNeedle = q('.rl-pg-needle'); els.pgZone = q('.rl-pg-zone'); els.pgGood = q('.rl-pg-good');
+    els.pgRes = els.pg.querySelectorAll('.rl-pg-res span');
+    els.ps.addEventListener('pointerdown', function (e) { if (pitGame()) { e.preventDefault(); pgPress(); } });
+    window.addEventListener('keydown', function (e) {
+      if (!pitGame() || e.repeat) return;
+      if (e.code === 'KeyF' || e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); pgPress(); }
+    }, true);
     els.tyreRow = q('.rl-tyre-row');
-    els.temps = q('.rl-car').children; els.tempTxt = q('.rl-temp-txt'); els.tow = q('.rl-tow'); els.pitcue = q('.rl-pitcue');
+    els.temps = q('.rl-car').children; els.tempTxt = q('.rl-temp-txt'); els.brk = q('.rl-brk i'); els.brkTxt = q('.rl-brk-txt'); els.tow = q('.rl-tow'); els.pitcue = q('.rl-pitcue');
     els.gaps = q('.rl-gaps');
     els.dmg = q('.rl-dmg');
     // crew dots for the 2D pit stop panel (top view of the car and 4 wheel crews)
@@ -168,12 +191,14 @@
       if (e.code === 'KeyF' || e.code === 'KeyP') CR.Real.requestBox();
       else if (e.code === 'KeyX') CR.Real.stayOut();
       else if (e.code === 'KeyT') toggleTyrePick();
+      else if (e.code === 'KeyN' && CR.Race.phase === 'formation') CR.Real.skipFormation();
       else if (!els.tpick.hidden && /^(Digit|Numpad)[1-5]$/.test(e.code)) pickTyre(TYRES[+e.code.slice(-1) - 1]);
       else if (e.code === 'Escape' && !els.tpick.hidden) toggleTyrePick(false);
       else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') CR.Real.overtake(); // MOM (Manual Override Mode)
     });
     window.addEventListener('keyup', function (e) { if (e.code === 'KeyB' && CR.Real) CR.Real.setBoost(boostLatch); });
     CR.Real.onMessage = function (m) { pushRadio(m); };
+    CR.Real.onRedFlag = function (red) { UI.showRedFlag(red); };
     CR.Real.onQualiSession = function (s, table) {
       var q = CR.Real.q;
       setTimeout(function () { if (CR.Real.on && CR.Real.q === q && q.session === s) showQualiTable(s, table); }, 1600);
@@ -185,7 +210,7 @@
   UI.onSession = function () {
     var on = CR.Real.on;
     els.hud.hidden = !on;
-    els.hud.classList.toggle('is-quali', on && CR.Real.phase === 'quali');
+    els.hud.classList.toggle('is-quali', on && (CR.Real.phase === 'quali' || CR.Real.phase === 'practice'));
     els.screen.hidden = true;
     els.radio.textContent = '';
     boostLatch = false;
@@ -195,7 +220,7 @@
     if (CR.Real.phase === 'quali' && on) {
       els.q.hidden = false;
       els.q.innerHTML = '';
-      els.q.appendChild(el('b', null, 'Q' + CR.Real.q.session));
+      els.q.appendChild(el('b', null, CR.Real.qPrefix() + CR.Real.q.session));
       els.q.appendChild(el('span', null, CR.Real.q.session === 1 ? '20명 · 하위 5명 탈락' : CR.Real.q.session === 2 ? '15명 · 하위 5명 탈락' : '10명 · 폴 포지션 결정'));
       var cut = cutTime();
       if (cut) els.q.appendChild(el('span', 'rl-q-cut', '예상 컷 ' + fmt(cut)));
@@ -237,6 +262,11 @@
     panelT -= dt;
     if (panelT <= 0) { panelT = 0.1; updatePanel(); }
     updatePitStop();
+    var pr = R.phase === 'practice';
+    if (els.prac.hidden === pr) els.prac.hidden = !pr;
+    if (pr) updatePractice();
+    var form = CR.Race.active && CR.Race.phase === 'formation';
+    if (els.skip.hidden === form) els.skip.hidden = !form;
     updateFlag();
     updatePitCue();
   };
@@ -259,6 +289,11 @@
     var dAvg = st.temp - opt;
     els.tempTxt.textContent = Math.round(st.temp) + '°C' + (dAvg < -20 ? ' 저온' : dAvg > 20 ? ' 과열' : '');
     els.tempTxt.style.color = dAvg < -20 ? '#5ec8ff' : dAvg > 20 ? '#ff8a7a' : '';
+    // brakes: blue cold (< 300 °C), green working, red cooking (> 1000 °C); flashing on a lock-up
+    var bt = st.brakeT || 300, bcol = bt < 300 ? '#5ec8ff' : bt > 1000 ? '#ff5a4e' : '#5ee39a';
+    els.brk.style.width = Math.min(100, bt / 12) + '%'; els.brk.style.background = st.lock > 0 ? '#ffd23f' : bcol;
+    els.brkTxt.textContent = st.lock > 0 ? '락업!' : Math.round(bt / 10) * 10 + '°C' + (bt < 300 ? ' 저온' : bt > 1000 ? ' 과열' : '');
+    els.brkTxt.style.color = st.lock > 0 ? '#ffd23f' : bt < 300 ? '#5ec8ff' : bt > 1000 ? '#ff8a7a' : '';
     els.tow.classList.toggle('is-on', st.tow > 0.25);
     var Dm = CR.RealDmg, dtx = Dm && Dm.any() ? '파손: ' + (Dm.repairText() || '경미') : '';
     els.dmg.hidden = !dtx;
@@ -339,6 +374,149 @@
     els.pitcue.hidden = !show;
   }
 
+  // Practice panel: best lap per compound, the tyre on the car, end button.
+  var pracKey = '';
+  function updatePractice() {
+    var R = CR.Real, key = R.prac.tyre + '|' + R.prac.laps.length;
+    if (key === pracKey) return;
+    pracKey = key;
+    var parts = [];
+    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) { var b = R.practiceBest(id); if (b) parts.push(RD().tyre(id).name + ' ' + fmt(b)); });
+    els.pracBest.textContent = parts.length ? parts.join(' · ') : '플라잉 랩을 달려 기록을 남겨요';
+    Array.prototype.forEach.call(els.pracTyres.children, function (b) { b.classList.toggle('is-on', b.getAttribute('data-ty') === R.prac.tyre); });
+  }
+  // End of practice: the session's best laps, then qualifying.
+  UI.finishPractice = function () {
+    var R = CR.Real;
+    if (R.phase !== 'practice') return;
+    var table = R.endPractice();
+    open('is-quali');
+    head('연습 주행 결과', CR.Tracks.list[R.trackIndex].name + ' · 각 팀 베스트 랩 (연료를 실은 상태)');
+    var tb = el('table', 'rr-table'), hr = el('tr');
+    ['#', '드라이버', '베스트', '차이'].forEach(function (h, i) { hr.appendChild(el('th', i >= 2 ? 'rr-num' : null, h)); });
+    tb.appendChild(hr);
+    var best = table[0].time;
+    table.forEach(function (e, i) {
+      var tr = el('tr', e.id === 'you' ? 'is-you' : null);
+      tr.appendChild(el('td', 'rr-pos', String(i + 1)));
+      tr.appendChild(driverCell(e.id));
+      tr.appendChild(el('td', 'rr-num', fmt(e.time)));
+      tr.appendChild(el('td', 'rr-num', i === 0 || e.time === null ? '' : '+' + (e.time - best).toFixed(3)));
+      tb.appendChild(tr);
+    });
+    els.card.appendChild(tb);
+    var mine = [];
+    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) { var b = R.practiceBest(id); if (b) mine.push(RD().tyre(id).name + ' ' + fmt(b)); });
+    if (mine.length) els.card.appendChild(el('p', 'rr-note', '내 타이어별 베스트 · ' + mine.join(' · ')));
+    actions([btn((R.wk && R.wk.stage === 'sq' ? '스프린트 예선' : '예선') + ' 시작 ▶', 'is-primary', function () {
+      els.screen.hidden = true;
+      CR.Main.realQualiStage();
+    })]);
+  };
+  // Sprint over: its result and points (kept for the weekend), then qualifying.
+  UI.showSprintResults = function (res) {
+    var R = CR.Real;
+    open('is-results');
+    var me = res.entries.filter(function (e) { return e.isPlayer; })[0];
+    head('스프린트 결과 · ' + res.trackName, res.laps + '랩 · 1~8위 8-1점 · 다음: 예선 → 결선');
+    var hero = el('div', 'rr-hero' + (me.dnf ? ' is-ret' : me.pos <= 3 ? ' is-podium' : ''));
+    hero.appendChild(el('span', 'rr-hero-pos', me.dnf ? 'DNF' : 'P' + me.pos));
+    hero.appendChild(el('span', 'rr-hero-pts', '+' + me.points + '점 (결선 결과와 함께 저장)'));
+    els.card.appendChild(hero);
+    var tb = el('table', 'rr-table'), hr = el('tr');
+    ['#', '드라이버', '기록', '점수'].forEach(function (h, i) { hr.appendChild(el('th', i >= 2 ? 'rr-num' : null, h)); });
+    tb.appendChild(hr);
+    res.entries.forEach(function (e) {
+      var tr = el('tr', e.isPlayer ? 'is-you' : null);
+      tr.appendChild(el('td', 'rr-pos', String(e.pos)));
+      tr.appendChild(driverCell(e.id));
+      tr.appendChild(el('td', 'rr-num', e.dnf ? 'DNF' : e.pos === 1 ? fmt(e.time) : e.lapsDown ? '+' + e.lapsDown + '랩' : '+' + e.gap.toFixed(3)));
+      tr.appendChild(el('td', 'rr-num rr-pts', e.points ? '+' + e.points : ''));
+      tb.appendChild(tr);
+    });
+    els.card.appendChild(tb);
+    actions([btn('예선 시작 ▶', 'is-primary', function () {
+      els.screen.hidden = true;
+      R.wk.stage = 'q';
+      CR.Main.realQualiStage();
+    })]);
+  };
+
+  // Short black-out while the grid lines up (formation lap -> start).
+  UI.fade = function () {
+    els.fade.classList.remove('is-on'); void els.fade.offsetWidth; els.fade.classList.add('is-on');
+  };
+
+  // --- Pit timing game ------------------------------------------------------------
+  // Three presses while the car is in the box: jack up, wheel guns, release.
+  // A needle sweeps each bar; the closer to the mark, the quicker the stop
+  // (perfect -0.16 s ... bad +0.4 s on the crew's 2.45 s). The release is real
+  // timing: the car leaves when you press (not before the crew is done).
+  var PG_STEPS = [{ name: '잭 업!', a: 0, b: 0.6, mark: 0.62 }, { name: '휠건!', a: 0.6, b: 1.2, mark: 0.62 }, { name: '출발!', mark: 0.5 }];
+  var PG_GRADE = [[0.07, 'PERFECT', -0.16, '#5ee39a'], [0.16, 'GOOD', -0.06, '#9be37a'], [0.3, 'OK', 0.12, '#ffd23f'], [9, 'LATE', 0.4, '#ff6b5e']];
+  function pitGame() {
+    var p = CR.RealPit && CR.RealPit.player;
+    return p && p.game && p.phase === 'stop' && !p.queue && p.game.i < 3 ? p : null;
+  }
+  function pgWindow(p, k) {
+    var st = PG_STEPS[k], W = p.stopTime - (p.serve || 0);
+    if (k < 2) return { a: st.a, b: st.b, mark: st.mark };
+    var end = p.game.goEnd || W; // where the crew is done
+    return { a: end - 0.45, b: end + 0.45, mark: 0.5 };
+  }
+  function pgGrade(p, u, mark) {
+    var d = Math.abs(u - mark), g = PG_GRADE[PG_GRADE.length - 1];
+    for (var i = 0; i < PG_GRADE.length; i++) if (d <= PG_GRADE[i][0]) { g = PG_GRADE[i]; break; }
+    return g;
+  }
+  function pgPress() {
+    var p = pitGame();
+    if (!p) return;
+    var G = p.game, k = G.i, w = pgWindow(p, k), tau = p.t - (p.serve || 0);
+    if (tau < w.a) return; // too early for this step: nothing yet
+    var u = (tau - w.a) / (w.b - w.a), g = pgGrade(p, Math.min(1, u), w.mark);
+    G.res.push(g);
+    if (k < 2) p.stopTime += g[2];
+    else p.stopTime = Math.max(p.serve + (G.goEnd - 0.12), p.serve + tau); // the car goes now
+    G.i++;
+    if (k === 1) G.goEnd = p.stopTime - (p.serve || 0);
+    CR.Real.radio(PG_STEPS[k].name.replace('!', '') + ' ' + g[1] + (k < 2 ? ' (' + (g[2] > 0 ? '+' : '') + g[2].toFixed(2) + '초)' : ''), 'eng');
+  }
+  function updatePitGame(p) {
+    var G = p && p.game, show = !!pitGame();
+    els.pg.hidden = !show;
+    els.ps.classList.toggle('is-game', show);
+    if (!show) return;
+    var k = G.i, tau = p.t - (p.serve || 0);
+    if (G.goEnd === undefined && k >= 2) G.goEnd = p.stopTime - (p.serve || 0);
+    var w = pgWindow(p, k), u = (tau - w.a) / (w.b - w.a);
+    if (k === 2) { // hold the car until the release press
+      if (G.goEnd === undefined) G.goEnd = p.stopTime - (p.serve || 0);
+      p.stopTime = Math.max(p.stopTime, p.serve + tau + 0.05);
+    }
+    if (G.auto && u >= w.mark) pgPress(); // 자동 플레이
+    else if (u > 1) { // missed
+      var g = PG_GRADE[PG_GRADE.length - 1];
+      G.res.push(g);
+      if (k < 2) p.stopTime += g[2];
+      G.i++;
+      if (k === 1) G.goEnd = p.stopTime - (p.serve || 0);
+      if (k === 2) p.stopTime = p.serve + tau;
+      CR.Real.radio(PG_STEPS[k].name.replace('!', '') + ' 놓침 (' + (k < 2 ? '+' + g[2].toFixed(2) + '초' : '늦은 출발') + ')', 'eng');
+      if (!pitGame()) { els.pg.hidden = true; return; }
+      k = G.i; w = pgWindow(p, k); u = (tau - w.a) / (w.b - w.a);
+    }
+    els.pgStep.textContent = (k + 1) + '/3 · ' + PG_STEPS[k].name + (u < 0 ? ' 준비' : '');
+    els.pgNeedle.style.left = (Math.max(0, Math.min(1, u)) * 100) + '%';
+    els.pgZone.style.left = ((w.mark - 0.07) * 100) + '%'; els.pgZone.style.width = '14%';
+    els.pgGood.style.left = ((w.mark - 0.16) * 100) + '%'; els.pgGood.style.width = '32%';
+    for (var i = 0; i < 3; i++) {
+      var r = G.res[i];
+      els.pgRes[i].textContent = r ? r[1] : i === k ? '…' : '';
+      els.pgRes[i].style.color = r ? r[3] : '';
+    }
+  }
+
   // 2D pit stop panel (both presets; the 3D view adds the crew around the car).
   function updatePitStop() {
     var p = CR.RealPit.player;
@@ -348,6 +526,7 @@
     var t = p.phase === 'stop' ? p.t : p.stopTime;
     els.psTime.textContent = t.toFixed(1) + '초';
     var serve = p.serve || 0, work = t - serve;
+    updatePitGame(p);
     if (p.queue) { els.psTime.textContent = '대기'; els.psNote.textContent = '팀메이트 정비 중 · 뒤에서 대기'; return; }
     els.psNote.textContent = serve > 0 && work < 0 ? '페널티 ' + serve + '초 소화 중' : p.phase === 'out' ? '출발! ' + RD().tyre(p.tyre).name : '타이어 교체 · ' + RD().tyre(p.tyre).name;
     var wf = Math.max(0, Math.min(1, (work - 0.25) / Math.max(0.6, p.stopTime - serve - 0.6)));
@@ -456,7 +635,7 @@
     // next round
     var hero = el('section', 'race-card rl-next-card');
     hero.appendChild(el('div', 'menu-section', '시즌 ' + season.num + ' · 라운드 ' + (round + 1) + '/' + RD().CALENDAR.length));
-    hero.appendChild(el('h2', 'race-card-title', track.name));
+    hero.appendChild(el('h2', 'race-card-title', track.name + (CR.Real.isSprint(next) ? ' · 스프린트 주말' : '')));
     hero.appendChild(el('p', 'race-card-text rl-left', realLaps + '랩 실제 레이스 · ' + Math.max(3, Math.round(realLaps * set.length / 100)) + '랩으로 진행 · 비 확률 ' + Math.round((RD().RAIN_CHANCE[next] || 0) * 100) + '%'));
     hero.appendChild(el('p', 'race-card-note rl-left', 'Sim Race · 20대 · 10팀 · 실제 F1 포인트(25-18-15-12-10-8-6-4-2-1) · 2026 규정: DRS 대신 오버테이크 모드(MOM)·액티브 에어로(스트레이트 모드)'));
     panel.appendChild(hero);
@@ -468,6 +647,9 @@
     sc.appendChild(choiceRow('날씨', RD().WEATHER, set.weather, function (v) { G.setRealSetting('weather', v); }));
     sc.appendChild(choiceRow('AI 수준', RD().LEVELS.map(function (l) { return { id: l.id, name: l.name, desc: '이상적인 랩 +' + Math.round((l.factor - 1) * 1000) / 10 + '%' }; }), set.level, function (v) { G.setRealSetting('level', v); }));
     sc.appendChild(choiceRow('예선', [{ id: true, name: '진행', desc: 'Q1·Q2·Q3 녹아웃, 플라잉 랩 1회씩' }, { id: false, name: '건너뛰기', desc: '시뮬레이션으로 그리드 결정' }], set.quali, function (v) { G.setRealSetting('quali', v); }));
+    sc.appendChild(choiceRow('연습 주행', [{ id: true, name: '진행', desc: '예선 전 짧게, 타이어별 랩타임 비교' }, { id: false, name: '건너뛰기', desc: '바로 예선' }], set.practice !== false, function (v) { G.setRealSetting('practice', v); }));
+    sc.appendChild(choiceRow('출발 절차', [{ id: true, name: '포메이션 랩', desc: '한 바퀴 돌며 타이어·브레이크 데우고 스탠딩 스타트' }, { id: false, name: '바로 출발', desc: '그리드에서 바로 신호' }], set.formation !== false, function (v) { G.setRealSetting('formation', v); }));
+    sc.appendChild(choiceRow('피트스탑 조작', [{ id: true, name: '타이밍', desc: '잭 업·휠건·출발 3번 타이밍, 잘 맞추면 2초대' }, { id: false, name: '자동', desc: '크루가 알아서 (약 2.4초)' }], set.pitGame !== false, function (v) { G.setRealSetting('pitGame', v); }));
     panel.appendChild(sc);
 
     // calendar
@@ -478,7 +660,7 @@
       var t = CR.Tracks.list[CR.Real.trackIndexOf(name)];
       var li = el('li', k === round ? 'is-next' : k < season.races.length ? 'is-done' : null);
       li.appendChild(el('span', 'rl-cal-no', 'R' + (k + 1)));
-      li.appendChild(el('span', 'rl-cal-name', t.name));
+      li.appendChild(el('span', 'rl-cal-name', t.name + (CR.Real.isSprint(name) ? ' · S' : '')));
       var r = season.races[k];
       li.appendChild(el('span', 'rl-cal-res', r ? (r.retired ? 'DNF' : 'P' + r.playerPos) : k === round ? '다음' : ''));
       ol.appendChild(li);
@@ -611,7 +793,7 @@
     open('is-quali');
     var outCount = s < 3 ? 5 : 0, keep = table.length - outCount;
     var myPos = table.map(function (e) { return e.id; }).indexOf('you') + 1;
-    var title = 'Q' + s + ' 결과';
+    var P = CR.Real.qPrefix(), title = P + s + ' 결과';
     var sub = CR.Tracks.list[R.trackIndex].name + ' · ' + (my === null ? (q.run && q.run.deleted ? '랩 타임 삭제 (트랙 리밋)' : '기록 없음') : '내 기록 ' + fmt(my) + ' · P' + myPos);
     head(title, sub);
     var tb = el('table', 'rr-table'), hr = el('tr');
@@ -628,8 +810,9 @@
     });
     els.card.appendChild(tb);
     var done = s === 3 || myPos > keep;
-    if (s < 3) els.card.appendChild(el('p', 'rr-note', myPos <= keep ? 'Q' + (s + 1) + ' 진출!' : '탈락 · 결선은 P' + myPos + ' 이후에서 출발'));
-    actions([btn(done ? '결선 그리드 보기 ▶' : 'Q' + (s + 1) + ' 시작 ▶', 'is-primary', function () {
+    var race = P === 'SQ' ? '스프린트' : '결선';
+    if (s < 3) els.card.appendChild(el('p', 'rr-note', myPos <= keep ? P + (s + 1) + ' 진출!' : '탈락 · ' + race + '은 P' + myPos + ' 이후에서 출발'));
+    actions([btn(done ? race + ' 그리드 보기 ▶' : P + (s + 1) + ' 시작 ▶', 'is-primary', function () {
       var over = R.advanceQuali();
       els.screen.hidden = true;
       if (over) UI.showGrid();
@@ -637,12 +820,46 @@
     })]);
   }
 
+  // Red flag: the order at the stoppage, a free tyre change, standing restart.
+  UI.showRedFlag = function (red) {
+    var R = CR.Real;
+    open('is-red');
+    head('레드 플래그 · 경기 중단', red.why + ' · 레이스 ' + Math.min(R.laps, CR.Laps.history.length + 1) + '/' + R.laps + '랩에서 중단');
+    var list = el('ol', 'rl-grid');
+    R.order().filter(function (o) { return !o.retired; }).forEach(function (o, i) {
+      var id = o.isPlayer ? 'you' : o.driver.id, d = info(id);
+      var li = el('li', (o.isPlayer ? 'is-you ' : '') + (i % 2 ? 'is-r' : 'is-l'));
+      li.appendChild(el('span', 'rl-grid-no', String(i + 1)));
+      var chip = el('span', 'rr-chip'); chip.style.background = d.color; li.appendChild(chip);
+      li.appendChild(el('b', null, d.code));
+      list.appendChild(li);
+    });
+    els.card.appendChild(list);
+    els.card.appendChild(el('div', 'menu-section', '재출발 타이어 · 중단 중에는 무료 교체, 파손도 수리돼요'));
+    var wet = CR.RealPhys.wet, chosen = R.tyreFor(Math.max(1, R.laps - CR.Laps.history.length), wet);
+    var btns = el('div', 'rl-tyre-btns');
+    ['S', 'M', 'H', 'I', 'W'].forEach(function (id) {
+      var t = RD().tyre(id), b = el('button', 'rl-tyre-btn' + (id === chosen ? ' is-on' : ''));
+      b.type = 'button'; b.appendChild(tyreChip(id)); b.appendChild(el('small', null, t.name));
+      b.addEventListener('click', function () { chosen = id; Array.prototype.forEach.call(btns.children, function (x) { x.classList.toggle('is-on', x === b); }); });
+      btns.appendChild(b);
+    });
+    els.card.appendChild(btns);
+    actions([btn('스탠딩 재출발 ▶', 'is-primary', function () {
+      els.screen.hidden = true;
+      R.redRestart(chosen);
+      CR.Main.resume();
+      CR.Audio.startEngine(CR.Car.def);
+    })]);
+  };
+
   // Starting grid, forecast and starting tyre.
   UI.showGrid = function () {
     var R = CR.Real;
     open('is-grid');
     var my = R.grid.map(function (g) { return g.isPlayer; }).indexOf(true) + 1;
-    head('결선 그리드 · P' + my + ' 출발', CR.Tracks.list[R.trackIndex].name + ' · ' + R.laps + '랩 · AI ' + R.level().name);
+    var spr = R.wk && R.wk.stage === 'sq';
+    head((spr ? '스프린트' : '결선') + ' 그리드 · P' + my + ' 출발', CR.Tracks.list[R.trackIndex].name + ' · ' + (spr ? R.sprintLaps() + '랩 스프린트 (1~8위 8-1점)' : R.fullLaps + '랩') + ' · AI ' + R.level().name);
     var grid = el('ol', 'rl-grid');
     R.grid.forEach(function (g, i) {
       var id = g.isPlayer ? 'you' : g.driver.id, d = info(id);
@@ -721,7 +938,8 @@
     head('라운드 ' + res.round + ' 결과 · ' + res.trackName, res.laps + '랩 · ' + (res.weather === 'dry' ? '맑음' : '비') + (res.fastest ? ' · 패스티스트 랩 ' + res.fastest.code + ' ' + fmt(res.fastest.time) : ''));
     var hero = el('div', 'rr-hero' + (me.dnf ? ' is-ret' : me.pos <= 3 ? ' is-podium' : ''));
     hero.appendChild(el('span', 'rr-hero-pos', me.dnf ? 'DNF' : 'P' + me.pos));
-    hero.appendChild(el('span', 'rr-hero-pts', '+' + me.points + '점 · 상금 ' + CR.Garage.format(rec.prize) + ' · 그리드 P' + me.grid + ' · 피트 ' + me.stops + '회' + (me.pen ? ' · 페널티 ' + me.pen + '초' : '')));
+    var spr = res.sprintResult ? res.sprintResult.filter(function (e) { return e.id === 'you'; })[0] : null;
+    hero.appendChild(el('span', 'rr-hero-pts', '+' + me.points + '점' + (spr ? ' (스프린트 +' + spr.points + '점)' : '') + ' · 상금 ' + CR.Garage.format(rec.prize) + ' · 그리드 P' + me.grid + ' · 피트 ' + me.stops + '회' + (me.pen ? ' · 페널티 ' + me.pen + '초' : '')));
     els.card.appendChild(hero);
     var tb = el('table', 'rr-table'), hr = el('tr');
     ['#', '드라이버', '기록', '피트', '점수'].forEach(function (h, i) { hr.appendChild(el('th', i >= 2 ? 'rr-num' : null, h)); });

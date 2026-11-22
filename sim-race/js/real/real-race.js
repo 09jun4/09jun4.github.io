@@ -85,7 +85,11 @@
     var t = CR.Tracks.list[trackIndex];
     R.trackName = t.realName;
     R.realLaps = RD().LAPS[t.realName] || 50;
-    R.laps = Math.max(3, Math.round(R.realLaps * R.settings.length / 100));
+    R.laps = R.fullLaps = Math.max(3, Math.round(R.realLaps * R.settings.length / 100));
+    // weekend: [practice] -> qualifying -> race; sprint rounds: [practice] -> sprint
+    // qualifying -> sprint (about a third of the distance, points 8..1) -> qualifying -> race
+    R.wk = { sprint: R.isSprint(t.realName) && !R.demoSettings, stage: 'q', sprintRes: null };
+    if (R.wk.sprint) R.wk.stage = 'sq';
     R.lifeScale = clamp(R.laps / R.realLaps * 1.15, 0.15, 1);
     R.weather = planWeather(R.settings.weather, t.realName);
     R.q = null;
@@ -93,6 +97,70 @@
     R.msgs.length = 0;
     R.lastResults = null;
   };
+
+  R.SPRINT_ROUNDS = ['Silverstone Circuit', 'Autódromo José Carlos Pace'];
+  R.SPRINT_POINTS = [8, 7, 6, 5, 4, 3, 2, 1];
+  R.isSprint = function (realName) { return R.SPRINT_ROUNDS.indexOf(realName) >= 0; };
+  R.qPrefix = function () { return R.wk && R.wk.stage === 'sq' ? 'SQ' : 'Q'; };
+  R.sprintLaps = function () { return Math.max(2, Math.round(R.fullLaps / 3)); };
+
+  // --- Practice -----------------------------------------------------------------
+  // One short session before qualifying: race-ish fuel, any compound (switched
+  // from the practice panel), lap times per tyre; the AI's best laps are
+  // simulated at the end. Skippable (settings, or the panel's end button).
+  R.startPractice = function () {
+    R.on = true;
+    R.phase = 'practice';
+    R.prac = { tyre: R.weather.start > 0.3 ? RP().bestFor(R.weather.start) || 'I' : 'M', laps: [], run: null };
+    R.setupPracticeRun();
+  };
+  R.setupPracticeRun = function (tyre) {
+    if (tyre) R.prac.tyre = tyre;
+    buildFor(30, R.prac.tyre, R.weather.start);
+    R.ctx = null;
+    R.qIdeal = CR.Race.profileLap();
+    R.ctx = CR.Race._ctx();
+    Pit().build();
+    RP().reset({ fuel: 30, distance: 8 * ctx().L, tyre: R.prac.tyre, lifeScale: 1, wet: R.weather.start });
+    RP().st.warm = 0.75;
+    CR.Track.refreshSpeeds();
+    var start = ctx().indexAt(ctx().wrapDist(-700), 0);
+    CR.Car.spawnAt(start, 0);
+    CR.Laps.reset(true, start);
+    R.prac.run = { flying: false, deleted: false };
+  };
+  // A new set mid-session (practice panel): same place, fresh tyres, this lap does not count.
+  R.practiceTyre = function (tyre) {
+    if (R.phase !== 'practice') return;
+    R.prac.tyre = tyre;
+    RP().fitTyres(tyre, 0.75);
+    R.prac.run.deleted = true;
+    R.radio('새 ' + RD().tyre(tyre).name + ' 장착 — 다음 랩부터 기록', 'eng');
+  };
+  R.practiceLap = function (ev) {
+    var run = R.prac.run;
+    if (!run.flying) { run.flying = true; run.deleted = false; R.radio('플라잉 랩 — ' + RD().tyre(R.prac.tyre).name, 'eng'); return; }
+    var ok = !run.deleted;
+    if (ok) R.prac.laps.push({ tyre: R.prac.tyre, time: ev.value, wear: RP().st.wear });
+    run.deleted = false;
+    var best = R.practiceBest(R.prac.tyre);
+    R.radio(ok ? '랩 ' + fmtT(ev.value) + ' (' + RD().tyre(R.prac.tyre).name + ', 마모 ' + Math.round(RP().st.wear * 100) + '%)' + (best && best < ev.value - 0.001 ? ' · 베스트 ' + fmtT(best) : ' · 베스트!') : '이번 랩은 기록 안 됨', 'eng');
+  };
+  R.practiceBest = function (tyre) {
+    var b = null;
+    R.prac.laps.forEach(function (l) { if ((!tyre || l.tyre === tyre) && (b === null || l.time < b)) b = l.time; });
+    return b;
+  };
+  R.practiceCrash = function () { setTimeout(function () { if (R.phase === 'practice') { R.setupPracticeRun(); CR.Audio.startEngine(CR.Car.def); } }, 2200); };
+  // Session over: simulated AI best laps (a bit off qualifying trim) + the player's.
+  R.endPractice = function () {
+    var table = RD().DRIVERS.map(function (d) { return { id: d.id, time: aiQualiTime(d, 1) * (1.006 + Math.abs(gauss()) * 0.004) }; });
+    table.push({ id: 'you', time: R.practiceBest() });
+    table.sort(function (a, b) { return (a.time === null ? 1e9 : a.time) - (b.time === null ? 1e9 : b.time); });
+    R.phase = 'idle'; R.on = false;
+    return table;
+  };
+  function fmtT(t) { var m = Math.floor(t / 60), x = t - m * 60; return m + ':' + (x < 10 ? '0' : '') + x.toFixed(3); }
 
   // Realistic car + this track built, ready for qualifying or the race.
   function buildFor(fuel, tyre, wet) {
@@ -340,6 +408,7 @@
     if (CR.RealDmg) CR.RealDmg.reset();
     R.cars.forEach(function (car) { car.rt.prevRel = Pit().relOf(car.dist); });
     R.chequered = false;
+    R.red = null; R.redRain = false;
     R.scMode = null; R.sc = null; R.scTimer = 0; R.scLaps = 0; R.scEnding = false;
     R.incidents = [];
     R.rain = R.rainAt(0);
@@ -357,16 +426,56 @@
       wearWarn: 0, plan: R.weather.start > 0.25 ? [] : planToStops(pickStrategy(R.strats, 0)),
     };
     R.pl.nextTyre = R.pl.plan.length ? R.pl.plan[0].tyre : R.tyreFor(R.laps);
+    RP().onLock = function () { // lock-up: engineer note (not every time)
+      var now = performance.now();
+      if (now - (R.pl.lockMsg || 0) < 12000) return;
+      R.pl.lockMsg = now;
+      var bt = RP().st.brakeT;
+      R.radio(bt > 1000 ? '락업! 브레이크 과열 — 앞차 뒤에서 조금 떨어져서 식혀' : bt < 300 ? '락업! 브레이크가 차가워 — 첫 제동은 부드럽게' : '락업 — 플랫 스팟 생겼어, 제동 조금 일찍', 'eng');
+    };
     Pit().onPlayerExit = function () { R.radio('피트 아웃! 타이어 ' + RD().tyre(RP().st.tyre).name + ', 페이스 올려', 'eng'); };
+    R.gridPos = CR.Race.phase === 'formation' ? null : { x: c.x, y: c.y };
+    if (CR.Race.phase === 'formation') R.radio('포메이션 랩 — 타이어와 브레이크를 데워. 좌우로 흔들고 브레이크를 몇 번 세게 (N: 건너뛰기)', 'eng');
+    else R.radio('브레이크를 밟고 대기 — 라이트가 꺼지면 출발', 'race');
     R.radio('라이트 아웃을 기다려. 출발 타이어 ' + RD().tyre(RP().st.tyre).name + (R.pl.plan.length ? ' · 계획: ' + R.pl.plan.map(function (p) { return p.lap + '랩 ' + p.tyre; }).join(', ') : ''), 'eng');
     if (R.weather.rain.length && R.weather.start < 0.2) R.radio('레이더에 비구름이 보여요. 레이스 중 비 예보', 'eng');
     R.tick = 0;
+  };
+
+  // --- Start procedure -----------------------------------------------------------
+  // Formation lap (settings: on by default; not in the 자동 플레이 demo), then
+  // the standing start: held on the brake until the lights go out. Rolling
+  // forward before that (throttle without the brake) is a jump start.
+  R.formation = function () { return R.settings.formation !== false && !R.demoSettings; };
+  R.onFormationEnd = function () {
+    R.radio('그리드에 정렬 — 브레이크를 밟고 대기, 라이트가 꺼지면 출발', 'race');
+    if (CR.RealUI && CR.RealUI.fade) CR.RealUI.fade();
+  };
+  R.skipFormation = function () { if (CR.Race.phase === 'formation') CR.Race.endFormation(); };
+  R.gridCreep = function () {
+    var c = CR.Car.state, pl = R.pl;
+    if (R.phase !== 'race' || !R.gridPos || !pl || c.demoDrive) return false;
+    var inp = CR.Input.state, roll = inp.brake < 0.2 && inp.throttle > 0.15;
+    if (!roll && c.speed < 0.2) return false;
+    if (!roll) { c.vx *= 0.8; c.vy *= 0.8; } // brake back on: stops
+    if (!pl.jumped && Math.hypot(c.x - R.gridPos.x, c.y - R.gridPos.y) > 0.7) {
+      pl.jumped = true;
+      penalise(5, '부정 출발');
+      speak('Jump start.');
+    }
+    return true;
   };
 
   // Starting tyre and strategy list: before Race.start (the player picks a tyre).
   R.prepareRace = function (startTyre) {
     R.phase = 'race';
     R.on = true;
+    if (R.wk) {
+      if (R.wk.stage === 'sq') R.wk.stage = 'sprint';
+      else if (R.wk.stage === 'q') R.wk.stage = 'race';
+      R.laps = R.wk.stage === 'sprint' ? R.sprintLaps() : R.fullLaps;
+      R.lifeScale = clamp(R.laps / R.realLaps * 1.15, 0.15, 1);
+    }
     R.cars = [];
     R.startTyre = startTyre || R.startTyre || 'M';
   };
@@ -414,7 +523,7 @@
     }
     rt.prevRel = rel;
     if (rt.pit) {
-      if (Pit().driveCar(car, rt.pit, dt)) { rt.pit = null; rt.prevRel = Pit().relOf(car.dist); car.laneTarget = car.offset; }
+      if (Pit().driveCar(car, rt.pit, dt)) { rt.pit.done = true; rt.pit = null; rt.prevRel = Pit().relOf(car.dist); car.laneTarget = car.offset; }
       return true;
     }
     // incidents (green running only)
@@ -473,6 +582,8 @@
     R.incidents.push({ dist: car.dist, at: CR.Race.clock, car: car });
     R.radio(car.driver.code + ' 리타이어 (' + why + ') — 옐로 플래그', 'race');
     var left = R.laps - leaderLaps();
+    // a big crash now and then stops the race (barriers to repair)
+    if (/사고|충돌|접촉/.test(why) && Math.random() < 0.14 * (1 + RP().wet) && redFlag('큰 사고 — 방호벽 수리')) return;
     if (!R.scMode && left >= 2) {
       var r = Math.random();
       if (r < 0.42) deploySC();
@@ -483,6 +594,41 @@
     var o = R.order()[0];
     return o ? (o.isPlayer ? CR.Laps.history.length : o.lap) : 0;
   }
+
+  // --- Red flag ------------------------------------------------------------------
+  // Race stopped (big crash, torrential rain): the field slows, then the
+  // stoppage screen (real-ui.js): free tyre change and repairs, a standing
+  // restart from the grid in race order, laps kept.
+  function redFlag(why) {
+    if (R.red || CR.Race.phase !== 'green' || R.chequered || R.laps - leaderLaps() < 3 || CR.Race.player.retired) return false;
+    R.red = { why: why, t: 0 };
+    if (R.sc) removeSC();
+    R.scMode = null; R.scEnding = false;
+    R.radio('레드 플래그! 레드 플래그! 경기 중단 — ' + why + '. 천천히 피트로', 'flag');
+    speak('Red flag, red flag.');
+    return true;
+  }
+  R.debugRedFlag = function () { redFlag('테스트'); }; // tests
+  // Restart after the stoppage (from the red-flag screen): tyre for the player.
+  R.redRestart = function (tyre) {
+    var race = CR.Race, c = CR.Car.state, left = R.laps - leaderLaps();
+    // everyone comes out of the pit lane on fresh tyres, repaired
+    Pit().player = null; c.inPit = false; R.pl.box = false;
+    if (tyre) RP().fitTyres(tyre, 0.6);
+    if (CR.RealDmg) CR.RealDmg.reset();
+    R.cars.forEach(function (o) {
+      var rt = o.rt;
+      if (o.retired) { if (!o.cleared) { o.cleared = true; var k = race.ai.indexOf(o); if (k >= 0) race.ai.splice(k, 1); } return; }
+      rt.pit = null; rt.box = false; rt.repair = 0;
+      rt.tyre = R.tyreFor(Math.max(1, left)); rt.wear = 0; rt.warm = 0.6; rt.plan = [];
+    });
+    var order = R.order().filter(function (o) { return !o.retired && !o.finished; });
+    race.regrid(order, true);
+    R.gridPos = { x: c.x, y: c.y };
+    R.restartLap = leaderLaps();
+    R.red = null;
+    R.radio('스탠딩 재출발 — 브레이크를 밟고 라이트를 기다려', 'race');
+  };
 
   // --- Safety car / VSC ---------------------------------------------------------
 
@@ -565,7 +711,13 @@
 
   R.targetSpeed = function (car, vt) {
     var rt = car.rt;
+    if (CR.Race.phase === 'formation') { // formation lap: gentle pace, ~22 m behind the car ahead
+      vt *= 0.55;
+      if (rt.ahead && rt.gapAhead < 140) vt = Math.max(0, Math.min(vt, (rt.ahead.isPlayer ? CR.Car.state.speed : rt.ahead.v) + (rt.gapAhead - 22) * 0.4));
+      return vt;
+    }
     if (car.finished) return vt;
+    if (R.red) return vt * 0.35;
     if (R.scMode === 'vsc') vt *= 0.6;
     else if (R.scMode === 'sc' || (R.scEnding && R.sc)) {
       var a = rt.ahead, g = rt.gapAhead;
@@ -589,7 +741,7 @@
     return false;
   }
   R.mayPass = function (car, block) {
-    if (block.sc) return false;
+    if (block.sc || CR.Race.phase === 'formation') return false;
     if (block.rt && (block.rt.pit || block.retired)) return true;
     if (block.isPlayer && CR.Car.state.inPit) return true;
     if (R.scMode || (R.scEnding && R.sc)) return false;
@@ -604,6 +756,7 @@
     else if (rt.blue) car.laneTarget = rt.blueSide * (CR.Config.TRACK_WIDTH / 2 - 1.3);
   };
   R.collides = function (o) {
+    if (CR.Race.phase === 'formation') return false; // formation lap: no contact (a convenience)
     if (o.isPlayer) return !CR.Car.state.inPit;
     return !(o.retired || o.sc || (o.rt && o.rt.pit));
   };
@@ -763,9 +916,13 @@
   R.setBoost = function (on) { RP().st.boost = !!on && R.on; };
   // Track limits (laps.js, realistic): 3 warnings, then 5 s each.
   R.trackLimit = function () {
-    if (!R.on || CR.Car.state.inPit) return;
+    if (!R.on || CR.Car.state.inPit || CR.Race.phase === 'formation') return; // no limits on the formation lap
     if (R.phase === 'quali') {
       if (R.q && R.q.run && R.q.run.flying && !R.q.run.deleted) { R.q.run.deleted = true; R.radio('트랙 리밋 — 이번 랩 타임 삭제', 'race'); }
+      return;
+    }
+    if (R.phase === 'practice') {
+      if (R.prac.run.flying && !R.prac.run.deleted) { R.prac.run.deleted = true; R.radio('트랙 리밋 — 이번 랩 기록 삭제', 'race'); }
       return;
     }
     var pl = R.pl;
@@ -805,6 +962,7 @@
 
   R.update = function (dt) {
     if (!R.on || R.phase !== 'race') return;
+    if (CR.Race.phase === 'formation') { R.tick -= dt; if (R.tick <= 0) { R.tick = 0.25; relations(); } return; }
     var race = CR.Race, L = ctx().L, pl = R.pl, c = CR.Car.state;
     // order, gaps, blue flags (4x a second)
     R.tick -= dt;
@@ -816,6 +974,11 @@
     if (rain > 0.05 && R.rain <= 0.05) R.radio('비가 내리기 시작했어요', 'race');
     if (rain <= 0.05 && R.rain > 0.05) R.radio('비가 그쳤어요', 'race');
     R.rain = rain;
+    if (rain > 0.9 && RP().wet > 0.85 && !R.redRain && redFlag('폭우 — 앞이 안 보이고 물이 고였어요')) R.redRain = true;
+    if (R.red) { // the field slows for two seconds, then the stoppage screen
+      R.red.t += dt;
+      if (R.red.t > 2.2 && !R.red.shown && R.onRedFlag) { R.red.shown = true; R.onRedFlag(R.red); }
+    }
     var kWet = 1 / Math.max(50, 0.05 * R.raceTime), kDry = 1 / Math.max(120, 0.16 * R.raceTime);
     RP().wet = clamp(RP().wet + (rain > 0.05 ? rain * kWet * (rain - RP().wet + 0.25) : -kDry * 0.9) * dt, 0, 1);
     // lap 1 incident
@@ -853,7 +1016,9 @@
 
   function playerPitIn() {
     var pl = R.pl, tyre = pl.nextTyre;
-    var stop = Pit().stopTime(), Dm = CR.RealDmg, fix = Dm ? Dm.repairTime() : 0;
+    // pit timing game (real-ui.js): the crew's 2.45 s base, quicker or slower with the player's timing
+    var game = R.settings.pitGame !== false;
+    var stop = game ? 2.45 : Pit().stopTime(), Dm = CR.RealDmg, fix = Dm ? Dm.repairTime() : 0;
     if (fix) R.radio('수리: ' + Dm.repairText() + ' (+' + fix.toFixed(1) + '초)', 'eng');
     var mate = null; // AI team-mate still at the box: the player queues behind it
     R.cars.forEach(function (o) { if (!o.isPlayer && o.rt && o.rt.team === 'you' && o.rt.pit && o.rt.pit.phase !== 'out') mate = o.rt.pit; });
@@ -870,6 +1035,7 @@
         pl.nextTyre = pl.plan.length ? pl.plan[0].tyre : R.tyreFor(Math.max(1, R.laps - pl.lapsDone - 1));
       },
     });
+    if (game) Pit().player.game = { i: 0, res: [], auto: !!CR.Car.state.demoDrive };
     pl.box = false;
     pl.lastStop = { time: stop, tyre: tyre, pen: pl.pen };
     R.radio('피트 리미터 ON — 박스로', 'eng');
@@ -903,6 +1069,73 @@
       if (g < 0 && g > -90 && o.dist - p.dist > L * 0.5) R.pl.blue = true;
     });
     R.leader = R.order()[0];
+    strategyRadio();
+  }
+
+  // --- Engineer: race strategy and team orders -------------------------------------
+  // Undercut / overcut calls around the cars just ahead and behind, battery
+  // advice, and team orders from the pit wall (let the team-mate by, hold
+  // position) — followed or not, the engineer answers on the radio.
+  function once(key, cooldown) {
+    var pl = R.pl, now = CR.Race.clock;
+    pl.said = pl.said || {};
+    if (pl.said[key] !== undefined && now - pl.said[key] < cooldown) return false;
+    pl.said[key] = now;
+    return true;
+  }
+  function strategyRadio() {
+    var pl = R.pl, p = CR.Race.player, c = CR.Car.state, st = RP().st;
+    if (!pl || R.scMode || CR.Race.phase !== 'green' || c.inPit || p.retired || p.finished) return;
+    var lap = pl.lapsDone, left = R.laps - lap, order = R.order(), i = order.indexOf(p), v = Math.max(25, c.speed);
+    if (lap < 1 || left < 2) return;
+    var ahead = i > 0 ? order[i - 1] : null, behind = i < order.length - 1 ? order[i + 1] : null;
+    var gA = ahead && !ahead.retired ? (ahead.dist - p.dist) / v : 99, gB = behind && !behind.retired ? (p.dist - behind.dist) / v : 99;
+    var stopLeft = pl.plan.length > 0 || st.wear > 0.55;
+    // undercut: the car ahead is about to stop, our tyres are old enough
+    if (ahead && ahead.rt && gA < 2.6 && stopLeft && st.wear > 0.35 && left > 4 && !pl.box) {
+      var due = ahead.rt.box || (ahead.rt.plan.length && ahead.rt.plan[0].lap - ahead.lap <= 1);
+      if (due && once('undercut', 60)) boxCall(R.tyreFor(Math.max(1, left - 1)), '언더컷 기회 — ' + ahead.driver.code + '가 곧 피트인해요. 지금 들어오면 앞설 수 있어');
+    }
+    // overcut: the car ahead has just gone in, we are on decent tyres
+    if (ahead && ahead.rt && ahead.rt.pit && ahead.rt.pit.phase === 'in' && gA < 4 && st.wear < 0.6 && once('overcut' + ahead.driver.id, 90)) {
+      R.radio('오버컷 — ' + ahead.driver.code + ' 피트인! 빈 트랙에서 2랩 더 밀어붙여, 매 랩이 예선 랩이야', 'eng');
+    }
+    // the car behind boxes: cover the undercut
+    if (behind && behind.rt && behind.rt.pit && behind.rt.pit.phase === 'in' && gB < 2.2 && stopLeft && st.wear > 0.3 && !pl.box && once('cover' + behind.driver.id, 90)) {
+      boxCall(R.tyreFor(Math.max(1, left - 1)), behind.driver.code + ' 피트인 — 언더컷 막자, 이번 랩 박스');
+    }
+    // battery
+    if (st.soc < 0.5 && once('soc', 45)) R.radio('배터리가 바닥이야 — 직선 끝에서 리프트 앤 코스트로 충전해', 'eng');
+    teamOrders(p, v, left);
+  }
+  function teamOrders(p, v, left) {
+    var pl = R.pl, mate = null;
+    R.cars.forEach(function (o) { if (o.rt && o.rt.team === 'you' && !o.retired && !o.finished && !o.rt.pit) mate = o; });
+    if (!mate) return;
+    var gm = (mate.dist - p.dist) / v; // > 0: team-mate ahead (s)
+    var o = pl.order;
+    if (o && !o.done) { // an order is running: followed?
+      var since = CR.Race.clock - o.at;
+      if (o.type === 'letby' && gm > 0.2) { o.done = true; R.radio('고마워 — 팀을 위한 결정이야. ' + mate.driver.code + '가 앞에서 끌어줄 거야', 'eng'); R.speak('Thank you. Good team work.'); }
+      else if (o.type === 'letby' && since > 1.6 * R.idealLap) { o.done = true; R.radio('지시를 안 따랐네… 레이스 끝나고 얘기하자', 'eng'); }
+      else if (o.type === 'hold' && gm < -0.2 && o.mateAhead) { o.done = true; R.radio('포지션 유지라고 했잖아! 팀 오더 위반이야', 'eng'); R.speak('We said hold position.'); }
+      return;
+    }
+    if (o && CR.Race.clock - o.at < 3 * R.idealLap) return;
+    var mLast = mate.laps[mate.laps.length - 1], hist = CR.Laps.history, pLast = hist.length ? hist[hist.length - 1].time : null;
+    // the faster team-mate stuck behind us (and we have a stop to make or old tyres)
+    if (gm < 0 && gm > -1.1 && left >= 3 && mLast && pLast && mLast < pLast - 0.25 && (RP().st.wear > mate.rt.wear + 0.15 || pl.plan.length)) {
+      pl.order = { type: 'letby', at: CR.Race.clock };
+      R.radio('팀 오더: ' + mate.driver.code + '를 보내줘. 이번 랩에 양보해 (Let him through)', 'box');
+      R.speak('Let him through, please.');
+      return;
+    }
+    // last laps, both close together: no fighting
+    if (left <= 3 && Math.abs(gm) < 1.5) {
+      pl.order = { type: 'hold', at: CR.Race.clock, mateAhead: gm > 0 };
+      R.radio('팀 오더: 포지션 유지 — 서로 공격하지 마 (Hold position)', 'box');
+      R.speak('Hold position.');
+    }
   }
 
   // VSC: keep the delta (slower than 60 % of the reference pace at every point).
@@ -1000,9 +1233,11 @@
       e.gap = e === lead ? null : e.time - lead.time;
     });
     var all = fin.concat(out);
-    all.forEach(function (e, i) { e.pos = i + 1; e.points = !e.dnf ? RD().POINTS[i] || 0 : 0; });
+    var sprint = R.wk && R.wk.stage === 'sprint', table = sprint ? R.SPRINT_POINTS : RD().POINTS;
+    all.forEach(function (e, i) { e.pos = i + 1; e.points = !e.dnf ? table[i] || 0 : 0; });
     var me = all.filter(function (e) { return e.isPlayer; })[0];
     return {
+      sprint: sprint, sprintResult: !sprint && R.wk && R.wk.sprintRes ? R.wk.sprintRes.entries.map(function (e) { return { id: e.id, pos: e.pos, points: e.points }; }) : null,
       real: true, track: R.trackName, trackName: CR.Tracks.list[R.trackIndex].name, laps: N, length: R.settings.length,
       entries: all, playerPos: me.pos, retired: !!playerRetired, fastest: R.fastest, weather: R.weather.mode,
       round: R.nextRound() + 1,
@@ -1039,6 +1274,12 @@
       if (!teams[d.team]) teams[d.team] = { id: d.team, points: 0, wins: 0, best: 99 };
     });
     (season.races || []).forEach(function (race) {
+      (race.sprint || []).forEach(function (e) { // sprint points (sprint weekends)
+        var s = drivers[e.id];
+        if (!s) return;
+        var d = RD().driver(e.id);
+        s.points += e.points; teams[d ? d.team : 'you'].points += e.points;
+      });
       race.entries.forEach(function (e) {
         var s = drivers[e.id];
         if (!s) return;

@@ -43,6 +43,9 @@
     if (!keepBest) Laps.best = null;
   };
 
+  // Red-flag restart from the grid (race.js regrid): progress back behind the line, laps kept.
+  Laps.setProgress = function (p) { progress = p; prevIndex = CR.Car.state.nearestSampleIndex; };
+
   // Samples driven this lap (negative on the grid, before the line).
   Laps.progress = function () { return progress; };
 

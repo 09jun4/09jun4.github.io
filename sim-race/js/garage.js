@@ -179,9 +179,9 @@
   }
 
   // --- 리얼리스틱 mode (real/real-race.js) ------------------------------------
-  // {settings: {length, weather, level, quali}, season: {num, races: [...]}, seasons: [...]}
+  // {settings: {length, weather, level, quali, practice, formation, pitGame}, season: {num, races: [...]}, seasons: [...]}
   var REAL_DEFAULT = function () {
-    return { settings: { length: 25, weather: 'auto', level: 'normal', quali: true }, season: { num: 1, races: [] }, seasons: [] };
+    return { settings: { length: 25, weather: 'auto', level: 'normal', quali: true, practice: true, formation: true, pitGame: true }, season: { num: 1, races: [] }, seasons: [] };
   };
   function cleanReal(r) {
     var out = REAL_DEFAULT(), st = r.settings || {};
@@ -189,6 +189,7 @@
     if (['auto', 'dry', 'mixed', 'wet'].indexOf(st.weather) >= 0) out.settings.weather = st.weather;
     if (['amateur', 'normal', 'pro', 'legend'].indexOf(st.level) >= 0) out.settings.level = st.level;
     if (typeof st.quali === 'boolean') out.settings.quali = st.quali;
+    ['practice', 'formation', 'pitGame'].forEach(function (k) { if (typeof st[k] === 'boolean') out.settings[k] = st[k]; });
     if (r.season && Array.isArray(r.season.races)) out.season = { num: Math.max(1, Math.floor(Number(r.season.num)) || 1), races: r.season.races.slice(0, 6) };
     if (Array.isArray(r.seasons)) out.seasons = r.seasons.filter(function (x) { return x && typeof x === 'object'; }).slice(-50);
     return out;
@@ -220,6 +221,7 @@
         return x;
       }),
     };
+    if (results.sprintResult) race.sprint = results.sprintResult; // sprint weekend: its points count too
     season.races.push(race);
     Garage.money += Math.max(0, Math.round(prize || 0));
     var finished = null;

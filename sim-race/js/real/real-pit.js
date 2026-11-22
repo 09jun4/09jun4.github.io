@@ -117,7 +117,7 @@
       if (p.queue) { // double stack: wait behind the box until the team-mate has gone
         var q = p.queue;
         p.wait = (p.wait || 0) + dt;
-        if ((q.phase === 'out' && q.rel - q.box > 6) || p.wait > 40) { p.queue = null; p.box = p.boxFinal; p.phase = 'in'; }
+        if (q.done || (q.phase === 'out' && q.rel - q.box > 6) || p.wait > 40) { p.queue = null; p.box = p.boxFinal; p.phase = 'in'; }
         return false;
       }
       p.t += dt;
@@ -215,6 +215,7 @@
     c.gear = g;
     c.rpm = Math.max(cfg.IDLE_RPM, p.v / cfg.WHEEL_RADIUS * ratios[g - 1] * cfg.FINAL_DRIVE * 9.549);
     if (done) {
+      p.done = true;
       c.inPit = false;
       Pit.player = null;
       if (Pit.onPlayerExit) Pit.onPlayerExit();

@@ -62,12 +62,12 @@
     els.record.textContent = rec ? CR.Laps.format(rec.time) : '—:——.———';
   };
 
-  var lastLit = -1, lastPos = -1, lastLapText = '';
+  var lastLit = -1, lastPos = -1, lastLapText = '', lastPhase = '';
   UI.update = function (dt) {
     var R = CR.Race;
     if (!R.active) return;
-    if (R.lightsOn !== lastLit) {
-      lastLit = R.lightsOn;
+    if (R.lightsOn !== lastLit || R.phase !== lastPhase) { // (a formation lap / red flag brings the lights back)
+      lastLit = R.lightsOn; lastPhase = R.phase;
       for (var i = 0; i < 5; i++) els.lamps[i].classList.toggle('is-on', i < R.lightsOn);
       els.lights.classList.toggle('is-out', R.phase !== 'lights');
     }

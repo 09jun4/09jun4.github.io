@@ -1198,6 +1198,17 @@ body.in-real #lap-history, body.in-real .laps-money { display: none !important; 
 .rl-ps-crew .ps-light { fill: #e8344a; }
 .rl-ps-crew .ps-light.is-go { fill: #2fbf71; }
 .rl-ps-note { font-size: 12px; color: #cfd5df; }
+/* pit timing game (real-ui.js) */
+.rl-pitstop.is-game { pointer-events: auto; cursor: pointer; width: 260px; }
+.rl-pitstop.is-game .rl-ps-crew { display: none; }
+.rl-pg { margin-top: 8px; display: grid; gap: 6px; }
+.rl-pg-step { font-size: 15px; font-weight: 900; color: #fff; letter-spacing: 0.02em; }
+.rl-pg-bar { position: relative; height: 18px; border-radius: 9px; background: #1c212b; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.rl-pg-good { position: absolute; top: 0; bottom: 0; background: rgba(255, 210, 63, 0.35); }
+.rl-pg-zone { position: absolute; top: 0; bottom: 0; background: #2fbf71; z-index: 1; }
+.rl-pg-needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #fff; border-radius: 2px; z-index: 2; box-shadow: 0 0 6px #fff; }
+.rl-pg-res { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 11px; font-weight: 900; min-height: 14px; color: #8b93a1; }
+.rl-pg-hint { font-size: 10px; color: #8b93a1; }
 .rl-q { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: baseline; padding: 6px 14px; border-radius: 8px; background: rgba(10, 13, 19, 0.8); font-size: 13px; }
 .rl-q b { color: #ffd23f; font-size: 18px; font-weight: 900; }
 .rl-q-cut { color: #ff8a7a; font-weight: 700; }
@@ -1355,3 +1366,24 @@ body.touch.in-real #hud-laps dl { display: none; }
 #rotate-hint span { font-size: 14px; color: #9aa3b2; }
 @keyframes rotate-hint { 40%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) { body.touch:not(.in-menu) #rotate-hint { display: flex; } }
+
+/* formation lap: skip button, black-out while the grid lines up (real-ui.js) */
+.rl-skip { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); pointer-events: auto; padding: 8px 14px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(10, 13, 19, 0.75); color: #fff; font: 800 13px/1 inherit; cursor: pointer; }
+.rl-skip small { opacity: 0.6; margin-left: 4px; }
+.rl-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 9; }
+.rl-fade.is-on { animation: rl-fade 0.9s ease-out; }
+@keyframes rl-fade { 0% { opacity: 1; } 40% { opacity: 1; } 100% { opacity: 0; } }
+body.touch .rl-skip { top: 8px; padding: 6px 10px; font-size: 11px; }
+
+/* practice panel (real-ui.js) */
+.rl-prac { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); pointer-events: auto; display: grid; gap: 6px; justify-items: center;
+  padding: 10px 12px; border-radius: 12px; background: rgba(10, 13, 19, 0.8); border: 1px solid rgba(255, 255, 255, 0.16); max-width: min(560px, calc(100% - 32px)); }
+.rl-prac-t { font-size: 11px; font-weight: 900; letter-spacing: 0.2em; color: #ffd23f; }
+.rl-prac-best { font-size: 12px; color: #dfe3ea; text-align: center; }
+.rl-prac-tyres { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.rl-prac-tyres button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: #fff; font: 700 11px/1 inherit; cursor: pointer; }
+.rl-prac-tyres button.is-on { border-color: #ffd23f; background: rgba(255, 210, 63, 0.15); }
+.rl-prac-end { padding: 7px 12px; border-radius: 8px; border: 0; background: #ffd23f; color: #121212; font: 800 12px/1 inherit; cursor: pointer; }
+body.touch .rl-prac { top: 8px; padding: 6px 8px; gap: 4px; }
+body.touch .rl-prac-best { display: none; }
