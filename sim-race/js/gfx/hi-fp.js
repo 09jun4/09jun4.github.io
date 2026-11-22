@@ -46,14 +46,14 @@
     function w1(n) { return [[I[n], 1]]; }
     function w2(a, b, t) { return [[I[a], 1 - t], [I[b], t]]; }
     // sleeve: shoulder -> wrist, stripe and piping down the outside
-    var A = [[-0.53, 0.046, w1('fore')], [-0.5, 0.047, w1('fore')], [-0.4, 0.052, w1('fore')], [-0.32, 0.058, w2('upper', 'fore', 0.75)],
-      [-0.29, 0.06, w2('upper', 'fore', 0.5)], [-0.26, 0.062, w2('upper', 'fore', 0.25)], [-0.15, 0.068, w1('upper')], [0, 0.075, w1('upper')]];
+    var A = [[-0.53, 0.036, w1('fore')], [-0.5, 0.037, w1('fore')], [-0.4, 0.041, w1('fore')], [-0.32, 0.045, w2('upper', 'fore', 0.75)],
+      [-0.29, 0.046, w2('upper', 'fore', 0.5)], [-0.26, 0.048, w2('upper', 'fore', 0.25)], [-0.15, 0.052, w1('upper')], [0, 0.058, w1('upper')]];
     g.loft(A.map(function (r) { return { c: [0, r[0], 0], ra: r[1], rb: r[1] * 1.04, w: r[2] }; }), 22, 2.1, function (ct, st, r, p) {
       var o = ct * sd;
       return o > 0.9 ? S.accent : o > 0.8 ? S.accent2 : S.main;
     });
     // gauntlet over the cuff, strap in the piping colour
-    var Gt = [[-0.555, 0.047, w2('fore', 'hand', 0.5)], [-0.54, 0.05, w1('fore')], [-0.5, 0.054, w1('fore')], [-0.47, 0.053, w1('fore')]];
+    var Gt = [[-0.555, 0.039, w2('fore', 'hand', 0.5)], [-0.54, 0.041, w1('fore')], [-0.5, 0.043, w1('fore')], [-0.47, 0.042, w1('fore')]];
     g.loft(Gt.map(function (r) { return { c: [0, r[0], 0], ra: r[1], rb: r[1] * 1.05, w: r[2] }; }), 22, 2.2, function (ct, st, r, p) {
       return p[1] > -0.515 && p[1] < -0.49 ? S.accent2 : S.glove;
     });
@@ -176,24 +176,24 @@
     var jit = (H && H.kerb || 0) * 0.002, eye = view.eye;
     arms.forEach(function (a, k) {
       var s = k ? 1 : -1, b = a.b, sd = a.sd; // s: -1 left, +1 right
-      // straight wrist: the hand carries on along the forearm and the fingers close round the grip;
-      // the back of the hand faces out, turned only a little towards the driver (FP.tilt)
       var gx = k ? 1000 - 48 : 48, grip = S(gx, 380, -0.022); // outer part of the grip: the hand stays off the wheel face
       grip.x += (Math.random() - 0.5) * jit; grip.y += (Math.random() - 0.5) * jit;
       var shoulder = W([s * 0.19, eye[1] - 0.2, eye[2] - 0.3]);
       a.mesh.position.copy(shoulder);
       a.mesh.updateMatrixWorld(true);
-      var pole = Uv.clone().multiplyScalar(-0.8).addScaledVector(Rv, 0.55 * s).addScaledVector(Nv, 0.2);
+      // the hand is locked to the grip (turns with the wheel): back of the hand out and a
+      // little towards the driver (FP.tilt), fingers round the grip axis, thumb up on the front;
+      // the forearm carries straight on from the hand, so the elbow goes where the hand points
+      // (at full lock the upper elbow lifts and swings out instead of the forearm stretching)
       var tilt = FP.tilt, back = Rv.clone().multiplyScalar(s * Math.cos(tilt)).addScaledVector(Nv, Math.sin(tilt));
-      var d = Uv.clone().multiplyScalar(0.6).addScaledVector(Nv, -0.8).normalize(), bb = new THREE.Vector3(), wrist = new THREE.Vector3();
-      for (var it = 0; it < 3; it++) {
-        bb.copy(back).addScaledVector(d, -back.dot(d)).normalize();
-        wrist.copy(grip).addScaledVector(bb, 0.035).addScaledVector(d, -0.075); // the grip sits inside the curled fingers
-        Hi.Crew.lib.ik(b.upper, b.fore, b.hand, wrist, pole, pole.clone().negate());
-        d = wrist.clone().sub(b.fore.getWorldPosition(new THREE.Vector3())).normalize();
-      }
-      var y = d.clone().negate(), x = bb.copy(back).addScaledVector(y, -back.dot(y)).normalize().multiplyScalar(sd);
+      var x = back.clone().multiplyScalar(sd);
+      var y = Nv.clone().multiplyScalar(0.72).addScaledVector(Uv, -0.69);
+      y.addScaledVector(x, -y.dot(x)).normalize();
       var z = new THREE.Vector3().crossVectors(x, y);
+      var wrist = grip.clone().addScaledVector(back, 0.032).addScaledVector(y, 0.075); // the grip sits inside the curled fingers
+      var elbow = wrist.clone().addScaledVector(y, 0.26);
+      var pole = elbow.clone().sub(shoulder.clone().add(wrist).multiplyScalar(0.5));
+      Hi.Crew.lib.ik(b.upper, b.fore, b.hand, wrist, pole, pole.clone().negate());
       _m.makeBasis(x, y, z); _q.setFromRotationMatrix(_m);
       b.fore.getWorldQuaternion(_q2);
       b.hand.quaternion.copy(_q2.invert().multiply(_q));
