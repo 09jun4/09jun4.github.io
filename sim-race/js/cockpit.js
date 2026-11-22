@@ -364,6 +364,7 @@
     }
     return {
       dpr: DPR, side: 1,
+      pt3: pt, P: P, eye: [ex, ey, ez], // fp-hands.js: forearms from the elbows in the cockpit
       proj: function (x, y, d) { var q = pt(x, y, d); return P(q[0], q[1], q[2]); },
       toEye: function (x, y, d, nx, ny) {
         var q = pt(x, y, d);
@@ -401,17 +402,47 @@
     // ~±45° of wheel at parking speed, ~±13° at racing speed; + = left.
     // This is 50% of the previous ±90° visual range.
     steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 45;
-    if (wheelState) CR.Wheel3D.draw(ctx, wheelView(steerDeg), wheelState, performance.now());
+    if (wheelState) {
+      var view = wheelView(steerDeg);
+      CR.Wheel3D.draw(ctx, view, wheelState, performance.now());
+      // arms and hands: 3D (hi-fp.js, 높음) or painted on the wheel (fp-hands.js)
+      var drew = CR.FPArms && CR.FPArms.draw(view, c, armColours(def), CR.Hands, COCKPIT_Y);
+      if (!drew && CR.Hands) CR.Hands.draw(ctx, view, handColours(def));
+    }
     CR.Camera.setNear(0.5);
   };
+
+  // Gloves / sleeves in the car's team colours (livery of its model).
+  var handCache = { model: null, col: null };
+  function handColours(def) {
+    if (handCache.model === def.model && handCache.col) return handCache.col;
+    var o = (def.model && def.model.opts) || {};
+    handCache.model = def.model;
+    handCache.col = CR.Hands.colours(o.main || def.color || '#1c1f26', o.dark || '#1c1f26', o.accent || def.color || '#d4a82a');
+    return handCache.col;
+  }
+
+  var armCache = { model: null, col: null };
+  function armColours(def) {
+    if (armCache.model === def.model && armCache.col) return armCache.col;
+    var o = (def.model && def.model.opts) || {};
+    armCache.model = def.model;
+    armCache.col = CR.Hi.Crew.teamColours(o.main || def.color || '#1c1f26', o.dark || '#1c1f26', o.accent || def.color || '#d4a82a');
+    return armCache.col;
+  }
 
   // Per-frame state for the wheel's screen and lights.
   Cockpit.update = function (dt) {
     var on = CR.Camera.inCockpit() && (CR.Main.state === 'playing' || CR.Main.state === 'paused');
     document.body.classList.toggle('cockpit', on);
+    if (!on && CR.FPArms) CR.FPArms.hide();
     if (!on || !dt) return;
     var c = CR.Car.state, cfg = CR.Config, input = CR.Input.state, def = CR.Car.def;
     updateSystems(dt, c, input);
+    if (CR.Hands) {
+      var RPs = CR.Real && CR.Real.on && CR.RealPhys ? CR.RealPhys.st : null;
+      CR.Hands.update(dt, { gear: c.gear, kerb: CR.Kerb ? CR.Kerb.shake : 0, pit: !!c.inPit, boost: !!(RPs && RPs.boost), ot: !!(RPs && RPs.otActive) });
+    }
     var delta = updateDelta();
     var rf = Math.max(0, Math.min(1, (c.rpm - cfg.IDLE_RPM) / (cfg.REDLINE_RPM - cfg.IDLE_RPM)));
     var voice = CR.EngineSound && CR.EngineSound.VOICES[def.id];

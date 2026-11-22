@@ -471,6 +471,16 @@
     };
   }
 
+  // Driver's suit from the livery (team colours) and the helmet from the car's own helmet colour.
+  C.livery = liveryOf;
+  C.driverColours = function (L) {
+    var c = Hi.Crew.teamColours(L.main, L.dark, L.accent, L.helmet);
+    c.helmet = L.helmet;
+    c.hstripe = lum(L.helmet) > 0.55 ? L.dark : '#f2f3f5';
+    c.hband = L.accent !== L.helmet ? L.accent : L.main;
+    return c;
+  };
+
   function lum(hex) { var v = parseInt(hex.slice(1), 16); return (0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255; }
 
   // --- Wheels -----------------------------------------------------------------------------------
@@ -725,12 +735,17 @@
     });
     // Driver in the opening: shoulders, HANS, harness, headrest pads (detail >= 1)
     var det = opts.detail || 0, bolts = [];
+    // the rigged driver (hi-crew.js) in the team's race suit and the car's helmet colours
+    var driver = det >= 1 && Hi.Crew && !opts.noDriver ? new Hi.Crew.Driver(R, C.driverColours(L)) : null;
+    if (driver) body.add(driver.group);
     if (det >= 1) {
-      var suitM = R.suitMat || (R.suitMat = R.std({ color: new THREE.Color('#252b3a').convertSRGBToLinear(), roughness: 0.85 }, 'suit'));
-      var sh = new THREE.SphereGeometry(1, 16, 10);
-      sh.scale(0.11, 0.07, 0.2);
-      sh.translate(-0.06, 0.47, 0);
-      add(sh, suitM);
+      if (!driver) {
+        var suitM = R.suitMat || (R.suitMat = R.std({ color: new THREE.Color('#252b3a').convertSRGBToLinear(), roughness: 0.85 }, 'suit'));
+        var sh = new THREE.SphereGeometry(1, 16, 10);
+        sh.scale(0.11, 0.07, 0.2);
+        sh.translate(-0.06, 0.47, 0);
+        add(sh, suitM);
+      }
       var hans = new THREE.TorusGeometry(0.115, det >= 2 ? 0.022 : 0.018, det >= 2 ? 8 : 6, det >= 2 ? 22 : 12, Math.PI * 1.15);
       hans.rotateX(Math.PI / 2); hans.rotateY(Math.PI / 2 + Math.PI * 0.07);
       hans.translate(-0.04, 0.505, 0);
@@ -786,14 +801,14 @@
     var hmesh = new THREE.Mesh(hg, hm);
     hmesh.position.set(0.02, 0.6, 0);
     hmesh.castShadow = true;
-    body.add(hmesh);
+    if (!driver) body.add(hmesh);
     var vm = R.phys({ color: 0x0a0c10, roughness: 0.04, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 2.2 }, 'visor');
     var vg = new THREE.SphereGeometry(0.139, 18, 6, -0.9, 1.8, 1.15, 0.42);
     vg.scale(1.18, 1.0, 0.95);
     var vmesh = new THREE.Mesh(vg, vm);
     vmesh.position.copy(hmesh.position);
     vmesh.rotation.y = Math.PI / 2;
-    body.add(vmesh);
+    if (!driver) body.add(vmesh);
 
     // Wheels
     var wheels = [];
@@ -862,12 +877,12 @@
 
     // Exterior parts hidden from the driver's seat (cockpit view keeps the
     // front wing, front wheels and front suspension, plus the 3D cockpit).
-    var hideInCockpit = meshes.body.concat(meshes.halo, meshes.mirror, [rearWing, hmesh, vmesh, bl, shadow], numberMeshes);
+    var hideInCockpit = meshes.body.concat(meshes.halo, meshes.mirror, [rearWing, driver ? driver.group : hmesh, vmesh, bl, shadow], numberMeshes);
     wheels.forEach(function (wh) { if (!wh.front) hideInCockpit.push(wh.pivot); });
 
     var allMats = Object.keys(mats).map(function (k) { return mats[k]; });
     return {
-      group: group, body: body, wheels: wheels, brakeMat: brakeMat, cockpitHidden: hideInCockpit, cockpit: cockpit, mirrorGlass: cockpit ? cockpit.userData.glass : null,
+      group: group, body: body, wheels: wheels, brakeMat: brakeMat, cockpitHidden: hideInCockpit, cockpit: cockpit, driver: driver, mirrorGlass: cockpit ? cockpit.userData.glass : null,
       materials: allMats, char: char, scale: s, model: model, cones: cones, frontWing: frontWing, rearWing: rearWing,
       livery: L, hidden: undefined, wrecked: false,
     };
@@ -1265,6 +1280,13 @@
       car.body.rotation.x = ((kw[0] + kw[2]) - (kw[1] + kw[3])) / 2 / 1.6;
       car.body.rotation.z += ((kw[0] + kw[1]) - (kw[2] + kw[3])) / 2 / 2.7;
     } else { g.position.y = 0; car.body.rotation.x = 0; }
+    // driver: hands on the turning wheel, head pushed by the cornering forces (close cars only)
+    if (car.driver && opts.camDist < 90 && !opts.cockpit) {
+      var now = performance.now(), ddt = car.drvT ? Math.min(0.1, (now - car.drvT) / 1000) : 0;
+      var dh = car.drvH === undefined ? 0 : Math.atan2(Math.sin(st.heading - car.drvH), Math.cos(st.heading - car.drvH));
+      car.drvT = now; car.drvH = st.heading;
+      car.driver.update({ steer: Math.max(-1.3, Math.min(1.3, (st.wheelSteer || 0) * 3.2)), lat: ddt > 0 ? dh / ddt * speed : 0, dt: ddt });
+    }
     car.brakeMat.emissiveIntensity = st.exploded ? 0 : 0.5 + (opts.brake || 0) * 9;
     if (car.lightbar) { // safety car: amber lights alternate, green on while it leads the field
       var ph = Math.floor(performance.now() / 260) % 2;

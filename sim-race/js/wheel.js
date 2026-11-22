@@ -12,7 +12,7 @@
 // cockpit.js, which hands in proj(x, y, depth): sheet point + depth in
 // metres towards the driver -> screen point. The plate has thickness (its
 // edges show), and the grips, buttons, rotary knobs, thumb wheels and
-// toggles stand out from it (no driver's hands, so every control shows): each is drawn as the side walls that face
+// toggles stand out from it (the driver's gloves, fp-hands.js, sit on the grips): each is drawn as the side walls that face
 // the eye plus a front cap. Flat artwork (carbon weave, screen, labels) is
 // painted on each face with that face's own transform (exact, because the
 // wheel faces the camera).
@@ -360,5 +360,6 @@
   };
 
   Wheel3D.SHEET = { w: SHEET_W, h: SHEET_H, cx: 500, cy: 330 };
+  Wheel3D.setFace = setFace; // fp-hands.js paints the gloves on the same face
   CR.Wheel3D = Wheel3D;
 })();

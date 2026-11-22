@@ -348,7 +348,7 @@
     this.disposeScope('cars');
     this.carShared = null;
     var self = this;
-    ['intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F'].forEach(function (k) { self[k] = null; });
+    ['intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F', 'crewM'].forEach(function (k) { self[k] = null; });
     this.previewCars = new Map();
     this.previewImages = {};
     this.pvCache = null;
@@ -599,7 +599,7 @@
     var prev = this.scope, self = this;
     this.useScope('cars');
     // own set of shared materials (the race cars' ones carry the cascade setup)
-    var keys = ['carShared', 'intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F'];
+    var keys = ['carShared', 'intakeMat', 'rimMat', 'tubMat', 'suitMat', 'strapMat', 'padMat', 'boltMat', 'seamMat', 'btnMat', 'mirrorGlassMat', 'sticker-E', 'sticker-F', 'crewM'];
     var saved = {};
     keys.forEach(function (k) { saved[k] = self[k]; self[k] = self.pvCache ? self.pvCache[k] : null; });
     this.previewMode = true;

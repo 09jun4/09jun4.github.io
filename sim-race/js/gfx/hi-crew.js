@@ -49,8 +49,8 @@
   BONES.forEach(function (b, i) { B[b[0]] = i; });
 
   // Colour slots (palette per team) and their gloss.
-  var SLOT = { main: 0, accent: 1, dark: 2, helmet: 3, visor: 4, glove: 5, sole: 6 };
-  var ROUGH = [0.86, 0.82, 0.72, 0.14, 0.04, 0.6, 0.92];
+  var SLOT = { main: 0, accent: 1, dark: 2, helmet: 3, visor: 4, glove: 5, sole: 6, accent2: 7, hstripe: 8, hband: 9 };
+  var ROUGH = [0.86, 0.82, 0.72, 0.14, 0.04, 0.6, 0.92, 0.8, 0.14, 0.14];
 
   // --- Mesh builder -------------------------------------------------------------------------------
   function GeoB() { this.p = []; this.n = []; this.uv = []; this.slot = []; this.si = []; this.sw = []; this.ix = []; this.ts = []; }
@@ -172,33 +172,53 @@
   function W1(n) { return [[B[n], 1]]; }
   function W2(a, b, t) { return [[B[a], 1 - t], [B[b], t]]; }
 
-  function personGeometry() {
-    var g = new GeoB();
+  // kind 'crew' (pit crew: belt + radio, shoulder yoke) or 'driver' (race suit
+  // with livery bands, two-tone stripes, driver's helmet design).
+  function personGeometry(kind) {
+    var g = new GeoB(), drv = kind === 'driver';
     // torso (pelvis to shoulders): squarish sections, chest forward
     var T = [[0.80, 0.14, 0.11, 0, W1('hips')], [0.86, 0.175, 0.125, 0, W1('hips')], [0.93, 0.18, 0.13, 0, W1('hips')],
       [0.99, 0.175, 0.128, 0, W2('hips', 'spine', 0.4)], [1.06, 0.17, 0.125, 0, W1('spine')], [1.14, 0.176, 0.13, 0.004, W2('spine', 'chest', 0.4)],
       [1.22, 0.188, 0.138, 0.008, W2('spine', 'chest', 0.75)], [1.30, 0.198, 0.142, 0.012, W1('chest')], [1.37, 0.2, 0.138, 0.008, W1('chest')],
       [1.42, 0.19, 0.122, 0.002, W1('chest')], [1.46, 0.15, 0.1, 0, W1('chest')], [1.49, 0.09, 0.08, 0, W2('chest', 'neck', 0.3)]];
     g.loft(T.map(function (r) { return { c: [0, r[0], r[3]], ra: r[1], rb: r[2], w: r[4] }; }), 28, 2.4, function (ct, st, r, p) {
-      var y = p[1];
+      var y = p[1], ac = Math.abs(ct);
+      if (drv) {
+        if (ac > 0.93 && y < 1.4) return SLOT.accent; // side panels
+        if (ac > 0.87 && y < 1.4) return SLOT.accent2; // piping
+        if (st > 0.2 && y > 1.17 && y < 1.235) return SLOT.accent2; // chest band
+        if (st > 0.2 && y > 1.235 && y < 1.25) return SLOT.accent;
+        if (st < -0.2 && y > 1.24 && y < 1.32) return SLOT.accent2; // back band
+        if (y > 1.415) return SLOT.accent; // shoulders
+        return SLOT.main;
+      }
       if (y > 0.925 && y < 0.985) return SLOT.dark; // belt
       if (y > 1.365) return SLOT.accent; // shoulder yoke
-      if (Math.abs(ct) > 0.96 && y < 1.36) return SLOT.accent; // side panels
+      if (ac > 0.96 && y < 1.36) return SLOT.accent; // side panels
+      if (ac > 0.91 && y < 1.36) return SLOT.accent2; // piping
       if (st > 0.97 && y > 1.0 && y < 1.44) return SLOT.dark; // front zip
       if (st > 0.5 && y > 1.29 && y < 1.33 && p[0] > 0.05 && p[0] < 0.11) return SLOT.accent; // chest badge
       return SLOT.main;
     }, { cap0: true });
-    // radio pack on the back of the belt + antenna
-    g.box([-0.085, 0.955, -0.135], 0.07, 0.11, 0.035, SLOT.dark, W1('hips'));
-    g.box([-0.105, 1.04, -0.135], 0.008, 0.08, 0.008, SLOT.dark, W1('hips'));
+    if (!drv) { // radio pack on the back of the belt + antenna
+      g.box([-0.085, 0.955, -0.135], 0.07, 0.11, 0.035, SLOT.dark, W1('hips'));
+      g.box([-0.105, 1.04, -0.135], 0.008, 0.08, 0.008, SLOT.dark, W1('hips'));
+    }
     // neck (balaclava) and collar
     g.loft([[1.46, 0.074], [1.52, 0.07], [1.58, 0.066]].map(function (r, i) { return { c: [0, r[0], 0.01], ra: r[1], rb: r[1], w: i === 0 ? W2('chest', 'neck', 0.5) : i === 1 ? W1('neck') : W2('neck', 'head', 0.6) }; }), 14, 2, function () { return SLOT.dark; });
-    g.loft([[1.44, 0.1], [1.49, 0.094], [1.535, 0.085]].map(function (r, i) { return { c: [0, r[0], 0.008], ra: r[1], rb: r[1] * 0.9, w: i < 2 ? W2('chest', 'neck', 0.4) : W2('neck', 'head', 0.3) }; }), 18, 2, function () { return SLOT.accent; });
+    g.loft([[1.44, 0.1], [1.49, 0.094], [1.535, 0.085]].map(function (r, i) { return { c: [0, r[0], 0.008], ra: r[1], rb: r[1] * 0.9, w: i < 2 ? W2('chest', 'neck', 0.4) : W2('neck', 'head', 0.3) }; }), 18, 2, function () { return drv ? SLOT.accent2 : SLOT.accent; });
     // helmet: shell, smoked visor, centre stripe and visor trim
     var hc = [0, 1.672, 0.02];
     g.ellipsoid(hc, 0.128, 0.146, 0.156, 18, 32, 2.42, W1('head'), function (phi, lam, ux) {
       var front = Math.abs(lam) < 1.22;
       if (front && phi > 1.3 && phi < 1.86) return SLOT.visor;
+      if (drv) { // driver's design: centre stripe, a swoosh down the sides, band round the chin
+        if (front && phi >= 1.86 && phi < 1.95) return SLOT.hband;
+        if (phi < 1.3 && Math.abs(ux) < 0.16) return SLOT.hstripe;
+        if (!front && phi > 1.35 && phi < 1.62 + 0.25 * Math.cos(lam)) return SLOT.hstripe;
+        if (phi > 2.05) return SLOT.hband;
+        return SLOT.helmet;
+      }
       if (front && ((phi > 1.86 && phi < 1.94) || (phi > 1.24 && phi < 1.3))) return SLOT.accent;
       if (phi < 1.25 && Math.abs(ux) < 0.12) return SLOT.accent;
       return SLOT.helmet;
@@ -211,16 +231,16 @@
         [1.15, 0.062, 0.064, W2('arm' + k, 'fore' + k, 0.38)], [1.2, 0.065, 0.067, W1('arm' + k)], [1.3, 0.071, 0.073, W1('arm' + k)],
         [1.4, 0.075, 0.076, W2('arm' + k, 'chest', 0.15)], [1.46, 0.068, 0.07, W2('arm' + k, 'chest', 0.5)]];
       g.loft(A.map(function (r) { return { c: [x - sd * (1.46 - r[0]) * 0.012, r[0], 0], ra: r[1], rb: r[2], w: r[3] }; }), 18, 2.1, function (ct, st, r, p) {
-        if (p[1] < 0.935) return SLOT.glove;
+        if (p[1] < 0.935) return drv && p[1] > 0.9 ? SLOT.accent2 : SLOT.glove; // gauntlet (driver: cuff strap)
         if (p[1] > 1.37) return SLOT.accent;
-        return ct * sd > 0.93 ? SLOT.accent : SLOT.main;
+        return ct * sd > 0.93 ? SLOT.accent : ct * sd > 0.86 ? SLOT.accent2 : SLOT.main;
       });
       // glove: palm faces the body, fingers slightly curled in, thumb in front
       var H = [[0.695, 0.01, 0.02, -0.024], [0.71, 0.016, 0.038, -0.018], [0.74, 0.018, 0.042, -0.01], [0.77, 0.02, 0.045, 0], [0.80, 0.021, 0.047, 0], [0.84, 0.022, 0.048, 0], [0.875, 0.02, 0.042, 0]];
       g.loft(H.map(function (r) { return { c: [x - sd * 0.006 + sd * r[3], r[0], 0.004], ra: r[1], rb: r[2], w: W1('hand' + k) }; }), 12, 2.6, function () { return SLOT.glove; });
       var TH = [[0.755, 0.006, 0.062], [0.77, 0.011, 0.06], [0.80, 0.013, 0.052], [0.84, 0.014, 0.036]];
       g.loft(TH.map(function (r) { return { c: [x - sd * 0.012, r[0], r[2]], ra: r[1], rb: r[1], w: W1('hand' + k) }; }), 8, 2, function () { return SLOT.glove; });
-      g.box([x + sd * 0.018, 0.8, 0.004], 0.012, 0.05, 0.075, SLOT.dark, W1('hand' + k)); // knuckle guard
+      g.box([x + sd * 0.018, 0.8, 0.004], 0.012, 0.05, 0.075, drv ? SLOT.accent : SLOT.dark, W1('hand' + k)); // knuckle guard
       // legs
       var lx = 0.1 * sd;
       var L = [[0.09, 0.056, 0.06, W2('shin' + k, 'foot' + k, 0.7)], [0.13, 0.056, 0.058, W2('shin' + k, 'foot' + k, 0.4)], [0.17, 0.058, 0.06, W1('shin' + k)],
@@ -229,13 +249,13 @@
         [0.8, 0.097, 0.1, W1('thigh' + k)], [0.9, 0.104, 0.108, W2('hips', 'thigh' + k, 0.75)], [0.96, 0.104, 0.108, W2('hips', 'thigh' + k, 0.4)]];
       g.loft(L.map(function (r) { return { c: [r[0] > 0.85 ? lx * 0.9 : lx, r[0], r[0] < 0.6 && r[0] > 0.3 ? 0.006 : 0], ra: r[1], rb: r[2], w: r[3] }; }), 18, 2.1, function (ct, st, r, p) {
         if (p[1] < 0.15) return SLOT.dark;
-        return ct * sd > 0.93 ? SLOT.accent : SLOT.main;
+        return ct * sd > 0.93 ? SLOT.accent : ct * sd > 0.86 ? SLOT.accent2 : SLOT.main;
       });
       // boot (heel -> toe), sole, side stripe
       var F = [[-0.085, 0.055, 0.03, 0.035], [-0.07, 0.06, 0.045, 0.055], [-0.03, 0.065, 0.05, 0.065], [0.03, 0.055, 0.052, 0.055], [0.09, 0.042, 0.05, 0.042], [0.15, 0.036, 0.045, 0.036], [0.185, 0.034, 0.035, 0.03], [0.2, 0.033, 0.015, 0.015]];
       g.loft(F.map(function (r) { return { c: [lx, r[1], r[0]], ra: r[2], rb: r[3], a: [1, 0, 0], b: [0, -1, 0], w: W1('foot' + k) }; }), 16, 2.6, function (ct, st, r, p) {
-        if (st > 0.72) return SLOT.sole;
-        if (Math.abs(st) < 0.28 && p[2] > -0.05 && p[2] < 0.13) return SLOT.accent;
+        if (st > 0.72) return drv ? SLOT.accent : SLOT.sole;
+        if (Math.abs(st) < 0.28 && p[2] > -0.05 && p[2] < 0.13) return drv ? SLOT.accent2 : SLOT.accent;
         return SLOT.dark;
       });
     });
@@ -380,6 +400,8 @@
     squat: { hipY: 0.5, hipZ: -0.1, lean: 0.55, feet: [[0.17, 0, 0.12, 0.25], [-0.17, 0, 0.06, 0.25]] },
     lean: { hipY: 0.9, hipZ: -0.08, lean: 0.5, feet: [[0.14, 0, 0.12, 0], [-0.14, 0, -0.12, 0]] },
     brace: { hipY: 0.82, hipZ: -0.12, lean: 0.25, feet: [[0.16, 0, 0.22, 0], [-0.16, 0, -0.3, 0]] },
+    // race car seat: lying back, legs out in front (knees up), heels on the floor
+    seat: { hipY: 0.16, hipZ: 0, lean: -0.95, feet: [[0.11, 0.24, 0.96, -0.75], [-0.11, 0.24, 0.96, -0.75]], kneeUp: true },
   };
   Crew.POSE = POSE;
 
@@ -398,7 +420,7 @@
     var dy = Math.atan2(Math.sin(A.yaw - this.yaw), Math.cos(A.yaw - this.yaw));
     this.yaw += this.init ? dy * Math.min(1, dt * 14) : dy;
     var m = this.mesh;
-    m.position.set(this.x, 0, this.z);
+    m.position.set(this.x, A.y || 0, this.z);
     m.rotation.set(0, this.yaw, 0);
     // stepping: each foot aims for the posture's foot (+ a lead with the speed)
     var run = this.speed;
@@ -443,19 +465,22 @@
       hy = clamp(Math.atan2(Math.sin(Math.atan2(lx, lz) - this.yaw - (A.twist || 0)), Math.cos(Math.atan2(lx, lz) - this.yaw - (A.twist || 0))), -1.1, 1.1);
       hp = clamp(-Math.atan2(A.look.y - 1.5 * P.hipY / 0.95, Math.hypot(lx, lz) + 0.01) - lean, -0.7, 0.8);
     }
-    b.neck.rotation.set(hp * 0.4, hy * 0.45, 0);
-    b.head.rotation.set(hp * 0.6, hy * 0.55, 0);
+    if (A.headPitch !== undefined) hp = A.headPitch;
+    if (A.headYaw !== undefined) hy = A.headYaw;
+    var hr = A.headRoll || 0;
+    b.neck.rotation.set(hp * 0.4, hy * 0.45, hr * 0.5);
+    b.head.rotation.set(hp * 0.6, hy * 0.55, hr * 0.5);
     b.clavL.rotation.set(0, 0, 0); b.clavR.rotation.set(0, 0, 0);
     m.updateMatrixWorld(true);
     // legs
     var fwd = _v4.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     var gq = group ? group.getWorldQuaternion(_q2).clone() : new THREE.Quaternion();
     ['L', 'R'].forEach(function (k, i) {
-      var f = self.feet[i], T = new THREE.Vector3(f.p.x, 0.07 + f.y + (f.lift || 0), f.p.z);
+      var f = self.feet[i], T = new THREE.Vector3(f.p.x, (A.y || 0) + 0.07 + f.y + (f.lift || 0), f.p.z);
       if (group) group.localToWorld(T);
-      var pole = (P.knee && i === 1) ? new THREE.Vector3(P.knee[0], P.knee[1], P.knee[2]) : new THREE.Vector3(0, 0, 1);
+      var pole = P.kneeUp ? new THREE.Vector3(0, 1, 0.25) : (P.knee && i === 1) ? new THREE.Vector3(P.knee[0], P.knee[1], P.knee[2]) : new THREE.Vector3(0, 0, 1);
       pole.applyAxisAngle(_y.set(0, 1, 0), self.yaw);
-      if (!(P.knee && i === 1)) pole.add(new THREE.Vector3(0, 0.15, 0));
+      if (!(P.knee && i === 1) && !P.kneeUp) pole.add(new THREE.Vector3(0, 0.15, 0));
       if (group) pole.applyQuaternion(gq);
       var hint = (P.knee && i === 1) ? new THREE.Vector3(0, 0, 1).applyAxisAngle(_y.set(0, 1, 0), self.yaw) : pole.clone();
       if (group) hint.applyQuaternion(gq);
@@ -491,6 +516,26 @@
       ik(b['arm' + k], b['fore' + k], b['hand' + k], T, pole, pole.clone().negate());
       b['hand' + k].rotation.set(A.wrist ? A.wrist[0] : 0.15, 0, 0);
     });
+  };
+
+  // Colours per slot from a team / driver colour set and paints a geometry with them.
+  function paint(geo, col) {
+    var pal = [col.main, col.accent, col.dark || '#15161a', col.helmet || col.main, '#07080b', col.glove || '#16171b', '#0c0d10',
+      col.accent2 || col.accent, col.hstripe || col.accent, col.hband || col.accent2 || col.accent].map(function (h) { return new THREE.Color(h).convertSRGBToLinear(); });
+    var slot = geo.userData.slot, a = geo.attributes.color;
+    for (var i = 0; i < slot.length; i++) { var c = pal[slot[i]]; a.setXYZ(i, c.r, c.g, c.b); }
+    a.needsUpdate = true;
+  }
+  function lum(h) { var c = new THREE.Color(h); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; }
+  // Team livery -> suit colours: the suit in the team's deep colour, panels in
+  // its main colour (or the accent when the two are too close to tell apart),
+  // piping in the accent, helmets in the main colour.
+  Crew.teamColours = function (main, dark, accent, helmet) {
+    dark = dark || main; accent = accent || main;
+    var panel = Math.abs(lum(main) - lum(dark)) > 0.06 ? main : accent;
+    var pipe = accent !== panel ? accent : (lum(panel) > 0.5 ? '#16181d' : '#eef0f3');
+    return { main: dark, accent: panel, accent2: pipe, helmet: helmet || panel, glove: dark, dark: '#121317',
+      hstripe: pipe, hband: panel };
   };
 
   // --- Props --------------------------------------------------------------------------------------
@@ -660,10 +705,7 @@
   SP.setTeam = function (key, col) {
     if (this.team === key) return;
     this.team = key;
-    var pal = [col.main, col.accent, col.dark || '#15161a', col.helmet || col.main, '#07080b', col.glove || '#16171b', '#0c0d10'].map(function (h) { return new THREE.Color(h).convertSRGBToLinear(); });
-    var slot = this.geo.userData.slot, a = this.geo.attributes.color;
-    for (var i = 0; i < slot.length; i++) { var c = pal[slot[i]]; a.setXYZ(i, c.r, c.g, c.b); }
-    a.needsUpdate = true;
+    paint(this.geo, col);
     var jc = new THREE.Color(col.accent).convertSRGBToLinear();
     this.jackF.userData.paint.color.copy(jc); this.jackR.userData.paint.color.copy(jc);
   };
@@ -986,6 +1028,54 @@
     });
     return ctl;
   };
+
+  // --- The driver ---------------------------------------------------------------------------------
+  // Seated in the car (frame of hi-car's body: x forward, y up, z right): the
+  // same rig as the crew in a race suit and the driver's helmet, hands on the
+  // wheel (it turns with the steering), head pushed by the cornering forces
+  // and turned into the corner. col: Crew.teamColours + hstripe / hband.
+  var SEAT = { x: 0.52, y: -0.06 }, WHEEL = { x: 0.48, y: 0.4, tilt: 0.45 };
+  Crew.Driver = function (R, col) {
+    var M = R ? (R.crewM || (R.crewM = Crew.materials(R))) : Crew.materials(null);
+    var geo = personGeometry('driver');
+    paint(geo, col);
+    this.group = new THREE.Group();
+    this.person = new Person(geo, suitMaterial(R, M));
+    this.group.add(this.person.mesh);
+    // steering wheel: carbon plate with two grips, on a column
+    var w = new THREE.Group(), carbon = M.black;
+    var plate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.25), carbon);
+    w.add(plate);
+    [-1, 1].forEach(function (sd) { var g = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 10), M.tyre); g.position.set(0.0, -0.01, sd * 0.135); w.add(g); });
+    var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0x1d6f9a }));
+    scr.position.set(-0.016, 0.02, 0); scr.rotation.y = -Math.PI / 2; w.add(scr);
+    w.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+    this.wheelPivot = new THREE.Group();
+    this.wheelPivot.position.set(WHEEL.x, WHEEL.y, 0);
+    this.wheelPivot.rotation.z = WHEEL.tilt; // face tilted up towards the driver
+    this.wheelPivot.add(w);
+    this.wheel = w;
+    this.group.add(this.wheelPivot);
+    this.geo = geo;
+    this.lat = 0; this.steer = 0;
+    this.update({ steer: 0, lat: 0, dt: 0 });
+  };
+  // s: {steer (wheel angle, rad, + = left), lat (lateral acceleration m/s^2, + = left), dt}
+  Crew.Driver.prototype.update = function (s) {
+    var k = Math.min(1, (s.dt || 0.016) * 8);
+    this.lat += ((s.lat || 0) - this.lat) * k;
+    this.steer = s.steer || 0;
+    this.wheel.rotation.x = this.steer;
+    this.group.updateWorldMatrix(true, false);
+    this.wheelPivot.updateMatrixWorld(true);
+    var grips = [-1, 1].map(function (sd) { return this.wheel.localToWorld(new THREE.Vector3(-0.02, 0.0, sd * 0.135)); }, this).map(function (v) { return this.group.worldToLocal(v); }, this);
+    var roll = Math.max(-0.3, Math.min(0.3, -this.lat * 0.012)); // the head is pushed to the outside
+    this.person.update({ x: SEAT.x, y: SEAT.y, z: 0, yaw: Math.PI / 2, pose: 'seat', hands: grips, keepHands: true,
+      elbow: [[0.3, -0.9, -0.15], [-0.3, -0.9, -0.15]], headPitch: 0.98, headYaw: this.steer * 0.25, headRoll: roll, wrist: [0.6, 0, 0] }, s.dt || 0, this.group);
+  };
+
+  // Building blocks for hi-fp.js (first-person arms).
+  Crew.lib = { GeoB: GeoB, paint: paint, suitMaterial: suitMaterial, SLOT: SLOT, aim: aim, ik: ik };
 
   // Applies the stop to a hi-car.js car: lift, wheels swapped by the crew, nose / rear wing.
   Crew.applyCar = function (car, ctl, done) {

@@ -257,11 +257,14 @@
 
   function sm(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
   function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
-  // Crew colours: the player's team as in the reference (black suits, red
-  // panels, black helmets), the others in their livery.
+  // Crew colours from the team livery (suit in the deep colour, panels in the
+  // main colour, piping in the accent): the player's team from their car.
   function colours(team) {
-    if (team.player) return { main: '#16171b', accent: '#d7192a', helmet: '#0d0e11' };
-    return { main: team.main, accent: team.accent, helmet: team.id === 'vel' ? '#f4f4f4' : team.accent, dark: '#141518' };
+    if (team.player) {
+      var L = Hi.Car.livery(CR.Car.def.model);
+      return Hi.Crew.teamColours(L.main, L.dark, L.accent);
+    }
+    return Hi.Crew.teamColours(team.main, team.dark, team.accent);
   }
 
   // Pit stop sounds (audio.js Audio.pit): louder near the camera, panned to its side.
