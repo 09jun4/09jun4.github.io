@@ -404,10 +404,13 @@
     steerDeg = (c.steerSmoothed || 0) * (0.28 + 0.72 * Math.max(0, 1 - c.speed / 45)) * 45;
     if (wheelState) {
       var view = wheelView(steerDeg);
-      CR.Wheel3D.draw(ctx, view, wheelState, performance.now());
-      // arms and hands: 3D (hi-fp.js, 높음) or painted on the wheel (fp-hands.js)
-      var drew = CR.FPArms && CR.FPArms.draw(view, c, armColours(def), CR.Hands, COCKPIT_Y);
-      if (!drew && CR.Hands) CR.Hands.draw(ctx, view, handColours(def));
+      // 높음: the wheel and the driver's arms as 3D models on their own layer (hi-wheel.js / hi-fp.js);
+      // otherwise the wheel drawn here (wheel.js) with the gloves painted on it (fp-hands.js)
+      var drew = CR.FPArms && CR.FPArms.draw(view, c, armColours(def), CR.Hands, COCKPIT_Y, wheelState);
+      if (!drew) {
+        CR.Wheel3D.draw(ctx, view, wheelState, performance.now());
+        if (CR.Hands) CR.Hands.draw(ctx, view, handColours(def));
+      }
     }
     CR.Camera.setNear(0.5);
   };

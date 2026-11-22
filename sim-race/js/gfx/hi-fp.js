@@ -123,6 +123,8 @@
       scene.environment = pm.fromEquirectangular(t).texture;
       t.dispose(); pm.dispose();
       camera = new THREE.PerspectiveCamera(60, 1, 0.02, 10);
+      FP.wheel = Hi.SteeringWheel ? Hi.SteeringWheel() : null; // the 3D wheel (hi-wheel.js)
+      if (FP.wheel) scene.add(FP.wheel);
       return true;
     } catch (e) {
       failed = true;
@@ -152,7 +154,7 @@
   var _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _m = new THREE.Matrix4();
   // view: cockpit.js wheel view (pt3 = cockpit point of a sheet point, eye), car: Car.state,
   // col: driver colours (Crew.teamColours), H: CR.Hands state (flick, thumb, kerb), cockpitY: COCKPIT_Y
-  FP.draw = function (view, car, col, H, cockpitY) {
+  FP.draw = function (view, car, col, H, cockpitY, wheelState) {
     if (!FP.ready()) { FP.hide(); return false; }
     buildArms(col);
     var w = window.innerWidth, h = window.innerHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -173,10 +175,16 @@
     function W(q) { var f = q[1] + cockpitY, X = car.x + f * ch + q[0] * sh, Y = car.y + f * sh - q[0] * ch; return new THREE.Vector3(X, q[2], -Y); }
     function S(x, y, d) { return W(view.pt3(x, y, d)); }
     var c0 = S(500, 320, 0), Rv = S(501, 320, 0).sub(c0).normalize(), Uv = c0.clone().sub(S(500, 321, 0)).normalize(), Nv = S(500, 320, 0.01).sub(c0).normalize();
+    if (FP.wheel) { // the wheel sits where the 2D one would be drawn: sheet centre, face axes
+      FP.wheel.position.copy(c0);
+      _m.makeBasis(Rv, Uv, Nv); FP.wheel.quaternion.setFromRotationMatrix(_m);
+      FP.wheel.userData.update(wheelState, H ? H.flick : null, performance.now());
+      FP.wheel.updateMatrixWorld(true);
+    }
     var jit = (H && H.kerb || 0) * 0.002, eye = view.eye;
     arms.forEach(function (a, k) {
       var s = k ? 1 : -1, b = a.b, sd = a.sd; // s: -1 left, +1 right
-      var gx = k ? 1000 - 48 : 48, grip = S(gx, 380, -0.022); // outer part of the grip: the hand stays off the wheel face
+      var gx = k ? 1000 - 142 : 142, grip = S(gx, 370, 0.0); // centre of the grip (hi-wheel.js / wheel.js GRIP)
       grip.x += (Math.random() - 0.5) * jit; grip.y += (Math.random() - 0.5) * jit;
       var shoulder = W([s * 0.19, eye[1] - 0.2, eye[2] - 0.3]);
       a.mesh.position.copy(shoulder);
@@ -190,7 +198,7 @@
       var y = Nv.clone().multiplyScalar(0.72).addScaledVector(Uv, -0.69);
       y.addScaledVector(x, -y.dot(x)).normalize();
       var z = new THREE.Vector3().crossVectors(x, y);
-      var wrist = grip.clone().addScaledVector(back, 0.032).addScaledVector(y, 0.075); // the grip sits inside the curled fingers
+      var wrist = grip.clone().addScaledVector(back, 0.044).addScaledVector(y, 0.07); // palm against the grip's outer side, fingers round it
       var elbow = wrist.clone().addScaledVector(y, 0.26);
       var pole = elbow.clone().sub(shoulder.clone().add(wrist).multiplyScalar(0.5));
       Hi.Crew.lib.ik(b.upper, b.fore, b.hand, wrist, pole, pole.clone().negate());

@@ -361,5 +361,11 @@
 
   Wheel3D.SHEET = { w: SHEET_W, h: SHEET_H, cx: 500, cy: 330 };
   Wheel3D.setFace = setFace; // fp-hands.js paints the gloves on the same face
+  // Layout and artwork for the 3D wheel (gfx/hi-wheel.js builds the same wheel as a real model).
+  Wheel3D.LAYOUT = { W: SHEET_W, H: SHEET_H, PLATE: PLATE, GRIP: GRIP, BUTTONS: BUTTONS, THUMBS: THUMBS, TOGGLES: TOGGLES, ROTARIES: ROTARIES, RING: RING,
+    PLATE_T: PLATE_T, GRIP_FRONT: GRIP_FRONT, GRIP_BACK: GRIP_BACK, BTN_H: BTN_H, KNOB_H: KNOB_H, DRUM_H: DRUM_H, TOGGLE_H: TOGGLE_H };
+  Wheel3D.flatten = flatten;
+  Wheel3D.buildArt = function () { return art || (art = buildArt()); };
+  Wheel3D.drawScreen = drawScreen;
   CR.Wheel3D = Wheel3D;
 })();
