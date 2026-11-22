@@ -1,0 +1,16 @@
+rules_version = '2';
+// 픽셀 포지 — Firestore 보안 규칙.
+// Firebase console > Firestore Database > 규칙 탭에 이 내용을 붙여 넣고 "게시"하세요.
+// (다른 작품과 같은 프로젝트를 쓴다면, 기존 규칙은 지우지 말고 아래 match 블록만 추가하세요.)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 개인 저장 데이터: 본인만 읽고 쓸 수 있어요.
+    match /pixel_forge_users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string
+        && request.resource.data.save.size() < 400000;
+    }
+  }
+}

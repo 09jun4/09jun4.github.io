@@ -16,4 +16,5 @@ window.WORKS = [
   { title: '진자 시뮬레이터', url: '/pendulum/', thumb: 'assets/thumbs/pendulum.jpg', date: '2026-11-16', desc: '단진자 · 2중진자 · 3중진자의 운동과 끝 추의 경로를 추적하는 물리 시뮬레이션' },
   { title: 'Pixel Warrior Forge', url: '/pixel-warrior-forge/', thumb: 'assets/thumbs/pixel-warrior-forge.jpg', date: '2026-11-17', desc: '망치로 장비를 소환하고 스킬을 모아 성장하는 픽셀 전사 자동 전투 RPG' },
   { title: 'Sim Race', url: '/sim-race/', thumb: 'assets/thumbs/sim-race.jpg', date: '2026-11-17', desc: '2026 F1 규정 레이싱 시뮬레이션 · 예선·피트스톱·날씨·세이프티카·시즌 챔피언십' },
+  { title: '픽셀 포지', url: '/pixel-forge/', thumb: 'assets/thumbs/pixel-forge.jpg', date: '2026-11-23', desc: '대장간에서 장비를 제작하고 던전·스킬·펫으로 성장하는 도트 방치형 RPG' },
 ];

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2a2238">
+<title>픽셀 포지</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="avatar"><img id="avatar" alt=""></div>
+    <div class="who">
+      <div id="who-name">모험가</div>
+      <div class="power"><img id="power-ico" alt=""><span id="power">0</span></div>
+    </div>
+    <div class="pill"><img data-ico="coin" alt="왕관"><span id="crowns">0</span></div>
+    <div class="pill"><img data-ico="hammer" alt="망치"><span id="hammers">0</span></div>
+  </header>
+
+  <section id="stage">
+    <canvas id="cv" width="180" height="150" aria-label="전투 화면"></canvas>
+    <div id="hud-top">
+      <div id="stage-label"></div>
+      <div id="waves"></div>
+      <div id="dun-timer" hidden></div>
+    </div>
+    <button id="btn-challenge" class="px-btn small red" hidden>다음 스테이지 도전</button>
+    <button id="btn-leave" class="px-btn small gray" hidden>포기</button>
+    <div id="skill-bar">
+      <button id="btn-auto" class="auto-btn" aria-label="자동 스킬"></button>
+      <button class="skill-btn" data-i="0" aria-label="스킬 1"></button>
+      <button class="skill-btn" data-i="1" aria-label="스킬 2"></button>
+      <button class="skill-btn" data-i="2" aria-label="스킬 3"></button>
+    </div>
+  </section>
+
+  <main id="panel"></main>
+
+  <nav id="nav">
+    <button data-tab="home" class="on"><img data-ico="anvil" alt=""><span>대장간</span></button>
+    <button data-tab="dungeon"><img data-ico="key" alt=""><span>던전</span></button>
+    <button data-tab="grow"><img data-ico="sk_bolt" alt=""><span>성장</span><i class="dot" id="grow-dot" hidden></i></button>
+    <button data-tab="settings"><img data-ico="ring2" alt=""><span>설정</span></button>
+  </nav>
+</div>
+<div id="modal" hidden></div>
+<div id="toasts"></div>
+
+<script src="js/firebase-config.js"></script>
+<script src="/track-master/js/vendor/firebase.js"></script>
+<script src="js/data.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
