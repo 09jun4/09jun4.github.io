@@ -89,6 +89,13 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
 .anvil-btn .cnt img { width: 22px; height: 22px; }
 .anvil-btn.hit img.anv { animation: bonk .15s; }
 @keyframes bonk { 50% { transform: translateY(4px) scale(1.04, .96); } }
+/* 제작 모션: 망치가 오른쪽 위에서 모루로 3번 내려쳐요 (1초) */
+.anvil-btn img.ham { position: absolute; width: 48px; height: 48px; left: 58%; top: -30px; opacity: 0; transform-origin: 85% 85%; pointer-events: none; z-index: 2; }
+.anvil-btn.forging img.ham { opacity: 1; animation: strike .33s 3 ease-in; }
+@keyframes strike { 0% { transform: rotate(35deg); } 70% { transform: rotate(-55deg) translateY(8px); } 100% { transform: rotate(35deg); } }
+.anvil-btn .spark { position: absolute; left: 62%; top: 6px; width: 4px; height: 4px; z-index: 3; pointer-events: none; animation: spark .45s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--dx), var(--dy)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .anvil-btn.forging img.ham { animation: none; } }
 #auto-btn.running { background: var(--green); box-shadow: inset -3px -4px 0 var(--green-d), inset 3px 3px 0 rgba(255, 255, 255, .35); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { filter: brightness(1.2); } }
 

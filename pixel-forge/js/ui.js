@@ -150,7 +150,7 @@
     return `<div class="equip-grid">${PF.SLOTS.map(slotTile).join('')}</div>
       <div class="forge-row">
         <button class="info-btn" data-act="forge-info" aria-label="확률 정보">i</button>
-        <button class="anvil-btn" data-act="craft" aria-label="장비 제작">${ico('anvil', null, 'anv')}<span class="cnt">${ico('hammer')}<span>${fmt(s.hammers)}</span></span></button>
+        <button class="anvil-btn" data-act="craft" aria-label="장비 제작">${ico('hammer', null, 'ham')}${ico('anvil', null, 'anv')}<span class="cnt">${ico('hammer')}<span>${fmt(s.hammers)}</span></span></button>
         <button class="px-btn col" data-act="forge-info"><span class="sub">대장간</span>레벨 ${s.forge.lvl}</button>
         <button class="px-btn col${ui.auto ? ' running' : ''}" id="auto-btn" data-act="auto"><span class="sub">자동</span>${ui.auto ? '정지' : '↻'}</button>
       </div>
@@ -190,6 +190,34 @@
     if (a) { a.classList.remove('hit'); void a.offsetWidth; a.classList.add('hit'); }
     renderTop();
     return it;
+  }
+  // 수동 제작: 약 1초 동안 망치로 3번 두드리는 모션 뒤에 결과를 보여줘요
+  function forgeAnim() {
+    const a = document.querySelector('.anvil-btn');
+    if (ui.auto || ui.forging || !a) return;
+    if (S().hammers < 1) { doCraft(); return; }
+    Audio8.init();
+    ui.forging = true;
+    a.classList.add('forging');
+    [230, 560, 890].forEach(t => setTimeout(() => { // 망치가 모루에 닿는 순간
+      Audio8.play('craft');
+      a.classList.remove('hit'); void a.offsetWidth; a.classList.add('hit');
+      for (let i = 0; i < 7; i++) {
+        const sp = document.createElement('i');
+        sp.className = 'spark';
+        sp.style.setProperty('--dx', (Math.random() * 70 - 35).toFixed(0) + 'px');
+        sp.style.setProperty('--dy', (-15 - Math.random() * 30).toFixed(0) + 'px');
+        sp.style.background = Math.random() < 0.5 ? '#ffd23a' : '#ff9a30';
+        a.appendChild(sp);
+        setTimeout(() => sp.remove(), 450);
+      }
+    }, t));
+    setTimeout(() => {
+      a.classList.remove('forging');
+      ui.forging = false;
+      const it = doCraft();
+      if (it) showCompare(it);
+    }, 1000);
   }
   function stopAuto() { if (ui.auto) { clearInterval(ui.auto); ui.auto = null; queuePanel(); } }
   function startAuto() {
@@ -491,7 +519,7 @@
     if (!b || b.disabled) return;
     const act = b.dataset.act;
     if (act !== 'craft') Audio8.play('click');
-    if (act === 'craft') { if (ui.auto) return; const it = doCraft(); if (it) showCompare(it); }
+    if (act === 'craft') forgeAnim();
     else if (act === 'forge-info') showForgeInfo();
     else if (act === 'auto') { if (ui.auto) stopAuto(); else showAutoSettings(); }
     else if (act.startsWith('dun-')) showDungeon(act.slice(4));
