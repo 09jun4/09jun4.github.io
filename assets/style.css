@@ -552,3 +552,6 @@ h1{color:var(--ink)}
 [data-theme="dark"] .map-legend .key{background:#6E68A0}
 [data-theme="dark"] .map-frame::before{background-image:radial-gradient(circle,rgba(205,195,255,.1) 1px,transparent 1px)}
 [data-theme="dark"] ::selection{color:#1a1830}
+
+/* 모바일: 작품 수·마지막 업데이트 칸을 가운데로 */
+@media (max-width:480px){.stats{margin-left:auto;margin-right:auto}}
