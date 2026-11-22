@@ -559,6 +559,74 @@
     });
   };
 
+  // --- Imported body (assets/f1-car.glb, modelled in Blender) ------------------------------
+  // Loaded once with the hi scripts (gfx-preset.js). Every formula car except
+  // Formula E then wears it, scaled so its wheelbase matches the car (2.7 m x
+  // length) and painted in the team livery: Paint_White / Paint_Blue -> main,
+  // Paint_Navy and the DRS flap -> accent, Seat_Blue -> dark, Light_Red -> rain
+  // light. The wheels stay the game's own (compound stripes, wet treads, blur)
+  // at the model's sizes. Model frame: y up, +z forward, x left.
+  var GLB = null;
+  C.loadModel = function (url) {
+    if (GLB || !THREE.GLTFLoader) return Promise.resolve();
+    return new Promise(function (res) {
+      new THREE.GLTFLoader().load(url, function (g) { try { GLB = readGLB(g.scene); } catch (e) { GLB = null; } res(); }, null, function () { res(); });
+    });
+  };
+  var GLB_PART = /^(Body|DRS_Flap|Driveshaft|Susp_[FR]|Upright|Wheel_|Steering)/;
+  function readGLB(scene) {
+    scene.updateMatrixWorld(true);
+    var out = { meshes: [], wheels: [], cache: {} };
+    scene.traverse(function (o) {
+      var a = o, m;
+      while (a && !(m = GLB_PART.exec(a.name))) a = a.parent;
+      if (!m) return;
+      if (m[1] === 'Wheel_' && a === o) {
+        var bb = new THREE.Box3().setFromObject(o);
+        out.wheels.push({ c: bb.getCenter(new THREE.Vector3()), r: (bb.max.y - bb.min.y) / 2, w: Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z), front: /_F/.test(a.name) });
+      }
+      if (!o.isMesh || /Upright|Wheel_|Steering/.test(m[1])) return;
+      var g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+      g.deleteAttribute('uv');
+      out.meshes.push({ g: g, mat: o.material.name, col: o.material.color.clone(), metal: o.material.metalness, rough: o.material.roughness,
+        grp: m[1] === 'DRS_Flap' ? 'drs' : m[1] === 'Susp_F' ? 'fsus' : m[1] === 'Body' ? 'split' : 'body' });
+    });
+    var f = out.wheels.filter(function (w) { return w.front; }), r = out.wheels.filter(function (w) { return !w.front; });
+    out.wb = f[0].c.z - r[0].c.z;
+    out.mid = (f[0].c.z + r[0].c.z) / 2;
+    return out;
+  }
+  // Car-frame geometry per material and group (body / fsus / fw / rw) for scale s, shared by every car.
+  function glbParts(s) {
+    if (GLB.cache[s]) return GLB.cache[s];
+    var k = 2.7 * s / GLB.wb, M = new THREE.Matrix4().makeScale(k, k, k)
+      .multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2)).multiply(new THREE.Matrix4().makeTranslation(0, 0, -GLB.mid));
+    var buckets = {};
+    function put(grp, e, g) { var key = grp + '|' + e.mat; (buckets[key] = buckets[key] || { grp: grp, e: e, list: [] }).list.push(g); }
+    GLB.meshes.forEach(function (e) {
+      var g = e.g.clone().applyMatrix4(M);
+      if (e.grp !== 'split') { put(e.grp === 'drs' ? 'rw' : e.grp, e, g); return; }
+      // the body is one mesh: its front wing (with the nose tip) and rear wing come off on their own
+      g = g.index ? g.toNonIndexed() : g;
+      var p = g.attributes.position, nrm = g.attributes.normal, sets = { body: [], fw: [], rw: [] };
+      for (var t = 0; t < p.count; t += 3) {
+        var cx = (p.getX(t) + p.getX(t + 1) + p.getX(t + 2)) / 3 / k, cy = (p.getY(t) + p.getY(t + 1) + p.getY(t + 2)) / 3 / k;
+        sets[cx > 1.93 && cy < 0.36 ? 'fw' : cx < -2.02 && cy > 0.42 ? 'rw' : 'body'].push(t);
+      }
+      Object.keys(sets).forEach(function (grp) {
+        var ids = sets[grp]; if (!ids.length) return;
+        var pos = new Float32Array(ids.length * 9), nor = new Float32Array(ids.length * 9);
+        ids.forEach(function (t, i) { for (var v = 0; v < 3; v++) for (var c = 0; c < 3; c++) { pos[i * 9 + v * 3 + c] = p.array[(t + v) * 3 + c]; nor[i * 9 + v * 3 + c] = nrm.array[(t + v) * 3 + c]; } });
+        var h = new THREE.BufferGeometry();
+        h.setAttribute('position', new THREE.BufferAttribute(pos, 3)); h.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+        put(grp, e, h);
+      });
+    });
+    var out = { list: [], k: k, wheels: GLB.wheels.map(function (w) { var c = w.c.clone().applyMatrix4(M); return { x: c.x, z: c.z, r: w.r * k, w: w.w * k, front: w.front }; }) };
+    Object.keys(buckets).forEach(function (key) { var b = buckets[key]; out.list.push({ grp: b.grp, e: b.e, geo: mergeAll(b.list) }); });
+    return (GLB.cache[s] = out);
+  }
+
   // --- The car ------------------------------------------------------------------------------------
   // Monocoque / nose keyframes for scale s (top of the cockpit at z 0.5).
   function monoKeys(s) {
@@ -811,9 +879,13 @@
     if (!driver) body.add(vmesh);
 
     // Wheels
-    var wheels = [];
+    var wheels = [], gp = GLB && !L.pods ? glbParts(s) : null;
     model.forEach(function (part) {
       if (!part.wheel) return;
+      if (gp) {
+        var gw = gp.wheels.filter(function (q) { return q.front === !!part.front && (q.z > 0) === (part.wheel[0] > 0); })[0];
+        if (gw) part = Object.assign({}, part, { wheel: [gw.z, gw.x, gw.w, gw.r] });
+      }
       var wh = makeWheel(R, part, shared);
       body.add(wh.pivot);
       wheels.push(wh);
@@ -863,6 +935,48 @@
         cones.push(cone);
       }
     });
+    // Imported body: replaces the lofted bodywork, wings, suspension, numbers and rain light
+    if (gp) {
+      [meshes.body, meshes.halo, meshes.mirror, meshes.fsus].forEach(function (l) { l.forEach(function (m) { body.remove(m); m.geometry.dispose(); }); l.length = 0; });
+      [frontWing, rearWing].forEach(function (wg) { wg.children.slice().forEach(function (c) { if (c.isMesh && c.material !== lampMat && cones.indexOf(c) < 0) { wg.remove(c); c.geometry.dispose(); } }); });
+      numberMeshes.concat(nose ? [nose] : []).forEach(function (m) { body.remove(m); });
+      numberMeshes = [];
+      body.remove(bl);
+      var glbM = R.glbMats || (R.glbMats = {});
+      gp.list.forEach(function (it) {
+        var n = it.e.mat, m = n === 'Paint_White' || n === 'Paint_Blue' ? mat('full', L.main) : n === 'Paint_Navy' ? mat('full', L.accent)
+          : n === 'Seat_Blue' ? mat('full', L.dark) : n === 'Carbon' ? carbon : n === 'Carbon_Matte' ? satin : n === 'Light_Red' ? brakeMat
+          : glbM[n] || (glbM[n] = R.std({ color: it.e.col, metalness: it.e.metal, roughness: it.e.rough }, 'glb_' + n));
+        if (it.grp === 'rw' && it.e.grp === 'drs' && /Paint/.test(n)) m = mat('full', L.accent);
+        var mesh = new THREE.Mesh(it.geo, m);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        (it.grp === 'fw' ? frontWing : it.grp === 'rw' ? rearWing : body).add(mesh);
+        if (it.grp === 'body' || it.grp === 'fsus') meshes[it.grp].push(mesh);
+      });
+      var fwB = new THREE.Box3();
+      gp.list.forEach(function (it) { if (it.grp === 'fw') { it.geo.computeBoundingBox(); fwB.union(it.geo.boundingBox); } });
+      frontWing.children.forEach(function (c) { if (c.material === lampMat || cones.indexOf(c) >= 0) c.position.x += fwB.max.x - 0.12 - (fwY - 0.2); });
+      // race numbers on the nose and both sides of the engine cover, laid on the surface
+      if (nm) {
+        ray = ray || new THREE.Raycaster();
+        body.updateMatrixWorld(true);
+        var hitAt = function (o, d) { ray.set(o, d); var h = ray.intersectObjects(meshes.body, false)[0]; return h && h.face ? h : null; };
+        var place = function (h, scale, rx, ry, rz) {
+          var q = new THREE.Mesh(ng, nm);
+          q.position.copy(h.point).addScaledVector(h.face.normal, 0.004);
+          q.rotation.set(rx, ry, rz);
+          q.scale.setScalar(scale);
+          body.add(q);
+          return q;
+        };
+        var hn = hitAt(new THREE.Vector3(1.05 * s, 3, 0), new THREE.Vector3(0, -1, 0));
+        if (hn) nose = place(hn, 1, -Math.PI / 2, 0, -Math.PI / 2);
+        [1, -1].forEach(function (sd) {
+          var hs = hitAt(new THREE.Vector3(-0.8 * s, 0.58 * s, sd * 2), new THREE.Vector3(0, 0, -sd));
+          if (hs) numberMeshes.push(place(hs, 0.85, 0, sd > 0 ? 0 : Math.PI, 0));
+        });
+      }
+    }
     // Contact shadow
     var shadow = new THREE.Mesh(R.blobGeo, R.blobMat);
     shadow.rotation.x = -Math.PI / 2; shadow.rotation.z = -Math.PI / 2;

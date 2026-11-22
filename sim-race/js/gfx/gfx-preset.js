@@ -173,7 +173,7 @@
   // --- Lazy loading ----------------------------------------------------------
 
   var SHARED = window.TM_SHARED || '../js/'; // the artifact build serves the shared scripts elsewhere
-  var HI_SCRIPTS = [SHARED + 'vendor/three.min.js', SHARED + 'vendor/three-csm.js', 'js/gfx/hi-tex.js', 'js/gfx/hi-track.js', 'js/gfx/hi-crew.js', 'js/gfx/hi-wheel.js', 'js/gfx/hi-fp.js', 'js/gfx/hi-pit.js',
+  var HI_SCRIPTS = [SHARED + 'vendor/three.min.js', SHARED + 'vendor/three-csm.js', SHARED + 'vendor/GLTFLoader.js', 'js/gfx/hi-tex.js', 'js/gfx/hi-track.js', 'js/gfx/hi-crew.js', 'js/gfx/hi-wheel.js', 'js/gfx/hi-fp.js', 'js/gfx/hi-pit.js',
     'js/gfx/hi-env.js', 'js/gfx/hi-car.js', 'js/gfx/hi-fx.js', 'js/gfx/hi-post.js', 'js/gfx/hi-renderer.js'];
   var loadPromise = null;
   function loadHigh() {
@@ -182,7 +182,7 @@
     loadPromise = new Promise(function (resolve, reject) {
       var i = 0;
       (function next() {
-        if (i >= HI_SCRIPTS.length) { resolve(); return; }
+        if (i >= HI_SCRIPTS.length) { CR.Hi.Car.loadModel(window.TM_CAR_GLB || 'assets/f1-car.glb').then(resolve); return; } // the imported car body (hi-car.js)
         var src = HI_SCRIPTS[i++];
         if (src.indexOf('three.min.js') >= 0 && window.THREE && THREE.REVISION === '128') { next(); return; }
         var s = document.createElement('script');
