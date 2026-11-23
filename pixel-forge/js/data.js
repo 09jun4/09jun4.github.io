@@ -208,12 +208,15 @@ PF.dungeonLabel = l => (Math.floor(l / 5) + 1) + '-' + (l % 5 + 1);
 PF.dungeonPower = l => 4 + l * 3; // 던전 레벨 → 적 강함(스테이지 인덱스 기준)
 
 // ---- 숫자 표기 ------------------------------------------------------------
+PF.unit = i => i < 4 ? ['k', 'm', 'b', 't'][i] : String.fromCharCode(97 + Math.floor((i - 4) / 26) % 26) + String.fromCharCode(97 + (i - 4) % 26);
 PF.fmt = function (n) {
+  if (!isFinite(n)) return '∞';
   n = Math.floor(n);
   if (n < 1000) return String(n);
-  const u = ['k', 'm', 'b', 't', 'aa', 'ab', 'ac', 'ad'];
-  let i = -1;
-  while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
-  return parseFloat(n < 10 ? n.toFixed(2) : n < 100 ? n.toFixed(1) : Math.floor(n)) + u[i];
+  let i = Math.floor(Math.log10(n) / 3 + 1e-9) - 1; // 0 = k, 1 = m, 2 = b, 3 = t, 4 = aa …
+  let v = n / Math.pow(10, 3 * (i + 1));
+  let t = v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.floor(v + 1e-9));
+  if (parseFloat(t) >= 1000) { i++; v /= 1000; t = v.toFixed(2); } // 반올림으로 999.99… → 1.00 다음 단위
+  return parseFloat(t) + PF.unit(i);
 };
 PF.pct = (x, d) => x.toFixed(d == null ? 2 : d) + '%';

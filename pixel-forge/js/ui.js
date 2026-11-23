@@ -8,8 +8,8 @@
   const ico = (name, pal, cls) => `<img src="${Sprites.url(name, pal)}" alt=""${cls ? ` class="${cls}"` : ''}>`;
   const fmt = PF.fmt;
   const tierPal = t => PF.TIERS[t].pal;
-  const tierBg = t => `background-color:${tierPal(t)[1]}`;
-  const rarBg = r => `background-color:${PF.RAR[r].col}`;
+  const tierBg = t => `background-color:${tierPal(t)[1]};--tc:${tierPal(t)[1]};--tl:${tierPal(t)[0]};--td:${tierPal(t)[2]}`;
+  const rarBg = r => `background-color:${PF.RAR[r].col};--tc:${PF.RAR[r].col};--tl:${Sprites.shade(PF.RAR[r].col, 1.25)};--td:${Sprites.shade(PF.RAR[r].col, 0.5)}`;
   const RES_ICO = { crowns: 'coin', hammers: 'hammer', tickets: 'ticket', eggs: 'egg' };
   // 승천 단계 카드: 테두리(af1 은 → af2 금 → af3 무지개 → af4 반짝이 → af5 오라)와 별
   const afCls = a => a > 0 ? ` af af${Math.min(a, 5)}` : '';
