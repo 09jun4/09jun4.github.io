@@ -14,6 +14,7 @@
   // 승천 단계 카드: 테두리(af1 은 → af2 금 → af3 무지개 → af4 반짝이 → af5 오라)와 별
   const afCls = a => a > 0 ? ` af af${Math.min(a, 5)}` : '';
   const astar = a => a > 0 ? `<span class="astar">★${a}</span>` : '';
+  const itemIco = it => `<img src="${Sprites.urlAsc(Game.itemIcon(it), tierPal(it.tier), it.asc)}" alt="">`;
   const eggIco = (r, asc, cls) => {
     asc = asc || 0;
     const name = asc >= 2 ? 'egg_a2' : asc === 1 ? 'egg_a1' : 'egg';
@@ -152,7 +153,7 @@
     const it = S().equip[sl.id];
     const wide = sl.id === 'mount' ? ' wide' : '';
     if (!it) return `<button class="slot empty${wide}" data-slot="${sl.id}" aria-label="${sl.name} 비어 있음">${ico(sl.vars[0][1])}</button>`;
-    return `<button class="slot tier-bg${wide}${afCls(it.asc)}" data-slot="${sl.id}" style="${tierBg(it.tier)}" aria-label="${esc(Game.itemName(it))}">${ico(Game.itemIcon(it), tierPal(it.tier))}<span class="lv">Lv.${it.lvl}</span>${astar(it.asc)}</button>`;
+    return `<button class="slot tier-bg${wide}${afCls(it.asc)}" data-slot="${sl.id}" style="${tierBg(it.tier)}" aria-label="${esc(Game.itemName(it))}">${itemIco(it)}<span class="lv">Lv.${it.lvl}</span>${astar(it.asc)}</button>`;
   }
   function viewHome() {
     const s = S();
@@ -173,7 +174,7 @@
     let arrow = '';
     if (cmp !== undefined) arrow = cmp > 0 ? ' <span class="up">▲</span>' : cmp < 0 ? ' <span class="down">▼</span>' : '';
     return `<div class="item-card${tag === 'new' ? ' new' : ''}">${tag === 'eq' ? '<span class="tag">장착됨</span>' : ''}
-      <div class="ico tier-bg${afCls(it.asc)}" style="${tierBg(it.tier)}">${ico(Game.itemIcon(it), tierPal(it.tier))}<span class="lv">Lv.${it.lvl}</span>${astar(it.asc)}</div>
+      <div class="ico tier-bg${afCls(it.asc)}" style="${tierBg(it.tier)}">${itemIco(it)}<span class="lv">Lv.${it.lvl}</span>${astar(it.asc)}</div>
       <div><div class="nm" style="color:${tierPal(it.tier)[it.tier === 8 ? 0 : 1]}">${esc(Game.itemName(it))}${it.asc ? ` <span class="astxt">승천 ${it.asc}</span>` : ''}</div>
       <div class="main">${main.join(' · ')}${arrow}</div>
       <div class="subs">${it.subs.map(([id, v]) => `+${v}% ${PF.subById[id].name}`).join('<br>')}</div>
@@ -264,7 +265,7 @@
       <div class="lvl-head"><span>레벨 ${L}</span><span>▶</span><span class="n">${maxed ? '최대' : '레벨 ' + (L + 1)}</span></div>
       <table class="rate-table">${rows}</table>
       ${maxed ? `<p class="note">${ASC_TEXT.forge}</p><div class="btn-row"><button class="px-btn green" data-act="forge-asc">대장간 승천 ★${A + 1}</button></div>`
-      : `<p class="note">왕관을 낼 때마다 게이지가 한 칸 차요. 10칸이 차면 대장간 레벨이 올라 더 높은 등급이 나와요. Lv.100이 되면 승천할 수 있어요.</p>
+      : `<p class="note">왕관을 낼 때마다 게이지가 한 칸 차요. 10칸이 차면 대장간 레벨이 올라 더 높은 등급이 나와요. Lv.50이 되면 승천할 수 있어요.</p>
       <div class="gauge">${g}</div>
       <div class="btn-row"><button class="px-btn col" data-act="invest" data-need="crowns:${cost}"${s.crowns < cost ? ' disabled' : ''}>등급 상승<span class="cost${s.crowns < cost ? ' short' : ''}">${ico('coin')}${fmt(cost)}</span></button></div>`}
       <div class="btn-row"><button class="px-btn gray small" data-act="list">모든 장비의 목록</button></div>`,
@@ -386,7 +387,7 @@
     return `<div class="res-head"><span class="pill" style="color:#fff">${ico('egg', EGG_RES)}<span>${fmt(s.eggs)}</span></span><h2>펫 ${list.length}</h2><span class="pill" style="color:#fff;min-width:0">승천 ${s.asc}</span></div>
       <div class="bonus-bar">장착 효과: 피해 +${fmt(Game.stats().petP)}%${s.asc ? ` · 새로 부화하는 펫 ★${s.asc} 세대 ×${fmt(PF.petAscMul(s.asc))}` : ''}</div>
       <div class="eq-row pets" style="margin-top:0"><span class="lab">장착됨</span><div class="slots">${eqHtml}</div></div>
-      <p class="note" style="margin:-2px 0 8px">장착한 펫을 눌러 <b>강화</b> 탭에서 같은 등급의 알·펫을 재료로 레벨을 올려요.</p>
+      <p class="note" style="margin:-2px 0 8px">장착한 펫을 눌러 <b>강화</b> 탭에서 알·펫을 재료로 레벨을 올려요 (같은 등급 +1, 낮은 등급은 절반씩).</p>
       <div class="card-grid">${cards}</div>
       <div class="btn-row"><button class="px-btn" data-act="quick-pet">빠른 장착</button></div>
       ${summonRow('pet', 'egg', s.eggs, cost)}
@@ -432,10 +433,10 @@
     const d = PF.petById[p.id], eq = s.petEq.includes(u), A = p.asc || 0;
     tab = tab || ui.petTab || 'info';
     ui.petTab = tab;
-    if (!ui.sel || ui.sel.u !== u) ui.sel = { u, eggs: 0, mats: [] };
+    if (!ui.sel || ui.sel.u !== u) ui.sel = { u, eggs: [0, 0, 0, 0, 0, 0], mats: [] };
     const sel = ui.sel;
     sel.mats = sel.mats.filter(m => Game.pet(m) && !s.petEq.includes(m));
-    sel.eggs = Math.min(sel.eggs, s.eggBox[d.r]);
+    sel.eggs = sel.eggs.map((n, r) => Math.min(n, s.eggBox[r]));
     const head = `<div class="detail-top"><div class="big${afCls(A)}" style="${rarBg(d.r)}">${petCanvas(p.id, 64, A)}${astar(A)}</div>
       <div><div style="color:${d.r ? PF.RAR[d.r].col : '#888'};text-shadow:1px 1px 0 #1a1222">${PF.RAR[d.r].name}</div><div style="font-size:18px">${d.name} <span style="color:#e0a000">${stars(A)}</span></div><div>Lv.${p.lvl}${eq ? ' · 장착됨' : ''}</div></div></div>
       <div class="subtabs"><button data-act="ptab-info" class="${tab === 'info' ? 'on' : ''}">정보</button><button data-act="ptab-up" class="${tab === 'up' ? 'on' : ''}">강화</button></div>`;
@@ -448,28 +449,39 @@
     } else if (p.lvl >= PF.MAX_LVL) {
       body = '<p class="note">최대 레벨(Lv.100)이에요!</p>';
     } else {
-      const gain = Game.petGain(u, sel.eggs, sel.mats);
-      const mats = sortedPets().filter(q => q.u !== u && !s.petEq.includes(q.u) && PF.petById[q.id].r === d.r);
-      body = `<div class="enh-preview">Lv.${p.lvl} <b>▶</b> <span class="up">Lv.${p.lvl + gain}</span></div>
-        <div class="box"><h3>${eggIco(d.r, S().asc)} 같은 등급 알 <small>(1개 = +1레벨, 보유 ${fmt(s.eggBox[d.r])}개)</small></h3>
-          <div class="stepper"><button class="px-btn small gray" data-act="egg--10">-10</button><button class="px-btn small gray" data-act="egg--1">-1</button><b>${sel.eggs}</b><button class="px-btn small" data-act="egg-1">+1</button><button class="px-btn small" data-act="egg-10">+10</button><button class="px-btn small" data-act="egg-max">최대</button></div></div>
-        <div class="box"><h3>장착하지 않은 ${PF.RAR[d.r].name} 펫 <small>(그 펫 레벨만큼 +레벨)</small></h3>
-          ${mats.length ? `<div class="card-grid">${mats.map(q => petCard(q, 'mat-' + q.u).replace('class="card pet"', `class="card pet${sel.mats.includes(q.u) ? ' picked' : ''}"`)).join('')}</div>` : '<p class="note">재료로 쓸 수 있는 펫이 없어요</p>'}</div>
-        <div class="btn-row"><button class="px-btn green" data-act="enhance"${gain > 0 ? '' : ' disabled'}>강화 +${gain}레벨</button></div>`;
+      const aft = Game.petAfter(u, sel.eggs, sel.mats), cur = p.xp || 0;
+      const val = r => '+' + parseFloat(PF.matValue(r, d.r).toFixed(3));
+      const eggRows = PF.RAR.map((x, r) => r > d.r || !s.eggBox[r] ? '' : `<div class="egg-row">${eggIco(r, s.asc)}<span><b style="color:${x.col}">${x.name}</b> 알 ${val(r)}<br><small>보유 ${fmt(s.eggBox[r])}</small></span>
+          <div class="stepper"><button class="px-btn small gray" data-act="egg-${r}--10">-10</button><button class="px-btn small gray" data-act="egg-${r}--1">-1</button><b>${sel.eggs[r]}</b><button class="px-btn small" data-act="egg-${r}-1">+1</button><button class="px-btn small" data-act="egg-${r}-10">+10</button></div></div>`).join('');
+      const mats = sortedPets().filter(q => q.u !== u && !s.petEq.includes(q.u) && PF.petById[q.id].r <= d.r);
+      body = `<div class="enh-preview">Lv.${p.lvl} <b>▶</b> <span class="up">Lv.${aft.lvl}</span></div>
+        <div class="bar" style="height:16px;margin:0 0 10px"><i class="blue" style="width:${(aft.lvl > p.lvl ? aft.xp : Math.max(cur, aft.xp)) * 100}%"></i><span>다음 레벨까지 ${Math.round((aft.lvl >= PF.MAX_LVL ? 1 : aft.xp) * 100)}%</span></div>
+        <p class="note" style="margin:0 0 8px">재료 1개: 같은 등급 +1레벨 · 한 등급 낮을 때마다 절반 · 높은 등급은 못 써요</p>
+        <div class="box"><h3>알</h3>${eggRows || '<p class="note">쓸 수 있는 알이 없어요</p>'}
+          <div class="btn-row"><button class="px-btn small" data-act="egg-all">알 최대로</button><button class="px-btn small gray" data-act="egg-none">알 비우기</button></div></div>
+        <div class="box"><h3>장착하지 않은 펫</h3>
+          ${mats.length ? `<div class="card-grid">${mats.map(q => petCard(q, 'mat-' + q.u).replace('class="card pet"', `class="card pet${sel.mats.includes(q.u) ? ' picked' : ''}"`).replace('</button>', `<small class="matv">${val(PF.petById[q.id].r)}</small></button>`)).join('')}</div>` : '<p class="note">재료로 쓸 수 있는 펫이 없어요</p>'}</div>
+        <div class="btn-row"><button class="px-btn green" data-act="enhance"${Game.petXp(u, sel.eggs, sel.mats) > 0 ? '' : ' disabled'}>강화</button></div>`;
     }
     modal(head + body, { on: act => {
       if (act === 'ptab-info') return showPet(u, 'info');
       if (act === 'ptab-up') return showPet(u, 'up');
       if (act === 'eq' && !Game.toggleEquip('pet', u)) Game.toast('장착 칸이 가득 찼어요. 먼저 하나를 해제하세요');
-      if (act.startsWith('egg-')) {
-        const k = act.slice(4), room = PF.MAX_LVL - p.lvl - Game.petGain(u, 0, sel.mats);
-        const maxEggs = Math.max(0, Math.min(s.eggBox[d.r], room));
-        sel.eggs = k === 'max' ? maxEggs : Math.max(0, Math.min(maxEggs, sel.eggs + (+k)));
+      const full = () => Game.petAfter(u, sel.eggs, sel.mats).lvl >= PF.MAX_LVL;
+      if (act === 'egg-none') sel.eggs = sel.eggs.map(() => 0);
+      if (act === 'egg-all') { // 같은 등급부터 채우고 최대 레벨에서 멈춰요
+        for (let r = d.r; r >= 0 && !full(); r--) while (sel.eggs[r] < s.eggBox[r] && !full()) sel.eggs[r]++;
+      }
+      const em = act.match(/^egg-(\d)-(-?\d+)$/);
+      if (em) {
+        const r = +em[1], k = +em[2];
+        if (k < 0) sel.eggs[r] = Math.max(0, sel.eggs[r] + k);
+        else for (let i = 0; i < k && sel.eggs[r] < s.eggBox[r] && !full(); i++) sel.eggs[r]++;
       }
       if (act.startsWith('mat-')) {
         const m = +act.slice(4), i = sel.mats.indexOf(m);
         if (i >= 0) sel.mats.splice(i, 1);
-        else if (p.lvl + Game.petGain(u, sel.eggs, sel.mats) < PF.MAX_LVL) sel.mats.push(m);
+        else if (!full()) sel.mats.push(m);
         else Game.toast('이미 최대 레벨까지 채웠어요');
       }
       if (act === 'enhance') {

@@ -810,6 +810,53 @@
     cache.set(key, c);
     return c;
   }
+  // 승천 장비 아이콘 (22x22): 원래 아이콘에 세대별 장식을 덧그려요
+  const ASC_OUTLINE = [null, '#8a5a00', '#a06a00', '#6a1a8a', '#4a0a7a', '#7a0a3a'];
+  const WING = ['..www', '.wwwk', 'wwwk.', 'wwk..', 'wk...'];
+  const GEM = ['.u.', 'uvu', '.u.'];
+  const FLAME = ['.o.', 'oyo', 'oyo'];
+  function stamp(g, rows, x, y, P, flip) {
+    rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const ch = r[i]; if (ch === '.') continue; g.fillStyle = P[ch]; g.fillRect(x + (flip ? r.length - 1 - i : i), y + j, 1, 1); } });
+  }
+  function bakeAsc(name, pal, asc) {
+    if (!asc) return bake(name, pal);
+    const key = 'A|' + name + '|' + (pal || []).join(',') + '|' + asc;
+    let c = cache.get(key);
+    if (c) return c;
+    const base = bake(name, pal);
+    c = document.createElement('canvas');
+    c.width = 22; c.height = 22;
+    const g = c.getContext('2d');
+    const P = Object.assign({}, BASE, { u: asc >= 4 ? '#d65aff' : '#ff4a6a', v: '#ffffff' });
+    if (asc >= 2) { stamp(g, WING, 0, 4, P); stamp(g, WING, 17, 4, P, true); }
+    g.drawImage(base, 3, 4);
+    // 외곽선 색 바꾸기
+    const im = g.getImageData(0, 0, 22, 22), d = im.data, oc = ASC_OUTLINE[Math.min(asc, 5)];
+    const r0 = parseInt(oc.slice(1, 3), 16), g0 = parseInt(oc.slice(3, 5), 16), b0 = parseInt(oc.slice(5, 7), 16);
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] && d[i] === 0x1a && d[i + 1] === 0x12 && d[i + 2] === 0x22) { d[i] = r0; d[i + 1] = g0; d[i + 2] = b0; }
+    g.putImageData(im, 0, 0);
+    stamp(g, GEM, 16, 16, P);
+    if (asc >= 3) g.drawImage(bake('crown'), 7, 0);
+    if (asc >= 4) { stamp(g, GEM, 3, 16, P); stamp(g, GEM, 3, 5, P); stamp(g, GEM, 16, 5, P); }
+    if (asc >= 5) { stamp(g, FLAME, 6, 19, P); stamp(g, FLAME, 10, 19, P); stamp(g, FLAME, 14, 19, P); }
+    cache.set(key, c);
+    return c;
+  }
+  function urlAsc(name, pal, asc, scale) {
+    if (!asc) return url(name, pal, scale);
+    scale = scale || 4;
+    const key = 'A|' + name + '|' + (pal || []).join(',') + '|' + asc + '|' + scale;
+    let u = urlCache.get(key);
+    if (u) return u;
+    const src = bakeAsc(name, pal, asc), c = document.createElement('canvas');
+    c.width = src.width * scale; c.height = src.height * scale;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0, c.width, c.height);
+    u = c.toDataURL();
+    urlCache.set(key, u);
+    return u;
+  }
   // 흰색 실루엣(피격 번쩍임용)
   const flashCache = new Map();
   function flash(name, pal, flip) {
@@ -851,5 +898,5 @@
   }
   const tri = hex => [shade(hex, 1.15), hex, shade(hex, 0.55)];
 
-  window.Sprites = { bake, flash, url, tri, shade, has: n => !!DEFS[n] };
+  window.Sprites = { bake, bakeAsc, flash, url, urlAsc, tri, shade, has: n => !!DEFS[n] };
 })();

@@ -265,26 +265,32 @@
     });
     if (hatched) { G.emit('pets'); Store.save(); }
   };
-  // 장착한 펫 강화: 같은 등급의 알(개수)과 장착하지 않은 펫(개체 번호들)을 재료로 써요.
-  G.petGain = (u, eggs, mats) => {
-    const p = G.pet(u);
-    let g = eggs;
-    mats.forEach(m => { const q = G.pet(m); if (q) g += PF.matGain(q.lvl); });
-    return Math.min(g, PF.MAX_LVL - p.lvl);
+  // 장착한 펫 강화: 알(등급별 개수 배열)과 장착하지 않은 펫(개체 번호들)이 재료예요.
+  // 재료 1개 = 같은 등급 +1레벨, 한 등급 낮을 때마다 절반. 소수점은 경험치(xp)로 남아요.
+  G.petXp = (u, eggs, mats) => {
+    const p = G.pet(u), r = PF.petById[p.id].r;
+    let x = 0;
+    eggs.forEach((n, er) => { x += (n || 0) * PF.matValue(er, r); });
+    mats.forEach(m => { const q = G.pet(m); if (q) x += PF.matValue(PF.petById[q.id].r, r); });
+    return x;
+  };
+  G.petAfter = (u, eggs, mats) => { // 강화 뒤 {lvl, xp}
+    const p = G.pet(u), t = p.lvl + (p.xp || 0) + G.petXp(u, eggs, mats);
+    return t >= PF.MAX_LVL ? { lvl: PF.MAX_LVL, xp: 0 } : { lvl: Math.floor(t + 1e-9), xp: t - Math.floor(t + 1e-9) };
   };
   G.petEnhance = function (u, eggs, mats) {
     const S = G.S, p = G.pet(u);
-    if (!p || !S.petEq.includes(u)) return 0;
+    if (!p || !S.petEq.includes(u) || p.lvl >= PF.MAX_LVL) return 0;
     const r = PF.petById[p.id].r;
-    eggs = Math.max(0, Math.min(eggs, S.eggBox[r]));
-    mats = mats.filter(m => { const q = G.pet(m); return q && m !== u && !S.petEq.includes(m) && PF.petById[q.id].r === r; });
-    const gain = G.petGain(u, eggs, mats);
-    if (gain <= 0) return 0;
-    S.eggBox[r] -= eggs;
+    eggs = PF.RAR.map((_, er) => er > r ? 0 : Math.max(0, Math.min(eggs[er] || 0, S.eggBox[er])));
+    mats = mats.filter(m => { const q = G.pet(m); return q && m !== u && !S.petEq.includes(m) && PF.petById[q.id].r <= r; });
+    if (G.petXp(u, eggs, mats) <= 0) return 0;
+    const before = p.lvl, after = G.petAfter(u, eggs, mats);
+    eggs.forEach((n, er) => { S.eggBox[er] -= n; });
     S.petInv = S.petInv.filter(q => !mats.includes(q.u));
-    p.lvl += gain;
+    p.lvl = after.lvl; p.xp = after.xp;
     Audio8.play('level'); G.emit('pets'); Store.save();
-    return gain;
+    return p.lvl - before || 0.001;
   };
   G.buySlot = function () {
     const S = G.S, n = S.incub.length;
@@ -391,7 +397,7 @@
   ];
   G.THEMES = THEMES;
 
-  const R = G.R = { mode: 'stage', enemies: [], parts: [], texts: [], projs: [], wave: 1, walk: 0, scroll: 0,
+  const R = G.R = { mode: 'stage', enemies: [], parts: [], texts: [], projs: [], slashes: [], rings: [], wave: 1, walk: 0, scroll: 0,
     hero: null, buffs: {}, cds: [0, 0, 0], shake: 0, dun: null, t: 0, decor: [], msg: null };
 
   function heroMax() { return G.stats().hp; }
@@ -556,6 +562,9 @@
   };
 
   function alive() { return R.enemies.filter(e => e.hp > 0); }
+  const weaponKind = () => G.S.equip.weapon ? G.S.equip.weapon.v : 0; // 0 검, 1 도끼, 2 지팡이
+  const weaponCol = i => G.S.equip.weapon ? PF.TIERS[G.S.equip.weapon.tier].pal[i] : ['#ffffff', '#a4aebb', '#5a6474'][i];
+  const staffTip = () => ({ x: HERO_X + 10, y: GROUND - 25 });
 
   // ======================= 업데이트 =======================
   G.update = function (dt) {
@@ -570,6 +579,9 @@
     R.parts = R.parts.filter(p => { p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; return p.t > 0; });
     R.texts = R.texts.filter(t => { t.t -= dt; t.y -= 18 * dt; return t.t > 0; });
     h.swing = Math.max(0, h.swing - dt * 5);
+    h.cast = Math.max(0, (h.cast || 0) - dt * 4);
+    R.slashes = R.slashes.filter(x => (x.t -= dt) > 0);
+    R.rings = R.rings.filter(x => { x.t -= dt; x.r += (x.max - x.r) * Math.min(1, dt * 14); return x.t > 0; });
     h.flash = Math.max(0, h.flash - dt);
     // 최대 체력이 바뀌면(장비 교체) 비율 유지
     const mx = heroMax();
@@ -634,14 +646,26 @@
     function hurtEnemyHero(e) { hurtHero(e.atk); }
 
     // 영웅 공격
-    const front = list[0];
-    if (front && R.walk <= 0 && front.x <= HERO_X + 26 + (front.scale - 1) * 10) {
+    // 지팡이는 원거리: 적이 화면 중앙 기준으로 영웅과 대칭인 위치(W - HERO_X)에 오면 사격 시작
+    const front = list[0], wk = weaponKind();
+    const reach = wk === 2 ? W - HERO_X : HERO_X + 26 + (front ? (front.scale - 1) * 10 : 0);
+    if (front && R.walk <= 0 && front.x <= reach) {
       h.atkT -= dt;
       if (h.atkT <= 0) {
         const st = G.stats();
-        h.atkT = 0.85 / (1 + st.spd / 100);
-        h.swing = 1;
-        heroHit(1, front);
+        h.atkT = 0.85 / (1 + st.spd / 100) * (wk === 1 ? 1.15 : 1);
+        if (wk === 2) { // 마법 구체 발사
+          h.cast = 1;
+          const tip = staffTip();
+          R.projs.push({ x: tip.x, y: tip.y, tx: front, col: weaponCol(1), col2: weaponCol(0), mult: 1, spd: 190, magic: true });
+          R.rings.push({ x: tip.x, y: tip.y, r: 1, max: 7, t: 0.25, col: weaponCol(0) });
+          Audio8.play('skill');
+        } else {
+          h.swing = 1;
+          heroHit(wk === 1 ? 1.3 : 1, front);
+          R.slashes.push({ x: front.x - 3 * front.scale, y: front.y - 8 * front.scale, t: 0.22, max: 0.22, kind: wk, col: weaponCol(0), col2: weaponCol(1), r: wk === 1 ? 13 : 10 });
+          if (wk === 1) { R.shake = Math.max(R.shake, 0.08); for (let k = 0; k < 6; k++) R.parts.push({ x: front.x + rnd(-6, 6), y: GROUND, vx: rnd(-40, 40), vy: rnd(-70, -30), t: 0.4, col: THEMES[S.stage.d].ground2, g: 220 }); }
+        }
       }
     }
 
@@ -667,9 +691,14 @@
       if (!t || t.hp <= 0) return false;
       const tx = t.x, ty = t.y - 8 * t.scale;
       const dx = tx - pr.x, dy = ty - pr.y, d = Math.hypot(dx, dy);
-      if (d < 5) { heroHit(pr.mult, t); if (pr.big) { burst(tx, ty, pr.col, 16, 90); Audio8.play('boom'); } return false; }
+      if (d < 5) {
+        heroHit(pr.mult, t);
+        if (pr.big) { burst(tx, ty, pr.col, 16, 90); Audio8.play('boom'); }
+        if (pr.magic) { R.rings.push({ x: tx, y: ty, r: 2, max: 11, t: 0.3, col: pr.col }); burst(tx, ty, pr.col2, 10, 80); }
+        return false;
+      }
       pr.x += dx / d * pr.spd * dt; pr.y += dy / d * pr.spd * dt;
-      if (Math.random() < 0.6) R.parts.push({ x: pr.x, y: pr.y, vx: 0, vy: 0, t: 0.2, col: pr.col, g: 0 });
+      if (Math.random() < (pr.magic ? 1 : 0.6)) R.parts.push({ x: pr.x + (pr.magic ? rnd(-1, 1) : 0), y: pr.y + (pr.magic ? rnd(-1, 1) : 0), vx: 0, vy: 0, t: pr.magic ? 0.3 : 0.2, col: pr.magic && Math.random() < 0.5 ? pr.col2 : pr.col, g: 0 });
       return true;
     });
 
@@ -840,7 +869,7 @@
       const wimg = Sprites.bake(wname, wi ? PF.TIERS[wi.tier].pal : ['#e8edf4', '#a4aebb', '#5a6474']);
       g.save();
       g.translate(Math.round(hx + 12), Math.round(hy + 10));
-      g.rotate(h.swing > 0 ? (1 - h.swing) * 2.2 - 0.6 : -0.3);
+      g.rotate(h.cast > 0 ? -0.9 * h.cast - 0.3 : h.swing > 0 ? (1 - h.swing) * 2.2 - 0.6 : -0.3);
       if (wi && wi.asc) { // 승천 무기: 단계 색 테두리
         const sil = Sprites.flash(wname, PF.TIERS[wi.tier].pal);
         const tmp = G._wtmp || (G._wtmp = document.createElement('canvas'));
@@ -856,6 +885,11 @@
       g.drawImage(wimg, -1, -wimg.height + 1);
       g.restore();
       g.drawImage(img, Math.round(hx), Math.round(hy));
+      if (wi && wi.v === 2) { // 지팡이 끝 마력 (사격할 때 크게)
+        const tp = staffTip(), pulse = 1 + Math.round((Math.sin(R.t * 8) + 1) / 2) + (h.cast > 0 ? 2 : 0);
+        g.fillStyle = weaponCol(1); g.globalAlpha = 0.5; g.fillRect(tp.x - pulse - 1, tp.y - pulse - 1, pulse * 2 + 2, pulse * 2 + 2);
+        g.globalAlpha = 1; g.fillStyle = weaponCol(0); g.fillRect(tp.x - 1, tp.y - 1, 2, 2);
+      }
       if (R.buffs.invul || R.buffs.guard) { g.strokeStyle = R.buffs.invul ? '#ffffff' : '#a0c0ff'; g.lineWidth = 1; g.strokeRect(Math.round(hx) - 2.5, Math.round(hy) - 2.5, 21, 21); }
       if (R.buffs.atk && Math.random() < 0.4) R.parts.push({ x: hx + rnd(2, 14), y: hy + 16, vx: 0, vy: -30, t: 0.4, col: R.buffs.atk.col, g: 0 });
       // 영웅 체력 바
@@ -865,7 +899,33 @@
     }
 
     // 투사체·파티클·글자
-    R.projs.forEach(p => { g.fillStyle = '#1a1222'; const s = p.big ? 5 : 3; g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, s + 2, s + 2); g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); });
+    R.slashes.forEach(sl => { // 초승달 베기 궤적 (도끼는 크고 두껍게)
+      const k = 1 - sl.t / sl.max, a0 = -1.3 + k * 0.6, a1 = a0 + 2.2 * Math.min(1, k * 2.5);
+      for (let a = a0; a < a1; a += 0.12) {
+        const fade = (a - a0) / (a1 - a0 + 0.001);
+        for (let w = 0; w < (sl.kind === 1 ? 4 : 3); w++) {
+          const rr = sl.r - w;
+          g.fillStyle = w === 0 ? '#ffffff' : fade > 0.5 ? sl.col : sl.col2;
+          g.globalAlpha = Math.min(1, sl.t / sl.max * 2) * (0.4 + fade * 0.6);
+          g.fillRect(Math.round(sl.x + Math.cos(a) * rr), Math.round(sl.y + Math.sin(a) * rr), 2, 2);
+        }
+      }
+      g.globalAlpha = 1;
+    });
+    R.rings.forEach(rg => { // 마법 고리
+      g.globalAlpha = Math.min(1, rg.t * 4); g.fillStyle = rg.col;
+      for (let a = 0; a < Math.PI * 2; a += 0.35) g.fillRect(Math.round(rg.x + Math.cos(a) * rg.r), Math.round(rg.y + Math.sin(a) * rg.r), 2, 2);
+      g.globalAlpha = 1;
+    });
+    R.projs.forEach(p => {
+      if (p.magic) { // 마법 구체: 빛무리 + 심
+        g.fillStyle = p.col; g.globalAlpha = 0.45; g.fillRect(Math.round(p.x) - 3, Math.round(p.y) - 3, 7, 7);
+        g.globalAlpha = 1; g.fillStyle = '#1a1222'; g.fillRect(Math.round(p.x) - 2, Math.round(p.y) - 2, 5, 5);
+        g.fillStyle = p.col2; g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 3, 3);
+        g.fillStyle = '#ffffff'; g.fillRect(Math.round(p.x), Math.round(p.y) - 1, 1, 1);
+        return;
+      }
+      g.fillStyle = '#1a1222'; const s = p.big ? 5 : 3; g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, s + 2, s + 2); g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); });
     R.parts.forEach(p => { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); });
     R.texts.forEach(t => {
       if (/^[0-9.kmbtacd+\-!]+$/.test(t.s)) drawNum(g, t.s, t.x, t.y, t.col, t.big ? 2 : 1);

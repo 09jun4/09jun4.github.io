@@ -290,3 +290,31 @@ img.eg1 { filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shad
 img.eg2 { filter: drop-shadow(2px 0 0 #ffd23a) drop-shadow(-2px 0 0 #ffd23a) drop-shadow(0 2px 0 #ffd23a) drop-shadow(0 -2px 0 #ffd23a); }
 img.eg3, img.eg4, img.eg5 { animation: rainbow-ico 2.4s linear infinite; }
 img.wob.eg3, img.wob.eg4, img.wob.eg5 { animation: wob .5s infinite, rainbow-ico 2.4s linear infinite; }
+
+/* ---- 승천 세대 배경: 움직이고, 세대가 오를수록 화려해져요 ----
+   ★1 빛줄기가 지나감 · ★2 금빛 맥동 + 빛줄기 · ★3 무지개 물결 · ★4 흐르는 별무리 · ★5 성운 소용돌이 */
+.af1, .af2, .af3, .af4, .af5 { background-repeat: repeat; }
+.af1 { background-image: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.65) 47%, rgba(255,255,255,.65) 53%, transparent 65%) !important;
+  background-size: 300% 100% !important; animation: bgshine 2.4s linear infinite; }
+.af2 { background-image: linear-gradient(115deg, transparent 38%, rgba(255,255,255,.75) 50%, transparent 62%), radial-gradient(circle, rgba(255,230,120,.75), rgba(255,180,0,0) 70%) !important;
+  background-size: 300% 100%, 100% 100% !important; animation: bgshine 1.8s linear infinite, goldpulse 1.4s ease-in-out infinite; }
+.af3 { background-image: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.7) 50%, transparent 60%), linear-gradient(90deg, rgba(255,90,90,.45), rgba(255,210,58,.45), rgba(90,255,138,.45), rgba(90,216,255,.45), rgba(214,90,255,.45), rgba(255,90,90,.45)) !important;
+  background-size: 300% 100%, 400% 100% !important; animation: rainbow 2.4s linear infinite, bgshine 1.6s linear infinite, bgflow 4s linear infinite; }
+.af4 { background-image: radial-gradient(circle, #fff 1px, transparent 1.5px), radial-gradient(circle, #fff8b0 1px, transparent 1.5px), linear-gradient(90deg, rgba(255,90,90,.5), rgba(255,210,58,.5), rgba(90,255,138,.5), rgba(90,216,255,.5), rgba(214,90,255,.5), rgba(255,90,90,.5)) !important;
+  background-size: 12px 12px, 18px 18px, 400% 100% !important; animation: rainbow 2s linear infinite, starflow 3s linear infinite; }
+.af5 { background-image: radial-gradient(circle, #fff 1px, transparent 1.6px), radial-gradient(circle at 30% 30%, rgba(255,120,220,.85), transparent 45%), radial-gradient(circle at 70% 70%, rgba(90,200,255,.85), transparent 45%), radial-gradient(circle, rgba(40,10,80,.75), rgba(40,10,80,.35)) !important;
+  background-size: 10px 10px, 200% 200%, 200% 200%, 100% 100% !important; animation: rainbow 1.6s linear infinite, nebula 5s linear infinite; }
+@keyframes bgshine { from { background-position: 150% 0, 0 0, 0 0; } to { background-position: -150% 0, 0 0, 0 0; } }
+@keyframes goldpulse { 50% { box-shadow: 0 0 0 3px #fff4b0, 0 0 0 5px var(--ink), 0 0 16px 6px rgba(255, 210, 58, .85), inset 0 0 0 2px #fff; } }
+@keyframes bgflow { to { background-position: -150% 0, -400% 0; } }
+@keyframes starflow { to { background-position: 0 24px, -18px 36px, -400% 0; } }
+@keyframes nebula { 0% { background-position: 0 0, 0% 0%, 100% 100%, 0 0; } 50% { background-position: 5px 10px, 100% 50%, 0% 50%, 0 0; } 100% { background-position: 10px 20px, 0% 0%, 100% 100%, 0 0; } }
+.egg-row { display: grid; grid-template-columns: 30px 1fr auto; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 2px dashed #ddd; }
+.egg-row img { width: 30px; height: 30px; }
+.egg-row span { font-size: 12px; line-height: 1.3; }
+.egg-row .stepper { gap: 3px; }
+.egg-row .stepper .px-btn { min-height: 28px; padding: 0 6px; font-size: 11px; }
+.egg-row .stepper b { min-width: 26px; font-size: 14px; }
+.matv { display: block; font-size: 10px; color: var(--green-d); }
+@media (prefers-reduced-motion: reduce) { .af1, .af2, .af3, .af4, .af5 { animation: none; } }
+.slot .lv, .item-card .ico .lv, .card .lv { z-index: 3; }
