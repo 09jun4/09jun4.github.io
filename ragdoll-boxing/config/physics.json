@@ -1,8 +1,8 @@
 {
   "gravity": {"x": 0, "y": -9.81, "z": 0},
   "timeStep": 0.008333333,
-  "maxStepsPerFrame": 8,
-  "solverIterations": 8,
+  "maxStepsPerFrame": 4,
+  "solverIterations": 4,
   "collisionMargin": 0.002,
   "linearDamping": 0.4,
   "angularDamping": 1.5,

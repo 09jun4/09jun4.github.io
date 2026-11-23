@@ -16,16 +16,21 @@ export class Hud {
     this.el.msg.classList.toggle('show', !!text);
   }
 
+  // 바뀐 값만 DOM에 쓴다 (매 프레임 레이아웃 계산을 줄임)
+  set(el, key, value) {
+    if (el[key] !== value) el[key] = value;
+  }
+
   update(sim) {
     const m = sim.match;
     sim.fighters.forEach((f, i) => {
       const b = this.bars[i];
-      b.hp.style.width = (f.s.health / f.s.maxHealth) * 100 + '%';
-      b.st.style.width = (f.s.stamina / f.s.maxStamina) * 100 + '%';
-      b.dots.textContent = Array.from({ length: m.cfg.roundsToWin }, (_, k) => (k < m.wins[i] ? '●' : '○')).join('');
+      this.set(b.hp.style, 'width', Math.round((f.s.health / f.s.maxHealth) * 100) + '%');
+      this.set(b.st.style, 'width', Math.round((f.s.stamina / f.s.maxStamina) * 100) + '%');
+      this.set(b.dots, 'textContent', Array.from({ length: m.cfg.roundsToWin }, (_, k) => (k < m.wins[i] ? '●' : '○')).join(''));
     });
-    this.el.round.textContent = 'ROUND ' + m.round;
-    this.el.clock.textContent = Math.ceil(m.clock);
+    this.set(this.el.round, 'textContent', 'ROUND ' + m.round);
+    this.set(this.el.clock, 'textContent', String(Math.ceil(m.clock)));
     const r = m.result;
     this.message(
       m.phase === 'intro' ? (m.time < m.cfg.introTime - 0.6 ? 'ROUND ' + m.round : 'FIGHT!')

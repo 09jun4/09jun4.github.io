@@ -17,6 +17,7 @@ const menu = document.getElementById('menu'), end = document.getElementById('end
 let running = false;
 let freeze = 0; // 히트스톱: 강한 타격 순간 물리를 아주 잠깐 멈춘다
 const feel = match.feel, flash = document.getElementById('flash');
+flash.addEventListener('animationend', () => flash.classList.remove('on'));
 
 sim.collisions.onHit = (atk, def, part, res) => {
   const pos = def.body.pos('head');
@@ -29,7 +30,7 @@ sim.collisions.onHit = (atk, def, part, res) => {
   }
   renderer.shake(part.kind === 'head' ? feel.shakeHead : feel.shakeHit);
   freeze = Math.max(freeze, res.heavy ? feel.hitStopHeavy : feel.hitStop);
-  if (def.index === 0) { flash.classList.add('on'); requestAnimationFrame(() => flash.classList.remove('on')); }
+  if (def.index === 0) { flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); }
 };
 const lastState = ['', ''];
 
