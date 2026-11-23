@@ -154,7 +154,7 @@
         <button class="px-btn col" data-act="forge-info"><span class="sub">대장간</span>레벨 ${s.forge.lvl}</button>
         <button class="px-btn col${ui.auto ? ' running' : ''}" id="auto-btn" data-act="auto"><span class="sub">자동</span>${ui.auto ? '정지' : '↻'}</button>
       </div>
-      <p class="note" style="margin-top:10px">모루를 눌러 망치 1개로 장비를 제작해요. 적을 쓰러뜨리면 망치와 왕관을 얻어요.</p>`;
+      <p class="note" style="margin-top:10px">모루를 눌러(PC는 스페이스 바) 망치 1개로 장비를 제작해요. 적을 쓰러뜨리면 망치와 왕관을 얻어요.</p>`;
   }
   function itemCard(it, tag, cmp) {
     const sl = PF.slotById[it.slot];
@@ -534,6 +534,13 @@
     else if (act === 'ascend') { if (Game.ascend()) queuePanel(); }
     else if (act === 'buy-slot') { if (!Game.buySlot()) Game.toast('왕관이 부족해요'); }
     else settingsAct(act);
+  });
+
+  // PC: 스페이스 바로 제작 (대장간 화면에서, 창이 떠 있지 않을 때)
+  window.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    e.preventDefault(); // 스크롤·포커스된 버튼 눌림 방지
+    if (ui.tab === 'home' && !modalOpen()) forgeAnim();
   });
 
   // ---------------- 이벤트 연결 ----------------
