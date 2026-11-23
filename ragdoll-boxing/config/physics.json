@@ -1,0 +1,15 @@
+{
+  "gravity": {"x": 0, "y": -9.81, "z": 0},
+  "timeStep": 0.008333333,
+  "maxStepsPerFrame": 8,
+  "solverIterations": 8,
+  "collisionMargin": 0.002,
+  "linearDamping": 0.4,
+  "angularDamping": 1.5,
+  "bodyFriction": 0.5,
+  "footFriction": 0.6,
+  "restitution": 0.1,
+  "floorFriction": 0.9,
+  "ropeRestitution": 0.6,
+  "ring": {"half": 2.6, "ropeHeights": [0.55, 0.9, 1.25], "ropeRadius": 0.04}
+}

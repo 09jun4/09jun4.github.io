@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ragdoll Boxing</title>
+<style>
+  :root { --bar: #1e2440; --hp: #e23b3b; --st: #f2c230; --ink: #f4f4f8; --accent: #8a7cff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a2d3a; color: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .top { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); width: min(920px, calc(100% - 24px));
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center;
+    background: color-mix(in srgb, var(--bar) 85%, transparent); padding: 10px 14px; border-radius: 12px; }
+  .side { display: grid; gap: 5px; }
+  .side.right { direction: rtl; }
+  .name { font-size: 12px; font-weight: 700; letter-spacing: .1em; opacity: .8; direction: ltr; }
+  .side.right .name { text-align: right; }
+  .track { height: 14px; background: #0c0f1f; border-radius: 4px; overflow: hidden; }
+  .track.thin { height: 6px; }
+  .fill { height: 100%; width: 100%; transition: width .15s; }
+  .hp { background: var(--hp); }
+  .st { background: var(--st); }
+  .mid { text-align: center; font-weight: 800; }
+  .mid .dots { letter-spacing: .15em; font-size: 14px; }
+  #round { font-size: 15px; letter-spacing: .08em; }
+  #clock { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .dotrow { display: flex; gap: 10px; justify-content: center; align-items: center; }
+  #msg { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: clamp(36px, 8vw, 84px); font-weight: 900;
+    letter-spacing: .04em; text-shadow: 0 4px 0 #0008; opacity: 0; transform: scale(.9); transition: opacity .2s, transform .2s; pointer-events: none; }
+  #msg.show { opacity: 1; transform: scale(1); }
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: #14172acc; padding: 16px; }
+  .overlay[hidden] { display: none; }
+  .card { background: #1e2440; border-radius: 16px; padding: 28px; width: min(560px, 100%); text-align: center; box-shadow: 0 20px 60px #0008; }
+  h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: .05em; }
+  .sub { margin: 0 0 18px; opacity: .7; }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 20px; font-size: 14px; text-align: left; }
+  td { padding: 6px 8px; border-bottom: 1px solid #ffffff14; }
+  td:first-child { white-space: nowrap; font-weight: 700; width: 38%; }
+  kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 5px; background: #2f3760; border-bottom: 2px solid #0007; font: inherit; font-size: 12px; text-align: center; }
+  button { font: inherit; font-weight: 800; font-size: 18px; padding: 12px 34px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  #debug { position: fixed; left: 12px; bottom: 34px; margin: 0; padding: 10px 12px; background: #000a; border-radius: 8px; font: 12px/1.4 ui-monospace, monospace; white-space: pre; pointer-events: none; }
+  .hint { position: fixed; right: 12px; bottom: 10px; font-size: 12px; opacity: .55; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; font-weight: 700; }
+  a.home { position: fixed; left: 12px; bottom: 10px; color: var(--ink); opacity: .5; font-size: 12px; text-decoration: none; z-index: 2; }
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="복싱 경기장"></canvas>
+<div id="loading">불러오는 중…</div>
+
+<div class="top" aria-live="off">
+  <div class="side">
+    <div class="name">YOU</div>
+    <div class="track"><div class="fill hp" id="hp0"></div></div>
+    <div class="track thin"><div class="fill st" id="st0"></div></div>
+  </div>
+  <div class="mid">
+    <div class="dotrow"><span class="dots" id="dots0">○○</span><span id="round">ROUND 1</span><span class="dots" id="dots1">○○</span></div>
+    <div id="clock">60</div>
+  </div>
+  <div class="side right">
+    <div class="name">CPU</div>
+    <div class="track"><div class="fill hp" id="hp1"></div></div>
+    <div class="track thin"><div class="fill st" id="st1"></div></div>
+  </div>
+</div>
+<div id="msg" role="status" aria-live="polite"></div>
+<pre id="debug" hidden></pre>
+<div class="hint">F1 또는 ` : 물리 디버그</div>
+
+<div class="overlay" id="menu">
+  <div class="card">
+    <h1>RAGDOLL BOXING</h1>
+    <p class="sub">물리로 움직이는 래그돌 복싱 · 3라운드 2선승</p>
+    <table>
+      <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>후진 / 전진</td></tr>
+      <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>왼쪽 / 오른쪽 이동</td></tr>
+      <tr><td><kbd>Q</kbd></td><td>잽 · 빠르게 두 번 누르면 원투</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>왼팔 / 오른팔 스트레이트</td></tr>
+      <tr><td><kbd>D</kbd> + <kbd>←</kbd><kbd>→</kbd></td><td>전진하며 훅</td></tr>
+      <tr><td><kbd>A</kbd> + <kbd>←</kbd><kbd>→</kbd></td><td>후진하며 어퍼컷</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>가드 (스태미나 소모)</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>위빙 (상체를 왼쪽 / 오른쪽으로)</td></tr>
+    </table>
+    <button id="start">경기 시작</button>
+  </div>
+</div>
+
+<div class="overlay" id="end" hidden>
+  <div class="card">
+    <h1 id="result">YOU WIN!</h1>
+    <p class="sub" id="score">2 : 0</p>
+    <button id="again">다시 하기</button>
+  </div>
+</div>
+<a class="home" href="/">← 09jun4</a>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

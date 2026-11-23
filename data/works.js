@@ -16,4 +16,5 @@ window.WORKS = [
   { title: '진자 시뮬레이터', url: '/pendulum/', thumb: 'assets/thumbs/pendulum.jpg', date: '2026-11-16', desc: '단진자 · 2중진자 · 3중진자의 운동과 끝 추의 경로를 추적하는 물리 시뮬레이션' },
   { title: 'Sim Race', url: '/sim-race/', thumb: 'assets/thumbs/sim-race.jpg', date: '2026-11-17', desc: '2026 F1 규정 레이싱 시뮬레이션 · 예선·피트스톱·날씨·세이프티카·시즌 챔피언십' },
   { title: '픽셀 포지', url: '/pixel-forge/', thumb: 'assets/thumbs/pixel-forge.jpg', date: '2026-11-23', desc: '대장간에서 장비를 제작하고 던전·스킬·펫으로 성장하는 도트 방치형 RPG' },
+  { title: 'Ragdoll Boxing', url: '/ragdoll-boxing/', thumb: 'assets/thumbs/ragdoll-boxing.jpg', date: '2026-11-23', desc: '15부위 액티브 래그돌로 싸우는 물리 기반 1대1 복싱 · 잽·훅·어퍼컷·가드·위빙 · 3라운드 2선승' },
 ];

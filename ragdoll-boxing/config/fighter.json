@@ -1,0 +1,148 @@
+{
+  "_frame": "선수 로컬 좌표: +X 앞, +Y 위, +Z 오른쪽. side:true 항목은 R(오른쪽, 아래 값)과 L(z 반전)을 함께 만든다.",
+  "parts": {
+    "pelvis": {"shape": "box", "half": [0.1, 0.08, 0.16], "pos": [0, 1.0, 0], "mass": 10},
+    "torso": {"shape": "box", "half": [0.12, 0.21, 0.19], "pos": [0, 1.3, 0], "mass": 22},
+    "head": {"shape": "ball", "radius": 0.12, "pos": [0, 1.68, 0], "mass": 5},
+    "upperArm": {"shape": "capsule", "radius": 0.055, "halfHeight": 0.085, "pos": [0, 1.32, 0.25], "mass": 2.5, "side": true},
+    "lowerArm": {"shape": "capsule", "radius": 0.05, "halfHeight": 0.08, "pos": [0, 1.05, 0.25], "mass": 1.8, "side": true},
+    "hand": {"shape": "ball", "radius": 0.09, "pos": [0, 0.85, 0.25], "mass": 0.8, "side": true},
+    "upperLeg": {"shape": "capsule", "radius": 0.075, "halfHeight": 0.145, "pos": [0, 0.74, 0.11], "mass": 8, "side": true},
+    "lowerLeg": {"shape": "capsule", "radius": 0.06, "halfHeight": 0.16, "pos": [0, 0.3, 0.11], "mass": 4, "side": true},
+    "foot": {"shape": "box", "half": [0.12, 0.04, 0.055], "pos": [0.04, 0.04, 0.11], "mass": 1.2, "side": true}
+  },
+  "joints": {
+    "waist": {"type": "spherical", "parent": "pelvis", "child": "torso", "anchor": [0, 1.08, 0]},
+    "neck": {"type": "spherical", "parent": "torso", "child": "head", "anchor": [0, 1.54, 0], "freq": 5, "damping": 1.0},
+    "shoulder": {"type": "spherical", "parent": "torso", "child": "upperArm", "anchor": [0, 1.46, 0.25], "freq": 7, "damping": 1.0, "side": true},
+    "elbow": {
+      "type": "revolute",
+      "parent": "upperArm",
+      "child": "lowerArm",
+      "anchor": [0, 1.18, 0.25],
+      "axis": [0, 0, 1],
+      "limits": [0, 150],
+      "freq": 8,
+      "damping": 1.0,
+      "side": true
+    },
+    "wrist": {"type": "fixed", "parent": "lowerArm", "child": "hand", "anchor": [0, 0.92, 0.25], "side": true},
+    "hip": {"type": "spherical", "parent": "pelvis", "child": "upperLeg", "anchor": [0, 0.96, 0.11], "freq": 5, "damping": 1.0, "side": true},
+    "knee": {
+      "type": "revolute",
+      "parent": "upperLeg",
+      "child": "lowerLeg",
+      "anchor": [0, 0.52, 0.11],
+      "axis": [0, 0, 1],
+      "limits": [-140, 0],
+      "freq": 5,
+      "damping": 1.0,
+      "side": true
+    },
+    "ankle": {"type": "spherical", "parent": "lowerLeg", "child": "foot", "anchor": [0, 0.08, 0.11], "freq": 4, "damping": 1.0, "side": true}
+  },
+  "balance": {"standHeight": 1.0, "heightFreq": 3, "uprightFreq": 4, "moveResponse": 8, "torsoFreq": 5},
+  "poses": {
+    "_note": "어깨 [x,y,z] 오일러(도, XYZ), 팔꿈치·무릎 각도(도). 오른쪽 기준, 왼쪽은 x·y 반전",
+    "idle": {"shoulder": [0, 5, -10], "elbow": 105},
+    "guard": {"shoulder": [-10, 25, 45], "elbow": 115},
+    "extend": {"shoulder": [0, 15, 95], "elbow": 5},
+    "hookWind": {"shoulder": [-75, -20, -10], "elbow": 115},
+    "hook": {"shoulder": [-75, 0, 80], "elbow": 75},
+    "upperWind": {"shoulder": [0, 15, -25], "elbow": 105},
+    "upper": {"shoulder": [-15, 15, 65], "elbow": 85},
+    "legs": {"hip": [0, 0, 8], "knee": -16, "ankle": [0, 0, 8], "stepHip": 22, "stepKnee": 30, "stepRate": 2.2}
+  },
+  "attacks": {
+    "jab": {
+      "windup": 0.04,
+      "strike": 0.13,
+      "recover": 0.14,
+      "stamina": 5,
+      "power": 0.7,
+      "pull": 520,
+      "twist": 12,
+      "wind": "guard",
+      "pose": "extend",
+      "path": "straight"
+    },
+    "straight": {
+      "windup": 0.07,
+      "strike": 0.15,
+      "recover": 0.2,
+      "stamina": 9,
+      "power": 1.0,
+      "pull": 700,
+      "twist": 28,
+      "wind": "guard",
+      "pose": "extend",
+      "path": "straight"
+    },
+    "hook": {
+      "windup": 0.1,
+      "strike": 0.18,
+      "recover": 0.24,
+      "stamina": 13,
+      "power": 1.3,
+      "pull": 760,
+      "twist": 45,
+      "wind": "hookWind",
+      "pose": "hook",
+      "path": "hook"
+    },
+    "uppercut": {
+      "windup": 0.11,
+      "strike": 0.17,
+      "recover": 0.26,
+      "stamina": 14,
+      "power": 1.4,
+      "pull": 760,
+      "twist": 20,
+      "wind": "upperWind",
+      "pose": "upper",
+      "path": "upper"
+    }
+  },
+  "stats": {
+    "health": 100,
+    "stamina": 100,
+    "staminaRegen": 16,
+    "guardDrain": 6,
+    "weaveCost": 4,
+    "balance": 100,
+    "balanceRegen": 9,
+    "moveSpeed": 1.5,
+    "comboWindow": 0.28,
+    "weaveAngle": 24,
+    "weaveShift": 0.08
+  },
+  "hit": {
+    "minSpeed": 1.5,
+    "damagePerSpeed": 0.55,
+    "balancePerSpeed": 1.6,
+    "knockback": 9,
+    "guardBalanceFactor": 0.35,
+    "staggerBalance": 25,
+    "staggerTime": 0.4,
+    "partMultiplier": {"head": 2.0, "torso": 1.0, "pelvis": 0.8, "upperArm": 0.2, "lowerArm": 0.2, "hand": 0.2, "upperLeg": 0.5, "lowerLeg": 0.5, "foot": 0.3},
+    "maxSpeed": 12
+  },
+  "recovery": {"downTime": 1.6, "riseTime": 1.4, "fallTime": 0.6, "offBalance": 30},
+  "looks": {
+    "skin": "#c9a27a",
+    "player": {"top": "#f2efe6", "trunks": "#3f8f4e", "glove": "#d8262f"},
+    "ai": {"top": "#d33a3a", "trunks": "#c42d2d", "glove": "#d8262f"}
+  },
+  "stateTuning": {
+    "Standing": {"assist": 1, "muscle": 1},
+    "Moving": {"assist": 1, "muscle": 1},
+    "Guarding": {"assist": 1, "muscle": 1},
+    "Action": {"assist": 1, "muscle": 1},
+    "OffBalance": {"assist": 0.65, "muscle": 0.85},
+    "Exhausted": {"assist": 0.85, "muscle": 0.75},
+    "Stagger": {"assist": 0.4, "muscle": 0.6},
+    "Falling": {"assist": 0, "muscle": 0.3},
+    "Knockdown": {"assist": 0, "muscle": 0.2},
+    "KO": {"assist": 0, "muscle": 0.04}
+  }
+}
