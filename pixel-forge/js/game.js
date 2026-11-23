@@ -22,12 +22,12 @@
     PF.DUNGEONS.forEach(d => { dun[d.id] = { lvl: 0, keys: PF.KEYS_PER_DAY }; });
     return {
       v: 1, crowns: 0, hammers: 60, tickets: 0, eggs: 0,
-      forge: { lvl: 1, gauge: 0, crafts: 0 },
+      forge: { lvl: 1, gauge: 0, crafts: 0, asc: 0 },
       equip: {}, nextId: 1,
       stage: { d: 0, c: 1, s: 1 }, best: 0, farming: false,
-      skills: {}, skillEq: [null, null, null], skillSum: { lvl: 1, cnt: 0 }, autoSkill: true,
-      pets: {}, petEq: [null, null, null], petSum: { lvl: 1, cnt: 0 }, asc: 0,
-      eggQ: [], incub: [null, null],
+      skills: {}, skillEq: [null, null, null], skillSum: { lvl: 1, cnt: 0 }, skillAsc: 0, autoSkill: true,
+      petInv: [], nextPet: 1, petEq: [null, null, null], petSum: { lvl: 1, cnt: 0 }, asc: 0,
+      eggBox: [0, 0, 0, 0, 0, 0], incub: [null, null], // eggBox: 등급별 알 보관 개수(무제한)
       dun, keyDay: keyDay(),
       auto: { minTier: 7, better: true },
       snd: { sfx: true, bgm: true }, mult: { skill: 5, pet: 1 },
@@ -40,6 +40,15 @@
     Object.keys(d).forEach(k => { if (s[k] === undefined) s[k] = d[k]; });
     PF.DUNGEONS.forEach(x => { if (!s.dun[x.id]) s.dun[x.id] = d.dun[x.id]; });
     while (s.incub.length < 2) s.incub.push(null);
+    if (s.forge.asc == null) s.forge.asc = 0;
+    // 예전 저장 이전: 펫 도감(id별 레벨) → 펫 개체, 알 대기열 → 등급별 보관함
+    if (s.pets) {
+      const map = {};
+      Object.keys(s.pets).forEach(id => { const u = s.nextPet++; map[id] = u; s.petInv.push({ u, id, lvl: s.pets[id].lvl }); });
+      s.petEq = s.petEq.map(id => map[id] || null);
+      delete s.pets;
+    }
+    if (s.eggQ) { s.eggQ.forEach(r => { s.eggBox[r]++; }); delete s.eggQ; }
     return s;
   }
   function readLocal(key) {
@@ -114,8 +123,9 @@
       const sk = PF.skillById[id], lv = S.skills[id].lvl;
       pAtk += PF.SKILL_PASSIVE[sk.r] * lv; pHp += PF.SKILL_PASSIVE[sk.r] * lv * 8;
     });
-    let petP = 0;
-    Object.keys(S.pets).forEach(id => { petP += PF.PET_PASSIVE[PF.petById[id].r] * S.pets[id].lvl; });
+    pAtk *= PF.ascMul(S.skillAsc); pHp *= PF.ascMul(S.skillAsc);
+    let petP = 0; // 펫 효과: 장착한 펫만
+    S.petEq.forEach(u => { const p = G.pet(u); if (p) petP += PF.PET_PASSIVE[PF.petById[p.id].r] * p.lvl; });
     petP *= PF.ascMul(S.asc);
     atk = (atk + pAtk) * (1 + sub.atkP / 100) * (1 + petP / 100);
     hp = (hp + pHp) * (1 + sub.hpP / 100);
@@ -130,17 +140,17 @@
   // ======================= 대장간 =======================
   G.makeItem = function (tier) {
     const S = G.S;
-    if (tier == null) tier = rollIndex(PF.forgeRates(S.forge.lvl));
+    if (tier == null) tier = rollIndex(PF.forgeRates(PF.forgeEff(S.forge.lvl, S.forge.asc)));
     const base = PF.ITEMS[rollIndex(PF.ITEMS.map(x => x.w))];
-    const lvl = Math.max(1, Math.ceil(PF.itemMaxLvl(S.forge.lvl) * rnd(0.4, 1)));
-    const mv = PF.mainValue(base.slot, tier, lvl);
+    const lvl = Math.max(1, Math.ceil(PF.itemMaxLvl(PF.forgeEff(S.forge.lvl, S.forge.asc)) * rnd(0.4, 1)));
+    const mv = PF.mainValue(base.slot, tier, lvl), am = PF.itemAscMul(S.forge.asc);
     const pool = PF.SUBS.slice(), subs = [];
     for (let i = 0; i < 2; i++) {
       const s = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
       const max = s.max(tier);
       subs.push([s.id, Math.round(rnd(max * 0.5, max) * 10) / 10]);
     }
-    return { id: S.nextId++, slot: base.slot, v: base.v, tier, lvl, atk: mv.atk, hp: mv.hp, subs };
+    return { id: S.nextId++, slot: base.slot, v: base.v, tier, lvl, asc: S.forge.asc, atk: Math.round(mv.atk * am), hp: Math.round(mv.hp * am), subs };
   };
   G.itemName = it => '[' + PF.TIERS[it.tier].name + '] ' + PF.slotById[it.slot].vars[it.v][0];
   G.itemIcon = it => PF.slotById[it.slot].vars[it.v][1];
@@ -168,7 +178,7 @@
   };
   G.forgeInvest = function () {
     const S = G.S, cost = PF.forgeStepCost(S.forge.lvl);
-    if (S.crowns < cost) return false;
+    if (S.forge.lvl >= PF.FORGE_MAX || S.crowns < cost) return false;
     S.crowns -= cost; S.forge.gauge++;
     if (S.forge.gauge >= PF.FORGE_STEPS) {
       S.forge.gauge = 0; S.forge.lvl++;
@@ -217,25 +227,24 @@
     let up = false;
     for (let i = 0; i < n; i++) {
       const r = rollIndex(PF.petRates(S.petSum.lvl));
-      S.eggQ.push(r); out.push(r);
+      S.eggBox[r]++; out.push(r);
       up = bumpSummon(S.petSum) || up;
     }
-    G.fillIncub();
     Audio8.play('summon');
     if (up) G.toast('펫 소환 레벨 ' + S.petSum.lvl + '!');
     G.emit('res'); G.emit('pets'); Store.save();
     return out;
   };
-  // 부화: 빈 슬롯에 보관함의 알을 넣고, 시간이 다 되면 그 등급의 펫이 나와요.
-  G.fillIncub = function () {
-    const S = G.S;
-    for (let i = 0; i < S.incub.length; i++) {
-      if (!S.incub[i] && S.eggQ.length) {
-        S.eggQ.sort((a, b) => b - a); // 높은 등급 알부터
-        const r = S.eggQ.shift();
-        S.incub[i] = { r, end: now() + PF.HATCH_SEC[r] * 1000, dur: PF.HATCH_SEC[r] * 1000 };
-      }
-    }
+  G.pet = u => u ? G.S.petInv.find(p => p.u === u) : null;
+  // 부화: 보관함에서 고른 알을 빈 슬롯에 넣어요. 시간이 다 되면 그 등급의 펫이 나와요.
+  G.hatchEgg = function (r) {
+    const S = G.S, i = S.incub.indexOf(null);
+    if (!S.eggBox[r]) return 'none';
+    if (i < 0) return 'full';
+    S.eggBox[r]--;
+    S.incub[i] = { r, end: now() + PF.HATCH_SEC[r] * 1000, dur: PF.HATCH_SEC[r] * 1000 };
+    Audio8.play('click'); G.emit('pets'); Store.save();
+    return 'ok';
   };
   G.tickHatch = function () {
     const S = G.S, t = now();
@@ -243,51 +252,82 @@
     S.incub.forEach((e, i) => {
       if (e && t >= e.end) {
         const p = pick(PF.PETS.filter(x => x.r === e.r));
-        const isNew = gain(S.pets, p.id);
+        const isNew = !S.petInv.some(x => x.id === p.id);
+        const inst = { u: S.nextPet++, id: p.id, lvl: 1 };
+        S.petInv.push(inst);
         S.incub[i] = null;
-        hatched = { id: p.id, isNew };
+        hatched = { id: p.id, u: inst.u, isNew };
         if (!S.petEq.some(Boolean)) G.quickEquip('pet');
         Audio8.play('hatch');
         G.emit('hatch', hatched);
       }
     });
-    if (hatched) { G.fillIncub(); G.emit('pets'); Store.save(); }
+    if (hatched) { G.emit('pets'); Store.save(); }
+  };
+  // 장착한 펫 강화: 같은 등급의 알(개수)과 장착하지 않은 펫(개체 번호들)을 재료로 써요.
+  G.petGain = (u, eggs, mats) => {
+    const p = G.pet(u);
+    let g = eggs;
+    mats.forEach(m => { const q = G.pet(m); if (q) g += PF.matGain(q.lvl); });
+    return Math.min(g, PF.MAX_LVL - p.lvl);
+  };
+  G.petEnhance = function (u, eggs, mats) {
+    const S = G.S, p = G.pet(u);
+    if (!p || !S.petEq.includes(u)) return 0;
+    const r = PF.petById[p.id].r;
+    eggs = Math.max(0, Math.min(eggs, S.eggBox[r]));
+    mats = mats.filter(m => { const q = G.pet(m); return q && m !== u && !S.petEq.includes(m) && PF.petById[q.id].r === r; });
+    const gain = G.petGain(u, eggs, mats);
+    if (gain <= 0) return 0;
+    S.eggBox[r] -= eggs;
+    S.petInv = S.petInv.filter(q => !mats.includes(q.u));
+    p.lvl += gain;
+    Audio8.play('level'); G.emit('pets'); Store.save();
+    return gain;
   };
   G.buySlot = function () {
     const S = G.S, n = S.incub.length;
     if (n >= PF.SLOT_MAX) return false;
     const cost = PF.slotCost(n);
     if (S.crowns < cost) return false;
-    S.crowns -= cost; S.incub.push(null); G.fillIncub();
+    S.crowns -= cost; S.incub.push(null);
     Audio8.play('level'); G.emit('res'); G.emit('pets'); Store.save();
     return true;
   };
-  G.ascend = function () {
+  // 승천: 펫·스킬 소환, 대장간 모두 Lv.100에서 가능. 레벨은 1로 돌아가고 별이 하나 늘어요.
+  G.canAscend = kind => kind === 'forge' ? G.S.forge.lvl >= PF.FORGE_MAX : (kind === 'skill' ? G.S.skillSum : G.S.petSum).lvl >= PF.SUM_MAX;
+  G.ascend = function (kind) {
     const S = G.S;
-    if (S.petSum.lvl < PF.SUM_MAX) return false;
-    S.asc++; S.petSum = { lvl: 1, cnt: 0 };
-    Audio8.play('divine'); G.toast('승천 ' + S.asc + '단계! 모든 펫 능력치 ×' + PF.ascMul(S.asc).toFixed(2));
-    G.emit('pets'); Store.save();
+    kind = kind || 'pet';
+    if (!G.canAscend(kind)) return false;
+    let n, msg;
+    if (kind === 'pet') { n = ++S.asc; S.petSum = { lvl: 1, cnt: 0 }; msg = '모든 펫 능력치 ×' + PF.ascMul(n).toFixed(2); }
+    else if (kind === 'skill') { n = ++S.skillAsc; S.skillSum = { lvl: 1, cnt: 0 }; G.resetCds(); msg = '모든 스킬 효과 ×' + PF.ascMul(n).toFixed(2); }
+    else { n = ++S.forge.asc; S.forge.lvl = 1; S.forge.gauge = 0; msg = '새로 만드는 장비 능력치 ×' + PF.itemAscMul(n).toFixed(2); }
+    Audio8.play('divine'); G.toast({ pet: '펫', skill: '스킬', forge: '대장간' }[kind] + ' 승천 ' + n + '단계! ' + msg);
+    G.emit(kind === 'pet' ? 'pets' : kind === 'skill' ? 'skills' : 'forge'); G.emit('equip'); Store.save();
     return true;
   };
   // 조각으로 레벨업
   G.canUp = (book, id) => book[id] && book[id].lvl < PF.MAX_LVL && book[id].shards >= PF.shardNeed(book[id].lvl);
   G.upgrade = function (kind, id) {
-    const book = kind === 'skill' ? G.S.skills : G.S.pets;
+    const book = G.S.skills;
     let n = 0;
     while (G.canUp(book, id)) { book[id].shards -= PF.shardNeed(book[id].lvl); book[id].lvl++; n++; }
     return n;
   };
   G.upgradeAll = function (kind) {
-    const book = kind === 'skill' ? G.S.skills : G.S.pets;
+    const book = G.S.skills;
     let n = 0;
     Object.keys(book).forEach(id => { n += G.upgrade(kind, id); });
-    if (n) { Audio8.play('level'); G.emit(kind === 'skill' ? 'skills' : 'pets'); Store.save(); }
+    if (n) { Audio8.play('level'); G.emit('skills'); Store.save(); }
     return n;
   };
   G.quickEquip = function (kind) {
-    const S = G.S, book = kind === 'skill' ? S.skills : S.pets, def = kind === 'skill' ? PF.skillById : PF.petById;
-    const ids = Object.keys(book).sort((a, b) => (def[b].r * 1000 + book[b].lvl) - (def[a].r * 1000 + book[a].lvl)).slice(0, 3);
+    const S = G.S;
+    let ids;
+    if (kind === 'skill') ids = Object.keys(S.skills).sort((a, b) => (PF.skillById[b].r * 1000 + S.skills[b].lvl) - (PF.skillById[a].r * 1000 + S.skills[a].lvl)).slice(0, 3);
+    else ids = S.petInv.slice().sort((a, b) => (PF.petById[b.id].r * 1000 + b.lvl) - (PF.petById[a.id].r * 1000 + a.lvl)).slice(0, 3).map(p => p.u);
     const eq = [ids[0] || null, ids[1] || null, ids[2] || null];
     if (kind === 'skill') { S.skillEq = eq; G.resetCds(); } else S.petEq = eq;
     G.emit(kind === 'skill' ? 'skills' : 'pets'); Store.save();
@@ -481,7 +521,7 @@
     const front = alive()[0];
     if ((sk.kind === 'dmg' || sk.kind === 'multi' || sk.kind === 'aoe') && !front) return false;
     R.cds[i] = sk.cd;
-    const mul = sk.mult * PF.skillLvlMul(lv) * (1 + st.skillP / 100);
+    const mul = sk.mult * PF.skillLvlMul(lv) * (1 + st.skillP / 100) * PF.ascMul(G.S.skillAsc);
     Audio8.play('skill');
     if (sk.kind === 'dmg') {
       R.projs.push({ x: HERO_X + 8, y: GROUND - 10, tx: front, col: sk.fx, big: true, mult: mul, spd: 160 });
@@ -596,14 +636,16 @@
     }
 
     // 펫 공격
-    S.petEq.forEach((id, i) => {
-      if (!id || !S.pets[id]) return;
+    S.petEq.forEach((u, i) => {
+      const inst = G.pet(u);
+      if (!inst) return;
+      const id = inst.id;
       R.petT = R.petT || [0, 0, 0];
       R.petT[i] -= dt;
       if (R.petT[i] <= 0 && front && R.walk <= 0) {
         R.petT[i] = 1.6 + i * 0.15;
         const p = PF.petById[id];
-        const mul = PF.PET_MULT[p.r] * (1 + S.pets[id].lvl * 0.03) * PF.ascMul(S.asc);
+        const mul = PF.PET_MULT[p.r] * (1 + inst.lvl * 0.03) * PF.ascMul(S.asc);
         const pos = petPos(i);
         R.projs.push({ x: pos.x, y: pos.y, tx: front, col: p.tint[1], mult: mul, spd: 150, pet: true });
       }
@@ -756,7 +798,7 @@
     alive().forEach(e => g.fillRect(Math.round(e.x - 6 * e.scale), GROUND - 1, Math.round(12 * e.scale), 2));
 
     // 펫
-    S.petEq.forEach((id, i) => { if (id && S.pets[id]) { const p = petPos(i); G.drawPet(g, id, p.x, p.y + 6, S.asc, R.t); } });
+    S.petEq.forEach((u, i) => { const inst = G.pet(u); if (inst) { const p = petPos(i); G.drawPet(g, inst.id, p.x, p.y + 6, S.asc, R.t); } });
 
     // 적
     R.enemies.forEach(e => {
@@ -789,6 +831,18 @@
       g.save();
       g.translate(Math.round(hx + 12), Math.round(hy + 10));
       g.rotate(h.swing > 0 ? (1 - h.swing) * 2.2 - 0.6 : -0.3);
+      if (wi && wi.asc) { // 승천 무기: 단계 색 테두리
+        const sil = Sprites.flash(wname, PF.TIERS[wi.tier].pal);
+        const tmp = G._wtmp || (G._wtmp = document.createElement('canvas'));
+        tmp.width = sil.width; tmp.height = sil.height;
+        const tg = tmp.getContext('2d');
+        tg.clearRect(0, 0, tmp.width, tmp.height); tg.drawImage(sil, 0, 0);
+        tg.globalCompositeOperation = 'source-in'; tg.fillStyle = ASC_COL[Math.min(wi.asc, ASC_COL.length - 1)]; tg.fillRect(0, 0, tmp.width, tmp.height);
+        tg.globalCompositeOperation = 'source-over';
+        g.globalAlpha = 0.75 + Math.sin(R.t * 6) * 0.25;
+        [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => g.drawImage(tmp, -1 + dx, -wimg.height + 1 + dy));
+        g.globalAlpha = 1;
+      }
       g.drawImage(wimg, -1, -wimg.height + 1);
       g.restore();
       g.drawImage(img, Math.round(hx), Math.round(hy));

@@ -39,7 +39,11 @@ PF.forgeRates = function (L) {
 };
 // 대장간 레벨업: 왕관을 한 번 낼 때마다 게이지 1칸, 10칸이면 레벨업
 PF.FORGE_STEPS = 10;
-PF.forgeStepCost = L => Math.round(12 * Math.pow(1.36, L));
+PF.forgeStepCost = L => Math.round(12 * Math.pow(1.36, Math.min(L, 35)) * Math.pow(1.08, Math.max(0, L - 35)));
+PF.FORGE_MAX = 100; // 대장간도 Lv.100에서 승천
+// 승천할수록 낮은 레벨에서도 좋은 확률표를 써요 (승천 1회 = +25레벨, 최대 100)
+PF.forgeEff = (L, asc) => Math.min(PF.FORGE_MAX, L + 25 * (asc || 0));
+PF.itemAscMul = a => Math.pow(1.5, a || 0); // 승천 장비 능력치 배율 (제작 당시 대장간 승천 단계)
 
 // ---- 장비 슬롯 9칸 ------------------------------------------------------
 // main: 주 능력치(atk/hp/both), w: 등급 안에서 그 슬롯이 나올 가중치(무기·탈것 1, 투구 1.5, 나머지 3)
@@ -86,7 +90,7 @@ PF.mainValue = function (slot, tier, lvl) {
   if (m === 'hp') return { atk: 0, hp: Math.round(atk * 8) };
   return { atk: Math.round(atk * 0.5), hp: Math.round(atk * 4) };
 };
-PF.sellPrice = it => Math.round(3 * Math.pow(2.2, it.tier) * (1 + it.lvl / 10));
+PF.sellPrice = it => Math.round(3 * Math.pow(2.2, it.tier) * (1 + it.lvl / 10) * PF.itemAscMul(it.asc));
 
 // ---- 스킬·펫 6희귀도 ----------------------------------------------------
 PF.RAR = [
@@ -166,7 +170,9 @@ PF.PETS = [
 PF.petById = {}; PF.PETS.forEach(p => { PF.petById[p.id] = p; });
 PF.PET_MULT = [0.3, 0.6, 1.2, 2.5, 5, 10];   // 펫 공격 = 영웅 공격력 × 배율
 PF.PET_PASSIVE = [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]; // 보유 효과: 레벨당 피해 +%
-PF.ascMul = asc => Math.pow(1.5, asc);       // 승천마다 모든 펫 능력치 ×1.5
+PF.ascMul = asc => Math.pow(1.5, asc || 0); // 승천마다 모든 펫(또는 스킬) 능력치 ×1.5
+// 펫 강화 재료: 같은 등급의 알 1개 = +1레벨, 장착하지 않은 펫 = +그 펫 레벨
+PF.matGain = petLvl => petLvl == null ? 1 : Math.max(1, petLvl);
 // 알 부화 시간(초): 3초 → 2분
 PF.HATCH_SEC = [3, 10, 20, 40, 75, 120];
 PF.SLOT_MAX = 5;
