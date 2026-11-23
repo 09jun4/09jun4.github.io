@@ -51,4 +51,12 @@
         && request.resource.data.read == false
         && request.resource.data.at == request.time;
     }
+    // 픽셀 포지 개인 저장: 본인만 읽고 쓸 수 있어요. (pixel-forge/firestore.rules 와 같은 내용)
+    match /pixel_forge_users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string
+        && request.resource.data.save.size() < 400000;
+    }
     // ---- 사이트 규칙 끝 ----

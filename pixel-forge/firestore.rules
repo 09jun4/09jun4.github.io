@@ -1,7 +1,8 @@
 rules_version = '2';
 // 픽셀 포지 — Firestore 보안 규칙.
 // Firebase console > Firestore Database > 규칙 탭에 이 내용을 붙여 넣고 "게시"하세요.
-// (다른 작품과 같은 프로젝트를 쓴다면, 기존 규칙은 지우지 말고 아래 match 블록만 추가하세요.)
+// 지금은 사이트 프로젝트(chiikawa-tobatsu)를 같이 써요. 그 프로젝트의 기존 규칙은 지우지 말고,
+// 아래 match /pixel_forge_users 블록만 다른 match 블록 옆에 추가하세요. (사이트 firestore.rules 에도 들어 있어요)
 service cloud.firestore {
   match /databases/{database}/documents {
     // 개인 저장 데이터: 본인만 읽고 쓸 수 있어요.
