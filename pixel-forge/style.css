@@ -352,3 +352,5 @@ img.wob.eg3, img.wob.eg4, img.wob.eg5 { animation: wob .5s infinite, rainbow-ico
 .prof-stats { margin: 16px 6px 0; font-size: 13px; line-height: 1.7; text-shadow: 1px 1px 0 var(--ink); }
 .nick-in { width: 100%; font: inherit; font-size: 16px; padding: 8px; border: 3px solid var(--ink); }
 .dlg:has(.prof) { background: #454a62; }
+.cnt-badge { position: absolute; right: -6px; bottom: -6px; z-index: 3; background: var(--ink); color: #fff; font-size: 11px; padding: 1px 5px; border-radius: 8px; border: 2px solid #fff; }
+.summon-row { grid-template-columns: 62px 1fr 92px; }

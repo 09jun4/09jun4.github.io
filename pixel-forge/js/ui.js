@@ -495,11 +495,24 @@
   }
   function showSummon(kind, out) {
     let cards;
-    if (kind === 'skill') cards = out.map((x, i) => { const sk = PF.skillById[x.id]; return `<div class="card" style="animation-delay:${i * 0.06}s"><div class="disc${afCls(x.asc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}${astar(x.asc)}</div><div style="font-size:10px;margin-top:4px">${x.isNew ? '<span class="down">NEW</span> ' : ''}${sk.name}</div></div>`; });
-    else cards = out.map((r, i) => `<div class="card" style="animation-delay:${Math.min(i, 30) * 0.04}s"><div class="disc${afCls(S().asc)}" style="${rarBg(r)};border-radius:4px">${eggIco(r, S().asc)}</div><div style="font-size:10px;margin-top:4px">${PF.RAR[r].name} 알</div></div>`);
-    modal(`<h3>소환 결과</h3><div class="result-grid">${cards.join('')}</div>
+    // 10회 넘게 뽑으면 같은 결과를 묶어서 개수로 보여줘요 (높은 등급부터)
+    const many = out.length > 10;
+    if (kind === 'skill') {
+      let list = out.map(x => ({ id: x.id, asc: x.asc, isNew: x.isNew, n: 1 }));
+      if (many) {
+        const g = {};
+        out.forEach(x => { const o = g[x.id] || (g[x.id] = { id: x.id, asc: x.asc, isNew: false, n: 0 }); o.n++; o.isNew = o.isNew || x.isNew; });
+        list = Object.values(g).sort((a, b) => PF.skillById[b.id].r - PF.skillById[a.id].r || b.n - a.n);
+      }
+      cards = list.map((x, i) => { const sk = PF.skillById[x.id]; return `<div class="card" style="animation-delay:${Math.min(i, 20) * 0.05}s"><div class="disc${afCls(x.asc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}${astar(x.asc)}${x.n > 1 ? `<span class="cnt-badge">x${x.n}</span>` : ''}</div><div style="font-size:10px;margin-top:4px">${x.isNew ? '<span class="down">NEW</span> ' : ''}${sk.name}</div></div>`; });
+    } else {
+      let list = out.map(r => ({ r, n: 1 }));
+      if (many) { const c = PF.RAR.map(() => 0); out.forEach(r => c[r]++); list = c.map((n, r) => ({ r, n })).filter(x => x.n).reverse(); }
+      cards = list.map((x, i) => `<div class="card" style="animation-delay:${Math.min(i, 20) * 0.05}s"><div class="disc${afCls(S().asc)}" style="${rarBg(x.r)};border-radius:4px">${eggIco(x.r, S().asc)}${x.n > 1 ? `<span class="cnt-badge">x${x.n}</span>` : ''}</div><div style="font-size:10px;margin-top:4px">${PF.RAR[x.r].name} 알</div></div>`);
+    }
+    modal(`<h3>소환 결과</h3><div class="sub-t">${out.length}회 소환</div><div class="result-grid">${cards.join('')}</div>
       ${kind === 'pet' ? '<p class="note">알은 <b>알 보관함</b>에 무제한으로 쌓여요. 보관함에서 부화시킬 알을 골라 주세요.</p>' : ''}
-      <div class="btn-row"><button class="px-btn" data-act="again">한 번 더</button></div>`,
+      <div class="btn-row"><button class="px-btn" data-act="again">한 번 더 (x${out.length})</button></div>`,
     { on: act => { if (act === 'again') doSummon(kind); } });
   }
   function doSummon(kind) {
@@ -712,7 +725,7 @@
     else if (act.startsWith('pet-')) { ui.petTab = 'info'; showPet(+act.slice(4)); }
     else if (act === 'upall-skill') { const n = Game.upgradeAll(act.slice(6)); Game.toast(n ? n + '레벨 올렸어요' : '올릴 수 있는 게 없어요'); }
     else if (act === 'quick-skill' || act === 'quick-pet') { Game.quickEquip(act.slice(6)); }
-    else if (act === 'mult-skill' || act === 'mult-pet') { const k = act.slice(5), m = S().mult; m[k] = { 1: 5, 5: 10, 10: 1 }[m[k]]; renderPanel(); }
+    else if (act === 'mult-skill' || act === 'mult-pet') { const k = act.slice(5), m = S().mult; m[k] = { 1: 5, 5: 10, 10: 50, 50: 100, 100: 1 }[m[k]] || 1; renderPanel(); }
     else if (act === 'summon-skill' || act === 'summon-pet') doSummon(act.slice(7));
     else if (act === 'rates-skill' || act === 'rates-pet') showRates(act.slice(6));
     else if (act.startsWith('ascend-')) { showRates(act.slice(7), PF.SUM_MAX); }
