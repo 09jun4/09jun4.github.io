@@ -569,7 +569,7 @@
     return (tp(0) || ['#c8ccd8', '#8a90a0', '#4a5060']).concat(tp(1) || ['#6aa0e0', '#3a70b8', '#1a3a70'], tp(6) || ['#9a6232', '#52301a', '#2a180c'],
       [tp(2) ? tp(2)[1] : null, tp(7) ? tp(7)[1] : null, tp(3) ? tp(3)[0] : null]); // 장갑 · 벨트 · 목걸이
   };
-  const waveLabel = w => { const gi = Math.max(0, Math.ceil(w / PF.WAVES) - 1); return PF.DIFFS[Math.min(4, Math.floor(gi / 50))] + ' ' + (Math.floor(gi / 5) % 10 + 1) + '-' + (gi % 5 + 1); };
+  const waveLabel = PF.waveLabel;
   function parseSnap(r) { try { return JSON.parse(r.snap); } catch (e) { return null; } }
   function viewRank() {
     const C = window.Cloud || {}, s = S();
@@ -671,14 +671,16 @@
     const admin = C.isAdmin ? `<div class="box"><h3>관리자</h3><div class="btn-row" style="flex-wrap:wrap">
       <button class="px-btn small" data-act="cheat-crowns">왕관 +1m</button><button class="px-btn small" data-act="cheat-hammers">망치 +1000</button>
       <button class="px-btn small" data-act="cheat-tickets">티켓 +5000</button><button class="px-btn small" data-act="cheat-eggs">알 +5000</button>
-      <button class="px-btn small" data-act="cheat-forge">대장간 +5</button><button class="px-btn small" data-act="cheat-keys">열쇠 충전</button></div></div>` : '';
+      <button class="px-btn small" data-act="cheat-forge">대장간 +5</button><button class="px-btn small" data-act="cheat-skillsum">스킬 소환 Lv +10</button>
+      <button class="px-btn small" data-act="cheat-petsum">펫 소환 Lv +10</button><button class="px-btn small" data-act="cheat-keys">열쇠 충전</button></div>
+      <p>스킬 소환 Lv.${s.skillSum.lvl} · 펫 소환 Lv.${s.petSum.lvl} · 대장간 Lv.${s.forge.lvl} (최대 ${PF.SUM_MAX} / ${PF.SUM_MAX} / ${PF.FORGE_MAX})</p></div>` : '';
     return `<h2>설정</h2>
       <div class="box"><h3>계정</h3>${acc}</div>
       <div class="box"><h3>소리</h3>
         <div class="toggle-row"><span>효과음</span><button class="px-btn small ${s.snd.sfx ? 'green' : 'gray'}" data-act="snd-sfx">${s.snd.sfx ? '켜짐' : '꺼짐'}</button></div>
         <div class="toggle-row"><span>배경음악</span><button class="px-btn small ${s.snd.bgm ? 'green' : 'gray'}" data-act="snd-bgm">${s.snd.bgm ? '켜짐' : '꺼짐'}</button></div></div>
       ${admin}
-      <div class="box"><h3>기록</h3><p>최고 스테이지: ${PF.DIFFS[Math.floor(s.best / 50)]} ${Math.floor(s.best / 5) % 10 + 1}-${s.best % 5 + 1} · 대장간 Lv.${s.forge.lvl} · 누적 제작 ${fmt(s.forge.crafts)}회 · 승천 ${s.asc}</p>
+      <div class="box"><h3>기록</h3><p>최고 스테이지: ${PF.stageLabelOf(s.best)} · 대장간 Lv.${s.forge.lvl} · 누적 제작 ${fmt(s.forge.crafts)}회 · 승천 ${s.asc}</p>
         <button class="px-btn small red" data-act="reset">${ui.resetArm ? '정말 처음부터? 한 번 더 누르세요' : '진행 초기화'}</button></div>
       <p class="note links"><a href="/feedback/?work=/pixel-forge/">의견 남기기</a> · <a href="/">작품 목록</a><br>글꼴: 갈무리(Galmuri, OFL)</p>`;
   }
@@ -697,7 +699,9 @@
       if (k === 'hammers') s.hammers += 1000;
       if (k === 'tickets') s.tickets += 5000;
       if (k === 'eggs') s.eggs += 5000;
-      if (k === 'forge') s.forge.lvl += 5;
+      if (k === 'forge') s.forge.lvl = Math.min(PF.FORGE_MAX, s.forge.lvl + 5);
+      if (k === 'skillsum') { s.skillSum.lvl = Math.min(PF.SUM_MAX, s.skillSum.lvl + 10); s.skillSum.cnt = 0; Game.emit('skills'); }
+      if (k === 'petsum') { s.petSum.lvl = Math.min(PF.SUM_MAX, s.petSum.lvl + 10); s.petSum.cnt = 0; Game.emit('pets'); }
       if (k === 'keys') PF.DUNGEONS.forEach(d => { s.dun[d.id].keys = PF.KEYS_PER_DAY; });
       Game.emit('res'); Game.Store.save();
     }

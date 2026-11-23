@@ -437,7 +437,7 @@
       boss: !!mul.boss, speed: mul.speed || 28, bob: Math.random() * 6, crowns: PF.killCrowns(g) * (mul.reward || 1), hammers: mul.hammers || 1, fly: kind === 'bat' || kind === 'ghost' };
   }
   function spawnWave() {
-    const th = THEMES[G.S.stage.d], g = stageG();
+    const th = THEMES[PF.stageTheme(G.S.stage)], g = stageG();
     if (R.mode === 'stage') { // 랭킹용: 도달한 웨이브 수 = 스테이지 순번 × 3 + 웨이브
       const w = PF.stageIndex(G.S.stage) * PF.WAVES + R.wave;
       if (w > (G.S.bestWave || 0)) { G.S.bestWave = w; G.rankDirty = true; }
@@ -445,19 +445,17 @@
     if (R.wave < PF.WAVES) {
       for (let i = 0; i < 3; i++) R.enemies.push(mkEnemy(pick(th.enemies), W + 10 + i * 24, g));
     } else {
-      const isBossStage = G.S.stage.s === PF.STAGES;
+      const isBossStage = PF.isBossStage(G.S.stage);
       R.enemies.push(mkEnemy(th.boss, W + 20, g, { hp: isBossStage ? 14 : 6, atk: isBossStage ? 2.5 : 1.6, scale: isBossStage ? 2 : 1.5, boss: true, reward: 8, hammers: 6, speed: 18 }));
       R.enemies.push(mkEnemy(pick(th.enemies), W + 50, g));
     }
   }
-  G.stageLabel = () => PF.DIFFS[G.S.stage.d] + ' ' + G.S.stage.c + '-' + G.S.stage.s;
+  G.stageLabel = () => PF.stageLabelOf(PF.stageIndex(G.S.stage));
   function advanceStage(dir) {
     const st = G.S.stage;
-    let gi = PF.stageIndex(st) + dir;
-    gi = Math.max(0, Math.min(PF.DIFFS.length * PF.CHAPTERS * PF.STAGES - 1, gi));
-    st.d = Math.floor(gi / (PF.CHAPTERS * PF.STAGES));
-    st.c = Math.floor(gi / PF.STAGES) % PF.CHAPTERS + 1;
-    st.s = gi % PF.STAGES + 1;
+    const gi = Math.max(0, PF.stageIndex(st) + dir);
+    if (gi === PF.STAGE_LAST + 1 && G.S.best <= PF.STAGE_LAST) G.toast('지옥 10-5 클리어! 무한 모드 시작 — 적이 스테이지마다 더 강해져요');
+    Object.assign(st, PF.stageFromIndex(gi));
     G.S.best = Math.max(G.S.best, gi);
   }
   G.challenge = function () { // 후퇴 후 다시 다음 스테이지 도전
@@ -684,7 +682,7 @@
           h.swing = 1;
           heroHit(wk === 1 ? 1.3 : 1, front);
           R.slashes.push({ x: front.x - 3 * front.scale, y: front.y - 8 * front.scale, t: 0.22, max: 0.22, kind: wk, col: weaponCol(0), col2: weaponCol(1), r: wk === 1 ? 13 : 10 });
-          if (wk === 1) { R.shake = Math.max(R.shake, 0.08); for (let k = 0; k < 6; k++) R.parts.push({ x: front.x + rnd(-6, 6), y: GROUND, vx: rnd(-40, 40), vy: rnd(-70, -30), t: 0.4, col: THEMES[S.stage.d].ground2, g: 220 }); }
+          if (wk === 1) { R.shake = Math.max(R.shake, 0.08); for (let k = 0; k < 6; k++) R.parts.push({ x: front.x + rnd(-6, 6), y: GROUND, vx: rnd(-40, 40), vy: rnd(-70, -30), t: 0.4, col: THEMES[PF.stageTheme(S.stage)].ground2, g: 220 }); }
         }
       }
     }
@@ -834,7 +832,7 @@
   }
 
   G.render = function (g) {
-    const S = G.S, th = THEMES[R.mode === 'dun' ? (R.dun.id === 'ghost' ? 4 : Math.min(4, Math.floor(R.dun.lvl / 5))) : S.stage.d];
+    const S = G.S, th = THEMES[R.mode === 'dun' ? (R.dun.id === 'ghost' ? 4 : Math.min(4, Math.floor(R.dun.lvl / 5))) : PF.stageTheme(S.stage)];
     g.save();
     if (R.shake > 0) g.translate(Math.round(rnd(-2, 2)), Math.round(rnd(-2, 2)));
     // 하늘(디더링 띠)

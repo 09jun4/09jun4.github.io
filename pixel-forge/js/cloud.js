@@ -83,8 +83,7 @@
     if (Cloud.state !== 'in' || !Cloud.user) return Promise.resolve();
     if (!force && (!Game.rankDirty || Date.now() - lastPush < 20000)) return Promise.resolve();
     Game.rankDirty = false; lastPush = Date.now();
-    const S = Game.S, w = S.bestWave || 0, gi = Math.max(0, Math.ceil(w / PF.WAVES) - 1);
-    const label = PF.DIFFS[Math.min(4, Math.floor(gi / 50))] + ' ' + (Math.floor(gi / 5) % 10 + 1) + '-' + (gi % 5 + 1);
+    const S = Game.S, w = S.bestWave || 0, label = PF.waveLabel(w);
     return SDK.setDoc(SDK.doc(db, 'pixel_forge_rank', Cloud.user.uid), {
       nick: Cloud.rankName(), wave: w, power: Game.stats().power, label,
       snap: JSON.stringify(Game.snapshot()), updatedAt: SDK.serverTimestamp(),

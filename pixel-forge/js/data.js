@@ -184,7 +184,15 @@ PF.DIFFS = ['쉬움', '보통', '어려움', '악몽', '지옥'];
 PF.CHAPTERS = 10;
 PF.STAGES = 5;
 PF.WAVES = 3;
-PF.stageIndex = st => st.d * PF.CHAPTERS * PF.STAGES + (st.c - 1) * PF.STAGES + (st.s - 1);
+PF.STAGE_LAST = PF.DIFFS.length * PF.CHAPTERS * PF.STAGES - 1; // 지옥 10-5 (= 249)
+// 지옥 10-5를 깨면 무한 모드: 무한 1, 2, 3 … 스테이지마다 적이 계속 강해져요 (체력 ×1.13씩)
+PF.stageIndex = st => st.inf ? PF.STAGE_LAST + st.inf : st.d * PF.CHAPTERS * PF.STAGES + (st.c - 1) * PF.STAGES + (st.s - 1);
+PF.stageFromIndex = gi => gi > PF.STAGE_LAST ? { d: PF.DIFFS.length - 1, c: PF.CHAPTERS, s: PF.STAGES, inf: gi - PF.STAGE_LAST }
+  : { d: Math.floor(gi / (PF.CHAPTERS * PF.STAGES)), c: Math.floor(gi / PF.STAGES) % PF.CHAPTERS + 1, s: gi % PF.STAGES + 1, inf: 0 };
+PF.stageLabelOf = gi => gi > PF.STAGE_LAST ? '무한 ' + (gi - PF.STAGE_LAST) : (st => PF.DIFFS[st.d] + ' ' + st.c + '-' + st.s)(PF.stageFromIndex(gi));
+PF.waveLabel = w => PF.stageLabelOf(Math.max(0, Math.ceil(w / PF.WAVES) - 1));
+PF.stageTheme = st => st.inf ? Math.floor((st.inf - 1) / 10) % 5 : st.d; // 무한 모드는 10스테이지마다 배경이 바뀌어요
+PF.isBossStage = st => st.inf ? st.inf % PF.STAGES === 0 : st.s === PF.STAGES;
 PF.enemyHp = g => 22 * Math.pow(1.13, g);
 PF.enemyAtk = g => 3 * Math.pow(1.12, g);
 PF.killCrowns = g => Math.round(4 * Math.pow(1.105, g));
