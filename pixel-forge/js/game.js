@@ -44,11 +44,13 @@
     // 예전 저장 이전: 펫 도감(id별 레벨) → 펫 개체, 알 대기열 → 등급별 보관함
     if (s.pets) {
       const map = {};
-      Object.keys(s.pets).forEach(id => { const u = s.nextPet++; map[id] = u; s.petInv.push({ u, id, lvl: s.pets[id].lvl }); });
+      Object.keys(s.pets).forEach(id => { const u = s.nextPet++; map[id] = u; s.petInv.push({ u, id, lvl: s.pets[id].lvl, asc: s.asc || 0 }); });
       s.petEq = s.petEq.map(id => map[id] || null);
       delete s.pets;
     }
     if (s.eggQ) { s.eggQ.forEach(r => { s.eggBox[r]++; }); delete s.eggQ; }
+    Object.keys(s.skills).forEach(id => { if (s.skills[id].asc == null) s.skills[id].asc = s.skillAsc || 0; });
+    s.petInv.forEach(p => { if (p.asc == null) p.asc = s.asc || 0; });
     return s;
   }
   function readLocal(key) {
@@ -121,12 +123,11 @@
     let pAtk = 0, pHp = 0;
     Object.keys(S.skills).forEach(id => {
       const sk = PF.skillById[id], lv = S.skills[id].lvl;
-      pAtk += PF.SKILL_PASSIVE[sk.r] * lv; pHp += PF.SKILL_PASSIVE[sk.r] * lv * 8;
+      const m = PF.skillAscMul(S.skills[id].asc);
+      pAtk += PF.SKILL_PASSIVE[sk.r] * lv * m; pHp += PF.SKILL_PASSIVE[sk.r] * lv * 8 * m;
     });
-    pAtk *= PF.ascMul(S.skillAsc); pHp *= PF.ascMul(S.skillAsc);
     let petP = 0; // 펫 효과: 장착한 펫만
-    S.petEq.forEach(u => { const p = G.pet(u); if (p) petP += PF.PET_PASSIVE[PF.petById[p.id].r] * p.lvl; });
-    petP *= PF.ascMul(S.asc);
+    S.petEq.forEach(u => { const p = G.pet(u); if (p) petP += PF.PET_PASSIVE[PF.petById[p.id].r] * p.lvl * PF.petAscMul(p.asc); });
     atk = (atk + pAtk) * (1 + sub.atkP / 100) * (1 + petP / 100);
     hp = (hp + pHp) * (1 + sub.hpP / 100);
     const o = {
@@ -140,9 +141,9 @@
   // ======================= 대장간 =======================
   G.makeItem = function (tier) {
     const S = G.S;
-    if (tier == null) tier = rollIndex(PF.forgeRates(PF.forgeEff(S.forge.lvl, S.forge.asc)));
+    if (tier == null) tier = rollIndex(PF.forgeRates(S.forge.lvl));
     const base = PF.ITEMS[rollIndex(PF.ITEMS.map(x => x.w))];
-    const lvl = Math.max(1, Math.ceil(PF.itemMaxLvl(PF.forgeEff(S.forge.lvl, S.forge.asc)) * rnd(0.4, 1)));
+    const lvl = Math.max(1, Math.ceil((S.forge.asc ? PF.MAX_LVL : PF.itemMaxLvl(S.forge.lvl)) * rnd(0.4, 1)));
     const mv = PF.mainValue(base.slot, tier, lvl), am = PF.itemAscMul(S.forge.asc);
     const pool = PF.SUBS.slice(), subs = [];
     for (let i = 0; i < 2; i++) {
@@ -196,8 +197,8 @@
     if (sum.lvl >= PF.SUM_MAX) sum.cnt = 0;
     return up;
   }
-  function gain(book, id) { // 새로 얻으면 Lv.1, 중복이면 조각 +1
-    if (!book[id]) { book[id] = { lvl: 1, shards: 0 }; return true; }
+  function gain(book, id, asc) { // 새로 얻으면 Lv.1, 중복이면 조각 +1, 더 높은 승천 세대면 새 세대로 교체
+    if (!book[id] || (book[id].asc || 0) < asc) { book[id] = { lvl: 1, shards: 0, asc }; return true; }
     book[id].shards++;
     return false;
   }
@@ -210,7 +211,7 @@
     for (let i = 0; i < n; i++) {
       const r = rollIndex(PF.skillRates(S.skillSum.lvl));
       const sk = pick(PF.SKILLS.filter(x => x.r === r));
-      out.push({ id: sk.id, isNew: gain(S.skills, sk.id) });
+      out.push({ id: sk.id, isNew: gain(S.skills, sk.id, S.skillAsc), asc: S.skillAsc });
       up = bumpSummon(S.skillSum) || up;
     }
     if (!S.skillEq.some(Boolean)) G.quickEquip('skill');
@@ -253,7 +254,7 @@
       if (e && t >= e.end) {
         const p = pick(PF.PETS.filter(x => x.r === e.r));
         const isNew = !S.petInv.some(x => x.id === p.id);
-        const inst = { u: S.nextPet++, id: p.id, lvl: 1 };
+        const inst = { u: S.nextPet++, id: p.id, lvl: 1, asc: S.asc }; // 부화 시점의 펫 승천 세대
         S.petInv.push(inst);
         S.incub[i] = null;
         hatched = { id: p.id, u: inst.u, isNew };
@@ -301,9 +302,9 @@
     kind = kind || 'pet';
     if (!G.canAscend(kind)) return false;
     let n, msg;
-    if (kind === 'pet') { n = ++S.asc; S.petSum = { lvl: 1, cnt: 0 }; msg = '모든 펫 능력치 ×' + PF.ascMul(n).toFixed(2); }
-    else if (kind === 'skill') { n = ++S.skillAsc; S.skillSum = { lvl: 1, cnt: 0 }; G.resetCds(); msg = '모든 스킬 효과 ×' + PF.ascMul(n).toFixed(2); }
-    else { n = ++S.forge.asc; S.forge.lvl = 1; S.forge.gauge = 0; msg = '새로 만드는 장비 능력치 ×' + PF.itemAscMul(n).toFixed(2); }
+    if (kind === 'pet') { n = ++S.asc; S.petSum = { lvl: 1, cnt: 0 }; msg = '이제 부화하는 펫은 ★' + n + ' 세대 (×' + PF.fmt(PF.petAscMul(n)) + ')'; }
+    else if (kind === 'skill') { n = ++S.skillAsc; S.skillSum = { lvl: 1, cnt: 0 }; msg = '이제 뽑는 스킬은 ★' + n + ' 세대 (×' + PF.fmt(PF.skillAscMul(n)) + ')'; }
+    else { n = ++S.forge.asc; S.forge.lvl = 1; S.forge.gauge = 0; msg = '이제 만드는 장비는 ★' + n + ' 세대 (×' + PF.fmt(PF.itemAscMul(n)) + ')'; }
     Audio8.play('divine'); G.toast({ pet: '펫', skill: '스킬', forge: '대장간' }[kind] + ' 승천 ' + n + '단계! ' + msg);
     G.emit(kind === 'pet' ? 'pets' : kind === 'skill' ? 'skills' : 'forge'); G.emit('equip'); Store.save();
     return true;
@@ -521,7 +522,7 @@
     const front = alive()[0];
     if ((sk.kind === 'dmg' || sk.kind === 'multi' || sk.kind === 'aoe') && !front) return false;
     R.cds[i] = sk.cd;
-    const mul = sk.mult * PF.skillLvlMul(lv) * (1 + st.skillP / 100) * PF.ascMul(G.S.skillAsc);
+    const mul = sk.mult * PF.skillLvlMul(lv) * (1 + st.skillP / 100) * PF.skillAscMul(G.S.skills[id].asc);
     Audio8.play('skill');
     if (sk.kind === 'dmg') {
       R.projs.push({ x: HERO_X + 8, y: GROUND - 10, tx: front, col: sk.fx, big: true, mult: mul, spd: 160 });
@@ -645,7 +646,7 @@
       if (R.petT[i] <= 0 && front && R.walk <= 0) {
         R.petT[i] = 1.6 + i * 0.15;
         const p = PF.petById[id];
-        const mul = PF.PET_MULT[p.r] * (1 + inst.lvl * 0.03) * PF.ascMul(S.asc);
+        const mul = PF.PET_MULT[p.r] * (1 + inst.lvl * 0.03) * PF.petAscMul(inst.asc);
         const pos = petPos(i);
         R.projs.push({ x: pos.x, y: pos.y, tx: front, col: p.tint[1], mult: mul, spd: 150, pet: true });
       }
@@ -798,7 +799,7 @@
     alive().forEach(e => g.fillRect(Math.round(e.x - 6 * e.scale), GROUND - 1, Math.round(12 * e.scale), 2));
 
     // 펫
-    S.petEq.forEach((u, i) => { const inst = G.pet(u); if (inst) { const p = petPos(i); G.drawPet(g, inst.id, p.x, p.y + 6, S.asc, R.t); } });
+    S.petEq.forEach((u, i) => { const inst = G.pet(u); if (inst) { const p = petPos(i); G.drawPet(g, inst.id, p.x, p.y + 6, inst.asc, R.t); } });
 
     // 적
     R.enemies.forEach(e => {

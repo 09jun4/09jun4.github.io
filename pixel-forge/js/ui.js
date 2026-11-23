@@ -96,7 +96,7 @@
     document.querySelectorAll('.skill-btn').forEach(b => {
       const id = s.skillEq[+b.dataset.i];
       b.innerHTML = id ? ico(PF.skillById[id].icon) + '<span class="cd"></span>' : '';
-      b.className = 'skill-btn' + (id ? afCls(s.skillAsc) : '');
+      b.className = 'skill-btn' + (id ? afCls(s.skills[id].asc) : '');
       b.style.background = id ? PF.RAR[PF.skillById[id].r].col : '';
     });
     const ab = $('btn-auto');
@@ -249,12 +249,12 @@
   }
   function showForgeInfo() {
     const s = S(), L = s.forge.lvl, A = s.forge.asc, maxed = L >= PF.FORGE_MAX;
-    const cur = PF.forgeRates(PF.forgeEff(L, A)), nxt = PF.forgeRates(PF.forgeEff(Math.min(L + 1, PF.FORGE_MAX), A)), cost = PF.forgeStepCost(L);
+    const cur = PF.forgeRates(L), nxt = PF.forgeRates(Math.min(L + 1, PF.FORGE_MAX)), cost = PF.forgeStepCost(L);
     const rows = PF.TIERS.map((t, i) => `<tr class="${cur[i] || nxt[i] ? 'clickable' : 'zero'}" data-act="tier-${i}" style="${tierBg(i)}">
       <td>${ico('sword', t.pal)} ${t.name}</td><td>${PF.pct(cur[i], cur[i] < 1 && cur[i] > 0 ? 2 : 1)}</td><td class="next">${PF.pct(nxt[i], nxt[i] < 1 && nxt[i] > 0 ? 2 : 1)}</td></tr>`).join('');
     let g = '';
     for (let i = 0; i < PF.FORGE_STEPS; i++) g += `<i class="${i < s.forge.gauge ? 'on' : ''}"></i>`;
-    modal(`<h3>확률 정보</h3><div class="sub-t">제작 확률 · 누적 제작 ${fmt(s.forge.crafts)}회${A ? ` · 승천 ${A}단계 (확률표 Lv.${PF.forgeEff(L, A)})` : ''}</div>
+    modal(`<h3>확률 정보</h3><div class="sub-t">제작 확률 · 누적 제작 ${fmt(s.forge.crafts)}회${A ? ` · 승천 ${A}단계 (지금 만드는 장비 ×${fmt(PF.itemAscMul(A))})` : ''}</div>
       <div class="lvl-head"><span>레벨 ${L}</span><span>▶</span><span class="n">${maxed ? '최대' : '레벨 ' + (L + 1)}</span></div>
       <table class="rate-table">${rows}</table>
       ${maxed ? `<p class="note">${ASC_TEXT.forge}</p><div class="btn-row"><button class="px-btn green" data-act="forge-asc">대장간 승천 ★${A + 1}</button></div>`
@@ -270,7 +270,7 @@
     } });
   }
   function showItemList(only) {
-    const rates = PF.forgeRates(PF.forgeEff(S().forge.lvl, S().forge.asc));
+    const rates = PF.forgeRates(S().forge.lvl);
     const tiers = only == null ? PF.TIERS.map((_, i) => i) : [only];
     modal(`<h3>모든 장비의 목록</h3>${tiers.map(t => `<div class="tier-head tier-bg" style="${tierBg(t)}"><span>${PF.TIERS[t].name}</span><span>${PF.pct(rates[t], 1)}</span></div>
       <div class="list-grid">${PF.ITEMS.map(x => `<div>${ico(x.icon, tierPal(t))}<br>${(rates[t] * x.p).toFixed(4)}%</div>`).join('')}</div>`).join('')}`,
@@ -330,11 +330,11 @@
       const o = s.skills[sk.id];
       if (!o) return `<button class="card locked" data-act="skill-${sk.id}"><div class="disc" style="${rarBg(sk.r)}">${ico(sk.icon)}</div><div class="maxed">?</div></button>`;
       const eq = s.skillEq.includes(sk.id);
-      return `<button class="card" data-act="skill-${sk.id}"><div class="disc${afCls(A)}" style="${rarBg(sk.r)}">${ico(sk.icon)}<span class="lv">Lv.${o.lvl}</span>${eq ? '<span class="eq">장착됨</span>' : ''}${astar(A)}</div>${shardBar(o)}</button>`;
+      return `<button class="card" data-act="skill-${sk.id}"><div class="disc${afCls(o.asc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}<span class="lv">Lv.${o.lvl}</span>${eq ? '<span class="eq">장착됨</span>' : ''}${astar(o.asc)}</div>${shardBar(o)}</button>`;
     }).join('');
-    const eqHtml = s.skillEq.map(id => id ? `<div class="mini${afCls(A)}" style="${rarBg(PF.skillById[id].r)}">${ico(PF.skillById[id].icon)}<span>Lv.${s.skills[id].lvl}</span></div>` : '<div class="mini"></div>').join('');
+    const eqHtml = s.skillEq.map(id => id ? `<div class="mini${afCls(s.skills[id].asc)}" style="${rarBg(PF.skillById[id].r)}">${ico(PF.skillById[id].icon)}<span>Lv.${s.skills[id].lvl}</span></div>` : '<div class="mini"></div>').join('');
     return `<div class="res-head"><span class="pill" style="color:#fff">${ico('ticket')}<span>${fmt(s.tickets)}</span></span><h2>스킬 ${owned}/${PF.SKILLS.length}</h2><span class="pill" style="color:#fff;min-width:0">승천 ${A}</span></div>
-      <div class="bonus-bar">+${fmt(st.pAtk)} 기본 피해 +${fmt(st.pHp)} 기본 체력${A ? ` · 승천 배율 ×${PF.ascMul(A).toFixed(2)}` : ''}</div>
+      <div class="bonus-bar">+${fmt(st.pAtk)} 기본 피해 +${fmt(st.pHp)} 기본 체력${A ? ` · 새로 뽑는 스킬 ★${A} 세대 ×${fmt(PF.skillAscMul(A))}` : ''}</div>
       <div class="card-grid">${cards}</div>
       <div class="eq-row"><span class="lab">장착됨</span><div class="slots">${eqHtml}</div></div>
       <div class="btn-row"><button class="px-btn" data-act="upall-skill">모두 업그레이드</button><button class="px-btn" data-act="quick-skill">빠른 장착</button></div>
@@ -349,27 +349,27 @@
         <div class="lvinfo"><button class="info-btn" data-act="rates-${kind}">i</button>${maxed ? '<b>최대</b>' : 'Lv. ' + sum.lvl}
         ${maxed ? `<button class="px-btn small green" data-act="ascend-${kind}">승천</button>` : `<div class="bar"><i class="blue" style="width:${sum.cnt / PF.sumNeed(sum.lvl) * 100}%"></i><span>${sum.cnt}/${PF.sumNeed(sum.lvl)}</span></div>`}</div></div>`;
   }
-  function petCanvas(id, size) { return `<canvas data-pet="${id}" width="${size || 16}" height="${size || 16}"></canvas>`; }
+  function petCanvas(id, size, asc) { return `<canvas data-pet="${id}" data-asc="${asc || 0}" width="${size || 16}" height="${size || 16}"></canvas>`; }
   function paintPetCanvases(root) {
     root.querySelectorAll('canvas[data-pet]').forEach(c => {
       const g = c.getContext('2d'), id = c.dataset.pet;
       const img = Sprites.bake(PF.petById[id].shape, PF.petById[id].tint);
       const sc = Math.max(1, Math.floor(c.width / (img.width + 2)));
       g.imageSmoothingEnabled = false; g.clearRect(0, 0, c.width, c.height);
-      Game.drawPet(g, id, c.width / 2, c.height - Math.floor((c.height - img.height * sc) / 2), c.dataset.locked ? 0 : S().asc, 0, sc);
+      Game.drawPet(g, id, c.width / 2, c.height - Math.floor((c.height - img.height * sc) / 2), +c.dataset.asc || 0, 0, sc);
     });
   }
   function stars(n) { return n > 0 ? '★'.repeat(Math.min(n, 5)) + (n > 5 ? '+' + (n - 5) : '') : ''; }
   const sortedPets = () => S().petInv.slice().sort((a, b) => (PF.petById[b.id].r * 1000 + b.lvl) - (PF.petById[a.id].r * 1000 + a.lvl));
   function petCard(p, act) {
     const s = S(), d = PF.petById[p.id], eq = s.petEq.includes(p.u);
-    return `<button class="card pet" data-act="${act || 'pet-' + p.u}"><div class="disc${afCls(s.asc)}" style="${rarBg(d.r)}">${petCanvas(p.id, 36)}<span class="lv">Lv.${p.lvl}</span>${eq ? '<span class="eq">장착됨</span>' : ''}${astar(s.asc)}</div><div style="font-size:10px;margin-top:4px">${d.name}</div></button>`;
+    return `<button class="card pet" data-act="${act || 'pet-' + p.u}"><div class="disc${afCls(p.asc)}" style="${rarBg(d.r)}">${petCanvas(p.id, 36, p.asc)}<span class="lv">Lv.${p.lvl}</span>${eq ? '<span class="eq">장착됨</span>' : ''}${astar(p.asc)}</div><div style="font-size:10px;margin-top:4px">${d.name}</div></button>`;
   }
   function viewPets() {
     const s = S(), cost = PF.PET_COST * s.mult.pet;
     const list = sortedPets();
     const cards = list.length ? list.map(p => petCard(p)).join('') : '<p class="note" style="grid-column:1/-1">아직 펫이 없어요. 알을 뽑아 부화시켜 보세요!</p>';
-    const eqHtml = s.petEq.map(u => { const p = Game.pet(u); return p ? `<div class="mini${afCls(s.asc)}" style="${rarBg(PF.petById[p.id].r)}">${petCanvas(p.id, 36)}<span>Lv.${p.lvl}</span></div>` : '<div class="mini"></div>'; }).join('');
+    const eqHtml = s.petEq.map(u => { const p = Game.pet(u); return p ? `<div class="mini${afCls(p.asc)}" style="${rarBg(PF.petById[p.id].r)}">${petCanvas(p.id, 36, p.asc)}<span>Lv.${p.lvl}</span></div>` : '<div class="mini"></div>'; }).join('');
     const nests = s.incub.map((e, i) => {
       if (!e) return `<div class="nest"><div class="lamp"></div><div class="pillow"></div><span>비어 있음</span></div>`;
       return `<div class="nest"><div class="lamp on"></div><div class="pillow">${ico('egg', eggPal(e.r), 'wob')}</div><span style="color:${PF.RAR[e.r].col}">${PF.RAR[e.r].name}</span><div class="bar"><i class="blue" data-incub="${i}"></i><span data-incub-t="${i}"></span></div></div>`;
@@ -378,7 +378,7 @@
     const box = PF.RAR.map((x, r) => `<button class="egg-stack${s.eggBox[r] ? '' : ' empty'}" data-act="hatch-${r}"${s.eggBox[r] ? '' : ' disabled'} aria-label="${x.name} 알 부화">
       ${ico('egg', eggPal(r))}<b>x${fmt(s.eggBox[r])}</b><span style="color:${x.col}">${x.name}</span><small>${PF.HATCH_SEC[r] < 60 ? PF.HATCH_SEC[r] + '초' : PF.HATCH_SEC[r] / 60 + '분'}</small></button>`).join('');
     return `<div class="res-head"><span class="pill" style="color:#fff">${ico('egg', EGG_RES)}<span>${fmt(s.eggs)}</span></span><h2>펫 ${list.length}</h2><span class="pill" style="color:#fff;min-width:0">승천 ${s.asc}</span></div>
-      <div class="bonus-bar">장착 효과: 피해 +${fmt(Game.stats().petP)}% · 승천 배율 ×${PF.ascMul(s.asc).toFixed(2)}</div>
+      <div class="bonus-bar">장착 효과: 피해 +${fmt(Game.stats().petP)}%${s.asc ? ` · 새로 부화하는 펫 ★${s.asc} 세대 ×${fmt(PF.petAscMul(s.asc))}` : ''}</div>
       <div class="eq-row pets" style="margin-top:0"><span class="lab">장착됨</span><div class="slots">${eqHtml}</div></div>
       <p class="note" style="margin:-2px 0 8px">장착한 펫을 눌러 <b>강화</b> 탭에서 같은 등급의 알·펫을 재료로 레벨을 올려요.</p>
       <div class="card-grid">${cards}</div>
@@ -402,7 +402,7 @@
     });
   }
   function showSkill(id) {
-    const s = S(), sk = PF.skillById[id], o = s.skills[id], A = s.skillAsc, am = PF.ascMul(A);
+    const s = S(), sk = PF.skillById[id], o = s.skills[id], A = o ? o.asc || 0 : s.skillAsc, am = PF.skillAscMul(A);
     const lv = o ? o.lvl : 1, mul = PF.skillLvlMul(lv) * am;
     const eff = { dmg: `적 하나에게 공격력의 ${Math.round(sk.mult * mul * 100)}% 피해`, aoe: `모든 적에게 공격력의 ${Math.round(sk.mult * mul * 100)}% 피해`,
       multi: `공격력의 ${Math.round(sk.mult * mul * 100)}% 피해를 ${sk.hits}번`, heal: `최대 체력의 ${Math.round(sk.mult * (1 + lv * 0.005) * 100)}% 회복${sk.invul ? `, ${sk.invul}초 무적` : ''}`,
@@ -410,7 +410,7 @@
     const eq = s.skillEq.includes(id);
     modal(`<div class="detail-top"><div class="big${o ? afCls(A) : ''}" style="${rarBg(sk.r)};border-radius:50%">${ico(sk.icon)}${o ? astar(A) : ''}</div>
       <div><div style="color:${PF.RAR[sk.r].col};text-shadow:1px 1px 0 #1a1222">${PF.RAR[sk.r].name}</div><div style="font-size:18px">${sk.name} <span style="color:#e0a000">${stars(A)}</span></div><div>${o ? 'Lv.' + o.lvl : '미보유'}</div></div></div>
-      <div class="desc">${eff}<br>재사용 대기 ${sk.cd}초<br>보유 효과: 기본 피해 +${fmt(PF.SKILL_PASSIVE[sk.r] * lv * am)}, 기본 체력 +${fmt(PF.SKILL_PASSIVE[sk.r] * lv * 8 * am)}${A ? `<br>스킬 승천 ${A}단계: 효과 ×${am.toFixed(2)}` : ''}</div>
+      <div class="desc">${eff}<br>재사용 대기 ${sk.cd}초<br>보유 효과: 기본 피해 +${fmt(PF.SKILL_PASSIVE[sk.r] * lv * am)}, 기본 체력 +${fmt(PF.SKILL_PASSIVE[sk.r] * lv * 8 * am)}${A ? `<br>★${A} 세대 스킬: 효과 ×${fmt(am)}` : ''}${o && (o.asc || 0) < s.skillAsc ? `<br><b>지금 소환하면 ★${s.skillAsc} 세대로 다시 얻을 수 있어요</b>` : ''}</div>
       ${o ? shardBar(o) : '<p class="note">스킬 소환에서 얻을 수 있어요</p>'}
       ${o ? `<div class="btn-row"><button class="px-btn" data-act="up"${Game.canUp(s.skills, id) ? '' : ' disabled'}>업그레이드</button><button class="px-btn ${eq ? 'red' : 'green'}" data-act="eq">${eq ? '해제' : '장착'}</button></div>` : ''}`,
     { on: act => {
@@ -423,19 +423,19 @@
   function showPet(u, tab) {
     const s = S(), p = Game.pet(u);
     if (!p) { closeModal(); return; }
-    const d = PF.petById[p.id], eq = s.petEq.includes(u), A = s.asc;
+    const d = PF.petById[p.id], eq = s.petEq.includes(u), A = p.asc || 0;
     tab = tab || ui.petTab || 'info';
     ui.petTab = tab;
     if (!ui.sel || ui.sel.u !== u) ui.sel = { u, eggs: 0, mats: [] };
     const sel = ui.sel;
     sel.mats = sel.mats.filter(m => Game.pet(m) && !s.petEq.includes(m));
     sel.eggs = Math.min(sel.eggs, s.eggBox[d.r]);
-    const head = `<div class="detail-top"><div class="big${afCls(A)}" style="${rarBg(d.r)}">${petCanvas(p.id, 64)}${astar(A)}</div>
+    const head = `<div class="detail-top"><div class="big${afCls(A)}" style="${rarBg(d.r)}">${petCanvas(p.id, 64, A)}${astar(A)}</div>
       <div><div style="color:${d.r ? PF.RAR[d.r].col : '#888'};text-shadow:1px 1px 0 #1a1222">${PF.RAR[d.r].name}</div><div style="font-size:18px">${d.name} <span style="color:#e0a000">${stars(A)}</span></div><div>Lv.${p.lvl}${eq ? ' · 장착됨' : ''}</div></div></div>
       <div class="subtabs"><button data-act="ptab-info" class="${tab === 'info' ? 'on' : ''}">정보</button><button data-act="ptab-up" class="${tab === 'up' ? 'on' : ''}">강화</button></div>`;
     let body;
     if (tab === 'info') {
-      body = `<div class="desc">1.6초마다 영웅 공격력의 ${Math.round(PF.PET_MULT[d.r] * (1 + p.lvl * 0.03) * PF.ascMul(A) * 100)}% 피해<br>장착 효과: 피해 +${(PF.PET_PASSIVE[d.r] * p.lvl * PF.ascMul(A)).toFixed(1)}%<br>펫 승천 ${A}단계: 모든 펫 능력치 ×${PF.ascMul(A).toFixed(2)}</div>
+      body = `<div class="desc">1.6초마다 영웅 공격력의 ${fmt(PF.PET_MULT[d.r] * (1 + p.lvl * 0.03) * PF.petAscMul(A) * 100)}% 피해<br>장착 효과: 피해 +${fmt(PF.PET_PASSIVE[d.r] * p.lvl * PF.petAscMul(A))}%${A ? `<br>★${A} 세대 펫: 능력치 ×${fmt(PF.petAscMul(A))}` : ''}</div>
         <div class="btn-row"><button class="px-btn ${eq ? 'red' : 'green'}" data-act="eq">${eq ? '해제' : '장착'}</button></div>`;
     } else if (!eq) {
       body = `<p class="note">강화는 <b>장착한 펫</b>만 할 수 있어요. 먼저 장착해 주세요.</p><div class="btn-row"><button class="px-btn green" data-act="eq">장착</button></div>`;
@@ -476,7 +476,7 @@
   }
   function showSummon(kind, out) {
     let cards;
-    if (kind === 'skill') cards = out.map((x, i) => { const sk = PF.skillById[x.id]; return `<div class="card" style="animation-delay:${i * 0.06}s"><div class="disc${afCls(S().skillAsc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}</div><div style="font-size:10px;margin-top:4px">${x.isNew ? '<span class="down">NEW</span> ' : ''}${sk.name}</div></div>`; });
+    if (kind === 'skill') cards = out.map((x, i) => { const sk = PF.skillById[x.id]; return `<div class="card" style="animation-delay:${i * 0.06}s"><div class="disc${afCls(x.asc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}${astar(x.asc)}</div><div style="font-size:10px;margin-top:4px">${x.isNew ? '<span class="down">NEW</span> ' : ''}${sk.name}</div></div>`; });
     else cards = out.map((r, i) => `<div class="card" style="animation-delay:${Math.min(i, 30) * 0.04}s"><div class="disc" style="${rarBg(r)};border-radius:4px">${ico('egg', eggPal(r))}</div><div style="font-size:10px;margin-top:4px">${PF.RAR[r].name} 알</div></div>`);
     modal(`<h3>소환 결과</h3><div class="result-grid">${cards.join('')}</div>
       ${kind === 'pet' ? '<p class="note">알은 <b>알 보관함</b>에 무제한으로 쌓여요. 보관함에서 부화시킬 알을 골라 주세요.</p>' : ''}
@@ -490,10 +490,11 @@
     showSummon(kind, out);
   }
   const ASC_TEXT = {
-    pet: '승천하면 소환 레벨이 1로 돌아가고, 모든 펫 능력치가 영구히 ×1.5 되며 펫 외형·카드 테두리가 업그레이드되고 별이 하나 늘어요.',
-    skill: '승천하면 소환 레벨이 1로 돌아가고, 모든 스킬의 피해·보유 효과가 영구히 ×1.5 되며 스킬 카드 테두리가 업그레이드되고 별이 하나 늘어요.',
-    forge: '승천하면 대장간 레벨이 1로 돌아가지만 확률표는 25레벨 높게 시작해요. 그 뒤로 만드는 장비는 능력치 ×1.5와 승천 테두리·별이 붙어요.',
+    pet: '승천하면 소환 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 부화하는 펫은 한 세대 위(능력치 ×8.3)라서, 승천 후 서사시 펫이 지금의 신화 펫과 맞먹어요. 새 펫은 외형·테두리가 업그레이드되고 별이 하나 붙어요.',
+    skill: '승천하면 소환 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 뽑는 스킬은 한 세대 위(효과 ×16.7)로 새로 얻어져서, 승천 후 서사시 스킬이 지금의 신화 스킬과 맞먹어요. 새 스킬 카드는 테두리가 업그레이드되고 별이 하나 붙어요.',
+    forge: '승천하면 대장간 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 만드는 장비는 한 세대 위(능력치 ×3,400)라서, 승천 후 3번째 등급(청동)이 지금의 신성 장비와 맞먹어요. 새 장비는 승천 테두리와 별이 붙어요.',
   };
+
   function showRates(kind, L) {
     const s = S(), sum = kind === 'skill' ? s.skillSum : s.petSum;
     L = L || sum.lvl;

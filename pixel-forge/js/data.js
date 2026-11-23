@@ -41,9 +41,11 @@ PF.forgeRates = function (L) {
 PF.FORGE_STEPS = 10;
 PF.forgeStepCost = L => Math.round(12 * Math.pow(1.36, Math.min(L, 35)) * Math.pow(1.08, Math.max(0, L - 35)));
 PF.FORGE_MAX = 100; // 대장간도 Lv.100에서 승천
-// 승천할수록 낮은 레벨에서도 좋은 확률표를 써요 (승천 1회 = +25레벨, 최대 100)
-PF.forgeEff = (L, asc) => Math.min(PF.FORGE_MAX, L + 25 * (asc || 0));
-PF.itemAscMul = a => Math.pow(1.5, a || 0); // 승천 장비 능력치 배율 (제작 당시 대장간 승천 단계)
+// 승천하면 레벨·확률은 처음으로 돌아가지만, 승천 뒤에 얻는 것은 한 세대 위예요:
+// 승천 후 3번째 등급 = 승천 전 최고 등급이 되도록 배율을 맞춰요.
+PF.itemAscMul = a => Math.pow(3.2, 7 * (a || 0));  // 장비: 등급당 ×3.2, 7등급 차이(청동↔신성) ≈ ×3436
+PF.skillAscMul = a => Math.pow(200 / 12, a || 0); // 스킬: 신화 보유효과(200) / 서사시(12) ≈ ×16.7
+PF.petAscMul = a => Math.pow(10 / 1.2, a || 0);   // 펫: 신화 공격(10) / 서사시(1.2) ≈ ×8.3
 
 // ---- 장비 슬롯 9칸 ------------------------------------------------------
 // main: 주 능력치(atk/hp/both), w: 등급 안에서 그 슬롯이 나올 가중치(무기·탈것 1, 투구 1.5, 나머지 3)
@@ -170,7 +172,6 @@ PF.PETS = [
 PF.petById = {}; PF.PETS.forEach(p => { PF.petById[p.id] = p; });
 PF.PET_MULT = [0.3, 0.6, 1.2, 2.5, 5, 10];   // 펫 공격 = 영웅 공격력 × 배율
 PF.PET_PASSIVE = [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]; // 보유 효과: 레벨당 피해 +%
-PF.ascMul = asc => Math.pow(1.5, asc || 0); // 승천마다 모든 펫(또는 스킬) 능력치 ×1.5
 // 펫 강화 재료: 같은 등급의 알 1개 = +1레벨, 장착하지 않은 펫 = +그 펫 레벨
 PF.matGain = petLvl => petLvl == null ? 1 : Math.max(1, petLvl);
 // 알 부화 시간(초): 3초 → 2분
