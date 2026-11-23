@@ -1,5 +1,6 @@
 // cloud.js — 구글 로그인과 계정 저장 (Firebase). 설정이 비어 있으면 아무것도 하지 않고 브라우저 저장만 써요.
 // Firestore: pixel_forge_users/{uid} { save: JSON 문자열, updatedAt } — 본인만 읽고 쓰기 (../firestore.rules)
+//            pixel_forge_rank/{uid}  { nick, wave, power, label, snap, updatedAt } — 누구나 읽기, 본인 기록만 쓰기
 'use strict';
 (function () {
   const SDK = window.FirebaseSDK, cfg = window.PF_FIREBASE_CONFIG || {};
@@ -31,6 +32,19 @@
   Cloud.inApp = inApp;
   if (inApp()) setTimeout(() => Game.toast(inApp() + ' 안에서는 구글 로그인이 안 돼요. 메뉴의 "다른 브라우저로 열기"를 눌러 주세요'), 1500);
 
+  // 랭킹 닉네임: 직접 정한 이름(2~12자), 정하기 전에는 계정마다 고정된 익명 이름
+  Cloud.NICK_MIN = 2; Cloud.NICK_MAX = 12;
+  Cloud.defaultNick = uid => { let h = 0; for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0; return '모험가' + (1000 + h % 9000); };
+  Cloud.rankName = () => Game.S.nick || (Cloud.user ? Cloud.defaultNick(Cloud.user.uid) : '게스트');
+  Cloud.validNick = name => {
+    name = String(name || '').replace(/\s+/g, ' ').trim();
+    if (name.length < Cloud.NICK_MIN || name.length > Cloud.NICK_MAX || /[<>"'`\\]/.test(name)) return null;
+    return name;
+  };
+  Cloud.ranking = () => Promise.reject(new Error('disabled'));
+  Cloud.pushRank = () => Promise.resolve();
+  ['equip', 'skills', 'pets', 'forge'].forEach(n => Game.on(n, () => { Game.rankDirty = true; }));
+
   if (!Cloud.enabled) return;
 
   // 사이트 로그인과 같이 쓰도록 기본 앱 이름 + 기본 저장 방식
@@ -61,6 +75,47 @@
   Cloud.signOut = () => SDK.signOut(auth);
   SDK.getRedirectResult(auth).catch(e => { Cloud.error = errText(e); changed(); });
 
+  // ---- 웨이브 랭킹 ----
+  const rankCol = () => SDK.collection(db, 'pixel_forge_rank');
+  let rankCache = null, lastPush = 0;
+  Cloud.rankError = '';
+  Cloud.pushRank = function (force) {
+    if (Cloud.state !== 'in' || !Cloud.user) return Promise.resolve();
+    if (!force && (!Game.rankDirty || Date.now() - lastPush < 20000)) return Promise.resolve();
+    Game.rankDirty = false; lastPush = Date.now();
+    const S = Game.S, w = S.bestWave || 0, gi = Math.max(0, Math.ceil(w / PF.WAVES) - 1);
+    const label = PF.DIFFS[Math.min(4, Math.floor(gi / 50))] + ' ' + (Math.floor(gi / 5) % 10 + 1) + '-' + (gi % 5 + 1);
+    return SDK.setDoc(SDK.doc(db, 'pixel_forge_rank', Cloud.user.uid), {
+      nick: Cloud.rankName(), wave: w, power: Game.stats().power, label,
+      snap: JSON.stringify(Game.snapshot()), updatedAt: SDK.serverTimestamp(),
+    }).then(() => { Cloud.rankError = ''; rankCache = null; }, e => {
+      console.error('[PF] rank push failed', e);
+      Game.rankDirty = true;
+      Cloud.rankError = e && e.code === 'permission-denied' ? '랭킹 서버 규칙이 아직 게시되지 않았어요.' : '랭킹을 올리지 못했어요.';
+    });
+  };
+  setInterval(() => Cloud.pushRank(), 5000);
+  // 상위 50명 + 내 순위 → { top: [{uid, nick, wave, power, label, snap}], me: {rank}|null, total }
+  Cloud.ranking = function (force) {
+    if (rankCache && !force && Date.now() - rankCache.at < 30000) return Promise.resolve(rankCache.data);
+    const col = rankCol(), jobs = [
+      SDK.getDocs(SDK.query(col, SDK.orderBy('wave', 'desc'), SDK.limit(50))).then(snap => { const out = []; snap.forEach(d => out.push(Object.assign({ uid: d.id }, d.data()))); return out; }),
+      SDK.getCountFromServer(col).then(c => c.data().count),
+    ];
+    if (Cloud.state === 'in') jobs.push(SDK.getCountFromServer(SDK.query(col, SDK.where('wave', '>', Game.S.bestWave || 0))).then(c => ({ rank: c.data().count + 1 })));
+    return Promise.all(jobs).then(r => {
+      const data = { top: r[0].sort((a, b) => b.wave - a.wave || b.power - a.power), total: r[1], me: r[2] || null };
+      rankCache = { at: Date.now(), data };
+      return data;
+    });
+  };
+  Cloud.setNick = function (name) {
+    const nick = Cloud.validNick(name);
+    if (!nick) return Promise.reject(new Error('invalid'));
+    Game.S.nick = nick; Game.Store.save();
+    return Cloud.pushRank(true);
+  };
+
   SDK.onAuthStateChanged(auth, u => {
     if (!u) {
       const was = Cloud.state === 'in';
@@ -82,6 +137,7 @@
       Game.Store.attach(u.uid, remote, {
         set: save => SDK.setDoc(ref(u.uid), { save: JSON.stringify(save), updatedAt: SDK.serverTimestamp() }),
       });
+      Game.rankDirty = true; setTimeout(() => Cloud.pushRank(true), 1500);
       changed();
     }, e => {
       console.error('[PF] load failed', e);

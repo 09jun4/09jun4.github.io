@@ -32,6 +32,7 @@
       auto: { minTier: 7, better: true },
       snd: { sfx: true, bgm: true }, mult: { skill: 5, pet: 1 },
       grand: 0, // 플레이 진행도(게스트 이전 판단용)
+      bestWave: 0, nick: '', // 랭킹: 지금까지 도달한 웨이브 수, 직접 정한 닉네임
     };
   }
   G.newSave = newSave;
@@ -165,12 +166,24 @@
     return it;
   };
   G.isBetter = it => G.stats(it).power > G.stats().power;
+  // 랭킹 팝업용 장비 상황 요약 (짧은 키로 저장 용량 절약)
+  G.snapshot = function () {
+    const S = G.S, st = G.stats(), sub = {};
+    PF.SLOTS.forEach(sl => { const it = S.equip[sl.id]; if (it) it.subs.forEach(([id, v]) => { sub[id] = Math.round(((sub[id] || 0) + v) * 10) / 10; }); });
+    return {
+      e: PF.SLOTS.map(sl => { const it = S.equip[sl.id]; return it ? [it.slot, it.v, it.tier, it.lvl, it.asc || 0] : null; }),
+      sk: S.skillEq.map(id => id && S.skills[id] ? [id, S.skills[id].lvl, S.skills[id].asc || 0] : null),
+      pt: S.petEq.map(u => { const p = G.pet(u); return p ? [p.id, p.lvl, p.asc || 0] : null; }),
+      f: [S.forge.lvl, S.forge.asc || 0], sa: [S.skillAsc || 0, S.asc || 0],
+      st: { atk: Math.round(st.atk), hp: Math.round(st.hp) }, sub,
+    };
+  };
   G.equipItem = function (it) {
     const S = G.S, old = S.equip[it.slot];
     S.equip[it.slot] = it;
     if (old) G.sell(old, true);
     Audio8.play('good');
-    G.emit('equip'); Store.save();
+    G.rankDirty = true; G.emit('equip'); Store.save();
   };
   G.sell = function (it, quiet) {
     G.S.crowns += PF.sellPrice(it);
@@ -425,6 +438,10 @@
   }
   function spawnWave() {
     const th = THEMES[G.S.stage.d], g = stageG();
+    if (R.mode === 'stage') { // 랭킹용: 도달한 웨이브 수 = 스테이지 순번 × 3 + 웨이브
+      const w = PF.stageIndex(G.S.stage) * PF.WAVES + R.wave;
+      if (w > (G.S.bestWave || 0)) { G.S.bestWave = w; G.rankDirty = true; }
+    }
     if (R.wave < PF.WAVES) {
       for (let i = 0; i < 3; i++) R.enemies.push(mkEnemy(pick(th.enemies), W + 10 + i * 24, g));
     } else {

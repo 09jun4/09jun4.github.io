@@ -133,9 +133,10 @@
   // ---------------- 패널 ----------------
   function renderPanel() {
     const p = $('panel'), top = p.scrollTop;
-    p.innerHTML = ({ home: viewHome, dungeon: viewDungeon, grow: viewGrow, settings: viewSettings })[ui.tab]();
+    p.innerHTML = ({ home: viewHome, dungeon: viewDungeon, grow: viewGrow, rank: viewRank, settings: viewSettings })[ui.tab]();
     p.scrollTop = top;
     if (ui.tab === 'grow') paintPetCanvases(p);
+    if (ui.tab === 'rank' && !ui.rankLoading) loadRank();
     renderTop();
   }
   let panelQueued = false;
@@ -549,6 +550,97 @@
     } });
   }
 
+  // ===== 랭킹 =====
+  const heroPalOf = e => { // e: 슬롯별 [slot, v, tier, lvl, asc] 배열 또는 장착 장비 객체
+    const tp = i => e[i] ? tierPal(e[i][2]) : null; // 0 투구, 1 갑옷, 6 신발
+    return (tp(0) || ['#c8ccd8', '#8a90a0', '#4a5060']).concat(tp(1) || ['#6aa0e0', '#3a70b8', '#1a3a70'], tp(6) || ['#9a6232', '#52301a', '#2a180c']);
+  };
+  const waveLabel = w => { const gi = Math.max(0, Math.ceil(w / PF.WAVES) - 1); return PF.DIFFS[Math.min(4, Math.floor(gi / 50))] + ' ' + (Math.floor(gi / 5) % 10 + 1) + '-' + (gi % 5 + 1); };
+  function parseSnap(r) { try { return JSON.parse(r.snap); } catch (e) { return null; } }
+  function viewRank() {
+    const C = window.Cloud || {}, s = S();
+    const me = C.state === 'in'
+      ? `<div class="rank-me"><img src="${Sprites.url('hero', heroPalOf(Game.snapshot().e))}" alt="" style="width:40px;height:40px;background:#fff;border:3px solid #1a1222">
+          <div class="nm"><b>${esc(C.rankName())}</b><small>내 기록: 웨이브 ${fmt(s.bestWave || 0)} (${waveLabel(s.bestWave || 0)})${ui.rank && ui.rank.me ? ` · ${ui.rank.me.rank}위` : ''}</small></div>
+          <button class="px-btn small" data-act="nick">닉네임</button></div>`
+      : `<div class="box"><p>구글로 로그인하면 내 웨이브 기록이 랭킹에 올라가요.</p>${C.enabled ? '<button class="px-btn small" data-act="login">구글로 로그인</button>' : ''}</div>`;
+    let list;
+    if (!C.enabled) list = '<p class="note">온라인 기능이 꺼져 있어 랭킹을 볼 수 없어요.</p>';
+    else if (ui.rankErr) list = `<p class="note err">${esc(ui.rankErr)}</p><div class="btn-row"><button class="px-btn small" data-act="rank-reload">다시 시도</button></div>`;
+    else if (!ui.rank) list = '<p class="note">불러오는 중…</p>';
+    else if (!ui.rank.top.length) list = '<p class="note">아직 기록이 없어요. 첫 번째 주인공이 되어 보세요!</p>';
+    else list = `<div class="rank-list">${ui.rank.top.map((r, i) => {
+      const sn = parseSnap(r);
+      return `<button class="rank-row top${i + 1}${C.user && r.uid === C.user.uid ? ' mine' : ''}" data-act="prof-${i}"><span class="no">${i + 1}</span>
+        <img src="${Sprites.url('hero', heroPalOf(sn ? sn.e : []))}" alt=""><span class="rk-who"><b>${esc(r.nick)}</b><small>${esc(r.label || '')} · 전투력 ${fmt(r.power || 0)}</small></span>
+        <span class="wv">${fmt(r.wave)}<small>웨이브</small></span></button>`;
+    }).join('')}</div>`;
+    return `<h2>웨이브 랭킹</h2><p class="note">지금까지 도달한 웨이브 수로 순위를 매겨요${ui.rank ? ` · 전체 ${fmt(ui.rank.total)}명` : ''}.<br>플레이어를 누르면 장비 상황을 볼 수 있어요.</p>
+      ${me}${C.rankError ? `<p class="note err">${esc(C.rankError)}</p>` : ''}${list}
+      <div class="btn-row"><button class="px-btn small gray" data-act="rank-reload">새로고침</button></div>`;
+  }
+  function loadRank(force) {
+    const C = window.Cloud;
+    if (!C || !C.enabled || (ui.rank && !force && Date.now() - ui.rankAt < 30000)) return;
+    ui.rankLoading = true;
+    (C.state === 'in' ? C.pushRank(true) : Promise.resolve()).then(() => C.ranking(force)).then(d => {
+      ui.rank = d; ui.rankAt = Date.now(); ui.rankErr = '';
+    }, e => {
+      console.error('[PF] ranking', e);
+      ui.rankErr = e && e.code === 'permission-denied' ? '랭킹 서버 규칙이 아직 게시되지 않았어요.' : '랭킹을 불러오지 못했어요.';
+    }).then(() => { ui.rankLoading = false; if (ui.tab === 'rank') { const p = $('panel'), t = p.scrollTop; p.innerHTML = viewRank(); p.scrollTop = t; renderTop(); } });
+  }
+  // 플레이어 팝업: 첨부 사진처럼 머리말 · 전투 장면 · 장비 9칸 · 스킬/펫 · 부가 옵션 합계
+  function showProfile(r) {
+    const sn = parseSnap(r);
+    if (!sn) { Game.toast('이 플레이어의 장비 정보가 없어요'); return; }
+    const items = PF.SLOTS.map((sl, i) => { const x = sn.e[i]; return x ? { slot: x[0], v: x[1], tier: x[2], lvl: x[3], asc: x[4] } : null; });
+    const tiles = PF.SLOTS.map((sl, i) => {
+      const it = items[i], wide = sl.id === 'mount' ? ' wide' : '';
+      if (!it) return `<div class="slot empty${wide}">${ico(sl.vars[0][1])}</div>`;
+      return `<div class="slot tier-bg${wide}${afCls(it.asc)}" style="${tierBg(it.tier)}">${itemIco(it)}<span class="lv">Lv.${it.lvl}</span>${astar(it.asc)}</div>`;
+    }).join('');
+    const skills = (sn.sk || []).filter(Boolean).map(([id, lv, a]) => `<div class="mini${afCls(a)}" style="${rarBg(PF.skillById[id].r)}">${ico(PF.skillById[id].icon)}<span>Lv.${lv}</span></div>`).join('');
+    const pets = (sn.pt || []).filter(Boolean).map(([id, lv, a]) => `<div class="mini pet${afCls(a)}" style="${rarBg(PF.petById[id].r)}">${petCanvas(id, 36, a)}<span>Lv.${lv}</span></div>`).join('');
+    const subs = Object.keys(sn.sub || {}).map(k => `+${sn.sub[k]}% ${PF.subById[k] ? PF.subById[k].name : k}`).join('<br>');
+    const f = sn.f || [1, 0];
+    modal(`<div class="prof"><div class="prof-head"><div class="av"><img src="${Sprites.url('hero', heroPalOf(sn.e))}" alt=""></div>
+      <div><b>${esc(r.nick)}</b><span class="pw">⚔ ${fmt(r.power || 0)}</span></div>
+      <div class="side">Lv.${f[0]} 대장간 ${f[1] ? '★' + f[1] : ''}<br>${fmt(sn.st.atk)} 공격력<br>${fmt(sn.st.hp)} 체력<br>웨이브 ${fmt(r.wave)} · ${esc(r.label || '')}</div></div>
+      <canvas class="scene" width="180" height="64"></canvas>
+      <div class="equip-grid">${tiles}</div>
+      <div class="prof-row">${skills || '<small>장착한 스킬 없음</small>'}<span style="flex:1"></span>${pets || '<small>장착한 펫 없음</small>'}</div>
+      <div class="prof-stats">${subs || '부가 옵션 없음'}</div></div>`);
+    paintPetCanvases($('modal'));
+    drawScene($('modal').querySelector('canvas.scene'), sn, items);
+  }
+  // 팝업 속 작은 전투 장면: 길 위의 영웅(그 사람 장비 색·무기)과 장착한 펫
+  function drawScene(cv, sn, items) {
+    const g = cv.getContext('2d'), th = Game.THEMES[0];
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = th.grass; g.fillRect(0, 0, 180, 64);
+    g.fillStyle = th.ground; g.fillRect(0, 16, 180, 38);
+    g.fillStyle = th.ground2; for (let x = 4; x < 180; x += 16) { g.fillRect(x, 24, 6, 2); g.fillRect(x + 8, 42, 4, 2); }
+    g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(84, 47, 14, 2);
+    const w = items[5];
+    if (w) g.drawImage(Sprites.bake(['w_sword', 'w_axe', 'w_staff'][w.v], tierPal(w.tier)), 93, 25);
+    g.drawImage(Sprites.bake('hero', heroPalOf(sn.e)), 82, 32);
+    (sn.pt || []).filter(Boolean).forEach(([id, , a], i) => Game.drawPet(g, id, [62, 54, 70][i], [46, 32, 22][i], a, 0, 1));
+  }
+  function showNick() {
+    const C = window.Cloud;
+    modal(`<h3>닉네임</h3><p class="sub-t">랭킹에 보이는 이름이에요 (2~12자, 실명 대신 자유롭게)</p>
+      <input class="nick-in" id="nick-in" maxlength="12" value="${esc(S().nick || C.rankName())}">
+      <div class="btn-row"><button class="px-btn" data-act="save">저장</button></div>`,
+    { on: act => {
+      if (act !== 'save') return;
+      const v = $('nick-in').value;
+      if (!C.validNick(v)) { Game.toast('2~12자로 정해 주세요 (특수문자 < > " \' ` 제외)'); return; }
+      C.setNick(v).then(() => { closeModal(); ui.rank = null; loadRank(true); });
+    } });
+    setTimeout(() => $('nick-in') && $('nick-in').focus(), 50);
+  }
+
   // ===== 설정 =====
   function viewSettings() {
     const C = window.Cloud || { enabled: false }, s = S(), st = Game.Store;
@@ -626,6 +718,9 @@
     else if (act.startsWith('ascend-')) { showRates(act.slice(7), PF.SUM_MAX); }
     else if (act.startsWith('hatch-')) { const r = Game.hatchEgg(+act.slice(6)); if (r === 'full') Game.toast('부화 슬롯이 모두 차 있어요'); }
     else if (act === 'buy-slot') { if (!Game.buySlot()) Game.toast('왕관이 부족해요'); }
+    else if (act.startsWith('prof-')) { const r = ui.rank && ui.rank.top[+act.slice(5)]; if (r) showProfile(r); }
+    else if (act === 'nick') showNick();
+    else if (act === 'rank-reload') { ui.rankErr = ''; ui.rank = null; renderPanel(); loadRank(true); }
     else settingsAct(act);
   });
 

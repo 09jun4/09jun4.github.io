@@ -13,5 +13,18 @@ service cloud.firestore {
         && request.resource.data.save is string
         && request.resource.data.save.size() < 400000;
     }
+
+    // 픽셀 포지 웨이브 랭킹: 누구나 읽기, 본인 기록만 쓰기 (닉네임 2~12자)
+    match /pixel_forge_rank/{uid} {
+      allow read: if true;
+      allow delete: if request.auth != null && (request.auth.uid == uid);
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['nick', 'wave', 'power', 'label', 'snap', 'updatedAt'])
+        && request.resource.data.nick is string && request.resource.data.nick.size() >= 2 && request.resource.data.nick.size() <= 12
+        && request.resource.data.wave is int && request.resource.data.wave >= 0 && request.resource.data.wave <= 100000
+        && request.resource.data.power is number
+        && request.resource.data.label is string && request.resource.data.label.size() <= 30
+        && request.resource.data.snap is string && request.resource.data.snap.size() < 20000;
+    }
   }
 }
