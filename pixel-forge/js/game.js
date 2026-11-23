@@ -554,17 +554,20 @@
     const front = alive()[0];
     if ((sk.kind === 'dmg' || sk.kind === 'multi' || sk.kind === 'aoe') && !front) return false;
     R.cds[i] = sk.cd;
+    const sa = G.S.skills[id].asc || 0;
+    for (let k = 0; k < sa; k++) R.rings.push({ x: HERO_X, y: GROUND - 10, r: 2, max: 10 + k * 7, t: 0.35 + k * 0.1, col: ascColor(Math.max(sa, 3), R.t + k * 0.3) });
+    if (sa) burst(HERO_X, GROUND - 12, ascColor(sa, R.t), 6 * sa, 70 + sa * 10);
     const mul = sk.mult * PF.skillLvlMul(lv) * (1 + st.skillP / 100) * PF.skillAscMul(G.S.skills[id].asc);
     Audio8.play('skill');
     if (sk.kind === 'dmg') {
-      R.projs.push({ x: HERO_X + 8, y: GROUND - 10, tx: front, col: sk.fx, big: true, mult: mul, spd: 160 });
+      R.projs.push({ x: HERO_X + 8, y: GROUND - 10, tx: front, col: sk.fx, big: true, mult: mul, spd: 160, asc: sa });
     } else if (sk.kind === 'aoe') {
-      alive().forEach(e => { heroHit(mul, e); burst(e.x, e.y - 30, sk.fx, 10, 60); });
+      alive().forEach(e => { heroHit(mul, e); burst(e.x, e.y - 30, sk.fx, 10, 60); if (sa) { burst(e.x, e.y - 8, ascColor(sa, R.t), 6 * sa, 90); R.rings.push({ x: e.x, y: e.y - 8 * e.scale, r: 2, max: 8 + sa * 3, t: 0.35, col: ascColor(Math.max(sa, 3), R.t) }); } });
       R.flashCol = sk.fx; R.flashT = 0.15; R.shake = 0.2; Audio8.play('boom');
     } else if (sk.kind === 'multi') {
       for (let k = 0; k < sk.hits; k++) setTimeout(() => {
         const t = alive()[0];
-        if (t) { R.projs.push({ x: HERO_X + 8, y: GROUND - 30 - Math.random() * 20, tx: t, col: sk.fx, mult: mul, spd: 220 }); }
+        if (t) { R.projs.push({ x: HERO_X + 8, y: GROUND - 30 - Math.random() * 20, tx: t, col: sk.fx, mult: mul, spd: 220, asc: sa }); }
       }, k * 110);
     } else if (sk.kind === 'heal') {
       R.hero.hp = Math.min(R.hero.max, R.hero.hp + R.hero.max * sk.mult * (1 + lv * 0.005));
@@ -581,7 +584,7 @@
   function alive() { return R.enemies.filter(e => e.hp > 0); }
   const weaponKind = () => G.S.equip.weapon ? G.S.equip.weapon.v : 0; // 0 검, 1 도끼, 2 지팡이
   const weaponCol = i => G.S.equip.weapon ? PF.TIERS[G.S.equip.weapon.tier].pal[i] : ['#ffffff', '#a4aebb', '#5a6474'][i];
-  const staffTip = () => ({ x: HERO_X + 10, y: GROUND - 25 });
+  const staffTip = () => ({ x: HERO_X + 10, y: GROUND - 25 - (G.S.equip.mount ? 7 : 0) });
 
   // ======================= 업데이트 =======================
   G.update = function (dt) {
@@ -698,7 +701,7 @@
         const p = PF.petById[id];
         const mul = PF.PET_MULT[p.r] * (1 + inst.lvl * 0.03) * PF.petAscMul(inst.asc);
         const pos = petPos(i);
-        R.projs.push({ x: pos.x, y: pos.y, tx: front, col: p.tint[1], mult: mul, spd: 150, pet: true });
+        R.projs.push({ x: pos.x, y: pos.y, tx: front, col: p.tint[1], mult: mul, spd: 150, pet: true, asc: inst.asc || 0 });
       }
     });
 
@@ -711,10 +714,12 @@
       if (d < 5) {
         heroHit(pr.mult, t);
         if (pr.big) { burst(tx, ty, pr.col, 16, 90); Audio8.play('boom'); }
+        if (pr.asc) R.rings.push({ x: tx, y: ty, r: 1, max: 5 + pr.asc * 2, t: 0.25, col: ascColor(pr.asc, R.t) });
         if (pr.magic) { R.rings.push({ x: tx, y: ty, r: 2, max: 11, t: 0.3, col: pr.col }); burst(tx, ty, pr.col2, 10, 80); }
         return false;
       }
       pr.x += dx / d * pr.spd * dt; pr.y += dy / d * pr.spd * dt;
+      if (pr.asc) { R.parts.push({ x: pr.x + rnd(-1, 1), y: pr.y + rnd(-1, 1), vx: 0, vy: 0, t: 0.25 + pr.asc * 0.05, col: ascColor(pr.asc, R.t + Math.random()), g: 0 }); }
       if (Math.random() < (pr.magic ? 1 : 0.6)) R.parts.push({ x: pr.x + (pr.magic ? rnd(-1, 1) : 0), y: pr.y + (pr.magic ? rnd(-1, 1) : 0), vx: 0, vy: 0, t: pr.magic ? 0.3 : 0.2, col: pr.magic && Math.random() < 0.5 ? pr.col2 : pr.col, g: 0 });
       return true;
     });
@@ -779,27 +784,34 @@
     return [{ x: HERO_X - 22, y: GROUND - 26 + bob }, { x: HERO_X - 30, y: GROUND - 6 + bob * 0.5 }, { x: HERO_X - 12, y: GROUND - 40 + bob }][i];
   }
   const ASC_COL = ['', '#ffffff', '#5ad8ff', '#ffd23a', '#ff5a5a', '#d65aff', '#5aff8a'];
+  const ascColor = (a, t) => !a ? '#ffffff' : a === 1 ? '#ffffff' : a === 2 ? '#ffd23a' : 'hsl(' + Math.round(((t || 0) * 140 + a * 40) % 360) + ',100%,65%)';
+  G.ascColor = ascColor;
+  // 스프라이트 외곽에 색 빛 테두리 그리기 (영웅·탈것·무기·펫 공통)
+  const glowTmp = document.createElement('canvas');
+  function glow(g, name, pal, X, Y, col, alpha, flip, scale) {
+    scale = scale || 1;
+    const sil = Sprites.flash(name, pal, flip);
+    glowTmp.width = sil.width; glowTmp.height = sil.height;
+    const tg = glowTmp.getContext('2d');
+    tg.clearRect(0, 0, sil.width, sil.height); tg.drawImage(sil, 0, 0);
+    tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, sil.width, sil.height);
+    tg.globalCompositeOperation = 'source-over';
+    g.globalAlpha = alpha;
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => g.drawImage(glowTmp, X + dx * scale, Y + dy * scale, sil.width * scale, sil.height * scale));
+    g.globalAlpha = 1;
+  }
+  const heroAsc = () => { let a = 0; Object.keys(G.S.equip).forEach(k => { const it = G.S.equip[k]; if (it && it.asc > a) a = it.asc; }); return a; };
   // 펫 그리기: 승천 단계마다 테두리 빛·왕관·반짝이가 붙어요
   G.drawPet = function (g, id, x, y, asc, t, scale) {
     scale = scale || 1;
     const p = PF.petById[id], img = Sprites.bake(p.shape, p.tint);
     const w = img.width * scale, h = img.height * scale;
     const X = Math.round(x - w / 2), Y = Math.round(y - h);
-    if (asc > 0) {
-      const sil = Sprites.flash(p.shape, p.tint);
-      const tmp = G._tmp || (G._tmp = document.createElement('canvas'));
-      tmp.width = sil.width; tmp.height = sil.height;
-      const tg = tmp.getContext('2d');
-      tg.clearRect(0, 0, tmp.width, tmp.height); tg.drawImage(sil, 0, 0);
-      tg.globalCompositeOperation = 'source-in'; tg.fillStyle = ASC_COL[Math.min(asc, ASC_COL.length - 1)]; tg.fillRect(0, 0, tmp.width, tmp.height);
-      tg.globalCompositeOperation = 'source-over';
-      g.globalAlpha = 0.7 + Math.sin((t || 0) * 5) * 0.3;
-      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => g.drawImage(tmp, X + dx * scale, Y + dy * scale, w, h));
-      g.globalAlpha = 1;
-    }
+    if (asc > 0) glow(g, p.shape, p.tint, X, Y, ascColor(asc, t), 0.7 + Math.sin((t || 0) * 5) * 0.3, false, scale);
     g.drawImage(img, X, Y, w, h);
     if (asc >= 2) g.drawImage(Sprites.bake('crown'), Math.round(x - 3.5 * scale), Y - 4 * scale, 7 * scale, 5 * scale);
-    if (asc >= 3 && Math.random() < 0.15) { g.fillStyle = ASC_COL[Math.min(asc, 6)]; g.fillRect(X + Math.random() * w, Y + Math.random() * h, scale, scale); }
+    if (asc >= 3 && Math.random() < 0.15 + asc * 0.05) { g.fillStyle = ascColor(asc, t + Math.random()); g.fillRect(X + Math.random() * w, Y + Math.random() * h, scale, scale); }
+    if (asc >= 4 && scale === 1 && Math.random() < 0.3) R.parts.push({ x: X + Math.random() * w, y: Y + h - 2, vx: -12, vy: -6, t: 0.5, col: ascColor(asc, t), g: 0 });
   };
 
   function heroPal() {
@@ -807,8 +819,9 @@
     const helm = tp('helm') || ['#c8ccd8', '#8a90a0', '#4a5060'];
     const arm = tp('armor') || ['#6aa0e0', '#3a70b8', '#1a3a70'];
     const boot = tp('boots') || ['#9a6232', '#52301a', '#2a180c'];
-    return helm.concat(arm, boot);
+    return helm.concat(arm, boot, [tp('glove') ? tp('glove')[1] : null, tp('belt') ? tp('belt')[1] : null, tp('neck') ? tp('neck')[0] : null]);
   }
+  G.heroPal = heroPal;
   function drawDecor(g, th, off, y, name, every, seed) {
     const img = Sprites.bake(name);
     for (let k = -1; k < W / every + 2; k++) {
@@ -884,7 +897,29 @@
       const pal = heroPal();
       const img = h.flash > 0 ? Sprites.flash(frame, pal) : Sprites.bake(frame, pal);
       const hb = walking ? -Math.abs(Math.sin(R.t * 12)) * 2 : 0;
-      const hx = HERO_X - 8 + (h.swing > 0.5 ? 2 : 0), hy = GROUND - 16 + hb;
+      const mt = S.equip.mount, lift = mt ? 7 : 0, ha = heroAsc(), hc = ascColor(ha, R.t);
+      const hx = HERO_X - 8 + (h.swing > 0.5 ? 2 : 0), hy = GROUND - 16 + hb - lift;
+      if (ha >= 4) { // ★4 이상: 몸 뒤 오라와 떠오르는 빛
+        g.globalAlpha = 0.18 + Math.sin(R.t * 4) * 0.08; g.fillStyle = hc;
+        g.fillRect(Math.round(hx) - 4, Math.round(hy) - 3, 24, 22 + lift); g.globalAlpha = 1;
+        if (Math.random() < 0.5) R.parts.push({ x: hx + rnd(0, 16), y: hy + 18 + lift, vx: 0, vy: -24, t: 0.6, col: ascColor(ha, R.t + Math.random()), g: 0 });
+      }
+      const ar = S.equip.armor;
+      if (ar && ar.asc >= 2) { // 갑옷 ★2 이상: 등 뒤 날개 (펄럭임)
+        const flap = Math.round(Math.sin(R.t * 7)), wp = [ascColor(ar.asc, R.t), ascColor(ar.asc, R.t), ascColor(ar.asc, R.t)];
+        const wing = Sprites.bake('h_wing', null), wingF = Sprites.bake('h_wing', null, true);
+        glow(g, 'h_wing', null, Math.round(hx) - 4, Math.round(hy) + 4 + flap, wp[0], 0.9, false);
+        g.drawImage(wing, Math.round(hx) - 4, Math.round(hy) + 4 + flap);
+        glow(g, 'h_wing', null, Math.round(hx) + 1, Math.round(hy) + 2 - flap, wp[0], 0.9, true);
+        g.drawImage(wingF, Math.round(hx) + 1, Math.round(hy) + 2 - flap);
+      }
+      if (mt) { // 탈것: 영웅이 타고 다녀요 (등급 색, 승천 빛)
+        const mname = ['horse', 'wolfmount'][mt.v], mpal = PF.TIERS[mt.tier].pal;
+        const mb = walking || R.walk > 0 ? Math.round(Math.abs(Math.sin(R.t * 10)) * -2) : 0;
+        const mx = HERO_X - 9, my = GROUND - 15 + mb;
+        if (mt.asc) glow(g, mname, mpal, mx, my, ascColor(mt.asc, R.t), 0.85);
+        g.drawImage(Sprites.bake(mname, mpal), mx, my);
+      }
       // 무기 (휘두르기 회전)
       const wi = S.equip.weapon, wname = wi ? ['w_sword', 'w_axe', 'w_staff'][wi.v] : 'w_sword';
       const wimg = Sprites.bake(wname, wi ? PF.TIERS[wi.tier].pal : ['#e8edf4', '#a4aebb', '#5a6474']);
@@ -897,7 +932,7 @@
         tmp.width = sil.width; tmp.height = sil.height;
         const tg = tmp.getContext('2d');
         tg.clearRect(0, 0, tmp.width, tmp.height); tg.drawImage(sil, 0, 0);
-        tg.globalCompositeOperation = 'source-in'; tg.fillStyle = ASC_COL[Math.min(wi.asc, ASC_COL.length - 1)]; tg.fillRect(0, 0, tmp.width, tmp.height);
+        tg.globalCompositeOperation = 'source-in'; tg.fillStyle = ascColor(wi.asc, R.t); tg.fillRect(0, 0, tmp.width, tmp.height);
         tg.globalCompositeOperation = 'source-over';
         g.globalAlpha = 0.75 + Math.sin(R.t * 6) * 0.25;
         [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => g.drawImage(tmp, -1 + dx, -wimg.height + 1 + dy));
@@ -905,7 +940,17 @@
       }
       g.drawImage(wimg, -1, -wimg.height + 1);
       g.restore();
+      if (ha) glow(g, frame, pal, Math.round(hx), Math.round(hy), hc, 0.65 + Math.sin(R.t * 6) * 0.25);
       g.drawImage(img, Math.round(hx), Math.round(hy));
+      const hm = S.equip.helm;
+      if (hm && hm.tier === 9) { // 신성 투구: 머리 위 후광
+        g.fillStyle = '#fff4a0'; g.globalAlpha = 0.85 + Math.sin(R.t * 3) * 0.15;
+        g.fillRect(Math.round(hx) + 5, Math.round(hy) - 3, 6, 1); g.fillRect(Math.round(hx) + 4, Math.round(hy) - 2, 1, 1); g.fillRect(Math.round(hx) + 11, Math.round(hy) - 2, 1, 1); g.fillRect(Math.round(hx) + 5, Math.round(hy) - 1, 6, 1);
+        g.globalAlpha = 1;
+      }
+      if (hm && hm.asc >= 3) g.drawImage(Sprites.bake('crown'), Math.round(hx) + 4, Math.round(hy) - (hm.tier === 9 ? 7 : 3));
+      const bt = S.equip.boots;
+      if (bt && bt.asc >= 1 && (walking || R.walk > 0) && Math.random() < 0.6) R.parts.push({ x: hx + rnd(3, 12), y: hy + 16, vx: -30, vy: -5, t: 0.35, col: ascColor(bt.asc, R.t), g: 40 });
       if (wi && wi.v === 2) { // 지팡이 끝 마력 (사격할 때 크게)
         const tp = staffTip(), pulse = 1 + Math.round((Math.sin(R.t * 8) + 1) / 2) + (h.cast > 0 ? 2 : 0);
         g.fillStyle = weaponCol(1); g.globalAlpha = 0.5; g.fillRect(tp.x - pulse - 1, tp.y - pulse - 1, pulse * 2 + 2, pulse * 2 + 2);
@@ -914,9 +959,10 @@
       if (R.buffs.invul || R.buffs.guard) { g.strokeStyle = R.buffs.invul ? '#ffffff' : '#a0c0ff'; g.lineWidth = 1; g.strokeRect(Math.round(hx) - 2.5, Math.round(hy) - 2.5, 21, 21); }
       if (R.buffs.atk && Math.random() < 0.4) R.parts.push({ x: hx + rnd(2, 14), y: hy + 16, vx: 0, vy: -30, t: 0.4, col: R.buffs.atk.col, g: 0 });
       // 영웅 체력 바
-      g.fillStyle = '#1a1222'; g.fillRect(HERO_X - 9, GROUND - 22 + hb, 18, 4);
-      g.fillStyle = '#204020'; g.fillRect(HERO_X - 8, GROUND - 21 + hb, 16, 2);
-      g.fillStyle = '#5aff5a'; g.fillRect(HERO_X - 8, GROUND - 21 + hb, Math.round(16 * Math.max(0, h.hp) / h.max), 2);
+      const by = Math.round(hy) - 6 - (hm && hm.asc >= 3 ? 6 : 0) - (hm && hm.tier === 9 ? 3 : 0); // 왕관·후광 위로
+      g.fillStyle = '#1a1222'; g.fillRect(HERO_X - 9, by, 18, 4);
+      g.fillStyle = '#204020'; g.fillRect(HERO_X - 8, by + 1, 16, 2);
+      g.fillStyle = '#5aff5a'; g.fillRect(HERO_X - 8, by + 1, Math.round(16 * Math.max(0, h.hp) / h.max), 2);
     }
 
     // 투사체·파티클·글자
@@ -946,7 +992,8 @@
         g.fillStyle = '#ffffff'; g.fillRect(Math.round(p.x), Math.round(p.y) - 1, 1, 1);
         return;
       }
-      g.fillStyle = '#1a1222'; const s = p.big ? 5 : 3; g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, s + 2, s + 2); g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); });
+      g.fillStyle = '#1a1222'; const s = (p.big ? 5 : 3) + Math.min(3, p.asc || 0);
+      if (p.asc) { g.fillStyle = ascColor(p.asc, R.t); g.globalAlpha = 0.5; g.fillRect(Math.round(p.x) - 2, Math.round(p.y) - 2, s + 4, s + 4); g.globalAlpha = 1; g.fillStyle = '#1a1222'; } g.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, s + 2, s + 2); g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), s, s); });
     R.parts.forEach(p => { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); });
     R.texts.forEach(t => {
       if (/^[0-9.a-z+\-!]+$/.test(t.s)) drawNum(g, t.s, t.x, t.y, t.col, t.big ? 2 : 1);

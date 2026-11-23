@@ -9,6 +9,7 @@
     a: '#e8edf4', b: '#a4aebb', c: '#5a6474',
     d: '#5a9ad8', e: '#2a6ab0', f: '#1a3a70',
     g: '#9a6232', h: '#52301a', i: '#2a180c',
+    J: '#f8c8a0', K: '#52301a', L: '#2a6ab0', // 영웅 장갑 · 벨트 · 목걸이
   };
   const DEFS = {};
   const def = (name, rows) => { DEFS[name] = rows; };
@@ -24,9 +25,9 @@
     '....kssssssk....',
     '.....ktssttk....',
     '....kkdddddkk...',
-    '...ksdeeeeedsk..',
-    '...kskdddddksk..',
-    '....kkdfffdkk...',
+    '...kJdeeLeedJk..',
+    '...kJkdddddkJk..',
+    '....kkdKKKdkk...',
     '.....kdddddk....',
     '.....kgk.kgk....',
     '....kghk.kghk...',
@@ -42,9 +43,9 @@
     '....kssssssk....',
     '.....ktssttk....',
     '....kkdddddkk...',
-    '...ksdeeeeedsk..',
-    '...kskdddddksk..',
-    '....kkdfffdkk...',
+    '...kJdeeLeedJk..',
+    '...kJkdddddkJk..',
+    '....kkdKKKdkk...',
     '.....kdddddk....',
     '....kgk...kgk...',
     '...kghk...kghk..',
@@ -713,6 +714,15 @@
     '......kkkkkkkkkkkkkkkkkkkk......',
     '................................',
   ]);
+  def('h_wing', [
+    '....kk',
+    '..kkwk',
+    '.kwwwk',
+    'kwwwwk',
+    'kwwwk.',
+    '.kwwk.',
+    '..kk..',
+  ]);
   def('star', [
     '...kk...',
     '..kyyk..',
@@ -800,7 +810,7 @@
     c.width = w; c.height = h;
     const g = c.getContext('2d');
     const P = Object.assign({}, BASE);
-    if (pal) 'abcdefghi'.split('').forEach((ch, i) => { if (pal[i]) P[ch] = pal[i]; });
+    if (pal) 'abcdefghiJKL'.split('').forEach((ch, i) => { if (pal[i]) P[ch] = pal[i]; });
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const ch = rows[y][x];
       if (!ch || ch === '.') continue;

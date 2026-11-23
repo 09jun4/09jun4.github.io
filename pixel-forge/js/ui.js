@@ -71,7 +71,7 @@
   }
   function renderAvatar() {
     const e = S().equip, tp = sl => e[sl] ? tierPal(e[sl].tier) : null;
-    $('avatar').src = Sprites.url('hero', (tp('helm') || ['#c8ccd8', '#8a90a0', '#4a5060']).concat(tp('armor') || ['#6aa0e0', '#3a70b8', '#1a3a70'], tp('boots') || ['#9a6232', '#52301a', '#2a180c']));
+    $('avatar').src = Sprites.url('hero', Game.heroPal());
     $('power-ico').src = Sprites.url('sword', tierPal(e.weapon ? e.weapon.tier : 3));
     const C = window.Cloud;
     $('who-name').textContent = C && C.state === 'in' && C.user ? (C.user.name || '모험가') : '게스트 모험가';
@@ -566,7 +566,8 @@
   // ===== 랭킹 =====
   const heroPalOf = e => { // e: 슬롯별 [slot, v, tier, lvl, asc] 배열 또는 장착 장비 객체
     const tp = i => e[i] ? tierPal(e[i][2]) : null; // 0 투구, 1 갑옷, 6 신발
-    return (tp(0) || ['#c8ccd8', '#8a90a0', '#4a5060']).concat(tp(1) || ['#6aa0e0', '#3a70b8', '#1a3a70'], tp(6) || ['#9a6232', '#52301a', '#2a180c']);
+    return (tp(0) || ['#c8ccd8', '#8a90a0', '#4a5060']).concat(tp(1) || ['#6aa0e0', '#3a70b8', '#1a3a70'], tp(6) || ['#9a6232', '#52301a', '#2a180c'],
+      [tp(2) ? tp(2)[1] : null, tp(7) ? tp(7)[1] : null, tp(3) ? tp(3)[0] : null]); // 장갑 · 벨트 · 목걸이
   };
   const waveLabel = w => { const gi = Math.max(0, Math.ceil(w / PF.WAVES) - 1); return PF.DIFFS[Math.min(4, Math.floor(gi / 50))] + ' ' + (Math.floor(gi / 5) % 10 + 1) + '-' + (gi % 5 + 1); };
   function parseSnap(r) { try { return JSON.parse(r.snap); } catch (e) { return null; } }
@@ -636,8 +637,10 @@
     g.fillStyle = th.ground2; for (let x = 4; x < 180; x += 16) { g.fillRect(x, 24, 6, 2); g.fillRect(x + 8, 42, 4, 2); }
     g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(84, 47, 14, 2);
     const w = items[5];
-    if (w) g.drawImage(Sprites.bake(['w_sword', 'w_axe', 'w_staff'][w.v], tierPal(w.tier)), 93, 25);
-    g.drawImage(Sprites.bake('hero', heroPalOf(sn.e)), 82, 32);
+    const mt = items[8], lift = mt ? 7 : 0;
+    if (mt) g.drawImage(Sprites.bake(['horse', 'wolfmount'][mt.v], tierPal(mt.tier)), 81, 33);
+    if (w) g.drawImage(Sprites.bake(['w_sword', 'w_axe', 'w_staff'][w.v], tierPal(w.tier)), 93, 25 - lift);
+    g.drawImage(Sprites.bake('hero', heroPalOf(sn.e)), 82, 32 - lift);
     (sn.pt || []).filter(Boolean).forEach(([id, , a], i) => Game.drawPet(g, id, [62, 54, 70][i], [46, 32, 22][i], a, 0, 1));
   }
   function showNick() {
