@@ -19,6 +19,7 @@ export class Renderer {
     this.camLook = new THREE.Vector3(0, 1.2, 0);
     this.camSide = new THREE.Vector3(0, 0, 1);
     this.camAngle = Math.PI / 2;
+    this.trauma = 0; // 화면 흔들림 0~1
 
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#4a4060', 1.1));
     const sun = new THREE.DirectionalLight('#fff4e0', 2.2);
@@ -105,8 +106,24 @@ export class Renderer {
     this.camLook.lerp(mid.setY(1.05), k);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
+    // 흔들림: 세기의 제곱에 비례한 무작위 위치·기울기, 시간이 지나면 잦아든다
+    const t = this.trauma * this.trauma;
+    if (t > 0) {
+      const r = () => Math.random() * 2 - 1;
+      this.camera.position.add(new THREE.Vector3(r(), r(), r()).multiplyScalar(t * 0.18));
+      this.camera.rotateZ(r() * t * 0.06);
+      this.trauma = Math.max(0, this.trauma - dt * 2.2);
+    }
     // 카메라 쪽 로프는 반투명하게 (선수를 가리지 않게)
     for (const r of this.ropes) r.mat.opacity = r.n.dot(this.camSide) > 0.5 ? 0.18 : 1;
+  }
+
+  shake(amount) { this.trauma = Math.min(1, this.trauma + amount); }
+
+  // 월드 좌표 → 화면 픽셀
+  toScreen(v) {
+    const p = v.clone().project(this.camera);
+    return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight };
   }
 
   toggleDebug() {

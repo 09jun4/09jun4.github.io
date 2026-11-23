@@ -40,6 +40,13 @@
   kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 5px; background: #2f3760; border-bottom: 2px solid #0007; font: inherit; font-size: 12px; text-align: center; }
   button { font: inherit; font-weight: 800; font-size: 18px; padding: 12px 34px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
   button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .pop { position: fixed; transform: translate(-50%, -50%); font-weight: 900; font-size: 40px; letter-spacing: .05em; pointer-events: none;
+    text-shadow: 0 3px 0 #000c, 0 0 18px #3aa8ff88; animation: pop .9s ease-out forwards; }
+  .pop.block { color: #7fd4ff; }
+  @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    30% { transform: translate(-50%, -50%) scale(1); } 65% { opacity: 1; transform: translate(-50%, -75%); } 100% { opacity: 0; transform: translate(-50%, -120%); } }
+  #flash { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(transparent 55%, #e2202080); opacity: 0; transition: opacity .25s; }
+  #flash.on { opacity: 1; transition: none; }
   #debug { position: fixed; left: 12px; bottom: 34px; margin: 0; padding: 10px 12px; background: #000a; border-radius: 8px; font: 12px/1.4 ui-monospace, monospace; white-space: pre; pointer-events: none; }
   .hint { position: fixed; right: 12px; bottom: 10px; font-size: 12px; opacity: .55; }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; font-weight: 700; }
@@ -66,6 +73,7 @@
     <div class="track thin"><div class="fill st" id="st1"></div></div>
   </div>
 </div>
+<div id="flash"></div>
 <div id="msg" role="status" aria-live="polite"></div>
 <pre id="debug" hidden></pre>
 <div class="hint">F1 또는 ` : 물리 디버그</div>

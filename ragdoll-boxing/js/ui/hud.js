@@ -45,5 +45,16 @@ export class Hud {
     }
   }
 
+  // 화면 위치(x, y)에 떠올랐다 사라지는 글자
+  popup(text, x, y, cls) {
+    const el = document.createElement('div');
+    el.className = 'pop ' + cls;
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    document.body.append(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+
   setDebug(on) { this.debugOn = on; this.el.debug.hidden = !on; }
 }

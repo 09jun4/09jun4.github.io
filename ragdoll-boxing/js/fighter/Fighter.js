@@ -19,6 +19,7 @@ export class Fighter {
     this.queued = null;
     this.attackId = 0;
     this.phase = 0;      // 걷기 주기
+    this.flinch = 0;     // 피격 휘청임 0~1
     this.weave = 0;      // -1 왼쪽 ~ 1 오른쪽 (부드럽게)
     this.forward = new THREE.Vector3(1, 0, 0);
     this.sensors = { tilt: 0, pelvisY: 1, speed: 0, down: false, attacking: false, guarding: false };
@@ -140,9 +141,11 @@ export class Fighter {
     }
     if (s.state === 'Recovering') s.recovery = Math.min(1, s.recovery + dt / cfg.recovery.riseTime);
     if (!this.down) StateManager.regen(s, dt, st, !this.attack && !guarding);
-    const tn = tuning(s, cfg);
-    rd.assist = s.stability = tn.assist;
-    rd.muscle = tn.muscle;
+    const tn = tuning(s, cfg), fl = cfg.hit.flinch;
+    // 맞은 직후 잠깐 힘이 빠져 래그돌이 크게 휘청인다
+    this.flinch = Math.max(0, this.flinch - dt / fl.time);
+    rd.assist = s.stability = tn.assist * (1 - this.flinch * fl.assist);
+    rd.muscle = tn.muscle * (1 - this.flinch * fl.muscle);
   }
 
   _arm(side, poseName) {
@@ -171,20 +174,25 @@ export class Fighter {
   }
 
   // 맞았을 때 (충돌 관리자에서 호출)
+  // 반환: { dmg, blocked, heavy }
   receiveHit(part, relSpeed, attack, dir, time) {
-    const s = this.s, h = this.cfg.fighter.hit, partKind = part.kind;
-    if (s.state === 'Knockdown' || s.state === 'KO') return 0;
+    const s = this.s, h = this.cfg.fighter.hit, partKind = part.kind, none = { dmg: 0, blocked: false, heavy: false };
+    if (s.state === 'Knockdown' || s.state === 'KO') return none;
     const over = Math.min(relSpeed, h.maxSpeed) - h.minSpeed;
-    if (over <= 0) return 0;
+    if (over <= 0) return none;
     const mult = h.partMultiplier[partKind] ?? 1;
-    const guarded = s.state === 'Guarding' || mult < 0.5;
+    const blocked = s.state === 'Guarding' && mult < 0.5;
+    const soft = blocked || mult < 0.5;
     const dmg = over * h.damagePerSpeed * attack.def.power * mult;
-    const bal = over * h.balancePerSpeed * attack.def.power * Math.max(mult, 0.4) * (guarded ? h.guardBalanceFactor : 1);
+    const bal = over * h.balancePerSpeed * attack.def.power * Math.max(mult, 0.4) * (soft ? h.guardBalanceFactor : 1);
     StateManager.applyHit(s, dmg, bal, time);
     if (bal > h.staggerBalance && s.balance > 0 && s.health > 0) StateManager.setState(s, 'Stagger');
-    // 타격감: 맞은 부위를 펀치 방향으로 밀어낸다
-    const imp = Math.min(over, 8) * h.knockback * attack.def.power * (guarded ? 0.3 : 1) / 8;
-    part.body.applyImpulse({ x: dir.x * imp, y: dir.y * imp * 0.3, z: dir.z * imp }, true);
-    return dmg;
+    const power = Math.min(over, 10) / 10 * attack.def.power;
+    if (!soft) this.flinch = Math.min(1, this.flinch + power * (partKind === 'head' ? 1.2 : 0.8));
+    // 타격감: 맞은 부위와 몸통을 펀치 방향으로 크게 밀어낸다
+    const imp = power * h.knockback * (soft ? 0.3 : 1);
+    part.body.applyImpulse({ x: dir.x * imp, y: dir.y * imp * 0.3 + imp * 0.1, z: dir.z * imp }, true);
+    if (!soft) this.body.part('torso').body.applyImpulse({ x: dir.x * imp * 0.6, y: 0, z: dir.z * imp * 0.6 }, true);
+    return { dmg, blocked, heavy: !soft && (partKind === 'head' || power > 0.8) };
   }
 }

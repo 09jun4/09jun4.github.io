@@ -11,7 +11,7 @@ export class CollisionManager {
     this.byCollider = new Map();
     for (const f of fighters) for (const p of Object.values(f.body.parts)) this.byCollider.set(p.collider.handle, p);
     this.handVel = new Map(fighters.flatMap((f) => Object.values(f.body.hands).map((h) => [h, new THREE.Vector3()])));
-    this.onHit = null; // (attacker, defender, part, damage) => void
+    this.onHit = null; // (attacker, defender, part, { dmg, blocked, heavy }) => void
   }
 
   // 스텝 전 손 속도 기록: 충돌 뒤에는 속도가 이미 줄어 있으므로 부딪히기 직전 값을 쓴다
@@ -46,10 +46,12 @@ export class CollisionManager {
         const pv = part.body.linvel();
         const hv = this.handVel.get(hand);
         const rel = _v.set(hv.x - pv.x, hv.y - pv.y, hv.z - pv.z).length();
-        attack.hit = true; // 한 번의 펀치는 한 번만 맞는다
-        const dmg = def.receiveHit(part, rel, attack, _v.normalize(), time);
-        if (dmg > 0) { atk.s.round.landed++; atk.s.round.damage += dmg; }
-        this.onHit?.(atk, def, part, dmg, rel);
+        const res = def.receiveHit(part, rel, attack, _v.normalize(), time);
+        // 가드 안 한 팔·글러브를 스치면 펀치는 계속 나간다. 맞히거나 막히면 그 펀치는 끝(한 번만 맞음)
+        if (res.dmg > 0 && part.kind !== 'hand' && part.kind !== 'lowerArm' && part.kind !== 'upperArm' || res.blocked) attack.hit = true;
+        else continue;
+        if (res.dmg > 0) { atk.s.round.landed++; atk.s.round.damage += res.dmg; }
+        if (res.dmg > 0 || res.blocked) this.onHit?.(atk, def, part, res);
       }
     });
   }

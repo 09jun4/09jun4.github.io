@@ -2,9 +2,10 @@
   "roundsToWin": 2,
   "maxRounds": 3,
   "roundTime": 60,
-  "introTime": 2.0,
-  "roundEndTime": 3.0,
+  "introTime": 1.4,
+  "roundEndTime": 2.2,
   "knockdownsForKO": 3,
   "startDistance": 1.8,
-  "ai": {"reaction": 0.28, "preferredRange": 0.85, "attackChance": 0.9, "guardChance": 0.45, "weaveChance": 0.2, "thinkInterval": 0.25}
+  "ai": {"reaction": 0.22, "preferredRange": 0.85, "attackChance": 0.9, "guardChance": 0.45, "weaveChance": 0.2, "thinkInterval": 0.17},
+  "feel": {"shakeHit": 0.35, "shakeHead": 0.6, "shakeDown": 0.9, "hitStop": 0.06, "hitStopHeavy": 0.11}
 }
