@@ -243,7 +243,7 @@
     if (!S.eggBox[r]) return 'none';
     if (i < 0) return 'full';
     S.eggBox[r]--;
-    S.incub[i] = { r, end: now() + PF.HATCH_SEC[r] * 1000, dur: PF.HATCH_SEC[r] * 1000 };
+    S.incub[i] = { r, asc: S.asc, end: now() + PF.HATCH_SEC[r] * 1000, dur: PF.HATCH_SEC[r] * 1000 };
     Audio8.play('click'); G.emit('pets'); Store.save();
     return 'ok';
   };
@@ -254,7 +254,7 @@
       if (e && t >= e.end) {
         const p = pick(PF.PETS.filter(x => x.r === e.r));
         const isNew = !S.petInv.some(x => x.id === p.id);
-        const inst = { u: S.nextPet++, id: p.id, lvl: 1, asc: S.asc }; // 부화 시점의 펫 승천 세대
+        const inst = { u: S.nextPet++, id: p.id, lvl: 1, asc: e.asc != null ? e.asc : S.asc }; // 알의 승천 세대
         S.petInv.push(inst);
         S.incub[i] = null;
         hatched = { id: p.id, u: inst.u, isNew };
@@ -302,9 +302,18 @@
     kind = kind || 'pet';
     if (!G.canAscend(kind)) return false;
     let n, msg;
-    if (kind === 'pet') { n = ++S.asc; S.petSum = { lvl: 1, cnt: 0 }; msg = '이제 부화하는 펫은 ★' + n + ' 세대 (×' + PF.fmt(PF.petAscMul(n)) + ')'; }
-    else if (kind === 'skill') { n = ++S.skillAsc; S.skillSum = { lvl: 1, cnt: 0 }; msg = '이제 뽑는 스킬은 ★' + n + ' 세대 (×' + PF.fmt(PF.skillAscMul(n)) + ')'; }
-    else { n = ++S.forge.asc; S.forge.lvl = 1; S.forge.gauge = 0; msg = '이제 만드는 장비는 ★' + n + ' 세대 (×' + PF.fmt(PF.itemAscMul(n)) + ')'; }
+    if (kind === 'pet') {
+      n = ++S.asc; S.petSum = { lvl: 1, cnt: 0 };
+      S.petInv = []; S.petEq = [null, null, null]; S.eggBox = [0, 0, 0, 0, 0, 0]; S.incub = S.incub.map(() => null);
+      msg = '이제 부화하는 펫은 ★' + n + ' 세대 (×' + PF.fmt(PF.petAscMul(n)) + ')'; }
+    else if (kind === 'skill') {
+      n = ++S.skillAsc; S.skillSum = { lvl: 1, cnt: 0 };
+      S.skills = {}; S.skillEq = [null, null, null]; G.resetCds(); R.buffs = {};
+      msg = '이제 뽑는 스킬은 ★' + n + ' 세대 (×' + PF.fmt(PF.skillAscMul(n)) + ')'; }
+    else {
+      n = ++S.forge.asc; S.forge.lvl = 1; S.forge.gauge = 0;
+      S.equip = {};
+      msg = '이제 만드는 장비는 ★' + n + ' 세대 (×' + PF.fmt(PF.itemAscMul(n)) + ')'; }
     Audio8.play('divine'); G.toast({ pet: '펫', skill: '스킬', forge: '대장간' }[kind] + ' 승천 ' + n + '단계! ' + msg);
     G.emit(kind === 'pet' ? 'pets' : kind === 'skill' ? 'skills' : 'forge'); G.emit('equip'); Store.save();
     return true;

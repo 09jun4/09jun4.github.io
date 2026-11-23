@@ -284,3 +284,9 @@ label.chk input { width: 20px; height: 20px; }
 .box h3 img { width: 20px; height: 20px; vertical-align: middle; }
 .card.picked .disc { outline: 4px solid var(--green); outline-offset: 2px; }
 .card.picked::after { content: '✓'; position: absolute; top: -4px; right: -2px; background: var(--green); color: #fff; border: 2px solid var(--ink); border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 16px; text-align: center; }
+
+/* 승천 세대 알: 단계 색 픽셀 외곽선 (★3 이상 무지개) */
+img.eg1 { filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff); }
+img.eg2 { filter: drop-shadow(2px 0 0 #ffd23a) drop-shadow(-2px 0 0 #ffd23a) drop-shadow(0 2px 0 #ffd23a) drop-shadow(0 -2px 0 #ffd23a); }
+img.eg3, img.eg4, img.eg5 { animation: rainbow-ico 2.4s linear infinite; }
+img.wob.eg3, img.wob.eg4, img.wob.eg5 { animation: wob .5s infinite, rainbow-ico 2.4s linear infinite; }

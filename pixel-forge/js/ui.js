@@ -14,6 +14,12 @@
   // 승천 단계 카드: 테두리(af1 은 → af2 금 → af3 무지개 → af4 반짝이 → af5 오라)와 별
   const afCls = a => a > 0 ? ` af af${Math.min(a, 5)}` : '';
   const astar = a => a > 0 ? `<span class="astar">★${a}</span>` : '';
+  const eggIco = (r, asc, cls) => {
+    asc = asc || 0;
+    const name = asc >= 2 ? 'egg_a2' : asc === 1 ? 'egg_a1' : 'egg';
+    const pal = Sprites.tri(PF.RAR[r].col).concat([asc >= 2 ? '#5ad8ff' : '#ffffff']);
+    return ico(name, pal, ((cls || '') + (asc ? ' eg' + Math.min(asc, 5) : '')).trim());
+  };
   const eggPal = r => Sprites.tri(PF.RAR[r].col).concat(['#ffffff']);
   const EGG_RES = ['#fff8e8', '#e8d4b0', '#a08060', '#e0905a']; // 알 재화(뽑기용) 아이콘 색
   const resIco = k => k === 'eggs' ? ico('egg', EGG_RES) : ico(RES_ICO[k]);
@@ -264,7 +270,7 @@
       <div class="btn-row"><button class="px-btn gray small" data-act="list">모든 장비의 목록</button></div>`,
     { on: act => {
       if (act === 'invest') { if (Game.forgeInvest()) showForgeInfo(); }
-      else if (act === 'forge-asc') { if (Game.ascend('forge')) { closeModal(); queuePanel(); } }
+      else if (act === 'forge-asc') confirmAscend('forge');
       else if (act === 'list') showItemList();
       else if (act.startsWith('tier-')) showItemList(+act.slice(5));
     } });
@@ -372,11 +378,11 @@
     const eqHtml = s.petEq.map(u => { const p = Game.pet(u); return p ? `<div class="mini${afCls(p.asc)}" style="${rarBg(PF.petById[p.id].r)}">${petCanvas(p.id, 36, p.asc)}<span>Lv.${p.lvl}</span></div>` : '<div class="mini"></div>'; }).join('');
     const nests = s.incub.map((e, i) => {
       if (!e) return `<div class="nest"><div class="lamp"></div><div class="pillow"></div><span>비어 있음</span></div>`;
-      return `<div class="nest"><div class="lamp on"></div><div class="pillow">${ico('egg', eggPal(e.r), 'wob')}</div><span style="color:${PF.RAR[e.r].col}">${PF.RAR[e.r].name}</span><div class="bar"><i class="blue" data-incub="${i}"></i><span data-incub-t="${i}"></span></div></div>`;
+      return `<div class="nest"><div class="lamp on"></div><div class="pillow">${eggIco(e.r, e.asc, 'wob')}</div><span style="color:${PF.RAR[e.r].col}">${PF.RAR[e.r].name}</span><div class="bar"><i class="blue" data-incub="${i}"></i><span data-incub-t="${i}"></span></div></div>`;
     }).join('');
     const n = s.incub.length, slotCost = n < PF.SLOT_MAX ? PF.slotCost(n) : 0, free = s.incub.filter(x => !x).length;
     const box = PF.RAR.map((x, r) => `<button class="egg-stack${s.eggBox[r] ? '' : ' empty'}" data-act="hatch-${r}"${s.eggBox[r] ? '' : ' disabled'} aria-label="${x.name} 알 부화">
-      ${ico('egg', eggPal(r))}<b>x${fmt(s.eggBox[r])}</b><span style="color:${x.col}">${x.name}</span><small>${PF.HATCH_SEC[r] < 60 ? PF.HATCH_SEC[r] + '초' : PF.HATCH_SEC[r] / 60 + '분'}</small></button>`).join('');
+      ${eggIco(r, s.asc)}<b>x${fmt(s.eggBox[r])}</b><span style="color:${x.col}">${x.name}</span><small>${PF.HATCH_SEC[r] < 60 ? PF.HATCH_SEC[r] + '초' : PF.HATCH_SEC[r] / 60 + '분'}</small></button>`).join('');
     return `<div class="res-head"><span class="pill" style="color:#fff">${ico('egg', EGG_RES)}<span>${fmt(s.eggs)}</span></span><h2>펫 ${list.length}</h2><span class="pill" style="color:#fff;min-width:0">승천 ${s.asc}</span></div>
       <div class="bonus-bar">장착 효과: 피해 +${fmt(Game.stats().petP)}%${s.asc ? ` · 새로 부화하는 펫 ★${s.asc} 세대 ×${fmt(PF.petAscMul(s.asc))}` : ''}</div>
       <div class="eq-row pets" style="margin-top:0"><span class="lab">장착됨</span><div class="slots">${eqHtml}</div></div>
@@ -445,7 +451,7 @@
       const gain = Game.petGain(u, sel.eggs, sel.mats);
       const mats = sortedPets().filter(q => q.u !== u && !s.petEq.includes(q.u) && PF.petById[q.id].r === d.r);
       body = `<div class="enh-preview">Lv.${p.lvl} <b>▶</b> <span class="up">Lv.${p.lvl + gain}</span></div>
-        <div class="box"><h3>${ico('egg', eggPal(d.r))} 같은 등급 알 <small>(1개 = +1레벨, 보유 ${fmt(s.eggBox[d.r])}개)</small></h3>
+        <div class="box"><h3>${eggIco(d.r, S().asc)} 같은 등급 알 <small>(1개 = +1레벨, 보유 ${fmt(s.eggBox[d.r])}개)</small></h3>
           <div class="stepper"><button class="px-btn small gray" data-act="egg--10">-10</button><button class="px-btn small gray" data-act="egg--1">-1</button><b>${sel.eggs}</b><button class="px-btn small" data-act="egg-1">+1</button><button class="px-btn small" data-act="egg-10">+10</button><button class="px-btn small" data-act="egg-max">최대</button></div></div>
         <div class="box"><h3>장착하지 않은 ${PF.RAR[d.r].name} 펫 <small>(그 펫 레벨만큼 +레벨)</small></h3>
           ${mats.length ? `<div class="card-grid">${mats.map(q => petCard(q, 'mat-' + q.u).replace('class="card pet"', `class="card pet${sel.mats.includes(q.u) ? ' picked' : ''}"`)).join('')}</div>` : '<p class="note">재료로 쓸 수 있는 펫이 없어요</p>'}</div>
@@ -477,7 +483,7 @@
   function showSummon(kind, out) {
     let cards;
     if (kind === 'skill') cards = out.map((x, i) => { const sk = PF.skillById[x.id]; return `<div class="card" style="animation-delay:${i * 0.06}s"><div class="disc${afCls(x.asc)}" style="${rarBg(sk.r)}">${ico(sk.icon)}${astar(x.asc)}</div><div style="font-size:10px;margin-top:4px">${x.isNew ? '<span class="down">NEW</span> ' : ''}${sk.name}</div></div>`; });
-    else cards = out.map((r, i) => `<div class="card" style="animation-delay:${Math.min(i, 30) * 0.04}s"><div class="disc" style="${rarBg(r)};border-radius:4px">${ico('egg', eggPal(r))}</div><div style="font-size:10px;margin-top:4px">${PF.RAR[r].name} 알</div></div>`);
+    else cards = out.map((r, i) => `<div class="card" style="animation-delay:${Math.min(i, 30) * 0.04}s"><div class="disc${afCls(S().asc)}" style="${rarBg(r)};border-radius:4px">${eggIco(r, S().asc)}</div><div style="font-size:10px;margin-top:4px">${PF.RAR[r].name} 알</div></div>`);
     modal(`<h3>소환 결과</h3><div class="result-grid">${cards.join('')}</div>
       ${kind === 'pet' ? '<p class="note">알은 <b>알 보관함</b>에 무제한으로 쌓여요. 보관함에서 부화시킬 알을 골라 주세요.</p>' : ''}
       <div class="btn-row"><button class="px-btn" data-act="again">한 번 더</button></div>`,
@@ -490,11 +496,28 @@
     showSummon(kind, out);
   }
   const ASC_TEXT = {
-    pet: '승천하면 소환 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 부화하는 펫은 한 세대 위(능력치 ×8.3)라서, 승천 후 서사시 펫이 지금의 신화 펫과 맞먹어요. 새 펫은 외형·테두리가 업그레이드되고 별이 하나 붙어요.',
-    skill: '승천하면 소환 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 뽑는 스킬은 한 세대 위(효과 ×16.7)로 새로 얻어져서, 승천 후 서사시 스킬이 지금의 신화 스킬과 맞먹어요. 새 스킬 카드는 테두리가 업그레이드되고 별이 하나 붙어요.',
-    forge: '승천하면 대장간 레벨과 확률이 처음(Lv.1)으로 돌아가요. 대신 그 뒤로 만드는 장비는 한 세대 위(능력치 ×3,400)라서, 승천 후 3번째 등급(청동)이 지금의 신성 장비와 맞먹어요. 새 장비는 승천 테두리와 별이 붙어요.',
+    pet: '승천하면 소환 레벨·확률과 가진 것들이 모두 처음으로 돌아가요. 대신 그 뒤로 부화하는 펫은 한 세대 위(능력치 ×8.3)라서, 승천 후 서사시 펫이 지금의 신화 펫과 맞먹어요. 알과 펫의 외형·테두리가 업그레이드되고 별이 하나 붙어요.',
+    skill: '승천하면 소환 레벨·확률과 가진 것들이 모두 처음으로 돌아가요. 대신 그 뒤로 뽑는 스킬은 한 세대 위(효과 ×16.7)로 새로 얻어져서, 승천 후 서사시 스킬이 지금의 신화 스킬과 맞먹어요. 새 스킬 카드는 테두리가 업그레이드되고 별이 하나 붙어요.',
+    forge: '승천하면 대장간 레벨·확률과 장착한 장비가 모두 처음으로 돌아가요. 대신 그 뒤로 만드는 장비는 한 세대 위(능력치 ×3,400)라서, 승천 후 3번째 등급(청동)이 지금의 신성 장비와 맞먹어요. 새 장비는 승천 테두리와 별이 붙어요.',
   };
 
+  const ASC_WIPE = {
+    pet: '가진 펫 전부, 장착한 펫, 알 보관함의 알, 부화 중인 알, 펫 소환 레벨',
+    skill: '가진 스킬 전부, 장착한 스킬, 스킬 소환 레벨',
+    forge: '장착한 장비 전부(9칸), 대장간 레벨과 게이지',
+  };
+  function confirmAscend(kind) {
+    const name = { pet: '펫', skill: '스킬', forge: '대장간' }[kind];
+    const n = (kind === 'pet' ? S().asc : kind === 'skill' ? S().skillAsc : S().forge.asc) + 1;
+    modal(`<h3>${name} 승천 ★${n}</h3><p class="sub-t">되돌릴 수 없어요</p>
+      <div class="desc"><b>사라지는 것:</b> ${ASC_WIPE[kind]}<br><b>남는 것:</b> 재화(왕관·망치·티켓·알 재화), 다른 항목의 진행</div>
+      <p class="note">${ASC_TEXT[kind]}</p>
+      <div class="btn-row"><button class="px-btn gray" data-act="close">취소</button><button class="px-btn red" data-act="do">모두 초기화하고 승천</button></div>`,
+    { on: act => {
+      if (act !== 'do') return;
+      if (Game.ascend(kind)) { closeModal(); renderAvatar(); renderHud(); queuePanel(); }
+    } });
+  }
   function showRates(kind, L) {
     const s = S(), sum = kind === 'skill' ? s.skillSum : s.petSum;
     L = L || sum.lvl;
@@ -510,7 +533,7 @@
     { on: act => {
       if (act === 'prev') showRates(kind, L - 1);
       if (act === 'next') showRates(kind, L + 1);
-      if (act === 'ascend') { Game.ascend(kind); closeModal(); queuePanel(); }
+      if (act === 'ascend') confirmAscend(kind);
     } });
   }
 
