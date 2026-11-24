@@ -1,8 +1,9 @@
-// audio.js — WebAudio로 만드는 8비트 효과음과 칩튠 배경음악 (파일 없이 코드로 생성)
+// audio.js — WebAudio 8비트 효과음(코드로 생성) + 배경음악(assets/bgm.mp3, 실패 시 칩튠)
 'use strict';
 (function () {
   let ctx = null, master = null, sfxGain = null, bgmGain = null;
   const st = { sfx: true, bgm: true };
+  let bgmVol = 0.22, fileBgm = null; // 파일 BGM이 로드되면 bgmVol을 파일용으로 바꿔요
 
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -11,8 +12,8 @@
     ctx = new AC();
     master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
     sfxGain = ctx.createGain(); sfxGain.gain.value = st.sfx ? 0.6 : 0; sfxGain.connect(master);
-    bgmGain = ctx.createGain(); bgmGain.gain.value = st.bgm ? 0.22 : 0; bgmGain.connect(master);
-    startBgm();
+    bgmGain = ctx.createGain(); bgmGain.gain.value = st.bgm ? bgmVol : 0; bgmGain.connect(master);
+    loadBgm();
   }
 
   function tone(type, f0, f1, dur, vol, when, out) {
@@ -61,6 +62,19 @@
     die() { tone('sawtooth', 440, 55, 0.6, 0.2); },
   };
 
+  // ---- 파일 BGM: assets/bgm.mp3를 끊김 없이 반복 (끝이 처음으로 이어지게 크로스페이드해 둔 파일).
+  // 불러오기에 실패하면 아래 코드로 만드는 칩튠으로 대신해요.
+  function loadBgm() {
+    fetch('assets/bgm.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no)))
+      .then(buf => {
+        fileBgm = ctx.createBufferSource(); fileBgm.buffer = buf; fileBgm.loop = true;
+        bgmVol = 0.32; bgmGain.gain.value = st.bgm ? bgmVol : 0;
+        fileBgm.connect(bgmGain); fileBgm.start();
+      })
+      .catch(startBgm);
+  }
+
   // ---- 칩튠 BGM: 멜로디(square) + 베이스(triangle) + 하이햇(noise) 16스텝 반복 ----
   const N = s => s ? 440 * Math.pow(2, (s - 69) / 12) : 0; // MIDI → Hz
   const SONGS = {
@@ -96,11 +110,11 @@
   window.Audio8 = {
     init,
     play(n) { if (ctx && st.sfx && SFX[n]) try { SFX[n](); } catch (e) { /* 소리 실패는 무시 */ } },
-    song(n) { if (song !== n) { song = n; step = 0; } },
+    song(n) { if (song !== n) { song = n; step = 0; } }, // 파일 BGM은 장면과 상관없이 계속 이어져요
     set(kind, on) {
       st[kind] = on;
       if (!ctx) return;
-      (kind === 'sfx' ? sfxGain : bgmGain).gain.value = on ? (kind === 'sfx' ? 0.6 : 0.22) : 0;
+      (kind === 'sfx' ? sfxGain : bgmGain).gain.value = on ? (kind === 'sfx' ? 0.6 : bgmVol) : 0;
     },
     state: st,
   };
