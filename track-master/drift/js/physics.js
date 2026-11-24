@@ -23,11 +23,11 @@
     TORQUE_CURVE: [{ rpm: 900, torque: 145 }, { rpm: 2000, torque: 265 }, { rpm: 4500, torque: 385 }, { rpm: 6000, torque: 360 }, { rpm: 7000, torque: 275 }, { rpm: 7500, torque: 145 }, { rpm: 8200, torque: 120 }],
     CAR_HALF_WIDTH: 0.95, CAR_HALF_LENGTH: 2.1,
     MAX_STEER_ANGLE: 0.5, STEER_GRIP_TARGET: 1.0, STEER_RESPONSE_RATE: 5.0, STEER_RETURN_RATE: 14.0,
-    DRIFT_STEER_START: 0.3, DRIFT_STEER_RATE: 1.4, DRIFT_STEER_RETURN: 2.2,
+    DRIFT_STEER_START: 0.45, DRIFT_STEER_RATE: 2.8, DRIFT_STEER_RETURN: 2.2, DRIFT_COUNTER_RATE: 0.9, DRIFT_INTO_BOOST: 1.2,
     STEER_RESPONSE_BOOST: 1.6, GRIP_BOOST: 1.3,
     TIRE_GRIP_TARMAC: 1.15, LATERAL_GRIP: 1.0,
-    DRIFT_MIN_SPEED: 8, DRIFT_TURN_ACCEL: 1.8, DRIFT_MAX_TURN_RATE: 2.0, DRIFT_SPEED_COST: 0.45,
-    DRIFT_MAX_SLIP_ANGLE: 0.6, DRIFT_YAW_GAIN: 5.0, SLIDE_ALIGN_RATE: 4.0, SLIDE_ALIGN_DEADBAND: 0.05,
+    DRIFT_MIN_SPEED: 8, DRIFT_TURN_ACCEL: 1.8, DRIFT_MAX_TURN_RATE: 2.5, DRIFT_SPEED_COST: 0.45,
+    DRIFT_MAX_SLIP_ANGLE: 0.85, DRIFT_YAW_GAIN: 5.0, SLIDE_ALIGN_RATE: 4.0, SLIDE_ALIGN_DEADBAND: 0.05,
     BUMP_IMPACT_SPEED: 3.5, WALL_BOUNCE: 0.25, WALL_SCRAPE_DECEL: 6,
     MAX_BRAKE_DECEL: 8, ROLLING_RESISTANCE_COEF: 0.015, DRAG_COEF: 0.35, FRONTAL_AREA: 2.0, AIR_DENSITY: 1.2,
   };
@@ -88,7 +88,7 @@
     c.y = s.y + s.ny * (lateral || 0);
     c.heading = s.heading;
     c.vx = c.vy = c.speed = c.vf = c.vl = 0;
-    c.gear = 1; c.rpm = c.p.IDLE_RPM; c.steer = 0; c.drifting = false; c.slip = 0;
+    c.gear = 1; c.rpm = c.p.IDLE_RPM; c.steer = 0; c.drifting = false; c.slip = 0; c.driftLock = false; c.recoverT = 0;
     c.idx = index; c.h = s.h; c.onWall = false;
   };
 
@@ -104,10 +104,18 @@
     var wasDrifting = c.drifting;
     // Releasing the steer key does not end the drift at once: the lock eases
     // back at DRIFT_STEER_RETURN, so tapping the key trims the angle.
-    c.drifting = input.drift > 0 && (input.steer !== 0 || (wasDrifting && Math.abs(c.steer) > 0.05)) && c.speed > p.DRIFT_MIN_SPEED;
-    // Entering a drift: the lock starts small and then grows with how long
-    // the drift is held (below), instead of snapping to full lock.
-    if (c.drifting && !wasDrifting) c.steer = clamp(c.steer, -p.DRIFT_STEER_START, p.DRIFT_STEER_START);
+    // After a drift was unwound by counter-steering, no new drift starts
+    // until the steer key (or the handbrake) is let go.
+    if (c.driftLock && (input.steer === 0 || input.drift === 0)) c.driftLock = false;
+    c.drifting = !c.driftLock && input.drift > 0 && (input.steer !== 0 || (wasDrifting && Math.abs(c.steer) > 0.05)) && c.speed > p.DRIFT_MIN_SPEED;
+    // Entering a drift: the lock starts part-way and grows while the key is
+    // held (below). The drift keeps the side it started on.
+    if (c.drifting && !wasDrifting) {
+      var d0 = input.steer || c.steer || 1;
+      c.driftDir = d0 > 0 ? 1 : -1;
+      c.steer = c.driftDir * Math.max(p.DRIFT_STEER_START, Math.min(1, Math.abs(c.steer)));
+    }
+    if (c.recoverT > 0) c.recoverT -= dt;
     c.driftTime = c.drifting ? (c.driftTime || 0) + dt : 0;
 
     var a = longAccel(p, vf, c.gear, input.throttle, input.brake, tmp);
@@ -121,9 +129,24 @@
     c.rpm = tmp.rpm;
     c.accel = (vf - vf0) / dt;
 
-    var target = input.steer, d = target - c.steer;
+    var target = c.recoverT > 0 ? 0 : input.steer, d = target - c.steer;
     var rate = Math.abs(target) < Math.abs(c.steer) ? p.STEER_RETURN_RATE : p.STEER_RESPONSE_RATE;
-    if (c.drifting) {
+    var into = false;
+    if (c.drifting && !input.ai) {
+      // Player drift: steering into the drift tightens it quickly; steering
+      // against it opens it gently, and once unwound the car grips and
+      // straightens up instead of flicking into a drift the other way.
+      var dir = c.driftDir, aim, r2;
+      if (input.steer * dir > 0) { aim = dir; r2 = p.DRIFT_STEER_RATE; into = true; }
+      else if (input.steer * dir < 0) { aim = 0; r2 = p.DRIFT_COUNTER_RATE; }
+      else { aim = 0; r2 = p.DRIFT_STEER_RETURN; }
+      var d2 = aim - c.steer;
+      c.steer += Math.abs(d2) <= r2 * dt ? d2 : (d2 > 0 ? 1 : -1) * r2 * dt;
+      if (c.steer * dir < 0) c.steer = 0;
+      if (input.steer * dir < 0 && Math.abs(c.steer) < 0.04) {
+        c.drifting = false; c.driftLock = true; c.recoverT = 0.45; c.steer = 0;
+      }
+    } else if (c.drifting) {
       // While drifting the lock changes at a fixed, gentle rate: holding the
       // key for twice as long gives twice the angle.
       rate = Math.abs(target) > Math.abs(c.steer) && target * c.steer >= 0 ? p.DRIFT_STEER_RATE : p.DRIFT_STEER_RETURN;
@@ -136,7 +159,7 @@
     if (c.drifting) {
       var sp = Math.sqrt(vf * vf + vl * vl), turn = 0;
       if (sp > 0.1) {
-        turn = Math.min((Math.abs(c.steer) * p.DRIFT_TURN_ACCEL * mu * g) / sp, p.DRIFT_MAX_TURN_RATE) * (c.steer < 0 ? -1 : 1);
+        turn = Math.min((Math.abs(c.steer) * p.DRIFT_TURN_ACCEL * mu * g * (into ? p.DRIFT_INTO_BOOST : 1)) / sp, p.DRIFT_MAX_TURN_RATE * (into ? p.DRIFT_INTO_BOOST : 1)) * (c.steer < 0 ? -1 : 1);
       }
       var ns = Math.max(0, sp - p.DRIFT_SPEED_COST * Math.abs(turn) * sp * dt);
       var k = sp > 0 ? ns / sp : 0;
@@ -275,7 +298,8 @@
   // so a corner of curvature k can be held at v = sqrt(A / k). A backward
   // braking pass keeps it reachable. The AI scales this by sqrt(pace).
   Physics.driftPlan = function (c) {
-    var p = c.p, S = DR.Course.samples, n = S.length, g = p.GRAVITY, A = p.DRIFT_TURN_ACCEL * p.TIRE_GRIP_TARMAC * g;
+    // margin: tight touge corners need room to swing the car in
+    var p = c.p, S = DR.Course.samples, n = S.length, g = p.GRAVITY, A = p.DRIFT_TURN_ACCEL * p.TIRE_GRIP_TARMAC * g * (Physics.AI_MARGIN || 0.62);
     var v = new Float32Array(n);
     for (var i = 0; i < n; i++) {
       var k = 0;

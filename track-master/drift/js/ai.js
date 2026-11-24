@@ -22,7 +22,7 @@
     // Lane offset (side by side at the start) fades out over the first 200 m.
     var laneNow = c.lane * Math.max(0, 1 - Math.max(0, c.prog - S[C.startIndex].dist) / 200);
     var look = 6 + c.speed * 0.25, j = Math.min(n - 1, c.idx + Math.round(look / C.SPACING)), t = S[j];
-    var kAhead = S[Math.min(n - 1, c.idx + Math.round((4 + c.speed * 0.5) / C.SPACING))].curvature;
+    var kAhead = S[Math.min(n - 1, c.idx + Math.round((4 + c.speed * (AI.LOOK || 0.5)) / C.SPACING))].curvature;
     var off = (c.x - s.x) * s.nx + (c.y - s.y) * s.ny - laneNow;
     var trav = Math.atan2(c.vy, c.vx), psi = Math.atan2(Math.sin(trav - s.heading), Math.cos(trav - s.heading));
     var zone = Math.abs(kAhead) > 1 / 200 && c.speed > 11;
@@ -45,7 +45,7 @@
     var drift = zone && Math.abs(steer) > 0.02 ? 1 : 0;
     if (drift && Math.abs(steer) < 0.15) steer = (steer < 0 ? -1 : 1) * 0.15;
     if (c.finished) { throttle = 0; brake = c.speed > 2 ? 0.6 : 0; drift = 0; }
-    return { throttle: brake > 0 ? 0 : throttle, brake: brake, drift: drift, steer: steer };
+    return { throttle: brake > 0 ? 0 : throttle, brake: brake, drift: drift, steer: steer, ai: true };
   };
 
   // Keep the rival about TARGET_LEAD s ahead of the player (positive lead =

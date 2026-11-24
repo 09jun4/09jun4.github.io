@@ -25,60 +25,115 @@
     return h;
   };
 
+  // Initial-D-style touge generator: right-angle corners, U-turns and
+  // hairpins strung together with only short straights. Seeded, so each
+  // course is the same on every load. Every block is checked against the
+  // road already laid so the road never crosses or brushes itself.
+  //   style.w: block weights {hair, uturn, square, crank, sweep, chain}
+  //   style.gap: [min, max] straight between corners (m)
+  function touge(seed, style) {
+    var s = seed >>> 0;
+    function rnd() { s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+    function rr(a, b) { return a + (b - a) * rnd(); }
+    var SP = 2, CLEAR = 34, SKIP = 80; // clearance (m) to road laid more than SKIP m earlier
+    var pts = [[0, 0]], x = 0, y = 0, hd = 0, prog = [];
+    function lay(cmds, commit) {
+      var X = x, Y = y, H = hd, out = [];
+      cmds.forEach(function (c) {
+        if (c[0] === 'S') { var n = Math.round(c[1] / SP); for (var i = 0; i < n; i++) { X += Math.cos(H) * SP; Y += Math.sin(H) * SP; out.push([X, Y]); } }
+        else {
+          var ang = c[2] * Math.PI / 180, dir = c[0] === 'L' ? 1 : -1, m = Math.round(c[1] * ang / SP), da = ang / m * dir;
+          for (var j = 0; j < m; j++) { H += da / 2; X += Math.cos(H) * SP; Y += Math.sin(H) * SP; H += da / 2; out.push([X, Y]); }
+        }
+      });
+      // clearance against everything laid earlier than SKIP metres back
+      var lim = pts.length - Math.round(SKIP / SP), c2 = CLEAR * CLEAR;
+      for (var k = 0; k < out.length; k += 2) {
+        var q = out[k], back = Math.max(0, lim + k);
+        for (var i2 = 0; i2 < Math.min(back, pts.length); i2 += 2) {
+          var dx = pts[i2][0] - q[0], dy = pts[i2][1] - q[1];
+          if (dx * dx + dy * dy < c2) return false;
+        }
+        for (var i3 = 0; i3 < k - Math.round(SKIP / SP); i3 += 2) { // the block against itself
+          var ex = out[i3][0] - q[0], ey = out[i3][1] - q[1];
+          if (ex * ex + ey * ey < c2) return false;
+        }
+      }
+      // keep winding generally downhill: never run more than 160 deg off the fall line for long
+      var rel = Math.atan2(Math.sin(H), Math.cos(H));
+      if (Math.abs(rel) > 2.8 && cmds.length && cmds[cmds.length - 1][0] === 'S' && cmds[cmds.length - 1][1] > 45) return false;
+      if (commit) { pts = pts.concat(out); x = X; y = Y; hd = H; cmds.forEach(function (c) { prog.push(c); }); }
+      return true;
+    }
+    var lastDir = 'R';
+    function side() { // alternate mostly, so switchbacks stack instead of spiralling
+      var d = rnd() < 0.78 ? (lastDir === 'L' ? 'R' : 'L') : lastDir;
+      return d;
+    }
+    function gap() { return ['S', Math.round(rr(style.gap[0], style.gap[1]))]; }
+    function block(kind, d) {
+      var o = d === 'L' ? 'R' : 'L';
+      switch (kind) {
+        case 'hair': return [[d, Math.round(rr(25, 32)), Math.round(rr(168, 185))], gap()];
+        case 'uturn': return [[d, Math.round(rr(38, 48)), 180], gap()];
+        case 'square': return [[d, Math.round(rr(17, 23)), 90], gap()];
+        case 'crank': return [[d, Math.round(rr(17, 22)), 90], ['S', Math.round(rr(18, 30))], [o, Math.round(rr(17, 22)), 90], gap()];
+        case 'sweep': return [[d, Math.round(rr(55, 85)), Math.round(rr(50, 85))], gap()];
+        case 'chain': // a run of linked hairpins
+          var c = [], n = 3 + Math.floor(rnd() * 3), dd = d;
+          for (var i = 0; i < n; i++) { c.push([dd, Math.round(rr(26, 31)), 178], ['S', Math.round(rr(38, 52))]); dd = dd === 'L' ? 'R' : 'L'; }
+          return c;
+      }
+    }
+    var kinds = Object.keys(style.w), tot = kinds.reduce(function (a, k) { return a + style.w[k]; }, 0);
+    function pickKind() { var r = rnd() * tot; for (var i = 0; i < kinds.length; i++) { r -= style.w[kinds[i]]; if (r <= 0) return kinds[i]; } return kinds[0]; }
+    lay([['S', 70]], true);
+    var len = 70;
+    while (len < style.length) {
+      var ok = false;
+      for (var t = 0; t < 40 && !ok; t++) {
+        var d = t < 20 ? side() : (rnd() < 0.5 ? 'L' : 'R'), b = block(pickKind(), d);
+        if (lay(b, true)) { ok = true; lastDir = b[b.length - 2][0] === 'S' ? b[b.length - 3][0] : b[b.length - 2][0]; }
+      }
+      if (!ok && !lay([['S', 30]], true)) break;
+      len = prog.reduce(function (a, c) { return a + (c[0] === 'S' ? c[1] : c[1] * c[2] * Math.PI / 180); }, 0);
+    }
+    prog.push(['S', 160]); // finish straight + run-out
+    return prog;
+  }
+  Course.touge = touge;
+
   // The downhill courses, modelled on real Japanese touge passes. Each is a
   // turtle program for the centreline (S = straight m, L/R = arc radius m
   // and degrees), a start point and heading, the average grade, and a
   // look (theme) for world.js.
   Course.LIST = [
     {
-      slug: 'haruna', name: '하루나 고개 다운힐', tag: '5연속 헤어핀',
-      desc: '빠른 스위퍼로 시작해 5연속 헤어핀을 지나 호숫가로 내려가는 기본 코스 (군마현 하루나산 모티브)',
-      start: [60, -200, -Math.PI / 2 - 0.25], grade: 0.1,
-      program: [
-        ['S', 120], ['R', 95, 70], ['S', 80], ['L', 60, 100], ['S', 90], ['R', 50, 110], ['S', 80],
-        ['L', 36, 160], ['S', 80], ['R', 36, 160], ['S', 80], ['L', 36, 160], ['S', 80], ['R', 36, 160], ['S', 80], ['L', 36, 160], ['S', 100],
-        ['R', 75, 85], ['S', 60], ['L', 55, 100], ['S', 110], ['R', 65, 95], ['S', 60], ['L', 45, 110], ['S', 100], ['R', 85, 75], ['S', 60], ['L', 60, 90], ['S', 90],
-        ['R', 70, 100], ['S', 70], ['L', 50, 120], ['S', 100], ['R', 80, 70], ['S', 140],
-      ],
+      slug: 'haruna', name: '하루나 고개 다운힐', tag: '연속 헤어핀',
+      desc: '직각 코너와 U자 턴 사이로 연속 헤어핀이 몰아치는 기본 코스, 급경사 (군마현 하루나산 모티브)',
+      start: [60, -200, -Math.PI / 2 - 0.25], grade: 0.14,
+      program: touge(11, { length: 3000, gap: [18, 40], w: { hair: 3, uturn: 2, square: 3, crank: 2, sweep: 1, chain: 1.2 } }),
       theme: 'summer',
     },
     {
-      slug: 'akagi', name: '아카기 고개 다운힐', tag: '고속 스위퍼',
-      desc: '긴 직선과 반경이 큰 고속 코너가 이어지는 빠른 코스, 저녁 노을 (군마현 아카기산 모티브)',
-      start: [-80, -160, -Math.PI / 2 + 0.35], grade: 0.085,
-      program: [
-        ['S', 150], ['L', 110, 70], ['S', 100], ['R', 90, 85], ['S', 110], ['L', 80, 100], ['R', 100, 70], ['S', 100],
-        ['R', 65, 110], ['S', 90], ['L', 75, 95], ['S', 130], ['R', 120, 60], ['L', 90, 85], ['S', 110],
-        ['R', 60, 130], ['S', 100], ['L', 100, 80], ['S', 150], ['R', 85, 75], ['L', 110, 65], ['S', 130], ['L', 90, 80], ['S', 90], ['R', 70, 110], ['S', 100], ['L', 100, 70], ['R', 100, 60], ['S', 150],
-      ],
+      slug: 'akagi', name: '아카기 고개 다운힐', tag: '고속 U자 턴',
+      desc: '빠른 스위퍼에서 넓은 U자 턴으로 꽂히는 고속 코스, 가파른 내리막과 저녁 노을 (군마현 아카기산 모티브)',
+      start: [-80, -160, -Math.PI / 2 + 0.35], grade: 0.15,
+      program: touge(27, { length: 3200, gap: [22, 48], w: { hair: 1.5, uturn: 4, square: 2, crank: 1, sweep: 3, chain: 0.5 } }),
       theme: 'sunset',
     },
     {
       slug: 'irohazaka', name: '이로하자카 다운힐', tag: '헤어핀 지옥',
-      desc: '좁은 간격의 헤어핀이 끝없이 이어지는 기술 코스, 단풍 숲 (도치기현 닛코 이로하자카 모티브)',
-      start: [0, -180, -Math.PI / 2], grade: 0.09,
-      program: (function () {
-        // 12 hairpins in one long stack, a short S-bend breather in the middle.
-        var p = [['S', 110], ['R', 70, 60], ['L', 70, 60], ['S', 70]];
-        for (var k = 0; k < 12; k++) {
-          p.push([k % 2 ? 'R' : 'L', k > 5 ? 32 : 34, 165]);
-          p.push(['S', k === 5 ? 70 : 56 + (k % 3) * 10]);
-          if (k === 5) p.push([k % 2 ? 'L' : 'R', 55, 60], [k % 2 ? 'R' : 'L', 55, 60], ['S', 60]);
-        }
-        p.push(['R', 70, 60], ['S', 160]);
-        return p;
-      })(),
+      desc: '헤어핀이 끝없이 이어지는 기술 코스, 단풍 숲 (도치기현 닛코 이로하자카 모티브)',
+      start: [0, -180, -Math.PI / 2], grade: 0.13,
+      program: touge(5, { length: 2700, gap: [16, 34], w: { hair: 5, uturn: 1.5, square: 1.5, crank: 0.5, sweep: 0.3, chain: 3 } }),
       theme: 'autumn',
     },
     {
-      slug: 'usui', name: '우스이 고개 다운힐', tag: '연속 S자',
-      desc: '중속 S자 코너가 쉴 틈 없이 이어지는 리듬 코스, 안개 낀 삼나무 숲 (군마·나가노 경계 우스이 고개 모티브)',
-      start: [100, -120, -Math.PI / 2 - 0.6], grade: 0.095,
-      program: [
-        ['S', 110], ['L', 52, 85], ['S', 60], ['R', 52, 90], ['S', 60], ['L', 46, 100], ['S', 70], ['R', 44, 110], ['S', 60], ['L', 58, 80], ['S', 90],
-        ['R', 48, 100], ['S', 60], ['L', 48, 100], ['S', 70], ['R', 72, 70], ['S', 40], ['L', 44, 120], ['S', 80], ['R', 52, 95], ['S', 60], ['L', 52, 95],
-        ['S', 100], ['R', 44, 120], ['S', 60], ['L', 60, 80], ['S', 50], ['R', 60, 80], ['S', 90], ['L', 48, 105], ['S', 60], ['R', 48, 105], ['S', 70], ['L', 56, 90], ['S', 120],
-      ],
+      slug: 'usui', name: '우스이 고개 다운힐', tag: '직각 크랭크',
+      desc: '직각 코너와 크랭크가 쉴 틈 없이 이어지는 리듬 코스, 안개 낀 삼나무 숲 (군마·나가노 경계 우스이 고개 모티브)',
+      start: [100, -120, -Math.PI / 2 - 0.6], grade: 0.14,
+      program: touge(42, { length: 2800, gap: [16, 34], w: { hair: 2, uturn: 1.5, square: 5, crank: 4, sweep: 0.8, chain: 0.6 } }),
       theme: 'fog',
     },
   ];
@@ -113,13 +168,14 @@
       }
     });
     var n = pts.length, S = new Array(n);
-    // Elevation: always downhill, 7–14 % on the open road and gentler in
-    // the hairpins, like a real mountain pass.
+    // Elevation: always downhill and steep, like a real mountain pass.
     var hs = new Array(n);
     hs[0] = 540;
     for (var i = 1; i < n; i++) {
-      var g0 = DEF.grade + 0.028 * Math.sin(i * sp / 170) + 0.012 * Math.sin(i * sp / 57);
-      if (Math.abs(pts[i][3]) > 1 / 32) g0 *= 0.55;
+      // steep, changing grade (roughly 7-22 %), only a little gentler in the tightest hairpins
+      var g0 = DEF.grade + 0.045 * Math.sin(i * sp / 160) + 0.02 * Math.sin(i * sp / 53);
+      if (Math.abs(pts[i][3]) > 1 / 30) g0 *= 0.8;
+      g0 = Math.max(0.05, g0);
       if (i < 12 || i > n - Course.RUNOUT / sp) g0 = 0.02;
       hs[i] = hs[i - 1] - g0 * sp;
     }
