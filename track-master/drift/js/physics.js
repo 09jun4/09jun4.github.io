@@ -23,14 +23,12 @@
     TORQUE_CURVE: [{ rpm: 900, torque: 145 }, { rpm: 2000, torque: 265 }, { rpm: 4500, torque: 385 }, { rpm: 6000, torque: 360 }, { rpm: 7000, torque: 275 }, { rpm: 7500, torque: 145 }, { rpm: 8200, torque: 120 }],
     CAR_HALF_WIDTH: 0.95, CAR_HALF_LENGTH: 2.1,
     MAX_STEER_ANGLE: 0.5, STEER_GRIP_TARGET: 1.0, STEER_RESPONSE_RATE: 5.0, STEER_RETURN_RATE: 14.0,
-    TAP_WINDOW: 0.45, TAP_DEPTH0: 0.4, TAP_DEPTH_PER_S: 0.9, TAP_DEPTH_MAX: 0.9,
-    DRIFT_INTO_RATE: 2.2, DRIFT_SETTLE_RATE: 0.7, DRIFT_COUNTER_RATE: 1.3, DRIFT_LIFT_RATE: 1.4, DRIFT_INTO_BOOST: 1.4, DRIFT_GAS_WIDEN: 0.9,
-    DRIFT_SLIP_MIN: 0.3, DRIFT_SLIP_AMT: 0.14, DRIFT_SLIP_GAS: 0.06,
-    STEER_RESPONSE_BOOST: 0.85, GRIP_BOOST: 1.3,
+    DRIFT_STEER_START: 0.3, DRIFT_STEER_RATE: 1.4, DRIFT_STEER_RETURN: 2.2,
+    STEER_RESPONSE_BOOST: 1.6, GRIP_BOOST: 1.3,
     TIRE_GRIP_TARMAC: 1.15, LATERAL_GRIP: 1.0,
-    DRIFT_MIN_SPEED: 8, DRIFT_TURN_ACCEL: 1.8, DRIFT_MAX_TURN_RATE: 2.5, DRIFT_SPEED_COST: 0.45,
-    DRIFT_MAX_SLIP_ANGLE: 0.5, DRIFT_YAW_GAIN: 5.0, SLIDE_ALIGN_RATE: 4.0, SLIDE_ALIGN_DEADBAND: 0.05,
-    BUMP_IMPACT_SPEED: 3.5, WALL_BOUNCE: 0.55, WALL_SCRAPE_DECEL: 14, WALL_HIT_LOSS: 0.05,
+    DRIFT_MIN_SPEED: 8, DRIFT_TURN_ACCEL: 1.8, DRIFT_MAX_TURN_RATE: 2.0, DRIFT_SPEED_COST: 0.45,
+    DRIFT_MAX_SLIP_ANGLE: 0.6, DRIFT_YAW_GAIN: 5.0, SLIDE_ALIGN_RATE: 4.0, SLIDE_ALIGN_DEADBAND: 0.05,
+    BUMP_IMPACT_SPEED: 3.5, WALL_BOUNCE: 0.25, WALL_SCRAPE_DECEL: 6,
     MAX_BRAKE_DECEL: 8, ROLLING_RESISTANCE_COEF: 0.015, DRAG_COEF: 0.35, FRONTAL_AREA: 2.0, AIR_DENSITY: 1.2,
   };
 
@@ -90,7 +88,7 @@
     c.y = s.y + s.ny * (lateral || 0);
     c.heading = s.heading;
     c.vx = c.vy = c.speed = c.vf = c.vl = 0;
-    c.gear = 1; c.rpm = c.p.IDLE_RPM; c.steer = 0; c.drifting = false; c.slip = 0; c.recoverT = 0; c.amt = 0; c.brakeT = 0; c.tapT = 0; c.sinceBrake = 9;
+    c.gear = 1; c.rpm = c.p.IDLE_RPM; c.steer = 0; c.drifting = false; c.slip = 0;
     c.idx = index; c.h = s.h; c.onWall = false;
   };
 
@@ -103,69 +101,42 @@
     var vf = c.vx * fx + c.vy * fy, vl = c.vx * lx + c.vy * ly;
     var s = S[c.idx];
 
-    // --- Initial D arcade style drift -----------------------------------
-    // Brake tap + steer starts a drift (brake = Space or S/Down): the drift
-    // begins when the brake is let go while steering (or steering starts
-    // just after), and the longer the brake was held the deeper it starts.
-    // In the drift, c.amt (0..1) is how hard the car turns:
-    //   steer into the corner  -> tightens a lot
-    //   no steer               -> settles back to the depth it started with
-    //   steer against it       -> opens up, then the car grips and goes straight
-    //   throttle off           -> opens up and grips again
-    // Throttle on makes the angle bigger and the line a little wider.
-    var wasDrifting = c.drifting, brk = input.brake > 0, sd = input.steer > 0 ? 1 : input.steer < 0 ? -1 : 0;
-    if (brk) { c.brakeT = (c.brakeT || 0) + dt; c.sinceBrake = 0; }
-    else if (c.brakeT > 0) { c.tapT = c.drifting ? 0 : c.brakeT; c.brakeT = 0; c.sinceBrake = 0; }
-    else c.sinceBrake = (c.sinceBrake || 9) + dt;
-    var into = false;
-    if (!c.drifting && !brk && sd !== 0 && c.speed > p.DRIFT_MIN_SPEED && c.tapT > 0.04 && c.sinceBrake < p.TAP_WINDOW && !c.recoverT) {
-      c.drifting = true;
-      c.driftDir = sd;
-      c.base = clamp(p.TAP_DEPTH0 + c.tapT * p.TAP_DEPTH_PER_S, p.TAP_DEPTH0, p.TAP_DEPTH_MAX);
-      c.amt = c.base;
-      c.tapT = 0;
-    }
-    if (c.recoverT > 0) { c.recoverT -= dt; if (c.recoverT < 0) c.recoverT = 0; }
-    if (c.drifting) {
-      var dirD = c.driftDir, aimA, rA;
-      if (sd === dirD) { aimA = 1; rA = p.DRIFT_INTO_RATE; into = true; }
-      else if (sd === -dirD) { aimA = 0; rA = p.DRIFT_COUNTER_RATE; }
-      else { aimA = c.base; rA = p.DRIFT_SETTLE_RATE; }
-      if (input.throttle <= 0 && sd !== -dirD) { aimA = 0; rA = p.DRIFT_LIFT_RATE; }
-      var dA = aimA - c.amt;
-      c.amt += Math.abs(dA) <= rA * dt ? dA : (dA > 0 ? 1 : -1) * rA * dt;
-      if (c.amt < 0.05 && aimA === 0) { c.drifting = false; c.recoverT = sd === -dirD ? 0.45 : 0.2; }
-      if (c.speed < p.DRIFT_MIN_SPEED * 0.7) c.drifting = false;
-    }
+    var wasDrifting = c.drifting;
+    // Releasing the steer key does not end the drift at once: the lock eases
+    // back at DRIFT_STEER_RETURN, so tapping the key trims the angle.
+    c.drifting = input.drift > 0 && (input.steer !== 0 || (wasDrifting && Math.abs(c.steer) > 0.05)) && c.speed > p.DRIFT_MIN_SPEED;
+    // Entering a drift: the lock starts small and then grows with how long
+    // the drift is held (below), instead of snapping to full lock.
+    if (c.drifting && !wasDrifting) c.steer = clamp(c.steer, -p.DRIFT_STEER_START, p.DRIFT_STEER_START);
     c.driftTime = c.drifting ? (c.driftTime || 0) + dt : 0;
 
     var a = longAccel(p, vf, c.gear, input.throttle, input.brake, tmp);
     // Gravity along the body: the road's grade in the direction the nose points.
     a -= g * s.grade * Math.cos(c.heading - s.heading);
+    // Handbrake (no steering): locks the rears and scrubs speed.
+    if (input.drift > 0 && !c.drifting && vf > 0) a -= 4.5;
     var vf0 = vf;
     vf += a * dt;
     if (vf < 0) vf = 0; // no reverse gear
     c.rpm = tmp.rpm;
     c.accel = (vf - vf0) / dt;
 
-    // The front wheels: in grip they follow the key (smoothly); in a drift
-    // they show the counter-steer the slide needs.
-    if (c.drifting) c.steer += ((c.driftDir * c.amt) - c.steer) * Math.min(1, dt * 8);
-    else {
-      var target = c.recoverT > 0 ? 0 : input.steer, d = target - c.steer;
-      var rate = Math.abs(target) < Math.abs(c.steer) ? p.STEER_RETURN_RATE : p.STEER_RESPONSE_RATE;
-      c.steer += clamp(d, -1, 1) * rate * dt;
-    }
+    var target = input.steer, d = target - c.steer;
+    var rate = Math.abs(target) < Math.abs(c.steer) ? p.STEER_RETURN_RATE : p.STEER_RESPONSE_RATE;
+    if (c.drifting) {
+      // While drifting the lock changes at a fixed, gentle rate: holding the
+      // key for twice as long gives twice the angle.
+      rate = Math.abs(target) > Math.abs(c.steer) && target * c.steer >= 0 ? p.DRIFT_STEER_RATE : p.DRIFT_STEER_RETURN;
+      c.steer += (Math.abs(d) <= rate * dt ? d : (d > 0 ? 1 : -1) * rate * dt);
+    } else c.steer += clamp(d, -1, 1) * rate * dt;
     c.steer = clamp(c.steer, -1, 1);
 
     var slip = c.speed > 0.5 ? Math.atan2(-vl, Math.max(vf, 0.01)) : 0;
     var yaw;
     if (c.drifting) {
-      var sp = Math.sqrt(vf * vf + vl * vl), turn = 0, gas = input.throttle > 0;
+      var sp = Math.sqrt(vf * vf + vl * vl), turn = 0;
       if (sp > 0.1) {
-        // throttle on: a touch wider line, bigger angle
-        var A = c.amt * p.DRIFT_TURN_ACCEL * mu * g * (into ? p.DRIFT_INTO_BOOST : 1) * (gas ? p.DRIFT_GAS_WIDEN : 1);
-        turn = Math.min(A / sp, p.DRIFT_MAX_TURN_RATE * (into ? p.DRIFT_INTO_BOOST : 1)) * c.driftDir;
+        turn = Math.min((Math.abs(c.steer) * p.DRIFT_TURN_ACCEL * mu * g) / sp, p.DRIFT_MAX_TURN_RATE) * (c.steer < 0 ? -1 : 1);
       }
       var ns = Math.max(0, sp - p.DRIFT_SPEED_COST * Math.abs(turn) * sp * dt);
       var k = sp > 0 ? ns / sp : 0;
@@ -173,9 +144,7 @@
       var ca = Math.cos(turn * dt), sa = Math.sin(turn * dt);
       c.vx = wx * ca - wy * sa;
       c.vy = wx * sa + wy * ca;
-      // body angle 20-30 deg: grows with the drift amount and the throttle
-      var slipT = (p.DRIFT_SLIP_MIN + p.DRIFT_SLIP_AMT * c.amt + (gas ? p.DRIFT_SLIP_GAS : 0)) * c.driftDir;
-      yaw = turn + (slipT - slip) * p.DRIFT_YAW_GAIN;
+      yaw = turn + (c.steer * p.DRIFT_MAX_SLIP_ANGLE - slip) * p.DRIFT_YAW_GAIN;
       c.latAcc = turn * sp;
     } else {
       var lim = p.MAX_STEER_ANGLE;
@@ -226,13 +195,7 @@
       c.onWall = true;
       var vn = c.vx * s.nx + c.vy * s.ny;
       if (vn * side > 0) {
-        if (Math.abs(vn) > p.BUMP_IMPACT_SPEED) {
-          c.wallHit = Math.max(c.wallHit, Math.abs(vn));
-          // a real hit: big speed loss and the slide is over
-          var lose = 1 - Math.min(0.6, Math.abs(vn) * p.WALL_HIT_LOSS);
-          c.vx *= lose; c.vy *= lose; vn *= lose;
-          c.drifting = false; c.recoverT = 0.25;
-        }
+        if (Math.abs(vn) > p.BUMP_IMPACT_SPEED) c.wallHit = Math.max(c.wallHit, Math.abs(vn));
         var rm = vn * (1 + p.WALL_BOUNCE);
         c.vx -= s.nx * rm; c.vy -= s.ny * rm;
       }
@@ -312,8 +275,8 @@
   // so a corner of curvature k can be held at v = sqrt(A / k). A backward
   // braking pass keeps it reachable. The AI scales this by sqrt(pace).
   Physics.driftPlan = function (c) {
-    // margin: tight touge corners need room to swing the car in
-    var p = c.p, S = DR.Course.samples, n = S.length, g = p.GRAVITY, A = p.DRIFT_TURN_ACCEL * p.TIRE_GRIP_TARMAC * g * (Physics.AI_MARGIN || 0.62);
+    // AI only: a margin so the rival can swing into the tight touge corners
+    var p = c.p, S = DR.Course.samples, n = S.length, g = p.GRAVITY, A = p.DRIFT_TURN_ACCEL * p.TIRE_GRIP_TARMAC * g * (Physics.AI_MARGIN || 0.72);
     var v = new Float32Array(n);
     for (var i = 0; i < n; i++) {
       var k = 0;

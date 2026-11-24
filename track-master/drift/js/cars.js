@@ -69,8 +69,7 @@
   var PERF = {
     FINAL_DRIVE: 4.1, TORQUE_SCALE: 1.32, CAR_MASS: 960, DRAG_COEF: 0.31, TIRE_GRIP_TARMAC: 1.15,
     MAX_STEER_ANGLE: 0.5, STEER_RESPONSE_RATE: 5.0, REDLINE_RPM: 8000,
-    // drift: tight turning, only a little speed lost while sliding
-    DRIFT_TURN_ACCEL: 2.6, DRIFT_SPEED_COST: 0.2,
+    DRIFT_TURN_ACCEL: (2.5 * 1.08) / 1.15, DRIFT_SPEED_COST: 0.32,
   };
   Cars.list.forEach(function (c) {
     var body = { CAR_HALF_WIDTH: c.physics.CAR_HALF_WIDTH, CAR_HALF_LENGTH: c.physics.CAR_HALF_LENGTH };

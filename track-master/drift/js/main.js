@@ -126,10 +126,8 @@
     var l = keys.KeyA || keys.ArrowLeft || touch.left, r = keys.KeyD || keys.ArrowRight || touch.right;
     return {
       throttle: keys.KeyW || keys.ArrowUp || touch.gas ? 1 : 0,
-      // Space, S/Down and the touch button are all the brake; a brake tap
-      // while steering starts a drift (physics.js)
-      brake: keys.Space || keys.KeyS || keys.ArrowDown || touch.drift ? 1 : 0,
-      drift: 0,
+      brake: 0, // the player has no foot brake (side brake only)
+      drift: keys.Space || touch.drift ? 1 : 0,
       steer: (l ? 1 : 0) - (r ? 1 : 0),
     };
   }
