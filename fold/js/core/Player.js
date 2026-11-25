@@ -37,7 +37,15 @@ export class Player {
     if (moving) { this.path = null; this.queued = null; vx = input.x; vz = input.z; }
     else if (this.path) {
       const n = this.path[0];
-      const tx = n[0] + 0.5, tz = n[2] + 0.5, dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
+      let tx = n[0] + 0.5, tz = n[2] + 0.5;
+      if (ckey(...this.node) !== ckey(...n)) {
+        // 다음 칸이 착시·숨은 통로로 이어지면 3D 중심이 아니라 그 방향 경계로 걸어가요
+        for (let dd = 0; dd < 4; dd++) {
+          const r = this.sim.neighbor(this.node, dd);
+          if (r && r.to && ckey(...r.to) === ckey(...n) && (r.shift || r.hidden)) { tx = this.node[0] + 0.5 + DIR4[dd][0]; tz = this.node[2] + 0.5 + DIR4[dd][1]; break; }
+        }
+      }
+      const dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
       if (d < 0.05 && ckey(...this.node) === ckey(...n)) {
         this.path.shift();
         if (!this.path.length) { this.path = null; this.arrive(); }
@@ -86,7 +94,7 @@ export class Player {
         this.contact(r, d);
       } else if (delta > 0 ? p >= hi : p < lo) {
         this.set(a, p);
-        this.cross(r.to, d);
+        this.cross(r, d);
         return;
       }
     }
@@ -106,9 +114,15 @@ export class Player {
     }
   }
 
-  cross(to, d) {
+  cross(r, d) {
+    const to = r.to;
+    if (r.shift) { this.x += r.shift[0]; this.z += r.shift[2]; } // 착시: 화면에서는 보이지 않는 깊이 이동
+    if (r.hidden) { // 숨은 통로: 기둥 뒤를 지나 반대편에서 나타남
+      this.x = to[0] + 0.5 - DIR4[d][0] * 0.45; this.z = to[2] + 0.5 - DIR4[d][1] * 0.45;
+      this.game.onHidden();
+    }
     this.node = to.slice();
-    this.game.onEnterNode(to, d);
+    this.game.onEnterNode(to, d, r);
   }
 
   contact(r, d) {

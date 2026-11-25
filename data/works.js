@@ -17,5 +17,5 @@ window.WORKS = [
   { title: 'Sim Race', url: '/sim-race/', thumb: 'assets/thumbs/sim-race.jpg', date: '2026-11-17', desc: '2026 F1 규정 레이싱 시뮬레이션 · 예선·피트스톱·날씨·세이프티카·시즌 챔피언십' },
   { title: '픽셀 포지', url: '/pixel-forge/', thumb: 'assets/thumbs/pixel-forge.jpg', date: '2026-11-23', desc: '대장간에서 장비를 제작하고 던전·스킬·펫으로 성장하는 도트 방치형 RPG' },
   { title: 'Ragdoll Boxing', url: '/ragdoll-boxing/', thumb: 'assets/thumbs/ragdoll-boxing.jpg', date: '2026-11-23', desc: '15부위 액티브 래그돌로 싸우는 물리 기반 1대1 복싱 · 잽·훅·어퍼컷·가드·위빙 · 3라운드 2선승' },
-  { title: 'FOLD : 접힌 세계', url: '/fold/', thumb: 'assets/thumbs/fold.jpg', date: '2026-11-25', desc: '종이를 접어 떨어진 공간을 잇는 3D 공간 변형 퍼즐 · 12스테이지 · 블록·스위치·열쇠·거울·빛' },
+  { title: 'FOLD : 접힌 세계', url: '/fold/', thumb: 'assets/thumbs/fold.jpg', date: '2026-11-25', desc: '접고, 돌려 보고, 착시로 건너는 종이 건축 퍼즐 · 펜로즈 계단 · 기둥 뒤 숨은 길 · 24스테이지' },
 ];

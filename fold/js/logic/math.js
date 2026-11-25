@@ -68,3 +68,11 @@ export function dir4Of(v) {
   return -1;
 }
 export const dir4Vec = d => [DIR4[d][0], 0, DIR4[d][1]];
+
+// ---- 시점(착시) ----
+// 카메라는 정확한 아이소메트릭: 화면 쪽 방향 V = (sx, 1, sz). V 만큼 떨어진 점은 화면에서 같은 곳에 보여요.
+export const VIEWS = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+export const viewVec = v => [VIEWS[v][0], 1, VIEWS[v][1]];
+// 칸 [x,y,z] 의 화면 위치 키 (V 방향으로 겹치는 칸끼리 같은 키)
+export const screenKey = (x, y, z, v) => (x - VIEWS[v][0] * y) + ':' + (z - VIEWS[v][1] * y);
+export const depthOf = (x, y, z, v) => VIEWS[v][0] * x + y + VIEWS[v][1] * z;

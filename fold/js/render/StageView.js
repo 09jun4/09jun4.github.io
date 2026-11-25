@@ -6,7 +6,8 @@ import { faceMaterials } from './PaperMaterial.js';
 import { makeObjectView, COL } from './ObjectViews.js';
 import { restCenter } from '../logic/Layout.js';
 import { creaseAxisWorld } from '../logic/Fold.js';
-import { computeConnections } from '../logic/Connection.js';
+import { computeConnections, computeIllusions } from '../logic/Connection.js';
+import { objectMaterial } from './PaperMaterial.js';
 import { ckey } from '../logic/math.js';
 
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -97,7 +98,11 @@ export class StageView {
     this.seams = new THREE.InstancedMesh(stripGeo, this.seamMat, 256); this.seams.count = 0;
     this.seamFlash = new THREE.InstancedMesh(stripGeo, this.seamFlashMat, 256); this.seamFlash.count = 0;
     this.seams.frustumCulled = this.seamFlash.frustumCulled = false;
-    this.root.add(this.seams, this.seamFlash);
+    this.illuMat = new THREE.MeshBasicMaterial({ color: 0x9fe3ee, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+    this.illu = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 0.12).rotateX(-Math.PI / 2), this.illuMat, 256); this.illu.count = 0;
+    this.illu.frustumCulled = false; this.illu.renderOrder = 5;
+    this.root.add(this.seams, this.seamFlash, this.illu);
+    this.buildDecor();
     this.flashT = 0; this.knownPairs = null;
     // 표시 고리 (터치 목표 / 힌트)
     this.marker = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: COL.cyan, transparent: true, opacity: 0, depthWrite: false }));
@@ -106,6 +111,29 @@ export class StageView {
     this.root.add(this.hintRing); this.hintT = 0;
   }
 
+  // 장식: 기둥·원통·원뿔·돔·아치 (판정 없음, 숨은 통로를 가리는 기둥 등)
+  buildDecor() {
+    for (const d of this.stage.decor) {
+      const [w, h, dd] = d.size;
+      let g;
+      if (d.type === 'box') g = new THREE.BoxGeometry(w, h, dd).translate(0, h / 2, 0);
+      else if (d.type === 'cylinder') g = new THREE.CylinderGeometry(w / 2, w / 2, h, 24).translate(0, h / 2, 0);
+      else if (d.type === 'cone') g = new THREE.ConeGeometry(w / 2, h, 4).rotateY(Math.PI / 4).translate(0, h / 2, 0);
+      else if (d.type === 'dome') g = new THREE.SphereGeometry(w / 2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, h / (w / 2), 1);
+      else { // 아치: 두 기둥 + 반원 고리
+        g = new THREE.TorusGeometry(w / 2 - 0.1, 0.1, 8, 20, Math.PI).translate(0, h - w / 2, 0);
+      }
+      const m = new THREE.Mesh(g, objectMaterial(this.pal, this.q, d.tone || 'a1', { flatShading: d.type === 'cone' }));
+      m.position.set(d.at[0], d.at[1], d.at[2]);
+      m.rotation.y = d.rot * Math.PI / 180;
+      m.castShadow = m.receiveShadow = true;
+      this.root.add(m);
+      if (d.type === 'arch') for (const sx of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, h - w / 2, 0.2).translate(sx * (w / 2 - 0.1), (h - w / 2) / 2, 0), m.material);
+        leg.castShadow = true; m.add(leg);
+      }
+    }
+  }
   doorAxis(o) {
     if (o.type !== 'door') return null;
     const i = this.sim.byId.get(o.id);
@@ -248,6 +276,17 @@ export class StageView {
       mesh.count = n; mesh.instanceMatrix.needsUpdate = true;
     };
     put(this.seams, conns);
+    // 착시 연결 (지금 시점에서만): 화면 위 경계에 푸른 빛
+    const ill = computeIllusions(this.sim);
+    let n = 0;
+    for (const e of ill) {
+      if (n >= 256) break;
+      p.set(e.x, e.y + THICK / 2 + 0.01, e.z);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), e.axis === 'z' ? Math.PI / 2 : 0);
+      this.illu.setMatrixAt(n++, m.compose(p, q, s));
+    }
+    this.illu.count = n; this.illu.instanceMatrix.needsUpdate = true;
+    this.illusions = ill;
     put(this.seamFlash, fresh);
     if (fresh.length && !instant) { this.flashT = 1.6; this.onConnect && this.onConnect(fresh); }
     this.connections = conns;
@@ -304,7 +343,10 @@ export class StageView {
     const sel = this.selected, hov = this.hover;
     // 접힘선 색: 기본 회색 / 마우스 올림 / 선택(청록) / 힌트(금빛)
     for (const [id, cv] of this.creases) {
-      const target = id === sel ? 1 : id === hov ? 0.7 : 0.28 + 0.12 * Math.sin(t * 2.4 + cv.c.idx); // 접을 수 있는 선은 늘 은은하게
+      // 손잡이 규칙: 지금 서 있는 종이에 붙은 접힘선만 밝게 (나머지는 흐리게)
+      const usable = !this.stage.reach || this.playerFace === cv.c.parent;
+      const target = id === sel ? 1 : id === hov ? 0.7 : usable ? 0.32 + 0.16 * Math.sin(t * 2.4 + cv.c.idx) : 0; // 접을 수 있는 선은 늘 은은하게
+      cv.knob.visible = usable || id === sel;
       cv.glow += (target - cv.glow) * Math.min(1, dt * 12);
       const hint = id === this.hintCrease && this.hintT > 0;
       const col = new THREE.Color(0x8d877c).lerp(new THREE.Color(hint ? COL.gold : COL.cyan), hint ? 0.6 + 0.4 * Math.sin(t * 6) : cv.glow);
@@ -343,6 +385,7 @@ export class StageView {
     // 빛·연결 반짝임
     this.beamGlow.opacity = 0.28 + 0.1 * Math.sin(t * 7);
     this.seamMat.opacity = 0.22 + 0.12 * Math.sin(t * 2.2);
+    this.illuMat.opacity = 0.35 + 0.25 * Math.sin(t * 3.1);
     this.flashT = Math.max(0, this.flashT - dt);
     this.seamFlashMat.opacity = Math.min(1, this.flashT) * 0.9;
     this.markerT = Math.max(0, this.markerT - dt * 1.5);

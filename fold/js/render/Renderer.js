@@ -8,8 +8,10 @@ export const QUALITY = {
   medium: { ratio: 1.25, shadows: true, map: 1024, type: THREE.PCFShadowMap },
   high: { ratio: 2, shadows: true, map: 2048, type: THREE.PCFSoftShadowMap },
 };
-// 카메라 방향: 45° 돌린 고정 시점 (회전·줌 없음, 무대 크기에 맞춰 자동으로 맞춤)
-export const CAM_DIR = new THREE.Vector3(1, 1.2, 1).normalize();
+// 카메라 방향: 정확한 아이소메트릭 (1,1,1). 90° 단위로 돌릴 수 있고(시점 0~3), 줌은 무대 크기에 자동으로 맞춰요.
+// 정확한 아이소메트릭이어야 V 만큼 떨어진 칸이 화면에서 완전히 겹쳐 착시 연결이 성립해요.
+export const CAM_DIR = new THREE.Vector3(1, 1, 1).normalize();
+export const yawOfView = v => Math.PI / 4 - v * Math.PI / 2;
 
 export class Renderer {
   constructor(canvas) {
@@ -28,9 +30,11 @@ export class Renderer {
     this.fit = { center: new THREE.Vector3(), half: 6, goalCenter: new THREE.Vector3(), goalHalf: 6 };
     this.raycaster = new THREE.Raycaster();
     this.ndc = new THREE.Vector2();
+    this.setYaw(yawOfView(0));
     this.setPalette('white');
     this.resize();
   }
+  setYaw(y) { this.yaw = y; CAM_DIR.set(Math.SQRT2 * Math.sin(y), 1, Math.SQRT2 * Math.cos(y)).normalize(); }
   setPalette(key) {
     const p = PALETTES[key] || PALETTES.white;
     this.scene.background = new THREE.Color(p.bg);
@@ -41,8 +45,9 @@ export class Renderer {
     const Q = QUALITY[q] || QUALITY.medium;
     this.quality = q;
     this.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.ratio));
-    this.r.shadowMap.enabled = Q.shadows;
-    if (Q.shadows) {
+    const shadows = Q.shadows && this.allowShadows !== false;
+    this.r.shadowMap.enabled = shadows;
+    if (shadows) {
       this.r.shadowMap.type = Q.type;
       this.sun.castShadow = true;
       if (this.sun.shadow.mapSize.x !== Q.map) {
@@ -53,6 +58,8 @@ export class Renderer {
     this.scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });
     this.resize();
   }
+  // 착시 장(章)에서는 그림자가 실제 깊이를 드러내므로 끔
+  setShadows(on) { if (this.allowShadows !== on) { this.allowShadows = on; this.applyQuality(this.quality); } }
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
     this.r.setSize(w, h, false);
@@ -90,12 +97,13 @@ export class Renderer {
     cam.updateProjectionMatrix();
     // 그림자 카메라를 무대에 맞춤
     const s = this.sun;
-    s.position.copy(f.center).add(new THREE.Vector3(-6, 14, 4));
+    // 빛도 카메라와 같이 돌아서, 어느 시점에서든 왼쪽 면은 밝고 오른쪽 면은 어둡게
+    s.position.copy(f.center).add(new THREE.Vector3(-6, 14, 4).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw - Math.PI / 4));
     s.target.position.copy(f.center);
     const r = f.half * 1.6 + 2;
     Object.assign(s.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 0.5, far: 40 });
     s.shadow.camera.updateProjectionMatrix();
-    this.fill.position.copy(f.center).add(new THREE.Vector3(8, 6, 10));
+    this.fill.position.copy(f.center).add(new THREE.Vector3(8, 6, 10).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw - Math.PI / 4));
   }
   ray(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();

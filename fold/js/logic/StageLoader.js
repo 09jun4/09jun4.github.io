@@ -54,7 +54,7 @@ export function parseStage(json) {
     const f = {
       id: fd.id, idx, o: fd.o.slice(), u, v, n: cross(u, v), w, h, mask, closed,
       when: Array.isArray(fd.when) ? fd.when.slice() : null,
-      fixed: !!fd.fixed, tone: fd.tone || null,
+      fixed: !!fd.fixed, tone: fd.tone || null, decor: !!fd.decor, // decor: 장식용 면 (걷기·벽 판정 없음)
       has: (i, j) => !mask || mask[j][i] !== '.',
       children: [],
     };
@@ -131,6 +131,19 @@ export function parseStage(json) {
   if (!S.goal.requires.every(refOk)) fail(id, 'goal.requires 는 스위치/수신기 id');
   if (!S.objects.some(o => o.type === 'exit')) fail(id, '출구(exit)가 없어요');
 
+  // 시점(0~3)과 숨은 통로: { view, from:[x,y,z], dir:'+x', to:[x,y,z] }
+  S.view = [0, 1, 2, 3].includes(json.view) ? json.view : 0;
+  S.views = json.rotate !== false; // false 면 시점 회전 잠금 (튜토리얼)
+  S.reach = json.reach === true; // true 면 접힘선이 붙은 종이 위에 서 있어야 접을 수 있음 (손잡이 규칙)
+  S.hidden = [];
+  for (const h of json.hidden || []) {
+    if (![0, 1, 2, 3].includes(h.view) || !isVec3(h.from) || !isVec3(h.to) || !DIRS[h.dir] || dir4Of(vec(h.dir)) < 0) fail(id, '숨은 통로 형식이 잘못됐어요');
+    S.hidden.push({ view: h.view, from: h.from.slice(), to: h.to.slice(), dir: dir4Of(vec(h.dir)) });
+  }
+  // 장식(기둥·지붕 등): 화면에만 그려요
+  S.decor = (json.decor || []).filter(d => d && ['box', 'cylinder', 'cone', 'dome', 'arch'].includes(d.type) && Array.isArray(d.at) && d.at.length === 3)
+    .map(d => ({ type: d.type, at: d.at.map(Number), size: Array.isArray(d.size) ? d.size.map(Number) : [1, 1, 1], tone: d.tone || null, rot: Number(d.rot) || 0 }));
+  S.solution = Array.isArray(json.solution) ? json.solution : null; // 미리 계산한 풀이 (힌트용)
   const pl = json.player || {};
   if (!isVec3(pl.at)) fail(id, 'player.at 은 정수 [ix,level,iz]');
   if (!S.faces.some(f => restCellAt(f, pl.at))) fail(id, `플레이어 시작 칸 ${pl.at} 아래에 면이 없어요`);

@@ -1,7 +1,7 @@
 // 게임 중심: 상태(MainMenu/Loading/Playing/Folding/Paused/StageComplete) 전환과 각 시스템 연결.
 // 입력은 상태에 따라 막거나 허용하고, 논리(Sim) → 화면(StageView) 순서로 항상 동기화해요.
 import * as THREE from '../../vendor/three.module.min.js';
-import { Renderer, CAM_DIR } from '../render/Renderer.js';
+import { Renderer, CAM_DIR, yawOfView } from '../render/Renderer.js';
 import { StageView } from '../render/StageView.js';
 import { PlayerView } from '../render/PlayerView.js';
 import { MenuScene } from '../render/MenuScene.js';
@@ -52,7 +52,7 @@ export class Game {
     this.order = [];
     for (const r of all) {
       if (r.err) { console.error('[FOLD] 스테이지 로드 실패', r.file, r.err); continue; }
-      try { const st = parseStage(r.j); st.paper = r.ch.paper; st.chapterName = r.ch.name; this.stageDefs.set(st.id, st); this.order.push(st.id); }
+      try { const st = parseStage(r.j); st.paper = r.ch.paper; st.chapterName = r.ch.name; st.shadows = r.ch.shadows !== false; this.stageDefs.set(st.id, st); this.order.push(st.id); }
       catch (e) { console.error('[FOLD]', e.message); }
     }
     if (!this.order.length) throw new Error('불러온 스테이지가 없어요');
@@ -68,6 +68,9 @@ export class Game {
     this.unloadStage();
     this.state = STATE.MENU;
     this.R.setPalette('white');
+    this.R.setShadows(true);
+    this.turn = null;
+    this.R.setYaw(yawOfView(0));
     this.menuScene.show(true);
     this.ui.showMenu();
   }
@@ -91,8 +94,10 @@ export class Game {
         try { this.sim.setState(cloneState(resumeState)); } catch (e) { console.warn('[FOLD] 이어하기 상태 손상 → 처음부터', e); this.sim.reset(); }
       }
       this.R.setPalette(st.paper);
+      this.R.setShadows(st.shadows);
       this.player.place(this.sim.state.player, this.sim.state.facing);
       this.buildViews();
+      this.R.setYaw(yawOfView(this.sim.state.view));
       this.frameCamera(true);
       this.hintIdx = 0;
       this.state = STATE.PLAYING;
@@ -157,12 +162,20 @@ export class Game {
     this.ui.updateHud({ folds: this.sim.state.folds, canUndo: this.sim.history.length > 0, exitActive: this.sim.puz.exitActive, keys: this.sim.state.keysHeld.length, goal: this.stage.goalText, requires: this.stage.goal.requires.length });
   }
   frameCamera(snap) {
-    const pts = [];
+    let pts = [];
     for (const fv of this.view.faces.values()) {
       if (!fv.mesh.geometry.boundingBox) fv.mesh.geometry.computeBoundingBox();
       const b = fv.mesh.geometry.boundingBox;
       for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) pts.push(new THREE.Vector3(x, y, z).applyMatrix4(fv.group.matrix));
     }
+    // 아주 큰 건축물은 전체를 다 넣으면 너무 작아 보여서, 인형 주변(반경 9칸)만 담고 따라가요
+    const box = new THREE.Box3().setFromPoints(pts), size = box.getSize(new THREE.Vector3());
+    if (Math.max(size.x, size.z) > 20 && this.player.node) {
+      const px = this.player.x, pz = this.player.z, R = 9;
+      const near = pts.filter(p => Math.abs(p.x - px) < R && Math.abs(p.z - pz) < R);
+      if (near.length > 8) pts = near;
+      this.follow = true;
+    } else this.follow = false;
     const mobile = this.R.aspect < 0.8;
     this.R.frame(pts, mobile ? { top: 0.16, bottom: 0.14 } : { top: 0.1, bottom: 0.08 });
     if (snap) this.R.updateCamera(0, true);
@@ -171,6 +184,7 @@ export class Game {
   // ---------- 플레이 이벤트 ----------
   onEnterNode(node, d) {
     const ev = this.sim.enterNode(node, d);
+    if (this.follow) this.frameCamera(false);
     this.audio.play('step');
     this.handleEvents(ev);
     this.updateHud();
@@ -209,11 +223,46 @@ export class Game {
   bump() { this.audio.play('deny'); this.pview.play('push'); }
   undo() {
     if (this.state !== STATE.PLAYING || !this.sim) return;
+    const v = this.sim.state.view;
     if (!this.sim.undo()) { this.toast('되돌릴 것이 없어요'); return; }
+    this.sim.state.view = v; this.sim.refresh(); // 시점은 되돌리지 않아요
     this.afterLogic(false);
     this.player.place(this.sim.state.player, this.sim.state.facing);
     this.audio.play('undo');
   }
+  // ---- 시점 회전 ----
+  turnBy(step) {
+    if (this.state !== STATE.PLAYING || !this.stage.views || this.turn) return;
+    this.player.stop(); this.sim.rotating = true; this.view.illu.count = 0;
+    this.snapView(this.sim.state.view + step);
+  }
+  snapView(target) {
+    const cur = this.R.yaw;
+    // 가장 가까운 시점으로 (또는 지정한 시점으로) 부드럽게 맞춤
+    let v = target !== undefined ? target : Math.round((Math.PI / 4 - cur) / (Math.PI / 2));
+    let goal = Math.PI / 4 - v * Math.PI / 2;
+    v = ((v % 4) + 4) % 4;
+    this.turn = { from: cur, to: goal, t: 0, v };
+    this.audio.play('grab');
+  }
+  stepTurn(dt) {
+    const tr = this.turn;
+    if (!tr) return;
+    tr.t += dt;
+    const k = Math.min(1, tr.t / 0.38);
+    this.R.setYaw(tr.from + (tr.to - tr.from) * easeInOut(k));
+    this.frameCamera(false);
+    if (k < 1) return;
+    this.turn = null;
+    this.R.setYaw(yawOfView(tr.v));
+    const changed = this.sim.state.view !== tr.v;
+    this.sim.rotating = false; this.sim.state.view = tr.v;
+    this.sim.refresh();
+    this.player.clamp();
+    this.afterLogic(false);
+    if (changed) this.audio.play('foldEnd');
+  }
+  onHidden() { this.pview.play('vanish'); this.audio.play('mirror'); }
   runQueued(q) {
     if (q.type === 'mirror') this.doMirror(q.id);
     if (q.type === 'push') this.tapObject(q.id);
@@ -243,7 +292,9 @@ export class Game {
   // ---------- 접기 ----------
   canStartFold(cid) {
     const c = this.stage.creaseById.get(cid);
-    if (c.faces.includes(this.sim.res.top.get(ckey(...this.player.node)))) { this.toast(FOLD_REASONS.player); this.audio.play('deny'); return false; }
+    const under = this.sim.res.top.get(ckey(...this.player.node));
+    if (c.faces.includes(under)) { this.toast(FOLD_REASONS.player); this.audio.play('deny'); return false; }
+    if (this.stage.reach && under !== c.parent) { this.toast(FOLD_REASONS.reach); this.audio.play('deny'); return false; }
     return true;
   }
   select(cid) {
@@ -314,6 +365,8 @@ export class Game {
     const fid = cid || block ? null : this.view.faceHit(ray);
     const own = fid && this.stage.parentCrease.get(fid);
     this.gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, cid: cid || (own && own.id), block, mode: cid ? 'crease' : 'tap', moved: 0 };
+    // 접을 수 없는 곳(빈 곳·고정된 바닥)을 옆으로 끌면 시점 회전
+    this.gesture.canTurn = !this.gesture.cid && !block && this.stage.views && !this.turn;
     try { e.target.setPointerCapture(e.pointerId); } catch (_) { /* 무시 */ }
   }
   onMove(e) {
@@ -343,6 +396,16 @@ export class Game {
       this.audio.play('grab');
       this.R.canvas.style.cursor = 'grabbing';
     }
+    if (g.mode === 'tap' && g.canTurn && g.moved > 12) {
+      g.mode = 'turn'; this.player.stop(); this.sim.rotating = true; g.yaw0 = this.R.yaw;
+      this.view.illu.count = 0;
+      this.select(null);
+    }
+    if (g.mode === 'turn') {
+      this.R.setYaw(g.yaw0 - (e.clientX - g.x) * 0.009);
+      this.frameCamera(false);
+      return;
+    }
     if (g.mode === 'drag') {
       // 드래그 → 각도: 접히는 면 중심이 화면에서 움직이는 방향(접선)에 손가락 이동을 투영
       const tan = this.screenTangent(g);
@@ -364,6 +427,7 @@ export class Game {
     this.gesture = null;
     this.R.canvas.style.cursor = 'default';
     if (this.state !== STATE.PLAYING) return;
+    if (g.mode === 'turn') return this.snapView();
     if (g.mode === 'drag') {
       const deg = g.angle * 180 / Math.PI, a = Math.abs(deg);
       let dq = cancel || a < 25 ? 0 : Math.sign(deg) * (a > 125 ? 2 : 1);
@@ -457,6 +521,8 @@ export class Game {
     else if (k === 'q') this.foldBy(this.selected, -1);
     else if (k === 'e') this.foldBy(this.selected, 1);
     else if (k === 'f') this.ui.toggleFullscreen();
+    else if (k === '[') this.turnBy(-1);
+    else if (k === ']') this.turnBy(1);
     else if (k === '`' && this.admin) { this.debug.toggle(); this.debug.rebuild(this.sim); }
   }
   cycleCrease(step) {
@@ -497,13 +563,20 @@ export class Game {
     const a = res.action;
     if (a.type === 'fold') {
       const c = this.stage.creaseById.get(a.crease);
-      const onIt = c.faces.includes(this.sim.res.top.get(ckey(...this.player.node)));
+      const under = this.sim.res.top.get(ckey(...this.player.node));
+      const onIt = c.faces.includes(under) || (this.stage.reach && under !== c.parent);
+      if (onIt && a.stand) this.view.showHintRing(a.stand);
       this.view.setHintCrease(a.crease);
       this.hintWiggle(a.crease, a.dq);
-      this.ui.hintText((onIt ? '먼저 접히는 종이에서 내려온 뒤, ' : '') + `반짝이는 접힘선을 움직이는 쪽으로 ${Math.abs(a.dq) === 2 ? '끝까지(180°)' : ''} 접어 보세요.`);
+      this.ui.hintText((onIt ? '표시된 곳으로 간 뒤, ' : '') + `반짝이는 접힘선을 움직이는 쪽으로 ${Math.abs(a.dq) === 2 ? '끝까지(180°)' : ''} 접어 보세요.`);
     } else if (a.type === 'push') {
       this.view.showHintRing(a.from);
       this.ui.hintText(`표시된 자리에서 블록을 ${this.dirWord(a.dir)} 밀어 보세요.`);
+    } else if (a.type === 'view') {
+      const step = ((a.view - this.sim.state.view) + 4) % 4;
+      const away = a.stand && ckey(...a.stand) !== ckey(...this.player.node);
+      if (away) this.view.showHintRing(a.stand);
+      this.ui.hintText((away ? '표시된 곳으로 간 뒤 ' : '') + (step === 2 ? '시점을 반 바퀴 돌려 보세요. 빈 곳을 옆으로 끌면 돌아가요.' : `시점을 ${step === 1 ? '한 칸' : '반대쪽으로 한 칸'} 돌려 보세요. 빈 곳을 옆으로 끌면 돌아가요.`));
     } else if (a.type === 'mirror') {
       this.view.showHintRing(this.sim.byId.get(a.id).cube);
       this.ui.hintText('표시된 거울의 방향을 바꿔 보세요.');
@@ -561,9 +634,11 @@ export class Game {
       const playing = this.state === STATE.PLAYING;
       if (this.state === STATE.FOLDING) this.stepFoldAnim(dt);
       this.stepWiggle(dt);
+      this.stepTurn(dt);
       let speed = 0;
-      if (playing) speed = this.player.update(dt, this.moveInput());
+      if (playing && !this.turn && !this.sim.rotating) speed = this.player.update(dt, this.moveInput());
       if (this.state !== STATE.PAUSED) {
+        this.view.playerFace = this.sim.res.top.get(ckey(...this.player.node));
         this.view.update(dt, t);
         const key = ckey(...this.player.node);
         const y = this.player.level + this.view.topOffset(key) + 0.025;

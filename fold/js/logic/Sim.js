@@ -1,6 +1,6 @@
 // 논리 계층의 중심: 스테이지 정의 + 논리 상태 → 배치·물체·퍼즐·이동 그래프.
 // 화면(Three.js)을 전혀 모르며, 되돌리기/재시작/저장/힌트 탐색 모두 이 상태 객체만 다뤄요.
-import { apply, mulMV, scale, ckey, dir4Of } from './math.js';
+import { apply, mulMV, scale, ckey, dir4Of, parseKey, screenKey, depthOf } from './math.js';
 import { layoutGeom, resolve, restCenter } from './Layout.js';
 import { evaluate } from './Puzzle.js';
 import { tryFold, cloneState, attachAt } from './Fold.js';
@@ -17,7 +17,7 @@ export function initialState(stage) {
   return {
     angles: Object.fromEntries(stage.creases.map(c => [c.id, 0])), order, hi: stage.faces.length, lo: 0,
     blocks, mirrors, keysHeld: [], keysTaken: [], doorsOpened: [],
-    player: stage.player.at.slice(), facing: stage.player.facing, folds: 0, moves: 0,
+    player: stage.player.at.slice(), facing: stage.player.facing, folds: 0, moves: 0, view: stage.view,
   };
 }
 
@@ -49,8 +49,24 @@ export class Sim {
     t.refresh(opts);
     return t;
   }
+  // 지금 시점 (회전 중이면 null → 착시 연결 없음)
+  get view() { return this.rotating ? null : this.state.view; }
+  // 화면 위치가 같은 걸을 수 있는 칸들 (앞에 보이는 칸부터)
+  screenCells(key, v) {
+    if (!this._scr || this._scrV !== v) {
+      this._scr = new Map(); this._scrV = v;
+      for (const k of this.res.top.keys()) {
+        const c = parseKey(k), sk = screenKey(c[0], c[1], c[2], v);
+        if (!this._scr.has(sk)) this._scr.set(sk, []);
+        this._scr.get(sk).push(c);
+      }
+      for (const l of this._scr.values()) l.sort((a, b) => depthOf(...b, v) - depthOf(...a, v));
+    }
+    return this._scr.get(key) || [];
+  }
   refresh(opts = {}) {
     const { stage, state } = this;
+    this._scr = null;
     this.geo = layoutGeom(stage, state.angles);
     let ghost = (this.puz && this.puz.ghost) || {};
     for (let it = 0; it < 4; it++) {

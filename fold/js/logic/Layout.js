@@ -32,7 +32,7 @@ export function layoutGeom(stage, angles) {
     faceN[f.id] = n;
     const horiz = Math.abs(n[1]) === 1;
     for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) {
-      if (!f.has(i, j)) continue;
+      if (!f.has(i, j) || f.decor) continue;
       const c = apply(t, restCenter(f, i, j));
       const cell = { i, j, c, horiz, key: null };
       if (horiz) {

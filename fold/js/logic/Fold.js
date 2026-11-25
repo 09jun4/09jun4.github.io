@@ -12,6 +12,7 @@ export const FOLD_REASONS = {
   playerHit: '인형과 부딪혀서 접을 수 없어요',
   stack: '블록 위에 블록을 올릴 수는 없어요',
   lost: '블록이 떨어질 곳이 없어요',
+  reach: '접힘선이 붙은 종이 위에 서야 접을 수 있어요',
 };
 
 export function tryFold(sim, cid, dq, opts = {}) {
@@ -22,6 +23,7 @@ export function tryFold(sim, cid, dq, opts = {}) {
   if (na < c.min || na > c.max) return { ok: false, reason: 'limit' };
   const moving = new Set(c.faces);
   if (!opts.ignorePlayer && moving.has(sim.res.top.get(ckey(...state.player)))) return { ok: false, reason: 'player' };
+  if (!opts.ignorePlayer && stage.reach && sim.res.top.get(ckey(...state.player)) !== c.parent) return { ok: false, reason: 'reach' };
 
   // 쌓임 순서: 도는 면이 회전 도중 최종 위치보다 위를 지나왔으면 위에, 아래를 지나왔으면 아래에 놓여요
   const T0 = sim.geo.T, P = T0[c.parent];
@@ -103,7 +105,7 @@ export function cloneState(s) {
     blocks: Object.fromEntries(Object.entries(s.blocks).map(([k, v]) => [k, { ...v }])),
     mirrors: { ...s.mirrors }, keysHeld: s.keysHeld.slice(), keysTaken: s.keysTaken.slice(),
     doorsOpened: s.doorsOpened.slice(), player: s.player.slice(), facing: s.facing,
-    folds: s.folds, moves: s.moves,
+    folds: s.folds, moves: s.moves, view: s.view,
   };
 }
 

@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "chapters": [
     {
       "id": 1,
-      "name": "백지",
-      "en": "White Paper",
+      "name": "접기",
+      "en": "Fold",
       "paper": "white",
       "stages": [
         "ch1/1-1.json",
@@ -17,9 +17,9 @@
     },
     {
       "id": 2,
-      "name": "청지",
-      "en": "Blue Paper",
-      "paper": "blue",
+      "name": "시점",
+      "en": "Perspective",
+      "paper": "peach",
       "stages": [
         "ch2/2-1.json",
         "ch2/2-2.json",
@@ -27,7 +27,38 @@
         "ch2/2-4.json",
         "ch2/2-5.json",
         "ch2/2-6.json"
-      ]
+      ],
+      "shadows": false
+    },
+    {
+      "id": 3,
+      "name": "가림",
+      "en": "Veil",
+      "paper": "mint",
+      "stages": [
+        "ch3/3-1.json",
+        "ch3/3-2.json",
+        "ch3/3-3.json",
+        "ch3/3-4.json",
+        "ch3/3-5.json",
+        "ch3/3-6.json"
+      ],
+      "shadows": false
+    },
+    {
+      "id": 4,
+      "name": "불가능한 건축",
+      "en": "Impossible",
+      "paper": "lavender",
+      "stages": [
+        "ch4/4-1.json",
+        "ch4/4-2.json",
+        "ch4/4-3.json",
+        "ch4/4-4.json",
+        "ch4/4-5.json",
+        "ch4/4-6.json"
+      ],
+      "shadows": false
     }
   ]
 }

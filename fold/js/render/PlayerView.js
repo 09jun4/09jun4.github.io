@@ -48,8 +48,11 @@ export class PlayerView {
     this.legL.position.set(-0.06, 0.0, 0); this.legR.position.set(0.06, 0.0, 0);
     this.body.add(this.legL, this.legR);
     this.root.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = false; } });
+    // 발밑 둥근 그림자 (그림자를 끈 착시 장에서도 땅에 붙어 보이게)
+    const blob = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3a3028, transparent: true, opacity: 0.18, depthWrite: false }));
+    blob.position.y = 0.004; blob.renderOrder = 2;
+    this.root.add(blob);
 
-    this.root.scale.setScalar(1.15);
     this.yaw = 0; this.phase = 0; this.speedK = 0; this.act = 0; this.actKind = ''; this.hop = 0;
   }
   // 상호작용 연출: 'push' | 'pick' | 'fold' | 'bump' | 'win'
@@ -78,6 +81,9 @@ export class PlayerView {
     if (this.actKind === 'pick' || this.actKind === 'win') { aL = aR = -2.6 * a; zL = 0.5 * a; zR = -0.5 * a; }
     if (folding) { aR = -2.2 + Math.sin(t * 6) * 0.15; zR = -0.3; } // 접는 동안 팔을 들어 지휘
     this.armL.rotation.set(aL, 0, zL); this.armR.rotation.set(aR, 0, zR);
+    // 숨은 통로: 기둥 뒤에서 잠깐 사라졌다 나타남
+    const vanish = this.actKind === 'vanish' ? Math.sin(this.act * Math.PI) : 0;
+    this.root.scale.setScalar(1.15 * (1 - vanish * 0.95));
     this.hop = Math.max(0, this.hop - dt * 2.5);
     this.body.position.y += Math.sin(this.hop * Math.PI) * 0.12;
   }

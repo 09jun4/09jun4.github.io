@@ -42,7 +42,7 @@ function stateKey(stage, set) {
     stage.creases.map(c => s.angles[c.id]).join(','), stacks.join(';'),
     Object.keys(s.blocks).sort().map(b => b + '@' + p.byId.get(b).cubeKey).join(';'),
     Object.keys(s.mirrors).sort().map(m => s.mirrors[m]).join(''),
-    s.keysTaken.join(','), s.keysHeld.join(','), s.doorsOpened.join(','), rep,
+    s.keysTaken.join(','), s.keysHeld.join(','), s.doorsOpened.join(','), s.view, rep,
   ].join('|');
 }
 
@@ -56,7 +56,7 @@ function* successors(sim, set) {
   // 1) 접기
   for (const c of sim.stage.creases) {
     for (const dq of [1, -1, 2, -2]) {
-      const stand = nodes.filter(n => !c.faces.includes(p.res.top.get(ckey(...n))));
+      const stand = nodes.filter(n => { const f = p.res.top.get(ckey(...n)); return sim.stage.reach ? f === c.parent : !c.faces.includes(f); });
       if (!stand.length) continue;
       const r = tryFold(p, c.id, dq, P_OPT);
       if (!r.ok) continue;
@@ -75,20 +75,31 @@ function* successors(sim, set) {
       }
     }
   }
-  // 2) 블록 밀기
-  for (const i of p.objs) {
-    if (i.o.type !== 'block' || !i.upright || !i.functional) continue;
-    for (let d = 0; d < 4; d++) {
-      const behind = [i.cube[0] - DIR4[d][0], i.cube[1], i.cube[2] - DIR4[d][1]];
-      if (!set.set.has(ckey(...behind))) continue;
-      const r = neighbor(p, behind, d);
-      if (!r || r.kind !== 'push' || !r.ok || r.obj !== i) continue;
-      const ns = cloneState(s);
-      ns.blocks[i.o.id] = attachAt(p, ckey(...r.to));
-      ns.player = i.cube.slice();
+  // 0) 시점 돌리기 (착시 연결이 바뀌어요)
+  // 어디에 서서 돌리느냐에 따라 닿는 곳이 달라지므로, 서 있을 수 있는 영역마다 나눠서 시도
+  if (sim.stage.views !== false) for (let v = 0; v < 4; v++) {
+    if (v === s.view) continue;
+    const labeled = new Set();
+    for (const n of nodes) {
+      const k = ckey(...n);
+      if (labeled.has(k)) continue;
+      const ns = cloneState(s); ns.view = v; ns.player = n.slice();
       const st = settle(sim, ns);
-      if (st) yield [{ type: 'push', block: i.o.id, dir: d, from: behind }, st];
+      if (!st) continue;
+      st.set.forEach(x => labeled.add(x));
+      yield [{ type: 'view', view: v, stand: n.slice() }, st];
     }
+  }
+  // 2) 블록 밀기: 걸어서 닿는 칸에서 미는 모든 경우 (착시로 맞닿은 블록도)
+  for (const n of nodes) for (let d = 0; d < 4; d++) {
+    const r = neighbor(p, n, d);
+    if (!r || r.kind !== 'push' || !r.ok) continue;
+    const i = r.obj;
+    const ns = cloneState(s);
+    ns.blocks[i.o.id] = attachAt(p, ckey(...r.to));
+    ns.player = i.cube.slice();
+    const st = settle(sim, ns);
+    if (st) yield [{ type: 'push', block: i.o.id, dir: d, from: n.slice() }, st];
   }
   // 3) 거울 돌리기
   for (const i of p.objs) {
@@ -135,4 +146,38 @@ export function solve(sim, startState, maxStates) {
   let r;
   do r = g.next(); while (!r.done);
   return r.value;
+}
+
+// ---- 미리 계산한 풀이로 힌트 주기 (어려운 스테이지에서 실시간 탐색이 늦을 때) ----
+// 저장된 행동 하나를 정착 상태에 적용 (풀이 탐색과 같은 규칙)
+function applyAction(sim, set, a) {
+  const { p, s } = set;
+  if (a.type === 'view') { const ns = cloneState(s); ns.view = a.view; if (a.stand) ns.player = a.stand.slice(); return settle(sim, ns); }
+  if (a.type === 'fold') {
+    const pp = sim.probe({ ...cloneState(s), player: a.stand.slice() }, P_OPT);
+    const r = tryFold(pp, a.crease, a.dq, P_OPT);
+    if (!r.ok) return null;
+    const ns = cloneState(r.state); ns.player = a.stand.slice();
+    return settle(sim, ns);
+  }
+  if (a.type === 'push') {
+    const r = neighbor(p, a.from, a.dir);
+    if (!r || r.kind !== 'push' || !r.ok) return null;
+    const ns = cloneState(s); ns.blocks[r.obj.o.id] = attachAt(p, ckey(...r.to)); ns.player = r.obj.cube.slice();
+    return settle(sim, ns);
+  }
+  if (a.type === 'mirror') { const ns = cloneState(s); ns.mirrors[a.id] ^= 1; return settle(sim, ns); }
+  return null;
+}
+// 지금 상태가 저장된 풀이의 몇 번째 단계와 같은지 찾아 다음 행동을 돌려줘요 (없으면 null)
+export function nextFromSolution(sim, state, start, actions) {
+  const cur = settle(sim, state);
+  if (!cur) return null;
+  const ck = stateKey(sim.stage, cur);
+  let set = settle(sim, start);
+  for (let i = 0; set && i <= actions.length; i++) {
+    if (stateKey(sim.stage, set) === ck) return i < actions.length ? { action: actions[i], left: actions.length - i } : { goal: true };
+    if (i < actions.length) set = applyAction(sim, set, actions[i]);
+  }
+  return null;
 }
