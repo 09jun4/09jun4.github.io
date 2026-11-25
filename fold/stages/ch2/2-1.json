@@ -132,18 +132,9 @@
  "solution": [
   {
    "type": "view",
-   "view": 1,
-   "stand": [
-    0,
-    0,
-    1
-   ]
-  },
-  {
-   "type": "view",
    "view": 3,
    "stand": [
-    1,
+    2,
     2,
     3
    ]

@@ -205,6 +205,15 @@
  "rotate": false,
  "solution": [
   {
+   "type": "mirror",
+   "id": "m1",
+   "from": [
+    7,
+    0,
+    0
+   ]
+  },
+  {
    "type": "fold",
    "crease": "c1",
    "dq": 1,
@@ -222,15 +231,6 @@
     0,
     0,
     3
-   ]
-  },
-  {
-   "type": "mirror",
-   "id": "m1",
-   "from": [
-    6,
-    1,
-    0
    ]
   }
  ]

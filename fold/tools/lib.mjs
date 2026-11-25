@@ -24,7 +24,12 @@ const VV = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
 export const at = (v, gx, gz, L) => [gx + L * VV[v][0], L, gz + L * VV[v][1]];
 // 칸 c 에서 dir 로 한 칸 나갈 때, 시점 v 에서 dLevel 만큼 높이가 다른 칸과 맞닿게 하는 도착 칸
 const D4 = { '+x': [1, 0], '-x': [-1, 0], '+z': [0, 1], '-z': [0, -1] };
-export const via = (c, dir, v, dL) => [c[0] + D4[dir][0] + dL * VV[v][0], c[1] + dL, c[2] + D4[dir][1] + dL * VV[v][1]];
+// 화면에서 이어져 보이려면: 카메라 쪽으로 나가면 더 높은(앞) 칸, 반대쪽으로 나가면 더 낮은(뒤) 칸이어야 해요
+export const seamOk = (dir, v, dL) => dL * (D4[dir][0] * VV[v][0] + D4[dir][1] * VV[v][1]) > 0;
+export const via = (c, dir, v, dL) => {
+  if (dL && !seamOk(dir, v, dL)) console.warn(`[가려지는 이음매] ${c} ${dir} 시점${v} dL${dL}`);
+  return [c[0] + D4[dir][0] + dL * VV[v][0], c[1] + dL, c[2] + D4[dir][1] + dL * VV[v][1]];
+};
 // 펜로즈 고리: 시작 칸에서 steps(예: 'f+x','u+x' …)대로 걸으며 칸과 계단을 만들어요. 'u' 는 계단 칸 + 한 층 위로.
 // 반환: { cells: [[x,y,z]...], stairs: [{at, dir}], end: 마지막 칸 다음에 닿을 칸(T0) }
 export function penrose(start, steps) {
@@ -70,6 +75,7 @@ export function findLinks(fromCells, toCells, occupied, kind = 'seam', dLs = [-4
     if (occupied.has(nxt.join())) continue;
     if (kind === 'hidden' && occupied.has([F[0] + 2 * dx, F[1], F[2] + 2 * dz].join())) continue;
     const T = [F[0] + step * dx + dL * VV[v][0], F[1] + dL, F[2] + step * dz + dL * VV[v][1]];
+    if (kind === 'seam' && !seamOk(dir, v, dL)) continue; // 화면에서 가려지는 이음매는 제외
     if (toSet.has(T.join())) out.push({ from: F, dir, view: v, dL, to: T, gap: kind === 'hidden' ? nxt : null });
   }
   return out;

@@ -9,7 +9,7 @@ const towersUnder = (cells, tone, base = -4) => cells.map(c => T(c[0], c[1], c[2
 // 3-1 기둥 뒤 — 기둥에 가려진 칸을 지나 반대편으로
 {
   const A = [3, 0, 1], B = via([4, 0, 1], '+x', 0, 2);    // 숨은 칸 (4,0,1) 다음 → (7,2,3)
-  const C = via([9, 2, 3], '+x', 3, -2);                   // 시점3: B 끝 동쪽
+  const C = via([9, 2, 3], '+x', 2, -2);                   // 시점2: B 끝 동쪽 너머 아래
   save('ch3', {
     ...meta('3-1', 1, '기둥 뒤', 'Behind the Pillar', 3,
       '기둥에 가려 보이지 않는 곳도 길이 이어져 있을 수 있어요. 가려진 쪽으로 걸어 들어가 보세요.',
@@ -71,7 +71,8 @@ const towersUnder = (cells, tone, base = -4) => cells.map(c => T(c[0], c[1], c[2
   const r = penrose([0, 0, 0], steps);
   const topCells = ['4,4,5', '4,4,6', '4,4,7'];
   const loopCells = r.cells.filter(c => !topCells.includes(c.join()));
-  const BP = via([3, 1, 0], '-z', 1, 3);                // (0,4,2) 시점1: 고리 첫 층 북쪽
+  via([3, 1, 0], '+z', 1, 3);                           // 시점1: 고리 첫 층 (3,1,0) 남쪽 → 넓은 판 (0,4,4)
+  const BP = [0, 4, 2];                                    // 넓은 판 x0..1 z2..6
   save('ch3', {
     ...meta('3-4', 4, '거꾸로 떨어지는 블록', 'Falling Upward', 5,
       '펜로즈 계단의 이음매는 블록도 지나가요. 꼭대기에서 밀면, 바닥으로 떨어지죠.',
@@ -84,7 +85,7 @@ const towersUnder = (cells, tone, base = -4) => cells.map(c => T(c[0], c[1], c[2
     hidden: [{ view: 1, from: [7, 2, 1], dir: '-x', to: [5, 4, 3] }],
     objects: [...stairsObjs(r, 'st'), O('s1', 'switch', [0, 0, 0]), O('b1', 'block', [1, 4, 6]),
       O('d1', 'door', [8, 2, 0], { when: ['s1'] }), O('exit', 'exit', [9, 2, 0])],
-    decor: [...towersUnder(r.cells.filter(c => c[1] === 0), 'a2'), T(...BP, 2, 5, 'a3'), T(8, 2, 0, 2, 1, 'a1'), col(4.5, 4.02, 7.5, 1.2, 'a3', 0.35), dome(4.5, 5.22, 7.5, 0.5, 0.35)],
+    decor: [...towersUnder(r.cells.filter(c => c[1] === 0), 'a2'), tower(...BP, 2, 5, 3, 'a3'), T(8, 2, 0, 2, 1, 'a1'), col(4.5, 4.02, 7.5, 1.2, 'a3', 0.35), dome(4.5, 5.22, 7.5, 0.5, 0.35)],
     player: { at: [1, 0, 0], facing: '+x' },
   });
 }
@@ -110,7 +111,7 @@ export function ring35(dl3 = -2, v4 = 3, dl4 = -2, v3 = 2, dl2 = 2, write = true
       P('C', ...C, 2, 2, { tone: 'a3' }), P('D', Dc[0] - 1, Dc[1], Dc[2], 2, 2, { tone: 'a1' }), WZ('DW', Dc[0] - 1, Dc[1], Dc[2], 1, 2, { tone: 'a1' }),
       P('E', Ec[0] - 2, Ec[1], Ec[2] - 1, 3, 2, { tone: 'a3' }), P('Ex', Ec[0] - 4, Ec[1], Ec[2] - 1, 2, 1, { tone: 'a3' }),
     ],
-    creases: [HX('cB', 'B', 'BF', 7, 2, 5, 1), HX('cD', 'D', 'DW', Dc[0] - 1, Dc[1], Dc[2], 1)],
+    creases: [HX('cB', 'B', 'BF', 7, 2, 5, 1), HX('cD', 'D', 'DW', Dc[0] - 1, Dc[1], Dc[2], 1, { min: 0, max: 90 })],
     hidden: [l1.link(B), l2.link(C), l3.link(Dc), l4.link(Ec)],
     objects: [O('k1', 'key', [C[0] + 1, C[1], C[2]]), O('d1', 'door', [Ec[0] - 3, Ec[1], Ec[2] - 1], { key: 'k1' }), O('exit', 'exit', [Ec[0] - 4, Ec[1], Ec[2] - 1])],
     decor: [T(0, 0, 0, 3, 3), T(...B, 2, 2, 'a1'), T(...C, 2, 2, 'a3'), T(Dc[0] - 1, Dc[1], Dc[2], 2, 2, 'a1'), T(Ec[0] - 2, Ec[1], Ec[2] - 1, 3, 2, 'a3'), T(Ec[0] - 4, Ec[1], Ec[2] - 1, 2, 1, 'a3'),

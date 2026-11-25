@@ -290,6 +290,16 @@
  },
  "solution": [
   {
+   "type": "fold",
+   "crease": "cW",
+   "dq": -1,
+   "stand": [
+    0,
+    0,
+    1
+   ]
+  },
+  {
    "type": "push",
    "block": "b1",
    "dir": 0,
@@ -307,16 +317,6 @@
     3,
     0,
     2
-   ]
-  },
-  {
-   "type": "fold",
-   "crease": "cW",
-   "dq": 1,
-   "stand": [
-    3,
-    0,
-    1
    ]
   },
   {

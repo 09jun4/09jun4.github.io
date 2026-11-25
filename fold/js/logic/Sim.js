@@ -66,7 +66,7 @@ export class Sim {
   }
   refresh(opts = {}) {
     const { stage, state } = this;
-    this._scr = null;
+    this._scr = null; this._scrPrep = null;
     this.geo = layoutGeom(stage, state.angles);
     let ghost = (this.puz && this.puz.ghost) || {};
     for (let it = 0; it < 4; it++) {

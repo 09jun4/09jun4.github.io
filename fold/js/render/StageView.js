@@ -127,6 +127,7 @@ export class StageView {
       m.position.set(d.at[0], d.at[1], d.at[2]);
       m.rotation.y = d.rot * Math.PI / 180;
       m.castShadow = m.receiveShadow = true;
+      m.userData.decor = true;
       this.root.add(m);
       if (d.type === 'arch') for (const sx of [-1, 1]) {
         const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, h - w / 2, 0.2).translate(sx * (w / 2 - 0.1), (h - w / 2) / 2, 0), m.material);

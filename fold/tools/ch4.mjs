@@ -7,8 +7,8 @@ const run = (name, fn) => { if (!ARGS.nowrite) fn(); }; // 탐색 중에는 파�
 
 // 4-1 빛은 곧다 — 빛은 실제 공간을 곧게, 인형은 착시로. 벽을 치우고, 높은 길로 건너, 두 거울을 맞추기
 export function light41(write = true) {
-  const H = via([2, 0, 0], '-z', 0, 1);                   // (3,1,0) 시점0: S 북쪽 경계 너머
-  const T1 = via([5, 1, 0], '+x', 2, -1);                 // (7,0,1) 시점2: H 동쪽 끝 너머 → 거울 탑
+  const H = via([2, 0, 0], '-z', 3, 1);                   // (3,1,-2) 시점3: S 북쪽 경계 너머 (위로)
+  const T1 = via([5, 1, -2], '+x', 2, -1);                // (7,0,-1) 시점2: H 동쪽 끝 너머 → 거울 탑 북쪽 칸
   const st = {
     ...meta('4-1', 1, '빛은 곧다', 'Light is Straight', 5,
       '빛은 착시를 따르지 않아요. 실제 공간을 곧게 나아가요. 인형은 보이는 대로 건너지만, 빛은 그렇지 않죠.',
@@ -17,7 +17,7 @@ export function light41(write = true) {
     faces: [
       P('S', 0, 0, 0, 3, 3), WX('W', 3, 0, 1, 1, 2),
       P('H', ...H, 3, 1, { tone: 'a1' }),
-      P('T1', 7, 0, 0, 2, 3, { tone: 'a3' }), P('MF', 8, 0, 2, 1, 1, { tone: 'a3' }),
+      P('T1', 7, 0, -1, 2, 4, { tone: 'a3' }), P('MF', 8, 0, 2, 1, 1, { tone: 'a3' }),
       P('RT', 11, 0, 2, 1, 3, { tone: 'a1' }),
       P('GB', 9, 0, 0, 2, 1, { tone: 'a1', when: ['r1'] }), P('EX', 11, 0, 0, 2, 1, { tone: 'a3' }),
     ],
@@ -28,7 +28,7 @@ export function light41(write = true) {
       O('m2', 'mirror', null, { face: 'MF', i: 0, j: 0, side: 1, mirror: 0 }),
       O('r1', 'receptor', [11, 0, 3]), O('exit', 'exit', [12, 0, 0]),
     ],
-    decor: [T(0, 0, 0, 3, 3), T(...H, 3, 1, 'a1'), T(7, 0, 0, 2, 3, 'a3'), T(11, 0, 2, 1, 3, 'a1'), T(11, 0, 0, 2, 1, 'a3'), col(11.5, 0.02, 4.5, 1.4, 'a2', 0.3), dome(11.5, 1.42, 4.5, 0.5, 0.3)],
+    decor: [T(0, 0, 0, 3, 3), T(...H, 3, 1, 'a1'), T(7, 0, -1, 2, 4, 'a3'), T(11, 0, 2, 1, 3, 'a1'), T(11, 0, 0, 2, 1, 'a3'), col(11.5, 0.02, 4.5, 1.4, 'a2', 0.3), dome(11.5, 1.42, 4.5, 0.5, 0.3)],
     player: { at: [0, 0, 0], facing: '+x' },
   };
   if (write) save('ch4', st);
@@ -68,11 +68,11 @@ export function weights42(write = true) {
 run('weights42', weights42);
 
 // 4-3 위로 떨어지는 블록 — 펜로즈 고리 바닥의 블록을 뒤로 밀면 꼭대기로 솟아올라 스위치를 눌러요
-export function fallUp43(vK = 2, dK = 2, write = true) {
+export function fallUp43(vK = 1, dK = 2, write = true) {
   const steps = ['f+x', 'u+x', 'f+x', 'u+x', 'f+x', 'f+z', 'u+z', 'f+z', 'u+z', 'f+z', 'f-x', 'f-x', 'f-x', 'f-z', 'f-z'];
   const r = penrose([0, 0, 0], steps);
   const Q = via([7, 2, 0], '-z', 0, -2);                // (5,0,-3) 시점0: 고리 둘째 층 북쪽 → 땅의 긴 길
-  const K = via([7, 4, 7], '+z', vK, dK);               // 꼭대기 층 남쪽 끝 → 열쇠 탑
+  const K = via([7, 4, 7], '+z', vK, dK);               // 꼭대기 층 남쪽 끝 → 열쇠 탑 (더 높은 곳)
   const st = {
     ...meta('4-3', 3, '위로 떨어지는 블록', 'Falling Up', 6,
       '끝없는 계단의 이음매로 블록을 밀면, 이번에는 위로 떨어져요.',
@@ -96,8 +96,8 @@ run('fallUp43', fallUp43);
 export function lightWeight44(vH = 0, vM = 1, dM = -2, write = true) {
   const H = via([3, 0, 1], '+x', vH, 2);             // S 동쪽 이음매 → 높은 탑 (스위치)
   const hEnd = [H[0] + 2, 2, H[2]];
-  const MT = via([H[0] + 1, 2, H[2]], '+z', vM, dM);  // 높은 탑 가운데 남쪽 → 거울 탑의 북서 칸
-  const mx = MT[0], mz = MT[2];
+  const MT = via([H[0] + 1, 2, H[2]], '-z', 1, -2);  // (9,0,0) 시점1: 높은 탑 가운데 북쪽 너머 아래 → 거울 탑
+  const mx = MT[0], mz = MT[2] + 1;  // 아래 배치는 예전 거울 탑(북서 칸 z=1) 기준
   const st = {
     ...meta('4-4', 4, '빛과 무게', 'Light and Weight', 6,
       '무게로 문을 열고, 시선으로 건너고, 빛으로 다리를 놓아요.',
@@ -106,16 +106,16 @@ export function lightWeight44(vH = 0, vM = 1, dM = -2, write = true) {
     view: 1,
     faces: [
       P('S', 0, 0, 0, 4, 4), P('H', ...H, 3, 1, { tone: 'a1' }),
-      P('MT', mx, 0, mz, 2, 3, { tone: 'a3' }), P('RT', mx + 1, 0, mz + 3, 1, 2, { tone: 'a1' }),
-      P('GB', mx + 2, 0, mz + 3, 2, 1, { tone: 'a1', when: ['r1'] }), P('EX', mx + 4, 0, mz + 2, 2, 2, { tone: 'a3' }),
+      P('MT', mx, 0, mz - 1, 2, 5, { tone: 'a3' }), P('RT', mx + 1, 0, mz + 4, 1, 2, { tone: 'a1' }),
+      P('GB', mx + 2, 0, mz + 4, 2, 1, { tone: 'a1', when: ['r1'] }), P('EX', mx + 4, 0, mz + 3, 2, 2, { tone: 'a3' }),
     ],
     objects: [
       O('src', 'source', [0, 0, 3], { dir: '+x' }), O('d1', 'door', [2, 0, 3], { when: ['sA'] }),
       O('b1', 'block', [1, 0, 1]), O('sA', 'switch', hEnd),
-      O('m1', 'mirror', [mx + 1, 0, 3], { mirror: 0 }), O('r1', 'receptor', [mx + 1, 0, mz + 4]),
-      O('exit', 'exit', [mx + 5, 0, mz + 2]),
+      O('m1', 'mirror', [mx + 1, 0, 3], { mirror: 0 }), O('r1', 'receptor', [mx + 1, 0, mz + 5]),
+      O('exit', 'exit', [mx + 5, 0, mz + 3]),
     ],
-    decor: [T(0, 0, 0, 4, 4), T(...H, 3, 1, 'a1'), T(mx, 0, mz, 2, 3, 'a3'), T(mx + 1, 0, mz + 3, 1, 2, 'a1'), T(mx + 4, 0, mz + 2, 2, 2, 'a3'), col(mx + 4.5, 0.02, mz + 4.5, 1.6, 'a2', 0.35), roof(mx + 4.5, 1.62, mz + 4.5, 0.8, 0.7)],
+    decor: [T(0, 0, 0, 4, 4), T(...H, 3, 1, 'a1'), T(mx, 0, mz - 1, 2, 5, 'a3'), T(mx + 1, 0, mz + 4, 1, 2, 'a1'), T(mx + 4, 0, mz + 3, 2, 2, 'a3'), col(mx + 4.5, 0.02, mz + 4.5, 1.6, 'a2', 0.35), roof(mx + 4.5, 1.62, mz + 4.5, 0.8, 0.7)],
     player: { at: [0, 0, 0], facing: '+x' },
   };
   if (write) save('ch4', st);
