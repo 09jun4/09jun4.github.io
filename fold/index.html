@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ecebe7">
+<meta name="description" content="종이를 접어 공간을 잇는 3D 퍼즐 게임">
+<title>FOLD : 접힌 세계</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv" aria-label="FOLD 게임 화면"></canvas>
+<div id="vignette"></div>
+
+<section id="menu" class="screen" hidden>
+  <div class="brand">
+    <h1>FOLD</h1>
+    <p class="sub">접힌 세계</p>
+  </div>
+  <nav class="menu-list" aria-label="메인 메뉴">
+    <button id="m-continue" hidden>이어하기</button>
+    <button id="m-play">플레이</button>
+    <button id="m-settings">설정</button>
+    <button id="m-credits">만든 사람</button>
+    <button id="m-exit">나가기</button>
+  </nav>
+  <div id="account" class="account">
+    <img id="acc-photo" alt="" hidden>
+    <span id="acc-name">게스트</span>
+    <button id="acc-btn" class="small">구글 로그인</button>
+  </div>
+  <p id="acc-msg" class="acc-msg" hidden></p>
+  <a class="home" href="/">09jun4.github.io</a>
+</section>
+
+<section id="select" class="screen panel-screen" hidden>
+  <header class="bar">
+    <button class="back" data-back aria-label="뒤로">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <h2>스테이지</h2>
+    <span id="sel-progress" class="muted"></span>
+  </header>
+  <div id="chapters" class="chapters" role="tablist"></div>
+  <div id="stages" class="stages"></div>
+</section>
+
+<section id="hud" hidden>
+  <div class="hud-top">
+    <div class="stage-info">
+      <div id="h-stage"></div>
+      <div id="h-goal"></div>
+    </div>
+    <div class="hud-btns">
+      <button id="b-hint" aria-label="힌트 (H)"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span>힌트</span></button>
+      <button id="b-undo" aria-label="되돌리기 (Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>되돌리기</span></button>
+      <button id="b-reset" aria-label="다시 시작 (R)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>다시</span></button>
+      <button id="b-pause" aria-label="일시정지 (Esc)"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg><span>메뉴</span></button>
+    </div>
+  </div>
+  <div id="h-hint" class="hint-bubble" role="status" hidden></div>
+  <div id="fold-arrows"></div>
+  <div class="hud-bottom">
+    <span id="h-folds" class="chip"></span>
+    <span id="h-key" class="chip gold" hidden>열쇠</span>
+    <span id="h-exit" class="chip" hidden></span>
+  </div>
+</section>
+
+<div id="intro" class="overlay" hidden>
+  <div class="card">
+    <div class="tag" id="intro-tag">새로운 규칙</div>
+    <h2 id="intro-title"></h2>
+    <p id="intro-text"></p>
+    <button id="intro-ok" class="primary">시작</button>
+  </div>
+</div>
+
+<section id="pause" class="overlay" hidden>
+  <div class="card menu-card">
+    <h2>일시정지</h2>
+    <button id="p-resume" class="primary">계속하기</button>
+    <button id="p-settings">설정</button>
+    <button id="p-save">저장</button>
+    <button id="p-restart">스테이지 다시 시작</button>
+    <button id="p-select">스테이지 선택</button>
+    <button id="p-menu">메인 메뉴</button>
+    <button id="p-debug" class="small" hidden>디버그 보기 (`)</button>
+  </div>
+</section>
+
+<section id="settings" class="overlay" hidden>
+  <div class="card settings-card">
+    <h2>설정</h2>
+    <label class="row"><span>전체 볼륨</span><input type="range" id="s-master" min="0" max="1" step="0.05"></label>
+    <label class="row"><span>음악</span><input type="range" id="s-music" min="0" max="1" step="0.05"></label>
+    <label class="row"><span>효과음</span><input type="range" id="s-sfx" min="0" max="1" step="0.05"></label>
+    <div class="row"><span id="q-label">그래픽 품질</span>
+      <div class="seg" role="radiogroup" aria-labelledby="q-label">
+        <button data-q="low" role="radio">낮음</button><button data-q="medium" role="radio">보통</button><button data-q="high" role="radio">높음</button>
+      </div>
+    </div>
+    <div class="row"><span>화면</span><button id="s-full" class="small">전체 화면</button></div>
+    <details class="help">
+      <summary>조작 방법</summary>
+      <dl>
+        <dt>이동</dt><dd>WASD · 방향키 · 바닥을 클릭/터치</dd>
+        <dt>접기</dt><dd>접힘선을 눌러 끌기 (끝까지 끌면 180°)</dd>
+        <dt>버튼 접기</dt><dd>접힘선을 탭 → 화살표 버튼 · Tab 으로 선택 후 Q / E</dd>
+        <dt>밀기</dt><dd>걸어서 부딪히기 · 블록을 미는 방향으로 쓸기</dd>
+        <dt>거울</dt><dd>걸어서 부딪히기 · 거울 터치</dd>
+        <dt>단축키</dt><dd>Z 되돌리기 · R 다시 · H 힌트 · F 전체 화면 · Esc 메뉴</dd>
+      </dl>
+    </details>
+    <button id="s-close" class="primary">닫기</button>
+  </div>
+</section>
+
+<section id="credits" class="overlay" hidden>
+  <div class="card">
+    <h2>만든 사람</h2>
+    <p class="credit-lines">기획 · 09jun4<br>개발 · Claude Code와 함께<br>엔진 · Three.js (MIT)<br>모든 모델·소리는 코드로 직접 만들었어요.</p>
+    <button class="primary" data-back>닫기</button>
+  </div>
+</section>
+
+<section id="exitinfo" class="overlay" hidden>
+  <div class="card">
+    <h2>나가기</h2>
+    <p>브라우저 탭을 닫으면 게임이 끝나요.<br>진행 기록은 자동으로 저장돼 있어요.</p>
+    <a class="btn" href="/">작품 목록으로</a>
+    <button class="primary" data-back>돌아가기</button>
+  </div>
+</section>
+
+<section id="complete" class="overlay soft" hidden>
+  <div class="card complete-card">
+    <div class="tag" id="c-tag">완료</div>
+    <h2 id="c-title"></h2>
+    <p id="c-story" class="story"></p>
+    <p id="c-stats" class="muted"></p>
+    <button id="c-next" class="primary">다음 스테이지</button>
+    <button id="c-select">스테이지 선택</button>
+  </div>
+</section>
+
+<div id="confirm" class="overlay" hidden>
+  <div class="card">
+    <p id="confirm-text">스테이지를 처음부터 다시 할까요?</p>
+    <div class="row-btns"><button id="confirm-no">아니요</button><button id="confirm-yes" class="primary">다시 시작</button></div>
+  </div>
+</div>
+
+<div id="error" class="overlay" hidden>
+  <div class="card">
+    <h2>문제가 생겼어요</h2>
+    <p id="error-text"></p>
+    <div class="row-btns"><button id="error-back">메뉴로</button><button id="error-retry" class="primary">다시 시도</button></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="debug" hidden></div>
+<div id="loading"><div class="ld-fold"></div><span>FOLD</span></div>
+
+<script src="js/firebase-config.js"></script>
+<script src="/track-master/js/vendor/firebase.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

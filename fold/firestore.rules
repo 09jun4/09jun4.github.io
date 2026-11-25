@@ -1,0 +1,18 @@
+rules_version = '2';
+// FOLD : 접힌 세계 — Firestore 보안 규칙.
+// 사이트 프로젝트(chiikawa-tobatsu)를 같이 써요. 그 프로젝트의 기존 규칙은 지우지 말고,
+// 아래 match /fold_users 블록만 Firebase 콘솔 > Firestore Database > 규칙 탭의 다른 match 블록 옆에 붙여 넣고 "게시"하세요.
+// (사이트 루트 firestore.rules 의 "사이트 규칙" 부분에도 같은 내용이 들어 있어요)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 개인 진행 기록: 본인만 읽고 쓸 수 있어요. save 는 JSON 문자열(크기 제한).
+    match /fold_users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string
+        && request.resource.data.save.size() < 100000
+        && request.resource.data.updatedAt == request.time;
+    }
+  }
+}

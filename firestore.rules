@@ -71,4 +71,13 @@
         && request.resource.data.label is string && request.resource.data.label.size() <= 30
         && request.resource.data.snap is string && request.resource.data.snap.size() < 20000;
     }
+    // FOLD 개인 진행 기록: 본인만 읽고 쓸 수 있어요. (fold/firestore.rules 와 같은 내용)
+    match /fold_users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'updatedAt'])
+        && request.resource.data.save is string
+        && request.resource.data.save.size() < 100000
+        && request.resource.data.updatedAt == request.time;
+    }
     // ---- 사이트 규칙 끝 ----
